@@ -1,0 +1,38 @@
+{
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "tsconfig.json": "tsconfig.*.json, env.d.ts",
+    "vite.config.*": "jsconfig*, vitest.config.*, cypress.config.*, playwright.config.*",
+    "package.json": "package-lock.json, pnpm*, .yarnrc*, yarn*, .eslint*, eslint*, .oxlint*, oxlint*, .prettier*, prettier*, .editorconfig"
+  },
+  "editor.formatOnSaveMode": "file",
+  "search.quickOpen.includeHistory": true,
+  "editor.formatOnSave": true,
+  "editor.formatOnType": false,
+  "xo.enable": true,
+  "xo.format.enable": true,
+  "eslint.enable": false,
+  "eslint.format.enable": false,
+  "typescript.suggest.paths": true,
+  "javascript.suggest.paths": true,
+  "files.eol": "\n",
+  "terminal.integrated.detectLocale": "on",
+  "files.encoding": "utf8",
+  "[vue]": {
+    "editor.defaultFormatter": "samverschueren.linter-xo",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "always",
+      "source.fixAll.xo": "always"
+    }
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "samverschueren.linter-xo",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "always",
+      "source.fixAll.xo": "always"
+    }
+  },
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  }
+}

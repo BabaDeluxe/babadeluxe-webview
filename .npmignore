@@ -1,0 +1,15 @@
+node_modules/
+src/
+.git/
+.vscode/
+.husky/
+*.log
+.env*
+tsconfig.json
+.*
+example.npmrc
+test-package.sh
+package.json
+package-lock.json
+xo[.-]config.ts
+*.md

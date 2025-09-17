@@ -1,0 +1,95 @@
+{
+  "name": "@babadeluxe/webview",
+  "version": "0.1.0",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0",
+    "npm": ">=8"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./constants/*": {
+      "types": "./dist/constants/*.d.ts",
+      "import": "./dist/constants/*.js"
+    },
+    "./types/*": {
+      "types": "./dist/types/*.d.ts",
+      "import": "./dist/types/*.js"
+    },
+    "./validators/*": {
+      "types": "./dist/validators/*.d.ts",
+      "import": "./dist/validators/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "constants/*": [
+        "./dist/constants/*.d.ts"
+      ],
+      "types/*": [
+        "./dist/types/*.d.ts"
+      ],
+      "validators/*": [
+        "./dist/validators/*.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "format": "xo --config xo.config.ts --fix --prettier",
+    "dev": "vite",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "preview": "vite preview",
+    "test:unit": "vitest",
+    "build-only": "vite build",
+    "type-check": "vue-tsc --build",
+    "publish-patch": "npm run build && npm version patch && npm publish",
+    "publish-minor": "npm run build && npm version minor && npm publish",
+    "publish-major": "npm run build && npm version major && npm publish",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.0",
+    "@vee-validate/yup": "^4.15.1",
+    "@vueuse/core": "^13.7.0",
+    "dexie": "^4.2.0",
+    "socket.io-client": "^4.8.1",
+    "vee-validate": "^4.15.1",
+    "vue": "^3.5.18",
+    "vue-markdown-render": "^2.2.1",
+    "vue-router": "^4.5.1",
+    "yup": "^1.7.0"
+  },
+  "devDependencies": {
+    "@babadeluxe/shared": "^0.1.7",
+    "@babadeluxe/xo-config": "^0.1.18",
+    "@iconify-json/weui": "^1.2.4",
+    "@tsconfig/node22": "^22.0.2",
+    "@types/dexie": "^1.3.32",
+    "@types/jsdom": "^21.1.7",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.16.5",
+    "@types/yup": "^0.29.14",
+    "@unocss/preset-icons": "^66.4.2",
+    "@unocss/transformer-directives": "^66.4.2",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/tsconfig": "^0.7.0",
+    "husky": "^9.1.7",
+    "jiti": "^2.4.2",
+    "jsdom": "^26.1.0",
+    "npm-run-all2": "^8.0.4",
+    "rollup-plugin-visualizer": "^6.0.3",
+    "typescript": "~5.8.0",
+    "unocss": "^66.4.2",
+    "vite": "^7.0.6",
+    "vite-plugin-vue-devtools": "^8.0.0",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.0.4",
+    "xo": "^1.2.2"
+  }
+}
