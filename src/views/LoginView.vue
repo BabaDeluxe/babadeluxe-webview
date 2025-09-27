@@ -4,9 +4,11 @@
       class="flex flex-col items-center justify-center w-full h-screen bg-slate text-deepText font-onest p-4"
     >
       <div class="flex flex-row justify-center items-center">
-        <BabaDeluxeIcon class="flex flex-1"></BabaDeluxeIcon>
+        <BabaDeluxeIcon class="flex flex-1" />
         <div class="flex flex-2 justify-center items-center">
-          <h2 class="text-2xl font-bold text-accent">BabaDeluxe Login</h2>
+          <h2 class="text-2xl font-bold text-accent">
+            BabaDeluxe Login
+          </h2>
         </div>
       </div>
       <div
@@ -16,51 +18,61 @@
           text="Login with GitHub"
           icon="i-simple-icons:github"
           @click="loginWithGitHub"
-        ></ButtonItem>
+        />
 
-        <div class="text-center text-subtleText my-4">or</div>
+        <div class="text-center text-subtleText my-4">
+          or
+        </div>
 
-        <form @submit.prevent="handleAuth" class="flex flex-col gap-4">
+        <form
+          @submit.prevent="handleAuth"
+          class="flex flex-col gap-4"
+        >
           <input
             v-model="email"
             type="email"
             placeholder="Email"
             class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
             required
-          />
+          >
           <input
             v-model="password"
             type="password"
             placeholder="Password"
             class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
             required
-          />
+          >
           <ButtonItem
             :text="isSignUp ? 'Sign Up' : 'Sign In'"
             :disabled="isLoading"
-          ></ButtonItem>
+          />
           <ButtonItem
             :text="isSignUp ? 'Switch to Sign In' : 'Switch to Sign Up'"
             @click="toggleMode"
-          ></ButtonItem>
+          />
         </form>
 
-        <p v-if="error" class="text-error mt-4">{{ error }}</p>
+        <p
+          v-if="error"
+          class="text-error mt-4"
+        >
+          {{ error }}
+        </p>
       </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { createClient } from "@supabase/supabase-js";
+import { inject, onMounted, ref } from "vue";
 import BabaDeluxeIcon from "../components/BabaDeluxeIcon.vue";
 import ButtonItem from "../components/ButtonItem.vue";
 import router from "../routes";
+import { IocEnum } from '@/enums/ioc-enum';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = "https://vspnxnpyzqskaiphkapr.supabase.co";
-const supabaseKey = "sb_publishable_KGxdYNkLclfDXSD0mSL_tA_ZlXByhrb";
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase: SupabaseClient<any, "public", "public", any, any> = inject(IocEnum.SUPABASE_CLIENT)!
+if (!supabase) throw new Error('Failed to inject the supabase client into the socket service')
 
 const email = ref("");
 const password = ref("");

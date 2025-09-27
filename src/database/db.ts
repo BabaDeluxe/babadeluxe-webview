@@ -1,9 +1,9 @@
-import Dexie, { type Table } from 'dexie'
-import { type Conversation, type Message } from '@babadeluxe/shared'
+import Dexie, { type EntityTable } from 'dexie'
+import type { Conversation, Message } from '@babadeluxe/shared'
 
 export class AppDb extends Dexie {
-  conversation!: Table<Conversation>
-  message!: Table<Message>
+  conversation!: EntityTable<Conversation, 'id'>
+  message!: EntityTable<Message, 'id'>
 
   constructor() {
     super('AppDb')
@@ -13,70 +13,83 @@ export class AppDb extends Dexie {
       message: '++id, conversationId, role, timestamp',
     })
 
-    this.conversation.hook('creating', (_, object) => {
-      object.createdAt = new Date()
-      object.updatedAt = new Date()
+    /* ❶ Simplified hooks without cross-table dependencies */
+    this.conversation.hook('creating', (_pk, object) => {
+      const now = new Date()
+      object.createdAt = now
+      object.updatedAt = now
     })
 
-    this.conversation.hook('updating', () => {
-      return { updatedAt: new Date() }
-    })
+    this.conversation.hook('updating', () => ({ updatedAt: new Date() }))
 
-    this.message.hook('creating', async (_primKey, object, trans) => {
+    this.message.hook('creating', (_pk, object) => {
       object.timestamp = new Date()
-
-      const conversation: unknown = await trans.table('conversation').get(object.conversationId)
-      if (!conversation) {
-        throw new Error(
-          `Cannot create message: Conversation with id ${object.conversationId} does not exist`
-        )
-      }
-    })
-
-    this.conversation.hook('deleting', async (primKey, _object, trans) => {
-      const messageCount = await trans
-        .table('message')
-        .where('conversationId')
-        .equals(primKey)
-        .count()
-      if (messageCount > 0) {
-        throw new Error(
-          `Cannot delete conversation: ${messageCount} messages depend on this conversation`
-        )
-      }
     })
   }
 
-  async getMessageByConversation(conversationId: number): Promise<Message[]> {
+  async getMessageByConversation(conversationId: number) {
+    await this._ready()
     return this.message.where('conversationId').equals(conversationId).toArray()
   }
 
-  async deleteConversationWithMessage(conversationId: number): Promise<void> {
+  async deleteConversationWithMessage(conversationId: number) {
+    await this._ready()
     return this.transaction('rw', this.conversation, this.message, async () => {
-      await this.message.where('conversationId').equals(conversationId).delete()
+      const messageCount = await this.message.where('conversationId').equals(conversationId).count()
+      if (messageCount > 0) {
+        await this.message.where('conversationId').equals(conversationId).delete()
+      }
+
       await this.conversation.delete(conversationId)
     })
   }
 
-  async createMessage(message: Omit<Message, 'id' | 'timestamp'>): Promise<number> {
-    const conversation = await this.conversation.get(message.conversationId)
-    if (!conversation) {
-      throw new Error(
-        `Cannot create message: Conversation with id ${message.conversationId} does not exist`
-      )
-    }
+  async createMessage(data: Omit<Message, 'id' | 'timestamp'>) {
+    await this._ready()
 
-    const messageAddResult = this.message.add(message as Message)
-    const finalResult = Number(messageAddResult)
-    return finalResult
+    const resolvedContent =
+      typeof data.content === 'string' ? data.content : await Promise.resolve(data.content)
+
+    // ❂ Move validation here where we control the transaction scope
+    return this.transaction('rw', this.conversation, this.message, async () => {
+      const conversation = await this.conversation.get(data.conversationId)
+      if (!conversation) {
+        throw new Error(`Cannot create message: Conversation ${data.conversationId} missing`)
+      }
+
+      // ❸ EntityTable automatically handles the type-safe omission of 'id' and 'timestamp'
+      const messageData = {
+        conversationId: data.conversationId,
+        role: data.role,
+        content: resolvedContent,
+        timestamp: new Date(), // Will be overwritten by hook
+        isStreaming: data.isStreaming ?? false,
+      }
+
+      // ❹ Add returns the generated ID - EntityTable handles this properly
+      const generatedId = await this.message.add(messageData)
+      return Number(generatedId)
+    })
   }
 
-  async updateMessage(id: number, content: string): Promise<number> {
+  async updateMessage(id: number, content: string) {
+    await this._ready()
     return this.message.update(id, { content })
   }
 
-  async deleteMessage(id: number): Promise<void> {
+  async deleteMessage(id: number) {
+    await this._ready()
     await this.message.delete(id)
+  }
+
+  async resetDatabase(): Promise<void> {
+    await this.delete()
+    await this.open()
+  }
+
+  private async _ready() {
+    if (this.isOpen()) return
+    await this.open()
   }
 }
 

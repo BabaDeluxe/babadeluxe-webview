@@ -2,15 +2,25 @@
   <section id="settings">
     <div class="flex flex-col">
       <div class="flex">
-        <div v-if="filteredSettings.length === 0">No settings found.</div>
-        <Form v-else :validation-schema="validationSchema">
-          <div v-for="setting in filteredSettings" :key="setting.settingKey">
+        <div v-if="filteredSettings.length === 0">
+          No settings found.
+        </div>
+        <Form
+          v-else
+          :validation-schema="validationSchema"
+        >
+          <div
+            v-for="setting in filteredSettings"
+            :key="setting.settingKey"
+          >
             <div>
               <label :for="setting.settingKey">
                 {{ _formatSettingLabel(setting.settingKey) }}
                 <span v-if="setting.required">*</span>
               </label>
-              <p v-if="setting.description">{{ setting.description }}</p>
+              <p v-if="setting.description">
+                {{ setting.description }}
+              </p>
             </div>
             <SettingField
               :setting="setting"
@@ -22,7 +32,10 @@
       </div>
       <div>
         <h3>API Keys</h3>
-        <div v-for="provider in apiProviders" :key="provider.key">
+        <div
+          v-for="provider in apiProviders"
+          :key="provider.key"
+        >
           <label :for="`api-${provider.key}`">{{ provider.name }} *</label>
           <div class="flex">
             <Field
@@ -32,14 +45,13 @@
               :placeholder="`Enter ${provider.name} API key...`"
               @input="_handleApiKeyChange(provider.key, $event.target.value)"
             />
-            <span v-if="validationStatus[provider.key] === 'validating'"
-              >Validating...</span
-            >
-            <span v-else-if="validationStatus[provider.key] === 'valid'"
-              >✓</span
-            >
+            <span v-if="validationStatus[provider.key] === 'validating'">Validating...</span>
+            <span v-else-if="validationStatus[provider.key] === 'valid'">✓</span>
           </div>
-          <div v-if="validationErrors[provider.key]" class="text-error text-sm">
+          <div
+            v-if="validationErrors[provider.key]"
+            class="text-error text-sm"
+          >
             {{ validationErrors[provider.key] }}
           </div>
         </div>
@@ -56,7 +68,7 @@ import * as yup from "yup";
 import type { AnySchema } from "yup";
 import { toTypedSchema } from "@vee-validate/yup";
 import { ApiKeyValidator } from "../api-key-validator";
-import { useSettingsSocket } from "../composables/use-settings-socket";
+import { useSettingsSocket } from '@/composables/use-settings-socket';
 
 interface Setting {
   settingKey: string;

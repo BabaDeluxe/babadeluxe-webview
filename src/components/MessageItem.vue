@@ -8,7 +8,7 @@
         <i
           :class="message.role === 'user' ? 'i-weui:friends' : 'i-weui:service'"
           class="text-sm"
-        ></i>
+        />
         <span
           class="text-xs font-medium"
           :class="message.role === 'user' ? 'text-blue-300' : 'text-green-300'"

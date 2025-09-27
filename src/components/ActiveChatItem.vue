@@ -3,19 +3,25 @@
     class="flex w-full gap-3 py-3"
     :class="role === 'user' ? 'justify-end' : 'justify-start'"
   >
-    <AvatarItem v-if="role === 'assistant'" class="shrink-0"></AvatarItem>
+    <AvatarItem
+      v-if="role === 'assistant'"
+      class="shrink-0"
+    />
 
     <div class="flex flex-col gap-2 max-w-full">
       <div
         class="rounded-lg px-4 py-2 text-sm whitespace-pre-wrap break-words relative"
         :class="bubbleClass"
       >
-        <div v-if="!_isEditing" class="min-h-5">
+        <div
+          v-if="!_isEditing"
+          class="min-h-5"
+        >
           <slot>
             <MarkdownRenderItem
               :content="content"
               :cursor="isStreaming && role === 'assistant'"
-            ></MarkdownRenderItem>
+            />
           </slot>
         </div>
 
@@ -26,8 +32,7 @@
           class="w-full min-h-20 bg-transparent resize-none outline-none border-none text-sm"
           :class="role === 'user' ? 'text-deepText' : 'text-subtleText'"
           @keydown="_handleKeydown"
-        >
-        </textarea>
+        />
       </div>
     </div>
 
@@ -39,13 +44,13 @@
           class="flex items-center justify-center w-6 h-6 rounded text-xs bg-accent hover:bg-accentHover text-white transition-colors"
           @click="_saveEdit"
         >
-          <i class="i-weui:done-outlined"></i>
+          <i class="i-weui:done-outlined" />
         </button>
         <button
           class="flex items-center justify-center w-6 h-6 rounded text-xs bg-panel hover:bg-borderMuted text-subtleText transition-colors"
           @click="_cancelEdit"
         >
-          <i class="i-weui:close-outlined"></i>
+          <i class="i-weui:close-outlined" />
         </button>
       </template>
 
@@ -54,14 +59,14 @@
           class="flex items-center justify-center w-6 h-6 rounded text-xs hover:bg-panel text-subtleText hover:text-accent transition-colors"
           @click="_startEdit"
         >
-          <i class="i-weui:pencil-outlined"></i>
+          <i class="i-weui:pencil-outlined" />
         </button>
         <div class="relative">
           <button
             class="flex items-center justify-center w-6 h-6 rounded text-xs hover:bg-panel text-subtleText hover:text-accent transition-colors"
             @click="_toggleModelDropdown"
           >
-            <i class="i-weui:circle-outlined"></i>
+            <i class="i-weui:circle-outlined" />
           </button>
           <div
             v-if="_showModelDropdown"
@@ -73,7 +78,7 @@
               class="w-full px-3 py-2 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2"
               @click="_selectModel(model)"
             >
-              <i class="i-weui:circle-outlined"></i>
+              <i class="i-weui:circle-outlined" />
             </button>
           </div>
         </div>
@@ -82,7 +87,7 @@
           class="flex items-center justify-center w-6 h-6 rounded text-xs hover:bg-panel text-subtleText hover:text-error transition-colors"
           @click="_handleDelete"
         >
-          <i class="i-weui:delete-outlined"></i>
+          <i class="i-weui:delete-outlined" />
         </button>
       </template>
     </div>

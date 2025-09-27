@@ -59,7 +59,7 @@
                   'w-4 h-4 bg-white rounded-full shadow transform transition-transform mt-1',
                   field.value ? 'translate-x-5' : 'translate-x-1',
                 ]"
-              ></div>
+              />
             </div>
           </div>
           <span class="text-sm">{{

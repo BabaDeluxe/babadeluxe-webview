@@ -1,9 +1,12 @@
 <template>
-  <section id="history" class="flex flex-col w-full w-full py-4 pr-4 pl-3">
+  <section
+    id="history"
+    class="flex flex-col w-full w-full py-4 pr-4 pl-3"
+  >
     <div class="flex flex-row w-full items-center justify-center gap-2">
-      <i class="i-weui:search-outlined text-3xl"></i>
+      <i class="i-weui:search-outlined text-3xl" />
       <!-- TODO Bind the update event for search -->
-      <InputItem placeholder="Search for a message"></InputItem>
+      <InputItem placeholder="Search for a message" />
     </div>
     <div class="flex flex-col gap-0">
       <ConversationItem

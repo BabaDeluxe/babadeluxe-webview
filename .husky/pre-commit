@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/bash
 
 # Store the original commit message
 COMMIT_MSG_FILE="$GIT_DIR/COMMIT_EDITMSG"

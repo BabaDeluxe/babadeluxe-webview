@@ -1,10 +1,4 @@
 {
-  "explorer.fileNesting.enabled": true,
-  "explorer.fileNesting.patterns": {
-    "tsconfig.json": "tsconfig.*.json, env.d.ts",
-    "vite.config.*": "jsconfig*, vitest.config.*, cypress.config.*, playwright.config.*",
-    "package.json": "package-lock.json, pnpm*, .yarnrc*, yarn*, .eslint*, eslint*, .oxlint*, oxlint*, .prettier*, prettier*, .editorconfig"
-  },
   "editor.formatOnSaveMode": "file",
   "search.quickOpen.includeHistory": true,
   "editor.formatOnSave": true,
@@ -16,8 +10,6 @@
   "typescript.suggest.paths": true,
   "javascript.suggest.paths": true,
   "files.eol": "\n",
-  "terminal.integrated.detectLocale": "on",
-  "files.encoding": "utf8",
   "[vue]": {
     "editor.defaultFormatter": "samverschueren.linter-xo",
     "editor.codeActionsOnSave": {
@@ -26,6 +18,13 @@
     }
   },
   "[javascript]": {
+    "editor.defaultFormatter": "samverschueren.linter-xo",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "always",
+      "source.fixAll.xo": "always"
+    }
+  },
+  "[typescript]": {
     "editor.defaultFormatter": "samverschueren.linter-xo",
     "editor.codeActionsOnSave": {
       "source.fixAll": "always",

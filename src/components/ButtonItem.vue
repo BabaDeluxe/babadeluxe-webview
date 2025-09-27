@@ -1,6 +1,9 @@
 <template>
-  <button :class="mergedClasses" @click="$emit('click', $event)">
-    <i :class="icon"></i> {{ text }}
+  <button
+    :class="mergedClasses"
+    @click="$emit('click', $event)"
+  >
+    <i :class="icon" /> {{ text }}
   </button>
 </template>
 
