@@ -9,6 +9,11 @@
   "eslint.format.enable": false,
   "typescript.suggest.paths": true,
   "javascript.suggest.paths": true,
+  "conventionalCommits.autoCommit": false,
+  "git.smartCommitChanges": "tracked",
+  "git.enableSmartCommit": false,
+  "git.suggestSmartCommit": false,
+  "conventionalCommits.promptScopes": false,
   "files.eol": "\n",
   "[vue]": {
     "editor.defaultFormatter": "samverschueren.linter-xo",

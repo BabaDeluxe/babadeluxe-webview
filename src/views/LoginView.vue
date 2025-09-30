@@ -102,7 +102,19 @@ const handleAuth = async () => {
       });
     }
     if (result.error) throw result.error;
-    // Handle successful auth (e.g., redirect or emit event)
+
+    // NEW: On success, manually get the session and redirect
+    // This ensures "direct" login even if onAuthStateChange lags
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      router.push("/chat");
+    } else {
+      // Fallback: If session isn't ready yet, give it a brief retry
+      setTimeout(async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) router.push("/chat");
+      }, 500); // Adjust delay as needed (e.g., 100-1000ms)
+    }
   } catch (err) {
     error.value = (err as Error).message;
   } finally {
@@ -113,7 +125,7 @@ const handleAuth = async () => {
 const loginWithGitHub = async () => {
   const { error } = await supabase.auth.signInWithOAuth({ provider: "github" });
   if (error) console.trace(error);
-  // OAuth flow handles redirect
+  // OAuth flow handles redirect automatically—no changes needed here
 };
 
 onMounted(() => {
@@ -124,3 +136,4 @@ onMounted(() => {
   });
 });
 </script>
+

@@ -8,22 +8,56 @@ export class AppDb extends Dexie {
   constructor() {
     super('AppDb')
 
+    // Keep version 1 for existing installations
     this.version(1).stores({
-      conversation: '++id, title, createdAt, updatedAt, messageCount',
+      conversation: '++id, title, status, createdAt, updatedAt, messageCount',
       message: '++id, conversationId, role, timestamp',
     })
 
-    /* ❶ Simplified hooks without cross-table dependencies */
+    // Version 2: Migrate status -> isActive
+    this.version(2)
+      .stores({
+        conversation: '++id, title, isActive, createdAt, updatedAt, messageCount', // Status -> isActive
+        message: '++id, conversationId, role, timestamp', // Unchanged
+      })
+      .upgrade(async (tx) => {
+        return tx
+          .table('conversation')
+          .toCollection()
+          .modify((conversation: any) => {
+            conversation.isActive = Number(conversation.status === 'active')
+            delete conversation.status
+          })
+      })
+
     this.conversation.hook('creating', (_pk, object) => {
       const now = new Date()
       object.createdAt = now
       object.updatedAt = now
+      object.isActive = 1
     })
 
     this.conversation.hook('updating', () => ({ updatedAt: new Date() }))
-
     this.message.hook('creating', (_pk, object) => {
       object.timestamp = new Date()
+    })
+  }
+
+  async getActiveConversations() {
+    await this._ready()
+    return this.conversation.where('isActive').equals(1).sortBy('updatedAt')
+  }
+
+  async getArchivedConversations() {
+    await this._ready()
+    return this.conversation.where('isActive').equals(0).sortBy('updatedAt')
+  }
+
+  async archiveConversation(conversationId: number) {
+    await this._ready()
+    return this.conversation.update(conversationId, {
+      isActive: 1,
+      updatedAt: new Date(),
     })
   }
 

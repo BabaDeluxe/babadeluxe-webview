@@ -1,26 +1,38 @@
 <template>
   <input
-    v-model="myInput"
+    :value="value"
     type="text"
     :placeholder="placeholder"
-    class="flex-1 bg-slate border border-gray-300 rounded border-2.5 px-3 py-2 text-base outline-none"
+    :disabled="disabled"
+    class="flex-1 bg-panel border border-borderMuted rounded-md px-3 py-2 text-base outline-none text-deepText placeholder-subtleText focus:border-accent transition-colors"
     autocomplete="off"
     @input="handleInput"
+    @keydown="$emit('keydown', $event)"
   >
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-
-const myInput = ref("");
-
+// ✅ Fix: Proper v-model implementation
 defineProps({
-  placeholder: String,
+  placeholder: {
+    type: String,
+    default: ''
+  },
+  value: {
+    type: String,
+    default: ''
+  },
+  disabled: {
+    type: Boolean,
+    default: false
+  }
 });
 
-const emit = defineEmits(["update:value"]);
+const emit = defineEmits(['update:value', 'input', 'keydown']);
 
-function handleInput() {
-  emit("update:value", myInput.value);
+function handleInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  emit('update:value', target.value);
+  emit('input', target.value);
 }
 </script>

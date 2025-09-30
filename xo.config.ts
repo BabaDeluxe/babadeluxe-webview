@@ -76,6 +76,7 @@ const config: any = [
       ...vueRules,
       'import-x/extensions': 'off',
       'unicorn/filename-case': 'off',
+      'unicorn/prefer-string-replace-all': 'off',
     },
   },
   {
@@ -86,6 +87,7 @@ const config: any = [
     rules: {
       'import-x/extensions': 'off',
       'unicorn/filename-case': 'off',
+      'unicorn/prefer-string-replace-all': 'off',
     },
   },
 ]

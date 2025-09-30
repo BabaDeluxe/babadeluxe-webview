@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { io, type ManagerOptions, type SocketOptions } from 'socket.io-client'
 import { ConsoleLogger } from '@simwai/utils'
+import 'virtual:uno.css'
 import './assets/main.css'
 import App from './App.vue'
 import router from './routes.js'
