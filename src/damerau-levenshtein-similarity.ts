@@ -49,7 +49,7 @@ export function damerauLevenshteinSimilarity(first: string, second: string): num
   }
 
   const maxLength: number = Math.max(lengthFirst, lengthSecond)
-  const similarity: number = 1 - previousRow[n] / maxLength
+  const similarity: number = (1 - previousRow[n]) / maxLength
   return similarity
 }
 

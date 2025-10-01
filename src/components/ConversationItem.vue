@@ -1,102 +1,63 @@
 <template>
-  <article
-    class="flex w-full gap-3 py-3"
-    :class="role === 'user' ? 'justify-end' : 'justify-start'"
-  >
-    <AvatarItem
-      v-if="role === 'assistant'"
-      class="shrink-0"
-    />
+<article class="flex w-full gap-3 py-3" :class="role === 'user' ? 'justify-end' : 'justify-start'">
+  <AvatarItem v-if="role === 'assistant'" class="shrink-0" />
 
-    <div class="flex flex-col gap-2">
-      <div
-        class="rounded-lg px-4 py-2 text-sm whitespace-pre-wrap break-words relative"
-        :class="bubbleClass"
-      >
-        <div
-          v-if="!_isEditing"
-          class="min-h-5"
-        >
-          <slot>
-            <MarkdownRenderer
-              :content="content"
-              :cursor="isStreaming && role === 'assistant'"
-            />
-          </slot>
-        </div>
-
-        <textarea
-          v-else
-          ref="_textareaRef"
-          v-model="_editValue"
-          class="w-full min-h-20 bg-transparent resize-none outline-none border-none text-sm"
-          :class="role === 'user' ? 'text-deepText' : 'text-subtleText'"
-          @keydown="_handleKeydown"
-          @input="_handleAutoSave"
-        />
+  <div class="flex flex-col gap-2">
+    <div class="rounded-lg px-4 py-2 text-sm whitespace-pre-wrap break-words relative" :class="bubbleClass">
+      <div v-if="!_isEditing" class="min-h-5">
+        <slot>
+          <MarkdownRenderer :content="content" :cursor="isStreaming && role === 'assistant'" />
+        </slot>
       </div>
 
-      <!-- Message Status and Timestamp -->
-      <div class="flex items-center justify-between text-xs text-subtleText">
-        <span>{{ formatTimestamp(timestamp) }}</span>
-        <div
-          v-if="role === 'user'"
-          class="flex items-center gap-1"
-        >
-          <i
-            v-if="status === 'sent'"
-            class="i-weui:done-outlined text-accent"
-          />
-          <i
-            v-else-if="status === 'pending'"
-            class="i-weui:time-outlined"
-          />
-          <i
-            v-else-if="status === 'error'"
-            class="i-weui:close-outlined text-error"
-          />
-        </div>
-      </div>
+      <textarea v-else ref="_textareaRef" v-model="_editValue"
+        class="w-full min-h-20 bg-transparent resize-none outline-none border-none text-sm"
+        :class="role === 'user' ? 'text-deepText' : 'text-subtleText'" @keydown="_handleKeydown"
+        @input="_handleAutoSave" />
+    </div>
 
-      <!-- Action Buttons -->
-      <div class="flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity duration-200">
-        <template v-if="_isEditing">
-          <button
-            class="flex items-center justify-center w-6 h-6 rounded text-xs bg-accent hover:bg-accentHover text-white transition-colors"
-            @click="_saveEdit"
-          >
-            <i class="i-weui:done-outlined" />
-          </button>
-          <button
-            class="flex items-center justify-center w-6 h-6 rounded text-xs bg-panel hover:bg-borderMuted text-subtleText transition-colors"
-            @click="_cancelEdit"
-          >
-            <i class="i-weui:close-outlined" />
-          </button>
-        </template>
-
-        <template v-else>
-          <button
-            class="flex items-center justify-center w-6 h-6 rounded text-xs hover:bg-panel text-subtleText hover:text-accent transition-colors"
-            @click="_startEdit"
-          >
-            <i class="i-weui:pencil-outlined" />
-          </button>
-          <button
-            class="flex items-center justify-center w-6 h-6 rounded text-xs hover:bg-panel text-subtleText hover:text-error transition-colors"
-            @click="_handleDelete"
-          >
-            <i class="i-weui:delete-outlined" />
-          </button>
-        </template>
+    <!-- Message Status and Timestamp -->
+    <div class="flex items-center justify-between text-xs text-subtleText">
+      <span>{{ formatTimestamp(timestamp) }}</span>
+      <div v-if="role === 'user'" class="flex items-center gap-1">
+        <i v-if="status === 'sent'" class="i-weui:done-outlined text-accent" />
+        <i v-else-if="status === 'pending'" class="i-weui:time-outlined" />
+        <i v-else-if="status === 'error'" class="i-weui:close-outlined text-error" />
       </div>
     </div>
 
-    <AvatarItem
-      v-if="role === 'user'"
-      class="shrink-0"
-    />
-  </article>
+    <!-- Action Buttons -->
+    <div class="flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity duration-200">
+      <template v-if="_isEditing">
+        <button
+          class="flex items-center justify-center w-6 h-6 rounded text-xs bg-accent hover:bg-accentHover text-white transition-colors"
+          @click="_saveEdit">
+          <i class="i-weui:done-outlined" />
+        </button>
+        <button
+          class="flex items-center justify-center w-6 h-6 rounded text-xs bg-panel hover:bg-borderMuted text-subtleText transition-colors"
+          @click="_cancelEdit">
+          <i class="i-weui:close-outlined" />
+        </button>
+      </template>
+
+      <template v-else>
+        <button
+          class="flex items-center justify-center w-6 h-6 rounded text-xs hover:bg-panel text-subtleText hover:text-accent transition-colors"
+          @click="_startEdit">
+          <i class="i-weui:pencil-outlined" />
+        </button>
+        <button
+          class="flex items-center justify-center w-6 h-6 rounded text-xs hover:bg-panel text-subtleText hover:text-error transition-colors"
+          @click="_handleDelete">
+          <i class="i-weui:delete-outlined" />
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <AvatarItem v-if="role === 'user'" class="shrink-0" />
+</article>
 </template>
 
 <script setup lang="ts">

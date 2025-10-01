@@ -1,4 +1,7 @@
 {
+  "vue.editor.templateInterpolationDecorators": true,
+  "editor.snippetSuggestions": "inline",
+  "typescript.suggest.autoImports": true,
   "editor.formatOnSaveMode": "file",
   "search.quickOpen.includeHistory": true,
   "editor.formatOnSave": true,
@@ -16,11 +19,7 @@
   "conventionalCommits.promptScopes": false,
   "files.eol": "\n",
   "[vue]": {
-    "editor.defaultFormatter": "samverschueren.linter-xo",
-    "editor.codeActionsOnSave": {
-      "source.fixAll": "always",
-      "source.fixAll.xo": "always"
-    }
+    "editor.defaultFormatter": "Vue.volar"
   },
   "[javascript]": {
     "editor.defaultFormatter": "samverschueren.linter-xo",

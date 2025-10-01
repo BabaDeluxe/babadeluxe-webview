@@ -1,19 +1,18 @@
-<template>
-  <button
-    :class="mergedClasses"
-    @click="$emit('click', $event)"
-  >
-    <i :class="icon" /> {{ text }}
-  </button>
-</template>
+<template><button :class="mergedClasses" :type="type" @click="$emit('click', $event)">
+  <i :class="icon" /> {{ text }}
+</button></template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, type PropType } from "vue";
 
 const props = defineProps({
   text: { type: String, default: "" },
   icon: { type: String, default: "" },
   style: { type: String, default: "" },
+  type: {
+    type: String as PropType<"button" | "submit" | "reset">,
+    default: "button"
+  }
 });
 
 defineEmits(["click"]);

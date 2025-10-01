@@ -1,94 +1,52 @@
 <template>
-  <div>
-    <!-- String/Text Input -->
-    <Field
-      v-if="setting.dataType === 'string'"
-      :name="fieldName"
-      :id="fieldName"
-      type="text"
-      :class="getInputClasses()"
-      :aria-invalid="hasError && isTouched"
-      :aria-describedby="hasError ? `error-${fieldName}` : undefined"
-      @input="$emit('field-changed', fieldName, $event.target.value)"
-    />
+<div>
+  <!-- String/Text Input -->
+  <Field v-if="setting.dataType === 'string'" :name="fieldName" :id="fieldName" type="text" :class="getInputClasses()"
+    :aria-invalid="hasError && isTouched" :aria-describedby="hasError ? `error-${fieldName}` : undefined"
+    @input="$emit('field-changed', fieldName, $event.target.value)" />
 
-    <!-- Number Input -->
-    <Field
-      v-else-if="setting.dataType === 'number'"
-      :name="fieldName"
-      :id="fieldName"
-      type="number"
-      :class="getInputClasses()"
-      :aria-invalid="hasError && isTouched"
-      :aria-describedby="hasError ? `error-${fieldName}` : undefined"
-      @input="
-        $emit(
-          'field-changed',
-          fieldName,
-          parseFloat($event.target.value) || null,
-        )
-      "
-    />
+  <!-- Number Input -->
+  <Field v-else-if="setting.dataType === 'number'" :name="fieldName" :id="fieldName" type="number"
+    :class="getInputClasses()" :aria-invalid="hasError && isTouched"
+    :aria-describedby="hasError ? `error-${fieldName}` : undefined" @input="
+      $emit(
+        'field-changed',
+        fieldName,
+        parseFloat($event.target.value) || null,
+      )
+      " />
 
-    <!-- Boolean Toggle -->
-    <div
-      v-else-if="setting.dataType === 'boolean'"
-      class="flex items-center space-x-3"
-    >
-      <Field
-        :name="fieldName"
-        :id="fieldName"
-        type="checkbox"
-        class="sr-only"
-        @change="$emit('field-changed', fieldName, $event.target.checked)"
-        v-slot="{ field }"
-      >
-        <label
-          :for="fieldName"
-          class="flex items-center space-x-3 cursor-pointer"
-        >
-          <div class="relative">
-            <div
-              :class="[
-                'w-10 h-6 rounded-full transition-colors',
-                field.value ? 'bg-baba-accent' : 'bg-gray-600',
-              ]"
-            >
-              <div
-                :class="[
-                  'w-4 h-4 bg-white rounded-full shadow transform transition-transform mt-1',
-                  field.value ? 'translate-x-5' : 'translate-x-1',
-                ]"
-              />
-            </div>
+  <!-- Boolean Toggle -->
+  <div v-else-if="setting.dataType === 'boolean'" class="flex items-center space-x-3">
+    <Field :name="fieldName" :id="fieldName" type="checkbox" class="sr-only"
+      @change="$emit('field-changed', fieldName, $event.target.checked)" v-slot="{ field }">
+      <label :for="fieldName" class="flex items-center space-x-3 cursor-pointer">
+        <div class="relative">
+          <div :class="[
+            'w-10 h-6 rounded-full transition-colors',
+            field.value ? 'bg-baba-accent' : 'bg-gray-600',
+          ]">
+            <div :class="[
+              'w-4 h-4 bg-white rounded-full shadow transform transition-transform mt-1',
+              field.value ? 'translate-x-5' : 'translate-x-1',
+            ]" />
           </div>
-          <span class="text-sm">{{
-            field.value ? "Enabled" : "Disabled"
+        </div>
+        <span class="text-sm">{{
+          field.value ? "Enabled" : "Disabled"
           }}</span>
-        </label>
-      </Field>
-    </div>
-
-    <!-- JSON Textarea -->
-    <Field
-      v-else-if="setting.dataType === 'json'"
-      :name="fieldName"
-      :id="fieldName"
-      as="textarea"
-      rows="4"
-      :class="getInputClasses() + ' font-mono text-sm'"
-      placeholder="Enter valid JSON..."
-      :aria-invalid="hasError && isTouched"
-      :aria-describedby="hasError ? `error-${fieldName}` : undefined"
-      @input="$emit('field-changed', fieldName, $event.target.value)"
-    />
-
-    <ErrorMessage
-      :name="fieldName"
-      :id="`error-${fieldName}`"
-      class="text-error text-xs mt-1"
-    />
+      </label>
+    </Field>
   </div>
+
+  <!-- JSON Textarea -->
+  <Field v-else-if="setting.dataType === 'json'" :name="fieldName" :id="fieldName" as="textarea" rows="4"
+    :class="getInputClasses() + ' font-mono text-sm'" placeholder="Enter valid JSON..."
+    :aria-invalid="hasError && isTouched" :aria-describedby="hasError ? `error-${fieldName}` : undefined"
+    @input="$emit('field-changed', fieldName, $event.target.value)" />
+
+  <ErrorMessage :name="fieldName" :id="`error-${fieldName}`" class="text-error text-xs mt-1" />
+</div>
 </template>
 
 <script setup lang="ts">

@@ -1,7 +1,7 @@
 <template>
-  <div class="markdown-content">
-    <VueMarkdown :source="_contentWithCursor" />
-  </div>
+<div class="markdown-content">
+  <VueMarkdown :source="_contentWithCursor" />
+</div>
 </template>
 
 <script setup lang="ts">

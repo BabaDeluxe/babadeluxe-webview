@@ -10,25 +10,9 @@ export class AppDb extends Dexie {
 
     // Keep version 1 for existing installations
     this.version(1).stores({
-      conversation: '++id, title, status, createdAt, updatedAt, messageCount',
+      conversation: '++id, title, isActive, createdAt, updatedAt, messageCount',
       message: '++id, conversationId, role, timestamp',
     })
-
-    // Version 2: Migrate status -> isActive
-    this.version(2)
-      .stores({
-        conversation: '++id, title, isActive, createdAt, updatedAt, messageCount', // Status -> isActive
-        message: '++id, conversationId, role, timestamp', // Unchanged
-      })
-      .upgrade(async (tx) => {
-        return tx
-          .table('conversation')
-          .toCollection()
-          .modify((conversation: any) => {
-            conversation.isActive = Number(conversation.status === 'active')
-            delete conversation.status
-          })
-      })
 
     this.conversation.hook('creating', (_pk, object) => {
       const now = new Date()
@@ -122,7 +106,10 @@ export class AppDb extends Dexie {
   }
 
   private async _ready() {
-    if (this.isOpen()) return
+    if (this.isOpen()) {
+      return
+    }
+
     await this.open()
   }
 }

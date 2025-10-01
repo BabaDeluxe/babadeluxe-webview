@@ -164,7 +164,12 @@ export function useSettingsSocket() {
   ) => {
     vscode?.postMessage({
       type: 'settings:update',
-      payload: { key, value, dataType, category },
+      payload: {
+        key,
+        value,
+        dataType,
+        category,
+      },
     } satisfies OutgoingMessage)
   }
 

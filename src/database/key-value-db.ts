@@ -15,8 +15,6 @@ export class KeyValueDb extends Dexie {
       object.updatedAt = new Date()
     })
 
-    this.keyValue.hook('updating', () => {
-      return { updatedAt: new Date() }
-    })
+    this.keyValue.hook('updating', () => ({ updatedAt: new Date() }))
   }
 }

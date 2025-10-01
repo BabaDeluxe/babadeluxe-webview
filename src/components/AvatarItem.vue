@@ -1,19 +1,12 @@
 <template>
-  <div class="max-h-14 max-w-14 w-auto h-auto justify-center flex items-center border-r-outset object-cover rounded-full">
-    <img
-      v-if="avatarUrl"
-      :src="avatarUrl"
-      alt="User Avatar"
-      class="object-cover max-h-14 max-w-14 w-auto h-auto border-r-outset object-cover rounded-full"
-    >
-    <div
-      v-else
-      class="bg-codeBg flex items-center justify-center text-subtleText"
-    >
-      <!-- Fallback initials -->
-      {{ userInitials }}
-    </div>
+<div class="max-h-14 max-w-14 w-auto h-auto justify-center flex items-center border-r-outset object-cover rounded-full">
+  <img v-if="avatarUrl" :src="avatarUrl" alt="User Avatar"
+    class="object-cover max-h-14 max-w-14 w-auto h-auto border-r-outset object-cover rounded-full">
+  <div v-else class="bg-codeBg flex items-center justify-center text-subtleText">
+    <!-- Fallback initials -->
+    {{ userInitials }}
   </div>
+</div>
 </template>
 
 <script setup lang="ts">
@@ -37,4 +30,3 @@ onMounted(async () => {
   }
 });
 </script>
-
