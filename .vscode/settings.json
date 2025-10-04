@@ -1,10 +1,16 @@
 {
+  "editor.tabSize": 2,
+  "editor.indentSize": "tabSize",
+  "autoimport.useSemiColon": false,
+  "autoimport.spaceBetweenBraces": true,
+  "typescript.preferences.importModuleSpecifier": "shortest",
+  "editor.insertSpaces": true,
   "vue.editor.templateInterpolationDecorators": true,
   "editor.snippetSuggestions": "inline",
   "typescript.suggest.autoImports": true,
-  "editor.formatOnSaveMode": "file",
   "search.quickOpen.includeHistory": true,
   "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
   "editor.formatOnType": false,
   "xo.enable": true,
   "xo.format.enable": true,
@@ -12,14 +18,16 @@
   "eslint.format.enable": false,
   "typescript.suggest.paths": true,
   "javascript.suggest.paths": true,
-  "conventionalCommits.autoCommit": false,
-  "git.smartCommitChanges": "tracked",
-  "git.enableSmartCommit": false,
-  "git.suggestSmartCommit": false,
   "conventionalCommits.promptScopes": false,
   "files.eol": "\n",
+  "files.encoding": "utf8",
+  "terminal.integrated.detectLocale": "on",
   "[vue]": {
-    "editor.defaultFormatter": "Vue.volar"
+    "editor.defaultFormatter": "samverschueren.linter-xo",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "always",
+      "source.fixAll.xo": "always"
+    }
   },
   "[javascript]": {
     "editor.defaultFormatter": "samverschueren.linter-xo",
@@ -29,7 +37,7 @@
     }
   },
   "[typescript]": {
-    "editor.defaultFormatter": "samverschueren.linter-xo",
+    "editor.defaultFormatter": "vscode.typescript-language-features",
     "editor.codeActionsOnSave": {
       "source.fixAll": "always",
       "source.fixAll.xo": "always"

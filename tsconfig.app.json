@@ -4,11 +4,10 @@
     "env.d.ts",
     "./src/**/*"
   ],
-  "exclude": [
-    "./src/**/__tests__/**/*"
-  ],
   "compilerOptions": {
-    "rootDir": "./src",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "sourceRoot": "./src",
     "outDir": "./dist",
     "paths": {
       "@/*": [
