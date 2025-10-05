@@ -5,6 +5,7 @@
     "./src/**/*"
   ],
   "compilerOptions": {
+    "incremental": true,
     "rootDir": ".",
     "baseUrl": ".",
     "sourceRoot": "./src",

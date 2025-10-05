@@ -4,7 +4,8 @@ src/
 .vscode/
 .husky/
 *.log
-.env*
+*.local
+
 tsconfig.json
 .*
 example.npmrc

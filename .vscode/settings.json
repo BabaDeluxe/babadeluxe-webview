@@ -6,7 +6,6 @@
   "typescript.preferences.importModuleSpecifier": "shortest",
   "editor.insertSpaces": true,
   "vue.editor.templateInterpolationDecorators": true,
-  "editor.snippetSuggestions": "inline",
   "typescript.suggest.autoImports": true,
   "search.quickOpen.includeHistory": true,
   "editor.formatOnSave": true,

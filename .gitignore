@@ -27,8 +27,15 @@ lerna-debug.log*
 *.sw?
 *.tsbuildinfo
 bundle-analysis.html
-.env
 *.db
 *.vsix
 *.old
 .npmrc
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
