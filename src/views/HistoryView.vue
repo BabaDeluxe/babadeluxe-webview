@@ -1,106 +1,107 @@
 <template>
-<section id="history" class="flex flex-col w-full py-4 pr-4 pl-3 bg-slate">
-  <div class="flex flex-row w-full items-center justify-center gap-2">
-    <i class="i-weui:search-outlined text-3xl text-subtleText" />
-    <InputItem v-model:value="searchQuery" placeholder="Search for a message" @input="handleSearch" />
-  </div>
-
-  <!-- Loading State -->
-  <div v-if="isLoading" class="flex justify-center p-8">
-    <div class="flex items-center gap-2 text-subtleText">
-      <div class="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      <span>Loading conversations...</span>
+  <section id="history" class="flex flex-col w-full py-4 pr-4 pl-3 bg-slate">
+    <div class="flex flex-row w-full items-center justify-center gap-2">
+      <i class="i-weui:search-outlined text-3xl text-subtleText" />
+      <InputItem v-model:value="searchQuery" placeholder="Search for a message" @input="handleSearch" />
     </div>
-  </div>
 
-  <!-- Conversation List -->
-  <div v-else class="flex flex-col gap-2 mt-4">
-    <h3 class="text-lg font-medium mb-2 text-deepText">Conversations</h3>
+    <!-- Loading State -->
+    <div v-if="isLoading" class="flex justify-center p-8">
+      <div class="flex items-center gap-2 text-subtleText">
+        <div class="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        <span>Loading conversations...</span>
+      </div>
+    </div>
 
-    <!-- Conversation Items -->
-    <div v-for="conversation in filteredConversations" :key="conversation.id"
-      class="flex items-center justify-between p-3 border border-borderMuted rounded-md hover:bg-panel cursor-pointer transition-colors"
-      :class="{ 'bg-accent/10 border-accent': conversation.id === currentConversationId }"
-      @click="switchToConversation(conversation.id!)">
-      <div class="flex-1">
-        <div class="font-medium text-deepText">
-          {{ conversation.title }}
+    <!-- Conversation List -->
+    <div v-else class="flex flex-col gap-2 mt-4">
+      <h3 class="text-lg font-medium mb-2 text-deepText">Conversations</h3>
+
+      <!-- Conversation Items -->
+      <div v-for="conversation in filteredConversations" :key="conversation.id"
+        class="flex items-center justify-between p-3 border border-borderMuted rounded-md hover:bg-panel cursor-pointer transition-colors"
+        :class="{ 'bg-accent/10 border-accent': conversation.id === currentConversationId }"
+        @click="switchToConversation(conversation.id!)">
+        <div class="flex-1">
+          <div class="font-medium text-deepText">
+            {{ conversation.title }}
+          </div>
+          <div class="text-sm text-subtleText">
+            {{ conversation.messageCount || 0 }} messages • {{ formatDate(conversation.updatedAt ?? undefined) }}
+          </div>
         </div>
-        <div class="text-sm text-subtleText">
-          {{ conversation.messageCount || 0 }} messages • {{ formatDate(conversation.updatedAt) }}
+        <div class="flex items-center gap-2">
+          <button @click.stop="handleRenameConversation(conversation)"
+            class="text-subtleText hover:text-accent p-1 transition-colors" title="Rename conversation">
+            <i class="i-weui:pencil-outlined" />
+          </button>
+          <button @click.stop="handleDeleteConversation(conversation.id!)"
+            class="text-subtleText hover:text-error p-1 transition-colors" title="Delete conversation">
+            <i class="i-weui:delete-outlined" />
+          </button>
         </div>
       </div>
-      <div class="flex items-center gap-2">
-        <button @click.stop="handleRenameConversation(conversation)"
-          class="text-subtleText hover:text-accent p-1 transition-colors" title="Rename conversation">
-          <i class="i-weui:pencil-outlined" />
-        </button>
-        <button @click.stop="handleDeleteConversation(conversation.id!)"
-          class="text-subtleText hover:text-error p-1 transition-colors" title="Delete conversation">
-          <i class="i-weui:delete-outlined" />
-        </button>
+
+      <!-- Empty State -->
+      <div v-if="filteredConversations.length === 0 && !isLoading"
+        class="flex flex-col items-center justify-center p-8 text-subtleText">
+        <i class="i-bi:chat-left text-4xl mb-2 opacity-50" />
+        <p class="text-center">
+          {{ searchQuery ? 'No conversations found' : 'No conversations yet' }}
+        </p>
+        <p class="text-xs mt-2 text-center">
+          Use the "New Chat" button above to start a conversation
+        </p>
       </div>
     </div>
 
-    <!-- Empty State -->
-    <div v-if="filteredConversations.length === 0 && !isLoading"
-      class="flex flex-col items-center justify-center p-8 text-subtleText">
-      <i class="i-bi:chat-left text-4xl mb-2 opacity-50" />
-      <p class="text-center">
-        {{ searchQuery ? 'No conversations found' : 'No conversations yet' }}
-      </p>
-      <p class="text-xs mt-2 text-center">
-        Use the "New Chat" button above to start a conversation
-      </p>
-    </div>
-  </div>
-
-  <!-- Error Display -->
-  <div v-if="error" class="bg-panel border border-error rounded-md p-3 mt-4">
-    <div class="flex items-center gap-2 text-error">
-      <i class="i-weui:error-outlined" />
-      <span class="text-sm">{{ error }}</span>
-    </div>
-  </div>
-
-  <!-- Selected Conversation Messages using ConversationItem -->
-  <div v-if="showSelectedMessages" class="mt-6">
-    <h4 class="text-md font-medium mb-2 text-deepText">
-      Messages in "{{ currentConversationTitle }}"
-    </h4>
-    <div class="flex flex-col gap-2 max-h-96 overflow-y-auto border border-borderMuted rounded-md p-2 bg-panel">
-      <div v-if="messagesLoading" class="flex justify-center p-4">
-        <div class="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-      <!-- Use ConversationItem for history display -->
-      <ConversationItem v-for="message in selectedConversationMessages" :key="message.id" v-bind="message" status="sent"
-        @delete="handleDeleteMessage" @update="handleUpdateMessage" @auto-save="handleAutoSave" />
-      <div v-if="selectedConversationMessages.length === 0 && !messagesLoading" class="text-center text-subtleText p-4">
-        No messages in this conversation
+    <!-- Error Display -->
+    <div v-if="error" class="bg-panel border border-error rounded-md p-3 mt-4">
+      <div class="flex items-center gap-2 text-error">
+        <i class="i-weui:error-outlined" />
+        <span class="text-sm">{{ error }}</span>
       </div>
     </div>
-  </div>
 
-  <!-- Rename Dialog -->
-  <div v-if="renameDialog.show" class="fixed inset-0 bg-slate/80 flex items-center justify-center z-50"
-    @click.self="cancelRename">
-    <div class="bg-panel border border-borderMuted rounded-lg p-6 max-w-md w-full mx-4">
-      <h3 class="text-lg font-medium mb-4 text-deepText">Rename Conversation</h3>
-      <InputItem v-model:value="renameDialog.title" placeholder="Enter new title" class="mb-4"
-        @keydown.enter.prevent="confirmRename" @keydown.escape.prevent="cancelRename" />
-      <div class="flex justify-end gap-2">
-        <button @click="cancelRename" class="px-4 py-2 text-subtleText hover:text-deepText transition-colors">
-          Cancel
-        </button>
-        <button @click="confirmRename"
-          class="px-4 py-2 bg-accent text-slate rounded-md hover:bg-accentHover transition-colors"
-          :disabled="!renameDialog.title.trim()">
-          Rename
-        </button>
+    <!-- Selected Conversation Messages using ConversationItem -->
+    <div v-if="showSelectedMessages" class="mt-6">
+      <h4 class="text-md font-medium mb-2 text-deepText">
+        Messages in "{{ currentConversationTitle }}"
+      </h4>
+      <div class="flex flex-col gap-2 max-h-96 overflow-y-auto border border-borderMuted rounded-md p-2 bg-panel">
+        <div v-if="messagesLoading" class="flex justify-center p-4">
+          <div class="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        </div>
+        <!-- Use ConversationItem for history display -->
+        <ConversationItem v-for="message in selectedConversationMessages" :key="message.id" v-bind="message"
+          status="sent" @delete="handleDeleteMessage" @update="handleUpdateMessage" @auto-save="handleAutoSave" />
+        <div v-if="selectedConversationMessages.length === 0 && !messagesLoading"
+          class="text-center text-subtleText p-4">
+          No messages in this conversation
+        </div>
       </div>
     </div>
-  </div>
-</section>
+
+    <!-- Rename Dialog -->
+    <div v-if="renameDialog.show" class="fixed inset-0 bg-slate/80 flex items-center justify-center z-50"
+      @click.self="cancelRename">
+      <div class="bg-panel border border-borderMuted rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-medium mb-4 text-deepText">Rename Conversation</h3>
+        <InputItem v-model:value="renameDialog.title" placeholder="Enter new title" class="mb-4"
+          @keydown.enter.prevent="confirmRename" @keydown.escape.prevent="cancelRename" />
+        <div class="flex justify-end gap-2">
+          <button @click="cancelRename" class="px-4 py-2 text-subtleText hover:text-deepText transition-colors">
+            Cancel
+          </button>
+          <button @click="confirmRename"
+            class="px-4 py-2 bg-accent text-slate rounded-md hover:bg-accentHover transition-colors"
+            :disabled="!renameDialog.title.trim()">
+            Rename
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -136,6 +137,7 @@ const renameDialog = ref({
 
 onMounted(async () => {
   try {
+    await loadMessages()
     await loadConversations()
   } catch (error) {
     console.error('Failed to load conversations:', error)

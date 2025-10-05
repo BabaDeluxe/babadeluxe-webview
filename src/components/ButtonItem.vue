@@ -1,4 +1,4 @@
-<template><button :class="mergedClasses" :type="type" @click="$emit('click', $event)">
+<template><button :class="mergedClasses" :type="type" :disabled="disabled" @click="$emit('click', $event)">
   <i :class="icon" /> {{ text }}
 </button></template>
 
@@ -9,9 +9,13 @@ const props = defineProps({
   text: { type: String, default: "" },
   icon: { type: String, default: "" },
   style: { type: String, default: "" },
-  type: {
-    type: String as PropType<"button" | "submit" | "reset">,
-    default: "button"
+  type: {type: String as PropType<'button' | 'submit' | 'reset'>,
+    default: 'button',
+    validator: (value: string) => ['button', 'submit', 'reset'].includes(value)
+  },
+  disabled: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -39,12 +43,12 @@ const conflictGroups = {
   transition: ["transition-"],
 };
 
-function _extractBaseClass(className: string): string {
+const _extractBaseClass = (className: string): string => {
   // Remove responsive prefix (sm:, md:, lg:, xl:, 2xl:) to get base class
   return className.includes(":") ? className.split(":", 2)[1] : className;
-}
+};
 
-function _getConflictGroup(className: string): string | null {
+const _getConflictGroup = (className: string): string | null => {
   const baseClass = _extractBaseClass(className);
 
   for (const [groupName, prefixes] of Object.entries(conflictGroups)) {
@@ -57,12 +61,9 @@ function _getConflictGroup(className: string): string | null {
     }
   }
   return null;
-}
+};
 
-function _resolveClassConflictsWithResponsive(
-  baseClasses: string,
-  styleClasses: string,
-): string {
+const _resolveClassConflictsWithResponsive = (baseClasses: string, styleClasses: string): string => {
   const base = baseClasses.split(" ").filter(Boolean);
   const style = styleClasses.split(" ").filter(Boolean);
 
@@ -83,7 +84,7 @@ function _resolveClassConflictsWithResponsive(
   });
 
   return [...filteredBase, ...style].join(" ");
-}
+};
 
 const mergedClasses = computed(() => {
   const baseClasses =

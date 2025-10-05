@@ -7,8 +7,8 @@ import type { TestOptions } from './tests/e2e/fixtures.js'
 
 const _dirname = import.meta.dirname
 
-dotenv.config({ path: path.resolve(_dirname, '.env.development') })
-dotenv.config({ path: path.resolve(_dirname, '.env.test.local') })
+dotenv.config({ path: path.resolve(_dirname, '.env') })
+dotenv.config({ path: path.resolve(_dirname, '.env.local') })
 
 export default defineConfig<TestOptions>({
   testDir: './tests',
@@ -88,6 +88,6 @@ export default defineConfig<TestOptions>({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
-    reuseExistingServer: !import.meta.dirname,
+    reuseExistingServer: true,
   },
 })

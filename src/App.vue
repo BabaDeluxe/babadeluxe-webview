@@ -1,15 +1,14 @@
 <template>
 <div class="h-100vh w-full bg-slate flex flex-col font-onest text-deepText">
-  <div v-if="$route.path !== '/'">
+  <div v-if="session && $route.path !== '/'">
     <header class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20">
       <BabaDeluxeIcon />
 
       <div class="flex flex-row gap-4 justify-end items-center">
         <ButtonItem text="New Chat" icon="i-weui:pencil-outlined" @click="handleNewChat" />
-        <Avatar style="h-10" />
 
         <RouterLink to="/Settings" class="px-4 py-2 rounded-lg hover:text-accent transition-colors">
-          <ButtonItem :style="'bg-none text-deepText text-2xl'" icon="i-weui:setting-outlined" />
+          <ButtonItem @click="" :style="'bg-none text-deepText text-2xl'" icon="i-weui:setting-outlined" />
         </RouterLink>
       </div>
     </header>
@@ -28,6 +27,7 @@
       </nav>
     </div>
   </div>
+
   <Suspense>
     <template #default>
       <RouterView class="flex-1 flex flex-col" />
@@ -44,16 +44,15 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useConversation } from './composables/use-conversation'
-import Avatar from './components/AvatarItem.vue'
 import BabaDeluxeIcon from './components/BabaDeluxeIcon.vue'
 import ButtonItem from './components/ButtonItem.vue'
 import { inject, onMounted, ref } from 'vue'
-import { supabase } from './main'
 import { ConsoleLogger } from '@simwai/utils'
 import { IocEnum } from './enums/ioc-enum'
-import type { Session } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, SupabaseClient } from '@supabase/supabase-js'
 
 const logger: ConsoleLogger = inject(IocEnum.LOGGER)!
+const supabase: SupabaseClient = inject(IocEnum.SUPABASE_CLIENT)!
 
 const { createConversation } = useConversation()
 
@@ -67,6 +66,21 @@ const redirectToChat = () => {
 }
 
 onMounted(async () => {
+  const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
+    if (event === 'SIGNED_IN' && supabaseSession) {
+      session.value = supabaseSession
+      redirectToChat()
+    } else if (event === 'SIGNED_OUT') {
+      router.push('/')
+    } else if (event === 'PASSWORD_RECOVERY') {
+      router.push('/reset-password')
+    }
+  }
+
+  supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+    handleAuthStateChange(event, session)
+  })
+
   const supabaseSession = await supabase.auth.getSession()
   const sessionData = supabaseSession.data.session
   if (!sessionData) {
@@ -76,17 +90,6 @@ onMounted(async () => {
 
   session.value = sessionData
   redirectToChat()
-
-  const handleAuthStateChange = (event: string, supabaseSession: Session | null) => {
-    if (event === 'SIGNED_IN' && supabaseSession) {
-      session.value = supabaseSession
-      redirectToChat()
-    }
-  }
-
-  supabase.auth.onAuthStateChange((event, session) => {
-    handleAuthStateChange(event, session)
-  })
 })
 
 const handleNewChat = async () => {

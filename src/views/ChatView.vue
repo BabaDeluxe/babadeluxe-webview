@@ -145,21 +145,21 @@ async function fetchUsername() {
     }
 
     // Try 3: Username from user_setting table
-    const { data: settings, error: settingsError } = await supabase
-      .from('user_setting')
-      .select('settingValue')
-      .eq('fkUserId', user?.id)
-      .eq('settingKey', 'username')
-      .limit(1)
-      .single()
+    // const { data: settings, error: settingsError } = await supabase
+    //   .from('user_setting')
+    //   .select('settingValue')
+    //   .eq('fkUserId', user?.id)
+    //   .eq('settingKey', 'username')
+    //   .limit(1)
+    //   .single()
 
-    if (settingsError || !settings) {
-      console.error('Failed to fetch username from user_setting:', settingsError)
-      currentUsername.value = 'Unknown'
-      return
-    }
+    // if (settingsError || !settings) {
+    //   console.error('Failed to fetch username from user_setting:', settingsError)
+    //   currentUsername.value = 'Unknown'
+    //   return
+    // }
 
-    currentUsername.value = settings.settingValue || 'Unknown'
+    // currentUsername.value = settings.settingValue || 'Unknown'
   } catch (error) {
     console.error('Error fetching username:', error)
     currentUsername.value = 'Unknown'
