@@ -1,7 +1,6 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "include": [
-    "env.d.ts",
     "./src/**/*"
   ],
   "compilerOptions": {
@@ -17,6 +16,7 @@
     },
     "noEmit": false,
     "sourceMap": true,
+    "skipLibCheck": true,
     "declarationMap": true,
     "declaration": true,
     "allowSyntheticDefaultImports": true,
