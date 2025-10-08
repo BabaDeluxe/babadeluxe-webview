@@ -3,5 +3,7 @@
         "vue.volar",
         "ms-vscode.extension-test-runner",
         "vitest.explorer",
+        "octref.vetur",
+        "antfu.iconify",
     ]
 }

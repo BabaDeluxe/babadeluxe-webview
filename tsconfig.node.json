@@ -8,9 +8,15 @@
     ],
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    "incremental": true
+    "incremental": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
   },
   "include": [
-    "./*.ts"
+    "./*.ts",
+    ".shims-vue.d.ts"
   ],
 }
