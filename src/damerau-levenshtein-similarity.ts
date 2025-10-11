@@ -1,9 +1,14 @@
+/* eslint-disable capitalized-comments */
 export function damerauLevenshteinSimilarity(first: string, second: string): number {
   const lengthFirst: number = first.length
   const lengthSecond: number = second.length
 
   if (lengthFirst === 0 && lengthSecond === 0) {
     return 1
+  }
+
+  if (lengthFirst === 0 || lengthSecond === 0) {
+    return 0  // One empty, one not = no similarity
   }
 
   // Swap so that the shorter string is always the column dimension
@@ -49,13 +54,14 @@ export function damerauLevenshteinSimilarity(first: string, second: string): num
   }
 
   const maxLength: number = Math.max(lengthFirst, lengthSecond)
-  const similarity: number = (1 - previousRow[n]) / maxLength
+  const similarity: number = 1 - (previousRow[n] / maxLength)
+
   return similarity
 }
 
 // Example usage:
-console.log(`Test 1: ${damerauLevenshteinSimilarity('ca', 'abc').toFixed(4)}`) // 0.6667
-console.log(`Test 2: ${damerauLevenshteinSimilarity('abcdefg', 'bacdfeg').toFixed(4)}`) // 0.7143
-console.log(`Test 3: ${damerauLevenshteinSimilarity('kitten', 'sitting').toFixed(4)}`) // 0.5714
-console.log(`Test 4: ${damerauLevenshteinSimilarity('', '').toFixed(4)}`) // 1.0000
-console.log(`Test 5: ${damerauLevenshteinSimilarity('smtih', 'smith').toFixed(4)}`) // 0.8000
+// console.log(`Test 1: ${damerauLevenshteinSimilarity('ca', 'abc').toFixed(4)}`) // 0.6667
+// console.log(`Test 2: ${damerauLevenshteinSimilarity('abcdefg', 'bacdfeg').toFixed(4)}`) // 0.7143
+// console.log(`Test 3: ${damerauLevenshteinSimilarity('kitten', 'sitting').toFixed(4)}`) // 0.5714
+// console.log(`Test 4: ${damerauLevenshteinSimilarity('', '').toFixed(4)}`) // 1.0000
+// console.log(`Test 5: ${damerauLevenshteinSimilarity('smtih', 'smith').toFixed(4)}`) // 0.8000
