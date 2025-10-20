@@ -1,1 +1,42 @@
-/* Add your global CSS here */
+input,
+textarea {
+  all: revert;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: theme('colors.borderMuted') theme('colors.slate');
+  box-sizing: border-box !important;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: theme('colors.slate');
+  border-radius: 6px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, theme('colors.slate'), theme('colors.accentHover'));
+  border-radius: 6px;
+  border: 1px solid theme('colors.borderMuted');
+  transition: all 0.2s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: theme('colors.accentHover');
+  box-shadow: 0 0 8px color-mix(in srgb, theme('colors.slate') 40%, transparent);
+  border-color: theme('colors.slate');
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: theme('colors.accentHover');
+  box-shadow: 0 0 12px color-mix(in srgb, theme('colors.slate') 60%, transparent);
+}
+
+*::-webkit-scrollbar-corner {
+  background: theme('colors.slate');
+}
