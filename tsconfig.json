@@ -1,19 +1,23 @@
 {
   "compilerOptions": {
-    "rootDir": ".",
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["DOM", "ESNext"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client", "vitest", "node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
     "esModuleInterop": true,
-    "noErrorTruncation": true
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve"
   },
-  "files": [],
-  "references": [
-    {
-      "path": "./tsconfig.node.json"
-    },
-    {
-      "path": "./tsconfig.app.json"
-    },
-    {
-      "path": "./tsconfig.vitest.json"
-    }
-  ]
+  "include": ["src/**/*", "tests/**/*", "*.config.ts", "env.d.ts"],
+  "exclude": ["dist", "node_modules"]
 }

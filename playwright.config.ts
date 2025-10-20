@@ -3,7 +3,7 @@ import process from 'node:process'
 import path from 'node:path'
 import { defineConfig, devices } from '@playwright/test'
 import dotenv from 'dotenv'
-import type { TestOptions } from './tests/helpers/fixtures.js'
+import type { TestOptions } from './tests/helpers/fixtures'
 
 const _dirname = import.meta.dirname
 
@@ -64,24 +64,24 @@ export default defineConfig<TestOptions>({
     },
 
     /* Test against mobile viewports. */
-    // {
-    //   Name: 'Mobile Chrome',
-    //   Use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   Name: 'Mobile Safari',
-    //   Use: { ...devices['iPhone 12'] },
-    // },
+    {
+      Name: 'Mobile Chrome',
+      Use: { ...devices['Pixel 5'] },
+    },
+    {
+      Name: 'Mobile Safari',
+      Use: { ...devices['iPhone 12'] },
+    },
 
     /* Test against branded browsers. */
-    // {
-    //   Name: 'Microsoft Edge',
-    //   Use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   Name: 'Google Chrome',
-    //   Use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    // },
+    {
+      Name: 'Microsoft Edge',
+      Use: { ...devices['Desktop Edge'], channel: 'msedge' },
+    },
+    {
+      Name: 'Google Chrome',
+      Use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+    },
   ],
 
   /* Run your local dev server before starting the tests */

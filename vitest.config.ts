@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 import { mergeConfig, defineConfig, configDefaults } from 'vitest/config'
 import { loadEnv } from 'vite'
-import viteConfig from './vite.config.js'
+import viteConfig from './vite.config'
 
 const myExport = (context: { mode: string }) => {
   const mode = context.mode || process.env.NODE_ENV || 'development'
