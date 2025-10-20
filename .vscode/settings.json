@@ -1,59 +1,45 @@
 {
   "editor.tabSize": 2,
+  "unocss.autocomplete.strict": true,
   "editor.indentSize": "tabSize",
-  "autoimport.useSemiColon": false,
-  "autoimport.spaceBetweenBraces": true,
   "typescript.preferences.importModuleSpecifier": "shortest",
   "editor.insertSpaces": true,
-  "vetur.completion.autoImport": false,
-  "vetur.validation.templateProps": true,
-  "vetur.underline.refValue": false,
-  "vetur.format.enable": false,
-  "vetur.validation.script": false,
-  "vetur.validation.interpolation": false,
-  "vetur.validation.style": false,
-  "vetur.experimental.templateInterpolationService": true,
+  "javascript.format.semicolons": "remove",
+  "typescript.format.semicolons": "remove",
+  "vue.format.wrapAttributes": "auto",
+  "vue.format.script.initialIndent": false,
+  "vue.format.style.initialIndent": false,
+  "vue.autoInsert.bracketSpacing": false,
+  "vue.autoInsert.dotValue": false,
+  "vue.format.template.initialIndent": false,
   "vue.editor.templateInterpolationDecorators": true,
+  "editor.suggest.showInterfaces": false,
+  "editor.suggest.showTypeParameters": false,
+  "editor.suggest.showStructs": false,
+  "editor.snippetSuggestions": "none",
+  "editor.wordBasedSuggestions": "off",
+  "editor.suggest.showSnippets": false,
+  "editor.suggest.showKeywords": true,
   "typescript.suggest.autoImports": true,
   "search.quickOpen.includeHistory": true,
   "editor.formatOnSave": true,
   "editor.formatOnSaveMode": "file",
   "editor.formatOnType": false,
-  "xo.enable": true,
-  "xo.format.enable": true,
-  "eslint.enable": false,
+  "eslint.enable": true,
   "eslint.format.enable": false,
-  "eslint.validate": [
-    "javascript",
-    "javascriptreact",
-    "vue"
-  ],
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
   "typescript.suggest.paths": true,
   "javascript.suggest.paths": true,
   "conventionalCommits.promptScopes": false,
   "files.eol": "\n",
   "files.encoding": "utf8",
   "terminal.integrated.detectLocale": "on",
-  "[vue]": {
-    "editor.defaultFormatter": "samverschueren.linter-xo",
-    "editor.codeActionsOnSave": {
-      "source.fixAll": "always",
-      "source.fixAll.xo": "always"
-    }
-  },
-  "[javascript]": {
-    "editor.defaultFormatter": "samverschueren.linter-xo",
-    "editor.codeActionsOnSave": {
-      "source.fixAll": "always",
-      "source.fixAll.xo": "always"
-    }
-  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
   "[typescript]": {
-    "editor.defaultFormatter": "vscode.typescript-language-features",
-    "editor.codeActionsOnSave": {
-      "source.fixAll": "always",
-      "source.fixAll.xo": "always"
-    }
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[vue]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"

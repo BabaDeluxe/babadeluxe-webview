@@ -1,8 +1,5 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
-  "include": [
-    "./src/**/*"
-  ],
   "compilerOptions": {
     "incremental": true,
     "rootDir": ".",
@@ -10,19 +7,20 @@
     "sourceRoot": "./src",
     "outDir": "./dist",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     },
     "noEmit": false,
     "sourceMap": true,
     "skipLibCheck": true,
     "declarationMap": true,
+    "esModuleInterop": true,
+    "noErrorTruncation": true,
     "declaration": true,
     "allowSyntheticDefaultImports": true,
     "allowImportingTsExtensions": false,
     "erasableSyntaxOnly": false,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "composite": true
-  }
+  },
+  "include": ["./src/**/*"]
 }

@@ -12,13 +12,13 @@ const myExport = (context: { mode: string }) => {
       test: {
         env: {
           ...loadEnv(mode, process.cwd(), ''),
-          // eslint-disable-next-line @typescript-eslint/naming-convention
+
           NODE_ENV: 'test', // Explicitly set for Vitest
         },
         environment: 'node',
         exclude: [...configDefaults.exclude, '**/e2e/**'],
         root: fileURLToPath(new URL('./', import.meta.url)),
-        setupFiles: ['.//tests/setup.ts'],
+        setupFiles: ['./tests/setup.ts'],
         globals: true,
       },
     })

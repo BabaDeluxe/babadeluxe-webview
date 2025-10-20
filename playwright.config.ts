@@ -3,7 +3,7 @@ import process from 'node:process'
 import path from 'node:path'
 import { defineConfig, devices } from '@playwright/test'
 import dotenv from 'dotenv'
-import type { TestOptions } from './tests/e2e/fixtures.js'
+import type { TestOptions } from './tests/helpers/fixtures.js'
 
 const _dirname = import.meta.dirname
 

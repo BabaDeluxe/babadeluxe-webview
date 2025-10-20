@@ -1,9 +1,12 @@
 {
-    "recommendations": [
-        "vue.volar",
-        "ms-vscode.extension-test-runner",
-        "vitest.explorer",
-        "octref.vetur",
-        "antfu.iconify",
-    ]
+  "recommendations": [
+    "vue.volar",
+    "ms-vscode.extension-test-runner",
+    "vitest.explorer",
+    "antfu.iconify",
+    "antfu.unocss",
+    "visualstudioexptteam.vscodeintellicode-completions",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint"
+  ]
 }
