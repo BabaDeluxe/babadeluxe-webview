@@ -1,53 +1,59 @@
-/* eslint-disable @typescript-eslint/naming-convention */
+import type { ConsoleLogger } from '@simwai/utils'
+import { type Result, ok, err, fromPromise } from 'neverthrow'
+
+type ValidationError =
+  | { readonly type: 'invalid_key'; readonly provider: string }
+  | { readonly type: 'network_error'; readonly provider: string; readonly cause: unknown }
+
 export class ApiKeyValidator {
-  async validate(provider: string, apiKey: string): Promise<boolean> {
+  constructor(private readonly _logger: ConsoleLogger) {}
+
+  async validate(provider: string, apiKey: string): Promise<Result<boolean, ValidationError>> {
     switch (provider) {
-      case 'openai': {
+      case 'openai':
         return this._validateOpenAi(apiKey)
-      }
-
-      case 'anthropic': {
+      case 'anthropic':
         return this._validateAnthropic(apiKey)
-      }
-
-      case 'google': {
+      case 'google':
         return this._validateGoogle(apiKey)
-      }
-
-      default: {
-        return false
-      }
+      default:
+        return ok(false)
     }
   }
 
   // OpenAI via resultT (models list)
   // Docs: GET https://api.openai.com/v1/models
   // Auth: Authorization: Bearer <OPENAI_API_KEY>
-  private async _validateOpenAi(apiKey: string): Promise<boolean> {
-    try {
-      const result = await fetch('https://api.openai.com/v1/models', {
+  private async _validateOpenAi(apiKey: string): Promise<Result<boolean, ValidationError>> {
+    const fetchResult = await fromPromise(
+      fetch('https://api.openai.com/v1/models', {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-      })
-      // Treat explicit auth failuresult as invalid; allow other non-OKs (429/5xx) as inconclusive/true.
-      if (result.status === 401 || result.status === 403) {
-        return false
+        headers: { Authorization: `Bearer ${apiKey}` },
+      }),
+      (cause) => {
+        this._logger.error('[ApiKeyValidator] OpenAI network error:', cause as Error)
+        return { type: 'network_error' as const, provider: 'openai', cause }
       }
+    )
 
-      return result.ok || result.status === 429 || result.status === 400
-    } catch {
-      return false
-    }
+    return fetchResult.match(
+      (response) => {
+        // Treat explicit auth failures as invalid; allow other non-OKs (429/5xx) as inconclusive/true.
+        if (response.status === 401 || response.status === 403) {
+          return err({ type: 'invalid_key' as const, provider: 'openai' })
+        }
+        return ok(response.ok || response.status === 429 || response.status === 400)
+      },
+      (error) => err(error)
+    )
   }
 
   // Anthropic via resultT (messages create)
   // Docs: POST https://api.anthropic.com/v1/messages
   // Required headers: x-api-key, anthropic-version: 2023-06-01
-  private async _validateAnthropic(apiKey: string): Promise<boolean> {
-    try {
-      const result = await fetch('https://api.anthropic.com/v1/messages', {
+  private async _validateAnthropic(apiKey: string): Promise<Result<boolean, ValidationError>> {
+    const fetchResult = await fromPromise(
+      fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -59,34 +65,48 @@ export class ApiKeyValidator {
           max_tokens: 1,
           messages: [{ role: 'user', content: 'test' }],
         }),
-      })
-      // Match the original behavior: invalid only on 401/403; 200/400/429 imply the key is recognized.
-      if (result.status === 401 || result.status === 403) {
-        return false
+      }),
+      (cause) => {
+        this._logger.error('[ApiKeyValidator] Anthropic network error:', cause as Error)
+        return { type: 'network_error' as const, provider: 'anthropic', cause }
       }
+    )
 
-      return result.ok || result.status === 400 || result.status === 429
-    } catch {
-      return false
-    }
+    return fetchResult.match(
+      (response) => {
+        // Match the original behavior: invalid only on 401/403; 200/400/429 imply the key is recognized.
+        if (response.status === 401 || response.status === 403) {
+          return err({ type: 'invalid_key' as const, provider: 'anthropic' })
+        }
+        return ok(response.ok || response.status === 400 || response.status === 429)
+      },
+      (error) => err(error)
+    )
   }
 
   // Google Gemini via resultT (models list — non-billable)
   // Docs: GET https://generativelanguage.googleapis.com/v1beta/models?key=...
   // Alternative (billable): POST .../models/<model>:generateContent with x-goog-api-key
-  private async _validateGoogle(apiKey: string): Promise<boolean> {
-    try {
-      const result = await fetch(
+  private async _validateGoogle(apiKey: string): Promise<Result<boolean, ValidationError>> {
+    const fetchResult = await fromPromise(
+      fetch(
         `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
         { method: 'GET' }
-      )
-      if (result.status === 401 || result.status === 403) {
-        return false
+      ),
+      (cause) => {
+        this._logger.error('[ApiKeyValidator] Google network error:', cause as Error)
+        return { type: 'network_error' as const, provider: 'google', cause }
       }
+    )
 
-      return result.ok || result.status === 429 || result.status === 400
-    } catch {
-      return false
-    }
+    return fetchResult.match(
+      (response) => {
+        if (response.status === 401 || response.status === 403) {
+          return err({ type: 'invalid_key' as const, provider: 'google' })
+        }
+        return ok(response.ok || response.status === 429 || response.status === 400)
+      },
+      (error) => err(error)
+    )
   }
 }
