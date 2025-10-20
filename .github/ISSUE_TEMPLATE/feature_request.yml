@@ -1,7 +1,7 @@
 name: 🚀 Feature Request
 description: Suggest a new feature for the project
-title: "[FEATURE] "
-labels: ["enhancement", "needs-triage"]
+title: '[FEATURE] '
+labels: ['enhancement', 'needs-triage']
 body:
   - type: markdown
     attributes:
