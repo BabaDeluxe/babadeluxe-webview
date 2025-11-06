@@ -1,66 +1,138 @@
 import { createApp } from 'vue'
-import { io, type ManagerOptions, type SocketOptions } from 'socket.io-client'
 import { ConsoleLogger } from '@simwai/utils'
 import 'virtual:uno.css'
 import { createClient } from '@supabase/supabase-js'
 import './assets/main.css'
 import App from './App.vue'
-import router from './routes.js'
-import { SocketService } from './socket-service'
-import { IocEnum } from './enums/ioc-enum'
+import { KeyValueDb } from './database/key-value-db'
+import router from './routes'
+import { SocketManager } from './socket-manager'
 import { ApiKeyValidator } from './api-key-validator'
-import { validate } from './env-validator'
+import { validateEnvConfig } from './env-validator'
+import { AppDb } from './database/app-db'
+import { SearchService } from './search-service'
+import { KeyValueStore } from './database/key-value-store'
+import { err, ok, type Result } from 'neverthrow'
+import {
+  API_KEY_VALIDATOR_KEY,
+  APP_DB_KEY,
+  ENV_CONFIG_KEY,
+  KEY_VALUE_DB_KEY,
+  KEY_VALUE_STORE_KEY,
+  LOGGER_KEY,
+  SEARCH_SERVICE_KEY,
+  SOCKET_MANAGER_KEY,
+  SUPABASE_CLIENT_KEY,
+} from './injection-keys'
 
-// Main / Index
-
-// Set up logger
-const logger = new ConsoleLogger({ isTimeEnabled: false })
-
-// Log .env files
-// @ts-ignore
-logger.log(JSON.stringify(import.meta.env))
-
-// Validate .env file
-const validationResult = validate()
-
-if (validationResult.isErr()) {
-  logger.trace('Wrong .env file config:', validationResult.error)
-} else {
-  const envConfig = validationResult.value
-  const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY } = envConfig
-
-  // Mount app
-  const app = createApp(App)
-
-  // Provide logger to Vue IoC
-  app.provide(IocEnum.LOGGER, logger)
-
-  // Set up the other dependencies
-  const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
-  app.provide(IocEnum.SUPABASE_CLIENT, supabase)
-
-  const apiKeyValidator = new ApiKeyValidator()
-  app.provide(IocEnum.API_KEY_VALIDATOR, apiKeyValidator)
-  const socketPort = 10_300
-
-  // TODO Io should only be instantiated after the access token was received
-  const ioOptions: Partial<ManagerOptions & SocketOptions> = {
-    port: socketPort,
-    transports: ['websocket'],
-    withCredentials: true,
-    autoConnect: false,
+class EnvConfigError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'EnvConfigError'
+    Object.setPrototypeOf(this, EnvConfigError)
   }
-  // TODO Add access token to server and zod-sockets
-  // If (accessToken) {
-  //   IoOptions.auth = { token: accessToken }
-  // }
+}
 
-  const myIo = io(`http://localhost:${socketPort}`, ioOptions)
-  logger.log(`Socket service listens on ${socketPort}`)
+class AuthTokenError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthTokenError'
+    Object.setPrototypeOf(this, AuthTokenError)
+  }
+}
 
-  const socketService = new SocketService(logger, myIo)
-  app.provide(IocEnum.SOCKET_SERVICE, socketService)
+class AppLogger extends ConsoleLogger {
+  fatal(message: string, error: Error): never {
+    this.trace(message, error)
+    throw error
+  }
+}
 
-  app.use(router)
+const logger = new AppLogger({ isTimeEnabled: false })
+const validationResult = validateEnvConfig()
+
+const envConfig = validationResult.match(
+  (config) => config,
+  (error) =>
+    logger.fatal('❌ Environment config validation failed', new EnvConfigError(error.message))
+)
+
+const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SOCKET_URL } = envConfig
+
+const app = createApp(App)
+
+app.provide(ENV_CONFIG_KEY, envConfig)
+app.provide(LOGGER_KEY, logger)
+
+const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+export type SupabaseClientType = typeof supabase
+
+app.provide(SUPABASE_CLIENT_KEY, supabase)
+
+const apiKeyValidator = new ApiKeyValidator(logger)
+app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
+
+const appDb = new AppDb(logger)
+const searchService = new SearchService(appDb)
+app.provide(SEARCH_SERVICE_KEY, searchService)
+app.provide(APP_DB_KEY, appDb)
+
+const keyValueDb = new KeyValueDb()
+app.provide(KEY_VALUE_DB_KEY, keyValueDb)
+
+const keyValueStore = new KeyValueStore(keyValueDb)
+app.provide(KEY_VALUE_STORE_KEY, keyValueStore)
+
+app.use(router)
+await router.isReady()
+
+const getAuthToken = async (): Promise<Result<string, AuthTokenError>> => {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession()
+
+  if (error) {
+    return err(new AuthTokenError(`Authentication failed: ${error.message}`))
+  }
+
+  if (!session?.access_token) {
+    return err(new AuthTokenError('Not authenticated (no valid access token found)'))
+  }
+
+  return ok(session.access_token)
+}
+
+const authTokenResult = await getAuthToken()
+
+if (authTokenResult.isErr()) {
+  logger.warn('⚠️ Auth failed:', authTokenResult.error.message)
+  app.provide(SOCKET_MANAGER_KEY, null)
   app.mount('#app')
+  await router.push('/login')
+} else {
+  const authToken = authTokenResult.value
+
+  // Use SocketManager instead of individual sockets
+  const socketManager = new SocketManager(logger, VITE_SOCKET_URL, authToken)
+  const initResult = await socketManager.init()
+
+  initResult.match(
+    () => {
+      logger.log('All socket namespaces connected')
+      app.provide(SOCKET_MANAGER_KEY, socketManager)
+
+      window.addEventListener('beforeunload', () => {
+        socketManager.disconnect()
+      })
+
+      app.mount('#app')
+    },
+    (error) => {
+      logger.error('❌ Socket initialization failed:', error)
+      app.provide(SOCKET_MANAGER_KEY, null)
+      app.mount('#app')
+      // Optionally redirect to error page or show notification
+    }
+  )
 }

@@ -1,58 +1,92 @@
 <template>
-<section id="login">
-  <div class="flex flex-col items-center justify-center w-full h-full bg-slate text-deepText font-onest p-4">
-    <div class="flex flex-row justify-center items-center">
-      <BabaDeluxeIcon class="flex flex-1" />
+  <section id="login">
+    <div
+      class="flex flex-col items-center justify-center w-full h-full bg-slate text-deepText font-onest p-4"
+    >
+      <div class="flex flex-row justify-center items-center">
+        <BabaDeluxeIcon class="flex flex-1" />
 
-      <div class="flex flex-2 justify-center items-center">
-        <h2 class="text-2xl font-bold text-accent">BabaDeluxe Login</h2>
+        <div class="flex flex-2 justify-center items-center">
+          <h2 class="text-2xl font-bold text-accent">BabaDeluxe Login</h2>
+        </div>
       </div>
-    </div>
 
-    <div class="flex flex-col w-full max-w-md bg-panel rounded-lg shadow-lg p-6 my-4 border border-borderMuted">
-      <ButtonItem text="Login with GitHub" icon="i-simple-icons:github" :disabled="isLoading" type="submit"
-        @click="loginWithGitHub" />
+      <div
+        class="flex flex-col w-full max-w-md bg-panel rounded-lg shadow-lg p-6 my-4 border border-borderMuted"
+      >
+        <ButtonItem
+          text="Login with GitHub"
+          icon="i-simple-icons:github"
+          :disabled="isLoading"
+          type="submit"
+          @click="loginWithGitHub"
+        />
 
-      <div class="text-center text-subtleText my-4">or</div>
+        <div class="text-center text-subtleText my-4">or</div>
 
-      <form @submit.prevent="handleAuth" class="flex flex-col gap-4" autocomplete="on">
-        <input v-model="email" type="email" placeholder="Email"
-          class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
-          required aria-label="Email Address" autocomplete="email" />
+        <form class="flex flex-col gap-4" autocomplete="on" @submit.prevent="handleAuth">
+          <input
+            v-model="email"
+            type="email"
+            placeholder="Email"
+            class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
+            required
+            aria-label="Email Address"
+            autocomplete="email"
+          />
 
-        <input v-model="password" type="password" placeholder="Password"
-          class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
-          required aria-label="Password" autocomplete="current-password" />
-
+          <input
+            v-model="password"
+            type="password"
+            placeholder="Password"
+            class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
+            required
+            aria-label="Password"
+            autocomplete="current-password"
+          />
 
           <!-- Forgot Password button (only show during sign-in) -->
           <router-link to="/reset-password" class="w-full flex">
-            <ButtonItem v-if="!isSignUp" class="w-full" text="Forgot Password?" :disabled="isLoading" />
+            <ButtonItem
+              v-if="!isSignUp"
+              class="w-full"
+              text="Forgot Password?"
+              :disabled="isLoading"
+            />
           </router-link>
-        <!-- MAIN BUTTON: Now triggers handleAuth on click -->
-        <ButtonItem type="button" :text="isSignUp ? 'Sign Up' : 'Sign In'" :disabled="isLoading" @click="handleAuth" />
-        <ButtonItem type="button" :text="isSignUp ? 'Switch to Sign In' : 'Switch to Sign Up'" :disabled="isLoading"
-          @click="toggleMode" />
-      </form>
+          <!-- MAIN BUTTON: Now triggers handleAuth on click -->
+          <ButtonItem
+            type="button"
+            :text="isSignUp ? 'Sign Up' : 'Sign In'"
+            :disabled="isLoading"
+            @click="handleAuth"
+          />
+          <ButtonItem
+            type="button"
+            :text="isSignUp ? 'Switch to Sign In' : 'Switch to Sign Up'"
+            :disabled="isLoading"
+            @click="toggleMode"
+          />
+        </form>
 
-      <p v-if="error" class="text-error mt-4">
-        {{ error }}
-      </p>
+        <p v-if="error" class="text-error mt-4">
+          {{ error }}
+        </p>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { inject, ref } from 'vue'
+import type { ConsoleLogger } from '@simwai/utils'
 import BabaDeluxeIcon from '../components/BabaDeluxeIcon.vue'
 import ButtonItem from '../components/ButtonItem.vue'
-import { IocEnum } from '@/enums/ioc-enum'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ConsoleLogger } from '@simwai/utils'
+import type { SupabaseClientType } from '@/main'
+import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 
-const supabase: SupabaseClient = inject(IocEnum.SUPABASE_CLIENT)!
-const logger: ConsoleLogger = inject(IocEnum.LOGGER)!
+const supabase: SupabaseClientType = inject(SUPABASE_CLIENT_KEY)!
+const logger: ConsoleLogger = inject(LOGGER_KEY)!
 
 const email = ref('')
 const password = ref('')
@@ -88,8 +122,8 @@ const handleAuth = async () => {
     }
 
     if (result.error) throw result.error
-  } catch (err: any) {
-    error.value = err?.message ?? String(err)
+  } catch (error_: unknown) {
+    error.value = error_ instanceof Error ? error_.message : String(error_)
     password.value = ''
   } finally {
     isLoading.value = false
@@ -103,7 +137,7 @@ const loginWithGitHub = async () => {
   error.value = null
 
   const { error: oauthError } = await supabase.auth.signInWithOAuth({
-    provider: 'github'
+    provider: 'github',
   })
 
   if (oauthError) logger.trace(oauthError)

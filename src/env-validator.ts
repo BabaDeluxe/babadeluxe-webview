@@ -1,19 +1,14 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-import * as yup from 'yup'
+import { z } from 'zod/v4'
 import { Result } from 'neverthrow'
 
-const envSchema = yup
-  .object({
-    VITE_NODE_ENV: yup
-      .mixed<'development' | 'production' | 'test'>()
-      .oneOf(['development', 'production', 'test'] as const)
-      .required(),
-    VITE_SUPABASE_URL: yup.string().url().required(),
-    VITE_SUPABASE_ANON_KEY: yup.string().required(),
-  })
-  .required()
+const envSchema = z.object({
+  VITE_NODE_ENV: z.enum(['development', 'production', 'test']),
+  VITE_SUPABASE_URL: z.url(),
+  VITE_SUPABASE_ANON_KEY: z.string().min(1),
+  VITE_SOCKET_URL: z.url(),
+})
 
-export type EnvConfig = yup.InferType<typeof envSchema>
+export type EnvConfig = z.infer<typeof envSchema>
 
 class ValidationError extends Error {
   constructor(message: string) {
@@ -22,16 +17,14 @@ class ValidationError extends Error {
   }
 }
 
-export function validate(): Result<EnvConfig, ValidationError> {
+export function validateEnvConfig(): Result<EnvConfig, ValidationError> {
   return validateSchema(envSchema)
 }
 
-function validateSchema<T>(schema: {
-  validateSync: (env: unknown) => T
-}): Result<T, ValidationError> {
+function validateSchema<T>(schema: z.ZodType<T>): Result<T, ValidationError> {
   return Result.fromThrowable(
     // @ts-ignore
-    () => schema.validateSync(import.meta.env),
+    () => schema.parse(import.meta.env),
     (error) => new ValidationError((error as Error).message)
   )()
 }

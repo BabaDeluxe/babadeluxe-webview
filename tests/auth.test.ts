@@ -1,4 +1,3 @@
-/* eslint-disable capitalized-comments */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   createTestUserRaw,
@@ -6,15 +5,9 @@ import {
   deleteTestUserRaw,
   deleteTestUserSdk,
   SupabaseTestClient,
-  type TestUser,
-} from './helpers/supabase-users'
-import { storage } from '@/storage'
-
-type TestVariant = {
-  name: string
-  createUser: (prefix: string) => Promise<TestUser>
-  deleteUser: (userId: string) => Promise<void>
-}
+  type TestVariant,
+} from './helpers/supabase-test'
+import { storage } from './helpers/storage'
 
 const rawVariant: TestVariant = {
   name: 'Raw (fetch bypass)',
@@ -45,9 +38,6 @@ for (const variant of variants) {
 
       userClient = SupabaseTestClient.createUserClient(`test-${variant.name}`)
 
-      const { data } = await userClient.auth.getSession()
-      storage.addOrUpdate('user', data.session?.user ?? undefined)
-
       userClient.onAuthStateChange((_event, session) => {
         storage.addOrUpdate('user', session?.user ?? undefined)
       })
@@ -69,15 +59,5 @@ for (const variant of variants) {
       const snap = storage.get<{ id: string }>('user')
       expect(snap?.id).toBe(userId)
     })
-
-    // it('signs out and clear storage', async () => {
-    //   await userClient.auth.signOut()
-
-    //   await new Promise((resolve) => {
-    //     setTimeout(resolve, 50)
-    //   })
-
-    //   expect(storage.get('user')).toBeUndefined()
-    // })
   })
 }

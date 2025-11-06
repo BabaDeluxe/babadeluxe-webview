@@ -1,233 +1,270 @@
 <template>
-<article class="flex w-full gap-3 py-3"
-  :class="role === 'user' ? 'justify-start flex-row' : 'justify-end flex-row-reverse'">
-  <!-- Avatar: Shown for both, positioned left for user / right for bot -->
-  <AvatarItem class="shrink-0" />
+  <article
+    class="flex gap-3 py-2 items-start rounded-lg px-2 -mx-2 max-w-[80%]"
+    :class="role === 'user' ? 'self-end flex-row-reverse' : 'self-start flex-row'"
+  >
+    <AvatarItem
+      class="shrink-0 mt-1"
+      :role="role"
+    />
+    <div class="flex flex-col gap-2 max-w-[80%] relative">
+      <div
+        class="flex rounded-lg px-4 py-3 text-sm whitespace-pre-wrap break-words relative transition-all duration-200"
+        :class="bubbleClass"
+      >
+        <div
+          v-if="!_isEditing"
+          class="min-h-5 pr-8"
+        >
+          <slot>
+            <MarkdownRenderItem
+              ref="markdownRef"
+              :content="content"
+              :cursor="isStreaming && role === 'assistant'"
+              :is-streaming="isStreaming"
+            />
+          </slot>
+        </div>
 
-  <div class="flex flex-col gap-2 max-w-[80%] relative">
-    <div class="rounded-lg px-4 py-2 text-sm whitespace-pre-wrap break-words relative" :class="bubbleClass">
-      <!-- Message Content -->
-      <div v-if="!_isEditing" class="min-h-5 pr-8">
-        <slot>
-          <MarkdownRenderItem :content="content" :cursor="isStreaming && role === 'assistant'" />
-        </slot>
-      </div>
+        <textarea
+          v-else
+          ref="_textareaRef"
+          v-model="_editValue"
+          class="w-full bg-transparent resize-none outline-none border-none text-sm font-sans leading-relaxed pr-3 focus:ring-2 focus:ring-accent/20 rounded"
+          :class="role === 'user' ? 'text-deepText' : 'text-subtleText'"
+          @keydown="_handleKeydown"
+        />
 
-      <!-- Edit Mode -->
-      <textarea v-else ref="_textareaRef" v-model="_editValue"
-        class="w-full min-h-20 bg-transparent resize-none outline-none border-none text-sm pr-8"
-        :class="role === 'user' ? 'text-deepText' : 'text-subtleText'" @keydown="_handleKeydown" />
+        <!-- Edit Actions -->
+        <div
+          v-if="role === 'user' && _isEditing"
+          class="flex flex-col gap-1 ml-2"
+        >
+          <button
+            class="flex items-center justify-center w-7 h-7 rounded-md hover:bg-accent/20 text-accent transition-all duration-200 active:scale-95"
+            title="Save (Enter)"
+            @click="_saveEdit"
+          >
+            <i class="i-weui:done-outlined text-lg" />
+          </button>
+          <button
+            class="flex items-center justify-center w-7 h-7 rounded-md hover:bg-borderMuted/20 text-subtleText hover:text-deepText transition-all duration-200 active:scale-95"
+            title="Cancel (Esc)"
+            @click="_cancelEdit"
+          >
+            <i class="i-weui:close-outlined text-lg" />
+          </button>
+        </div>
 
-      <!-- Burger Menu - Always Visible -->
-      <div class="absolute top-2 right-2">
-        <button
-          class="flex items-center justify-center w-6 h-6 rounded hover:bg-borderMuted/20 text-subtleText hover:text-deepText transition-colors"
-          @click="_toggleOptionsMenu">
-          <i class="i-weui:more-outlined" /> <!-- Three dots icon -->
-        </button>
+        <!-- Menu Button -->
+        <div
+          v-if="!_isEditing"
+          ref="containerRef"
+          class="absolute top-2 right-2"
+        >
+          <button
+            class="flex items-center justify-center w-7 h-7 rounded-md hover:bg-borderMuted/20 text-subtleText hover:text-deepText transition-all duration-200 active:scale-95"
+            :class="{ 'bg-borderMuted/20': isOpen }"
+            @click="toggle"
+          >
+            <i class="i-weui:more-outlined text-lg" />
+          </button>
 
-        <!-- Options Dropdown -->
-        <div v-if="_showOptionsMenu"
-          class="absolute top-full mt-1 right-0 bg-panel border border-borderMuted rounded-lg shadow-lg py-1 min-w-36 z-20"
-          :class="role === 'user' ? 'right-0' : 'left-0'">
-          <!-- Edit Mode Options -->
-          <template v-if="_isEditing">
-            <button
-              class="w-full px-3 py-2 text-left text-sm hover:bg-codeBg text-deepText hover:text-accent transition-colors flex items-center gap-2"
-              @click="_saveEdit">
-              <i class="i-weui:done-outlined text-accent" />
-              <span>Save Changes</span>
-            </button>
-            <button
-              class="w-full px-3 py-2 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2"
-              @click="_cancelEdit">
-              <i class="i-weui:close-outlined" />
-              <span>Cancel</span>
-            </button>
-          </template>
-
-          <!-- Normal Mode Options -->
-          <template v-else>
-            <button
-              class="w-full px-3 py-2 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2"
-              @click="_startEdit">
-              <i class="i-weui:pencil-outlined" />
-              <span>Edit Message</span>
-            </button>
-
-            <!-- Model Rewrite Submenu -->
-            <div class="relative">
+          <!-- Dropdown Menu -->
+          <div
+            v-if="isOpen"
+            class="absolute top-full mt-1 right-0 bg-panel border border-borderMuted rounded-lg shadow-xl py-1 min-w-40 z-20 animate-in fade-in slide-in-from-top-2 duration-200"
+          >
+            <!-- Only show edit/rewrite for user messages -->
+            <template v-if="role === 'user'">
               <button
-                class="w-full px-3 py-2 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2 justify-between"
-                @click="_toggleModelSubmenu">
-                <div class="flex items-center gap-2">
-                  <i class="i-simple-icons:openai" />
-                  <span>Rewrite with...</span>
-                </div>
-                <i class="i-weui:arrow-outlined rotate-90 text-xs" />
+                class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 first:rounded-t-lg"
+                @click="_startEdit"
+              >
+                <i class="i-weui:pencil-outlined text-base" />
+                <span>Edit Message</span>
               </button>
 
-              <!-- Model Selection Submenu -->
-              <div v-if="_showModelSubmenu"
-                class="absolute left-full top-0 ml-1 bg-panel border border-borderMuted rounded-lg shadow-lg py-1 min-w-32 z-30">
-                <button v-for="model in _availableModels" :key="model.id"
-                  class="w-full px-3 py-2 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2"
-                  @click="_selectModel(model)">
-                  <i :class="model.icon" class="text-xs" />
-                  <span>{{ model.name }}</span>
-                </button>
+              <div
+                v-if="showRewrite"
+                class="hover:bg-codeBg hover:text-deepText"
+              >
+                <DropdownSelector
+                  v-model="_selectedModel"
+                  :icon="'i-simple-icons:openai'"
+                  :items="
+                    _availableModels.map((model) => ({
+                      value: model.id,
+                      label: model.name,
+                      icon: model.icon,
+                    }))
+                  "
+                  placement="bottom"
+                  @update:model-value="_onModelSelected"
+                >
+                  <div
+                    class="w-full px-3 py-2.5 text-left text-sm text-subtleText transition-colors flex items-center gap-2.5 justify-between"
+                  >
+                    <div class="flex items-center gap-2.5">
+                      <i class="i-simple-icons:openai text-base" />
+                      <span>Rewrite with...</span>
+                    </div>
+                    <i class="i-weui:arrow-outlined rotate-90 text-xs opacity-50" />
+                  </div>
+                </DropdownSelector>
               </div>
-            </div>
 
-            <!-- Divider -->
-            <div class="border-t border-borderMuted my-1" />
+              <div class="border-t border-borderMuted my-1" />
+            </template>
 
-            <!-- Delete Option -->
+            <!-- Delete button for both roles -->
             <button
-              class="w-full px-3 py-2 text-left text-sm hover:bg-codeBg text-subtleText hover:text-error transition-colors flex items-center gap-2"
-              @click="_handleDelete">
-              <i class="i-weui:delete-outlined" />
+              class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-error transition-colors flex items-center gap-2.5 last:rounded-b-lg"
+              @click="_handleDelete"
+            >
+              <i class="i-weui:delete-outlined text-base" />
               <span>Delete Message</span>
             </button>
-          </template>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-</article>
+  </article>
 </template>
 
 <script setup lang="ts">
-import MarkdownRenderItem from "./MarkdownRenderItem.vue";
-import AvatarItem from "./AvatarItem.vue";
-import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
-import { db } from "../database/db";
-import { KeyValueStore } from '../database/key-value-store'
-import type { ActiveChatItemEmitter } from "@babadeluxe/shared";
-import type { Message } from "@babadeluxe/shared";
-import type { ModelOption } from "@babadeluxe/shared";
-import { KeyValueDb } from '@/database/key-value-db';
+import { computed, inject, nextTick, onMounted, ref, useTemplateRef } from 'vue'
+import { useTextareaAutosize } from '@vueuse/core'
+import type { Message, ModelOption } from '@babadeluxe/shared'
+import { type KeyValueStore } from '../database/key-value-store'
+import MarkdownRenderItem from './MarkdownRenderItem.vue'
+import AvatarItem from './AvatarItem.vue'
+import DropdownSelector from './DropdownSelector.vue'
+import { APP_DB_KEY, KEY_VALUE_STORE_KEY, LOGGER_KEY } from '@/injection-keys'
+import { type AppDb } from '@/database/app-db'
+import { useDropdown } from '@/composables/use-dropdown-state'
+import { type ConsoleLogger } from '@simwai/utils'
+import { type ActiveChatItemEmitter } from '@/types/active-chat-item-types'
 
-const props = withDefaults(defineProps<Message>(), {
-  isStreaming: false,
-});
+const _appDb: AppDb = inject(APP_DB_KEY)!
+const _keyValueStore: KeyValueStore = inject(KEY_VALUE_STORE_KEY)!
+const _logger: ConsoleLogger = inject(LOGGER_KEY)!
 
-const emit = defineEmits<ActiveChatItemEmitter>();
-
-const bubbleClass = computed(() => {
-  if (props.role === "user")
-    return "bg-panel text-deepText border border-borderMuted";
-  if (props.role === "assistant")
-    return "bg-codeBg text-subtleText border border-borderMuted";
-  throw new Error(`Unsupported role "${props.role}"`);
-});
-
-const _isEditing = ref(false);
-const _editValue = ref("");
-const _textareaRef = ref<HTMLTextAreaElement>();
-const _showOptionsMenu = ref(false);
-const _showModelSubmenu = ref(false);
-const _selectedModel = ref("gpt-4");
-const _keyValueStore = ref<KeyValueStore>();
+const { isOpen, containerRef, toggle, close } = useDropdown()
+const { textarea: _textareaRef, input: _editValue } = useTextareaAutosize()
 
 const _availableModels: ModelOption[] = [
-  { id: "gpt-4", name: "GPT-4", icon: "i-simple-icons:openai" },
-  { id: "gpt-3.5", name: "GPT-3.5", icon: "i-simple-icons:openai" },
-  { id: "claude-3", name: "Claude 3", icon: "i-simple-icons:anthropic" },
-  { id: "gemini", name: "Gemini", icon: "i-simple-icons:google" },
-];
+  {
+    id: 'gpt-4',
+    name: 'GPT-4',
+    icon: 'i-simple-icons:openai',
+  },
+  {
+    id: 'gpt-3.5',
+    name: 'GPT-3.5',
+    icon: 'i-simple-icons:openai',
+  },
+  {
+    id: 'claude-3',
+    name: 'Claude 3',
+    icon: 'i-simple-icons:anthropic',
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    icon: 'i-simple-icons:google',
+  },
+]
 
-onMounted(async () => {
-  const keyValueDb = new KeyValueDb();
-  _keyValueStore.value = new KeyValueStore(keyValueDb);
+const _isEditing = ref(false)
+const _defaultModel = _availableModels[0].name
+const _selectedModel = ref(_defaultModel)
+const markdownRef = useTemplateRef<InstanceType<typeof MarkdownRenderItem>>('markdownRef')
 
-  const savedModel = await _keyValueStore.value.get("selectedModel");
-  if (savedModel) {
-    _selectedModel.value = savedModel;
-  }
+defineExpose({ markdownRef })
 
-  document.addEventListener("click", _handleClickOutside);
-});
+const props = withDefaults(defineProps<Message & { showRewrite?: boolean }>(), {
+  isStreaming: false,
+  showRewrite: true,
+})
 
-onUnmounted(() => {
-  document.removeEventListener("click", _handleClickOutside);
-});
+const emit = defineEmits<ActiveChatItemEmitter>()
 
-function _toggleOptionsMenu() {
-  _showOptionsMenu.value = !_showOptionsMenu.value;
-  _showModelSubmenu.value = false; // Close submenu when toggling main menu
-}
-
-function _toggleModelSubmenu() {
-  _showModelSubmenu.value = !_showModelSubmenu.value;
-}
+const bubbleClass = computed(() => {
+  if (props.role === 'user') return 'bg-panel text-deepText border border-borderMuted'
+  if (props.role === 'assistant') return 'bg-codeBg text-subtleText border border-borderMuted'
+  throw new Error(`Unsupported role "${props.role}"`)
+})
 
 async function _startEdit() {
-  _editValue.value = props.content;
-  _isEditing.value = true;
-  _showOptionsMenu.value = false;
-  await nextTick();
-  _textareaRef.value?.focus();
+  _editValue.value = props.content
+  _isEditing.value = true
+  close()
+  await nextTick()
+  _textareaRef.value?.focus()
 }
 
 function _cancelEdit() {
-  _isEditing.value = false;
-  _editValue.value = "";
-  _showOptionsMenu.value = false;
+  _isEditing.value = false
+  _editValue.value = ''
 }
 
 async function _saveEdit() {
-  const trimmedValue = _editValue.value.trim();
+  const trimmedValue = _editValue.value.trim()
 
   if (trimmedValue !== props.content && trimmedValue.length > 0) {
     try {
-      await db.updateMessage(props.id, trimmedValue);
-      emit("update", props.id, trimmedValue);
+      await _appDb.updateMessage(props.id, trimmedValue)
+      emit('update', props.id, trimmedValue)
     } catch (error) {
-      console.trace("Failed to update message:", error);
+      _logger.trace('Failed to update message:', error as Error)
     }
   }
-  _isEditing.value = false;
-  _editValue.value = "";
-  _showOptionsMenu.value = false;
+
+  _isEditing.value = false
+  _editValue.value = ''
 }
 
 async function _handleDelete() {
   try {
-    await db.deleteMessage(props.id);
-    emit("delete", props.id);
+    await _appDb.deleteMessage(props.id)
+    emit('delete', props.id)
   } catch (error) {
-    console.trace("Failed to delete message:", error);
+    // TODO Add neverthrow error handling to app db to avoid such unlean stuff
+    if (error instanceof Error) _logger.trace('Failed to delete message:', error)
+    else _logger.trace('Failed to delete message')
   }
-  _showOptionsMenu.value = false;
+
+  close()
 }
 
 async function _selectModel(model: ModelOption) {
-  _selectedModel.value = model.id;
-  _showOptionsMenu.value = false;
-  _showModelSubmenu.value = false;
+  _selectedModel.value = model.id
+  close()
 
-  if (_keyValueStore.value) {
-    await _keyValueStore.value.set("selectedModel", model.id);
+  if (_keyValueStore) {
+    await _keyValueStore.set('selected-rewrite-model', model.id)
   }
-  emit("rewrite", props.id, model.id);
+
+  emit('rewrite', props.id, model.id)
 }
 
 function _handleKeydown(event: KeyboardEvent) {
-  if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey) {
-    event.preventDefault();
-    _saveEdit();
-  } else if (event.key === "Escape") {
-    event.preventDefault();
-    _cancelEdit();
+  if (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey) {
+    event.preventDefault()
+    _saveEdit()
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    _cancelEdit()
   }
 }
 
-function _handleClickOutside(event: Event) {
-  const target = event.target as HTMLElement;
-  if (!target.closest(".relative")) {
-    _showOptionsMenu.value = false;
-    _showModelSubmenu.value = false;
-  }
+function _onModelSelected(id: string) {
+  const model = _availableModels.find((model) => model.id === id)
+  if (model) _selectModel(model)
 }
+
+onMounted(async () => {
+  _selectedModel.value = (await _keyValueStore.get('selected-rewrite-model')) || _defaultModel
+})
 </script>

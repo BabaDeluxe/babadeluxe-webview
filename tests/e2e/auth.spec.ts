@@ -1,6 +1,5 @@
-/* eslint-disable capitalized-comments */
 import { expect } from '@playwright/test'
-import { test } from './fixtures'
+import { test } from '../helpers/fixtures'
 
 test.describe('Auth E2E', () => {
   test('user can sign in and reach chat page', async ({ page, testUser }) => {
@@ -12,7 +11,7 @@ test.describe('Auth E2E', () => {
     await page.fill('input[aria-label="Password"]', password)
     await page.click('button:has-text("Sign In")')
 
-    await page.waitForURL('**/Chat')
+    await page.waitForURL('**/chat')
     await expect(page.locator('nav >> text=Chat')).toBeVisible()
   })
 
@@ -36,7 +35,7 @@ test.describe('Auth E2E', () => {
   //   await page.fill('input[aria-label="Email Address"]', email)
   //   await page.fill('input[aria-label="Password"]', password)
   //   await page.click('button:has-text("Sign In")')
-  //   await page.waitForURL('**/Chat')
+  //   await page.waitForURL('**/chat')
 
   //   await page.evaluate(async () => {
   //     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

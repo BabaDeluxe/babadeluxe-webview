@@ -1,4 +1,3 @@
-/* eslint-disable capitalized-comments */
 export function damerauLevenshteinSimilarity(first: string, second: string): number {
   const lengthFirst: number = first.length
   const lengthSecond: number = second.length
@@ -8,7 +7,7 @@ export function damerauLevenshteinSimilarity(first: string, second: string): num
   }
 
   if (lengthFirst === 0 || lengthSecond === 0) {
-    return 0  // One empty, one not = no similarity
+    return 0 // One empty, one not = no similarity
   }
 
   // Swap so that the shorter string is always the column dimension
@@ -24,8 +23,8 @@ export function damerauLevenshteinSimilarity(first: string, second: string): num
   }
 
   // Use only three rolling arrays for space optimization
-  let twoRowsBack: number[] = Array.from({ length: n + 1 }, (_, i) => i)
-  let previousRow: number[] = Array.from({ length: n + 1 }).fill(0) as number[]
+  let twoRowsBack: number[] = Array.from({ length: n + 1 }).fill(0) as number[]
+  let previousRow: number[] = Array.from({ length: n + 1 }, (_, i) => i) as number[]
   let currRow: number[] = Array.from({ length: n + 1 }).fill(0) as number[]
 
   for (let i = 1; i <= m; i++) {
@@ -54,7 +53,7 @@ export function damerauLevenshteinSimilarity(first: string, second: string): num
   }
 
   const maxLength: number = Math.max(lengthFirst, lengthSecond)
-  const similarity: number = 1 - (previousRow[n] / maxLength)
+  const similarity: number = 1 - previousRow[n] / maxLength
 
   return similarity
 }

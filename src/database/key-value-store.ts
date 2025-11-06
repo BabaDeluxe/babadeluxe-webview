@@ -1,4 +1,4 @@
-import { type KeyValueDb } from './key-value-db.js'
+import { type KeyValueDb } from './key-value-db'
 
 export class KeyValueStore {
   constructor(private readonly _keyValueDb: KeyValueDb) {}

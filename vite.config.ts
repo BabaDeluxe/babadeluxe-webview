@@ -33,4 +33,7 @@ export default defineConfig({
     },
   },
   base: './',
+  optimizeDeps: {
+    exclude: ['socket.io-client'],
+  },
 })

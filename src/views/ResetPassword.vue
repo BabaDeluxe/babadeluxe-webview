@@ -1,11 +1,18 @@
+<!-- TODO This shouldn't be a view. It is rather a component. -->
 <template>
   <section id="password-reset">
-      <div class="flex flex-col items-center justify-center w-full h-full bg-slate text-deepText font-onest p-4">
-      <div class="flex flex-col w-full max-w-md bg-panel rounded-lg shadow-lg p-6 my-4 border border-borderMuted">
+    <div
+      class="flex flex-col items-center justify-center w-full h-full bg-slate text-deepText font-onest p-4"
+    >
+      <div
+        class="flex flex-col w-full max-w-md bg-panel rounded-lg shadow-lg p-6 my-4 border border-borderMuted"
+      >
         <h2 class="text-2xl font-bold text-accent mb-4">Forgot Password</h2>
-        <p class="text-subtleText mb-4">Enter your email address and we'll send you a reset link.</p>
+        <p class="text-subtleText mb-4">
+          Enter your email address and we'll send you a reset link.
+        </p>
 
-        <form @submit.prevent="handleSendResetEmail" class="flex flex-col gap-4">
+        <form class="flex flex-col gap-4" @submit.prevent="handleSendResetEmail">
           <input
             v-model="email"
             type="email"
@@ -42,46 +49,69 @@
 </template>
 
 <script setup lang="ts">
-import { inject, ref } from 'vue'
+import { inject, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import ButtonItem from '../components/ButtonItem.vue'
-import { IocEnum } from '@/enums/ioc-enum'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ConsoleLogger } from '@simwai/utils'
+import { ok, err, type Result } from 'neverthrow'
+import ButtonItem from '../components/ButtonItem.vue'
+import type { SupabaseClientType } from '@/main'
+import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
 
-const supabase: SupabaseClient = inject(IocEnum.SUPABASE_CLIENT)!
-const logger: ConsoleLogger = inject(IocEnum.LOGGER)!
+const supabase: SupabaseClientType = inject(SUPABASE_CLIENT_KEY)!
+const logger: ConsoleLogger = inject(LOGGER_KEY)!
 const router = useRouter()
 
 const email = ref('')
-const error = ref<string | null>(null)
+const error = ref<string | undefined>()
 const success = ref(false)
 const isLoading = ref(false)
 
-const handleSendResetEmail = async () => {
-  if (!email.value) {
-    error.value = 'Please enter your email address'
-    return
+let isMounted = true
+
+onBeforeUnmount(() => {
+  isMounted = false
+})
+
+const sendPasswordResetEmail = async (
+  emailAddress: string,
+  supabaseClient: SupabaseClientType,
+  origin: string
+): Promise<Result<void, string>> => {
+  if (!emailAddress.trim()) {
+    return err('Please enter your email address')
   }
 
+  const { error: resetError } = await supabaseClient.auth.resetPasswordForEmail(emailAddress, {
+    redirectTo: `${origin}/reset-password`,
+  })
+
+  if (resetError) {
+    return err(resetError.message)
+  }
+
+  return ok(undefined)
+}
+
+const handleSendResetEmail = async () => {
   isLoading.value = true
-  error.value = null
+  error.value = undefined
   success.value = false
 
-  try {
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.value,
-      { redirectTo: `${window.location.origin}/reset-password` }
-    )
+  const origin = globalThis.location.origin
+  const result = await sendPasswordResetEmail(email.value, supabase, origin)
 
-    if (resetError) throw resetError
+  if (!isMounted) return
 
-    success.value = true
-  } catch (err: any) {
-    error.value = err?.message ?? String(err)
-    logger.trace('Reset email failed:', err)
-  } finally {
-    isLoading.value = false
-  }
+  result.match(
+    () => {
+      success.value = true
+    },
+    (errorMessage) => {
+      error.value = errorMessage
+      logger.trace('Reset email failed:', errorMessage)
+    }
+  )
+
+  isLoading.value = false
 }
 </script>

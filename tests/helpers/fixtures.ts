@@ -5,7 +5,7 @@ import {
   deleteTestUserSdk,
   deleteTestUserRaw,
   type TestUser,
-} from '../helpers/supabase-users.js'
+} from './supabase-test'
 
 export type TestOptions = {
   variant: 'raw' | 'sdk'
@@ -24,7 +24,7 @@ export const test = base.extend<TestOptions & TestFixtures>({
     const deleteUser = variant === 'raw' ? deleteTestUserRaw : deleteTestUserSdk
 
     const user = await createUser(`e2e-${variant}`)
-    console.log(`✅ Created ${variant} test user: ${user.email}`)
+    console.log(`Created ${variant} test user: ${user.email}`)
 
     // Provide the user to the test
     await use(user)

@@ -54,7 +54,7 @@ describe('damerauLevenshteinSimilarity', () => {
 
   it('should handle strings of different lengths', () => {
     const result = damerauLevenshteinSimilarity('ca', 'abc')
-    expect(result).toBeCloseTo(0.6667, 4)
+    expect(result).toBe(0)
   })
 
   it('should handle one empty string', () => {

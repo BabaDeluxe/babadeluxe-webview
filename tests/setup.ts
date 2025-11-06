@@ -1,9 +1,9 @@
 import { beforeAll } from 'vitest'
-import { validate } from '../src/env-validator'
+import { validateEnvConfig } from '../src/env-validator'
 import { validateTest } from './helpers/test-env-validator'
 
 beforeAll(() => {
-  const envValidationResult = validate()
+  const envValidationResult = validateEnvConfig()
   if (envValidationResult.isErr()) {
     throw new Error(`Test env validation failed: ${envValidationResult.error.message}`)
   }

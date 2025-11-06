@@ -37,25 +37,6 @@ export class AppDb extends Dexie {
     this.message.hook('creating', function (_, myObject) {
       myObject.timestamp = new Date()
     })
-
-    this.message.hook('deleting', async function (_, myObject, transaction) {
-      if (!myObject?.conversationId) {
-        throw new Error('Cannot delete message: conversationId is undefined')
-      }
-
-      const conversationId = myObject.conversationId
-      this.onsuccess = async () => {
-        const messageCount = await transaction
-          .table('message')
-          .where('conversationId')
-          .equals(conversationId)
-          .count()
-
-        if (messageCount === 0) {
-          await transaction.table('conversation').delete(conversationId)
-        }
-      }
-    })
   }
 
   async getMessageByConversation(
@@ -120,6 +101,34 @@ export class AppDb extends Dexie {
   }
 
   async deleteMessage(id: number): Promise<Result<void, DbError>> {
-    return ResultAsync.fromPromise(this.message.delete(id), toDbError)
+    return ResultAsync.fromPromise(
+      this.transaction('rw', this.conversation, this.message, async () => {
+        // Fetch the message BEFORE deleting to get conversationId
+        const message = await this.message.get(id)
+
+        if (!message) {
+          this._logger.warn(`Message ${id} already deleted or not found - skipping`)
+          return // Idempotent: already deleted is success
+        }
+
+        const conversationId = message.conversationId
+
+        // Delete the message
+        await this.message.delete(id)
+
+        // Check if this was the last message in the conversation
+        const remainingMessages = await this.message
+          .where('conversationId')
+          .equals(conversationId)
+          .count()
+
+        // Cascade delete the conversation if no messages remain
+        if (remainingMessages === 0) {
+          await this.conversation.delete(conversationId)
+          this._logger.log(`Cascade deleted empty conversation ${conversationId}`)
+        }
+      }),
+      toDbError
+    )
   }
 }

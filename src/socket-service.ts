@@ -1,64 +1,178 @@
-import { type Socket } from 'socket.io-client'
-import type { ClientToServerEvents, ServerToClientEvents } from '@babadeluxe/shared'
 import type { ConsoleLogger } from '@simwai/utils'
+import type { Socket } from 'socket.io-client'
+import { type Result, ResultAsync, ok } from 'neverthrow'
 
-type EventNames = keyof ServerToClientEvents
-type EventHandler<T extends EventNames> = ServerToClientEvents[T]
+export class SocketConnectionError extends Error {
+  constructor(
+    public readonly namespace: string,
+    message: string,
+    public readonly cause?: Error
+  ) {
+    super(`[${namespace}] ${message}`)
+    this.name = 'SocketConnectionError'
+    Object.setPrototypeOf(this, SocketConnectionError.prototype)
+  }
+}
 
-export class SocketService {
-  public readonly handlers = new Map<string, (...args: any[]) => void>()
+export class SocketConnectionTimeoutError extends Error {
+  constructor(
+    public readonly namespace: string,
+    public readonly timeoutMs: number
+  ) {
+    super(`[${namespace}] Connection timeout after ${timeoutMs}ms`)
+    this.name = 'SocketConnectionTimeoutError'
+    Object.setPrototypeOf(this, SocketConnectionTimeoutError.prototype)
+  }
+}
+
+// No constraints - accept whatever zod-sockets generates
+export class SocketService<TEmission, TActions> {
+  private _isConnected = false
+  private _eventHandlers = new Map<string, Set<(...args: unknown[]) => void>>()
 
   constructor(
     private readonly _logger: ConsoleLogger,
-    private readonly _socket: Socket<ServerToClientEvents, ClientToServerEvents>
+    private readonly _socket: Socket,
+    private readonly _namespace: string
   ) {}
 
-  async init() {
-    this._socket.on('connect', () => {
-      this._logger.log(`✅ Connected to Socket.IO server: ${this._socket?.id}`)
-    })
-
-    this._socket.on('disconnect', () => {
-      this._logger.log(`❌ Socket.io server disconnected: ${this._socket?.id}`)
-    })
-
-    this._socket.onAny((event, ...args: any[]) => {
-      const handler = this.handlers.get(event)
-      if (!handler) {
-        this._logger.trace('No handler for the incoming event registered')
-        return
-      }
-
-      handler(...args)
-    })
-
-    this._socket.connect()
-    return this._socket
+  get isConnected(): boolean {
+    return this._isConnected && this._socket.connected
   }
 
-  disconnect() {
-    this._socket.disconnect()
-    this.handlers.clear()
+  get socketId(): string | undefined {
+    return this._socket.id
   }
 
-  on<T extends EventNames>(event: T, handler: EventHandler<T>, errorHandler?: (data: any) => void) {
-    const exec = () => this.handlers.set(event as string, handler as any)
+  async init(): Promise<Result<Socket, SocketConnectionError>> {
+    return ResultAsync.fromPromise(
+      new Promise<Socket>((resolve, reject) => {
+        let hasResolved = false
 
-    if (errorHandler) {
-      try {
-        exec()
-      } catch (error) {
-        errorHandler(error)
+        this._socket.on('connect', () => {
+          if (hasResolved) return
+          hasResolved = true
+          this._isConnected = true
+          this._logger.log(`Connected to ${this._namespace}: ${this._socket.id}`)
+          resolve(this._socket)
+        })
+
+        this._socket.on('disconnect', (reason: string) => {
+          this._isConnected = false
+          this._logger.log(`❌ ${this._namespace} disconnected: ${reason}`)
+        })
+
+        // 🔑 Only log errors, don't reject on them yet
+        this._socket.on('connect_error', (error: Error) => {
+          this._logger.warn(
+            `${this._namespace} connection attempt failed, retrying:`,
+            error.message
+          )
+        })
+
+        // Timeout to prevent hanging forever
+        const timeoutId = setTimeout(() => {
+          if (!hasResolved) {
+            hasResolved = true
+            reject(
+              new SocketConnectionError(
+                this._namespace,
+                'Connection timeout after 10s (retries exhausted)'
+              )
+            )
+          }
+        }, 10000)
+
+        this._socket.once('disconnect', () => {
+          if (!hasResolved) {
+            clearTimeout(timeoutId)
+          }
+        })
+
+        this._socket.connect()
+      }),
+      (error) => {
+        if (error instanceof SocketConnectionError) return error
+        return new SocketConnectionError(
+          this._namespace,
+          'Unknown connection failure',
+          error instanceof Error ? error : undefined
+        )
       }
-    } else {
-      exec()
+    )
+  }
+
+  disconnect(): void {
+    if (this._isConnected) {
+      for (const [event, handlers] of this._eventHandlers) {
+        for (const handler of handlers) {
+          this._socket.off(event, handler)
+        }
+      }
+      this._eventHandlers.clear()
+      this._socket.disconnect()
+      this._logger.log(`🧹 ${this._namespace} cleaned up`)
     }
   }
 
-  emit<T extends keyof ClientToServerEvents>(
+  async waitForConnection(timeoutMs = 10000): Promise<Result<void, SocketConnectionTimeoutError>> {
+    if (this._isConnected) return ok(undefined)
+
+    return ResultAsync.fromPromise(
+      new Promise<void>((resolve, reject) => {
+        const onConnect = () => {
+          clearTimeout(timeoutId)
+          resolve()
+        }
+
+        // 🔍 DEBUG: Log socket ID on connect
+        this._logger.log(`Connected to ${this._namespace}: ${this._socket.id}`)
+        console.log(`🔍 [${this._namespace}] Socket ID: ${this._socket.id}`)
+
+        this._socket.once('connect', onConnect)
+
+        const timeoutId = setTimeout(() => {
+          this._socket.off('connect', onConnect)
+          reject(new SocketConnectionTimeoutError(this._namespace, timeoutMs))
+        }, timeoutMs)
+      }),
+      (error) => {
+        if (error instanceof SocketConnectionTimeoutError) return error
+        return new SocketConnectionTimeoutError(this._namespace, timeoutMs)
+      }
+    )
+  }
+
+  on<T extends keyof TEmission>(event: T, handler: TEmission[T]): void {
+    const eventString = String(event)
+    const eventHandler = handler as (...args: unknown[]) => void
+
+    if (!this._eventHandlers.has(eventString)) {
+      this._eventHandlers.set(eventString, new Set())
+    }
+
+    this._eventHandlers.get(eventString)!.add(eventHandler)
+    this._socket.on(eventString, eventHandler)
+  }
+
+  off<T extends keyof TEmission>(event: T, handler?: TEmission[T]): void {
+    const eventString = String(event)
+
+    if (handler) {
+      const eventHandler = handler as (...args: unknown[]) => void
+      this._eventHandlers.get(eventString)?.delete(eventHandler)
+      this._socket.off(eventString, eventHandler)
+    } else {
+      this._eventHandlers.delete(eventString)
+      this._socket.off(eventString)
+    }
+  }
+
+  emit<T extends keyof TActions>(
     eventId: T,
-    ...args: Parameters<ClientToServerEvents[T]>
-  ) {
-    this._socket.emit(eventId, ...args)
+    ...args: TActions[T] extends (...args: infer P) => unknown ? P : never
+  ): void {
+    this._logger.log(`[${this._namespace}] [emit] Event: ${String(eventId)}`)
+    this._socket.emit(String(eventId), ...args)
   }
 }

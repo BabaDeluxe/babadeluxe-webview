@@ -1,32 +1,79 @@
 <template>
-<div class="max-h-14 max-w-14 w-auto h-auto justify-center flex items-center border-r-outset object-cover rounded-full">
-  <img v-if="avatarUrl" :src="avatarUrl" alt="User Avatar"
-    class="object-cover max-h-14 max-w-14 w-auto h-auto border-r-outset object-cover rounded-full">
-  <div v-else class="bg-codeBg flex items-center justify-center text-subtleText">
-    <!-- Fallback initials -->
-    {{ userInitials }}
+  <div class="flex items-center justify-center">
+    <!-- User Avatar -->
+    <img
+      v-if="role === 'user' && avatarUrl"
+      :src="avatarUrl"
+      alt="User Avatar"
+      class="w-14 h-14 object-cover rounded-full"
+      loading="lazy"
+    />
+
+    <!-- User Placeholder -->
+    <div
+      v-else-if="role === 'user'"
+      class="w-14 h-14 flex items-center justify-center text-subtleText rounded-full"
+    >
+      <i class="i-bi:person-circle w-8 h-8" />
+    </div>
+
+    <!-- Assistant Robot -->
+    <div
+      v-else
+      class="w-14 h-14 flex items-center justify-center text-accent"
+    >
+      <RobotIcon />
+    </div>
   </div>
-</div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { inject } from 'vue';
-import { IocEnum } from '@/enums/ioc-enum';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { computed, inject } from 'vue'
+import type { EnvConfig } from '@/env-validator'
+import { ENV_CONFIG_KEY } from '@/injection-keys'
+import RobotIcon from '@/components/RobotIcon.vue'
 
-const supabase: SupabaseClient = inject(IocEnum.SUPABASE_CLIENT)!;
+const envConfig: EnvConfig = inject(ENV_CONFIG_KEY)!
+const { VITE_SUPABASE_URL } = envConfig
+const projectRef = new URL(VITE_SUPABASE_URL).hostname.split('.')[0]
 
-const avatarUrl = ref<string | null>(null);
-const userInitials = computed(() => {
-  // Logic for fallback initials, e.g., from user.full_name or email
-  return '??';
-});
+defineProps<{
+  role?: 'user' | 'assistant'
+}>()
 
-onMounted(async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user?.identities?.[0]?.identity_data?.avatar_url) {
-    avatarUrl.value = user.identities[0].identity_data.avatar_url;
+const ttl = 5 * 60 * 1000
+const cache = new Map<string, { url: string | undefined; timestamp: number }>()
+
+const getSessionFromStorage = ():
+  | { user: { identities?: Array<{ identity_data?: { avatar_url?: string } }> } }
+  | undefined => {
+  try {
+    const storageKey = `sb-${projectRef}-auth-token`
+    const item = localStorage.getItem(storageKey)
+    if (!item) return undefined
+    return JSON.parse(item)
+  } catch (error) {
+    console.error('Failed to parse session from localStorage:', error)
+    return undefined
   }
-});
+}
+
+const avatarUrl = computed(() => {
+  const now = Date.now()
+  const cached = cache.get('avatar')
+
+  if (cached && now - cached.timestamp < ttl) {
+    return cached.url
+  }
+
+  const session = getSessionFromStorage()
+  const url = session?.user?.identities?.[0]?.identity_data?.avatar_url
+
+  cache.set('avatar', {
+    url,
+    timestamp: Date.now(),
+  })
+
+  return url
+})
 </script>

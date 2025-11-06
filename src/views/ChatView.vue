@@ -1,223 +1,586 @@
 <template>
-<section id="chat" class="flex flex-col w-full p-4 bg-slate">
-  <div class="flex flex-col gap-0 pt-4 w-full justify-content items-center">
-    <AvatarItem />
-    <div class="inline-flex h-full items-center justify-center text-xl text-deepText">
-      {{ currentUsername }}
-    </div>
-  </div>
-
-  <!-- Error Display -->
-  <div v-if="error" class="bg-panel border border-error rounded-md p-3 mb-4">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2 text-error">
-        <i class="i-ant-design:info-circle-outlined" />
-        <span class="text-sm">{{ error }}</span>
-      </div>
-      <button @click="clearError" class="text-error hover:text-error/80 transition-colors">
-        <i class="i-weui:close-outlined" />
-      </button>
-    </div>
-  </div>
-
-  <div class="flex flex-col gap-0 pt-4">
-    <div class="flex flex-col">
-      <InputItem v-model:value="currentMessage" placeholder="How can I help you today?" :disabled="isLoading"
-        @keydown.enter.exact.prevent="handleSendMessage" />
-    </div>
-
-    <div class="flex flex-col sm:flex-row border border-borderMuted rounded bg-panel">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
-        <div class="flex flex-row w-auto">
-          <!-- Prompt Selector -->
-          <div class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:text-accent transition-colors">
-            <i class="i-bi:chat-left text-base text-subtleText" />
-            <span class="text-sm text-deepText">{{ currentPrompt }}</span>
-            <i class="i-weui:arrow-outlined rotate-90 text-base transform text-subtleText" />
-          </div>
-
-          <!-- AI Model Dropdown -->
-          <div class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:text-accent transition-colors">
-            <i class="i-simple-icons:openai text-base text-subtleText" />
-            <span class="text-sm text-deepText">{{ currentModel }}</span>
-            <i class="i-weui:arrow-outlined rotate-90 text-base transform text-subtleText" />
-          </div>
-        </div>
-
-        <div class="flex w-auto justify-center px-3 py-2 items-center hover:text-accent transition-colors"
-          :class="{ 'opacity-50 cursor-not-allowed': isLoading || !currentMessage.trim() }" @click="handleSendMessage">
-          <i v-if="!isLoading" class="i-bi:play-circle text-xl text-accent" />
-          <div v-else class="w-5 h-5">
-            <DotLottieVue style="height: 20px; width: 20px" autoplay loop
-              src="https://lottie.host/61eb14b2-5dd2-471a-88c3-9e9c61862e83/Rldo3dbFyi.lottie" />
-          </div>
-        </div>
+  <section
+    id="chat"
+    class="flex flex-col w-full h-full bg-slate overflow-x-hidden"
+  >
+    <!-- Header with Avatar (only when no messages) -->
+    <div
+      v-if="messages.length === 0"
+      class="flex flex-col gap-0 px-4 py-6 w-full items-center"
+    >
+      <AvatarItem />
+      <div class="inline-flex h-full items-center justify-center text-xl text-deepText">
+        {{ currentUsername }}
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading && messages.length === 0" class="flex justify-center p-8">
-      <div class="flex items-center gap-2 text-subtleText">
-        <div class="w-8 h-8">
-          <DotLottieVue style="height: 32px; width: 32px" autoplay loop
-            src="https://lottie.host/61eb14b2-5dd2-471a-88c3-9e9c61862e83/Rldo3dbFyi.lottie" />
+    <!-- Error Banners for each source -->
+    <ErrorBanner
+      :message="conversationError"
+      type="error"
+      @close="clearPromptsError"
+    />
+    <ErrorBanner
+      :message="chatError"
+      type="error"
+      @close="chatError = undefined"
+    />
+    <ErrorBanner
+      :message="modelsError"
+      type="warning"
+      @close="modelsError = undefined"
+    />
+    <ErrorBanner
+      :message="promptsError"
+      type="warning"
+      @close="promptsError = undefined"
+    />
+
+    <!-- Main Content Area -->
+    <div class="flex flex-col flex-1 min-h-0">
+      <!-- Input at Top (only when no messages) -->
+      <div
+        v-if="messages.length === 0"
+        class="flex flex-col gap-0 px-4 py-2"
+      >
+        <TextItem
+          ref="textInput"
+          v-model:value="currentMessage"
+          style="w-0"
+          placeholder="How can I help you today?"
+          :disabled="isLoadingConversation || isChatStreaming"
+          @keydown.enter.exact.prevent="handleSendMessage"
+        />
+        <div
+          class="flex xs:flex-row flex-col justify-start xs:justify-center items-center border border-borderMuted rounded bg-panel overflow-hidden"
+        >
+          <div class="flex flex-1">
+            <!-- FIX: Changed :options to :items to match the data structure -->
+            <DropdownSelector
+              v-model="currentPrompt"
+              icon="i-bi:chat-left"
+              :items="promptOptions"
+            />
+            <DropdownSelector
+              v-model="currentModel"
+              icon="i-simple-icons:openai"
+              :groups="groupedModels"
+              :disabled="isLoadingModels"
+            />
+          </div>
+          <ButtonItem
+            v-if="!isChatStreaming"
+            icon="i-bi:play-circle"
+            :class="'bg-transparent text-accent hover:bg-transparent hover:text-accent/80 rounded-none border-0 shrink-0'"
+            :disabled="!currentMessage.trim()"
+            :loading="isLoadingConversation"
+            @click="handleSendMessage"
+          >
+            <template #loading>
+              <div class="w-5 h-5">
+                <DotLottieVue
+                  :style="'height: 20px; width: 20px'"
+                  autoplay
+                  loop
+                  src="https://lottie.host/61eb14b2-5dd2-471a-88c3-9e9c61862e83/Rldo3dbFyi.lottie"
+                />
+              </div>
+            </template>
+          </ButtonItem>
+          <ButtonItem
+            v-else
+            icon="i-bi:stop-circle"
+            :class="'bg-transparent text-error hover:bg-transparent hover:text-error/80 rounded-none border-0 shrink-0'"
+            @click="handleAbortMessage"
+          />
         </div>
-        <span>Loading conversation...</span>
+      </div>
+
+      <!-- Loading State (No Messages) -->
+      <div
+        v-if="isLoadingConversation && messages.length === 0"
+        class="flex justify-center p-8"
+      >
+        <div class="flex items-center gap-2 text-subtleText">
+          <div class="w-8 h-8">
+            <DotLottieVue
+              :style="'height: 32px; width: 32px'"
+              autoplay
+              loop
+              src="https://lottie.host/61eb14b2-5dd2-471a-88c3-9e9c61862e83/Rldo3dbFyi.lottie"
+            />
+          </div>
+          <span>Loading conversation...</span>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div
+        v-else-if="messages.length === 0"
+        class="flex flex-col items-center justify-center p-8 text-subtleText"
+      >
+        <i class="i-bi:chat-left-dots text-6xl mb-4 opacity-50" />
+        <h3 class="text-lg font-medium mb-2 text-deepText">Start a conversation</h3>
+        <p class="text-sm">Ask me anything to begin!</p>
+      </div>
+
+      <!-- Messages List (with scrolling) -->
+      <div
+        v-if="messages.length > 0"
+        class="flex-1 overflow-y-auto px-4 min-h-0"
+      >
+        <div class="flex flex-col gap-0 max-w-4xl mx-auto">
+          <ActiveChatItem
+            v-for="message in messages"
+            :key="message.id"
+            :ref="(element) => registerMessageComponent(message.id, element as Element)"
+            v-bind="message"
+            @delete="handleDeleteMessage"
+            @update="handleUpdateMessage"
+            @rewrite="handleRewriteMessage"
+          />
+        </div>
+      </div>
+
+      <!-- Input at Bottom (when messages exist) -->
+      <div
+        v-if="messages.length > 0"
+        class="flex flex-col gap-0 p-4 border-t border-borderMuted"
+      >
+        <TextItem
+          ref="textInput"
+          v-model:value="currentMessage"
+          placeholder="How can I help you today?"
+          :disabled="isLoadingConversation || isChatStreaming"
+          @keydown.enter.exact.prevent="handleSendMessage"
+        />
+        <div
+          class="flex xs:flex-row flex-col justify-start xs:justify-center items-center border border-borderMuted rounded bg-panel overflow-hidden"
+        >
+          <div class="flex flex-1">
+            <!-- FIX: Changed :options to :items to match the data structure -->
+            <DropdownSelector
+              v-model="currentPrompt"
+              icon="i-bi:chat-left"
+              :items="promptOptions"
+            />
+            <DropdownSelector
+              v-model="currentModel"
+              icon="i-simple-icons:openai"
+              :groups="groupedModels"
+              :disabled="isLoadingModels"
+            />
+          </div>
+          <ButtonItem
+            v-if="!isChatStreaming"
+            icon="i-bi:play-circle"
+            class="bg-transparent text-accent hover:bg-transparent hover:text-accent/80 rounded-none border-0 shrink-0"
+            :disabled="!currentMessage.trim()"
+            :loading="isLoadingConversation"
+            @click="handleSendMessage"
+          >
+            <template #loading>
+              <div class="w-5 h-5">
+                <DotLottieVue
+                  :style="'height: 20px; width: 20px'"
+                  autoplay
+                  loop
+                  src="https://lottie.host/61eb14b2-5dd2-471a-88c3-9e9c61862e83/Rldo3dbFyi.lottie"
+                />
+              </div>
+            </template>
+          </ButtonItem>
+          <ButtonItem
+            v-else
+            icon="i-bi:stop-circle"
+            class="bg-transparent text-error hover:bg-transparent hover:text-error/80 rounded-none border-0 shrink-0"
+            @click="handleAbortMessage"
+          />
+        </div>
       </div>
     </div>
-
-    <!-- Empty State -->
-    <div v-else-if="messages.length === 0" class="flex flex-col items-center justify-center p-8 text-subtleText">
-      <i class="i-bi:chat-left-dots text-6xl mb-4 opacity-50" />
-      <h3 class="text-lg font-medium mb-2 text-deepText">Start a conversation</h3>
-      <p class="text-sm">Ask me anything to begin!</p>
-    </div>
-
-    <!-- Messages using ActiveChatItem -->
-    <div class="flex flex-col gap-0">
-      <ActiveChatItem v-for="message in messages" :key="message.id" v-bind="message" @delete="handleDeleteMessage"
-        @update="handleUpdateMessage" @rewrite="handleRewriteMessage" />
-    </div>
-  </div>
-</section>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
-import { inject, onMounted, ref, computed } from 'vue'
-import AvatarItem from '../components/AvatarItem.vue'
-import ActiveChatItem from '../components/ActiveChatItem.vue'
-import InputItem from '../components/InputItem.vue'
-import { IocEnum } from '@/enums/ioc-enum'
-import type { SocketService } from '@/socket-service'
+import { inject, onMounted, ref, useTemplateRef, watch, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ConsoleLogger } from '@simwai/utils'
+import { ResultAsync } from 'neverthrow'
+import AvatarItem from '@/components/AvatarItem.vue'
+import ActiveChatItem from '@/components/ActiveChatItem.vue'
+import DropdownSelector from '@/components/DropdownSelector.vue'
+import TextItem from '@/components/TextItem.vue'
+import ButtonItem from '@/components/ButtonItem.vue'
+import ErrorBanner from '@/components/ErrorBanner.vue'
 import { useConversation } from '@/composables/use-conversation'
+import { useChatSocket } from '@/composables/use-chat-socket'
+import { useModelsSocket } from '@/composables/use-models-socket'
+import { usePromptsSocket } from '@/composables/use-prompts-socket'
+import type { KeyValueStore } from '@/database/key-value-store'
+import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import type { Message } from '@babadeluxe/shared'
+
+// Constants
+const defaultModel = 'gemini:gemini-2.5-flash'
+const commitIntervalMs = 2000
+const commitChunkThreshold = 500
+
+// Types
+type Mutable<T> = {
+  -readonly [P in keyof T]: T[P]
+}
+type ActiveChatItemInstance = InstanceType<typeof ActiveChatItem>
+
+// Injections
+const logger = inject<ConsoleLogger>(LOGGER_KEY)!
+const keyValueStore = inject<KeyValueStore>(KEY_VALUE_STORE_KEY)!
+const supabase = inject<SupabaseClient>(SUPABASE_CLIENT_KEY)!
+
+// Composables
 const {
   messages,
-  conversations,
   currentConversationId,
-  isLoading,
-  error,
-  loadMessages,
+  isLoading: isLoadingConversation,
+  error: conversationError,
   loadConversations,
   initializeCurrentConversation,
   addOrUpdateMessage,
   deleteMessage,
   generateConversationTitle,
   updateConversationTitle,
+  debouncedAutoSave,
 } = useConversation()
 
-const currentModel = ref('GPT-4')
+const {
+  isStreaming: isChatStreaming,
+  error: chatError,
+  currentStreamingMessageId,
+  sendMessage: sendChatMessage,
+  abortMessage: abortChatMessage,
+} = useChatSocket()
+
+const { groupedModels, isLoadingModels, modelsError, fetchAllModels } = useModelsSocket()
+
+const {
+  prompts,
+  isLoading: isLoadingPrompts,
+  error: promptsError,
+  clearError: clearPromptsError,
+} = usePromptsSocket()
+
+// State Refs
 const currentPrompt = ref('BabaSeniorDev™')
+const currentModel = ref(defaultModel)
 const currentMessage = ref('')
+const currentUsername = ref('')
+const textInputRef = useTemplateRef<HTMLElement>('textInput')
+const messageComponents = ref<Map<number, ActiveChatItemInstance>>(new Map())
 
-const socketService: SocketService = inject(IocEnum.SOCKET_SERVICE)!
-const supabase: SupabaseClient<any, 'public', 'public', any, any> = inject(IocEnum.SUPABASE_CLIENT)!
-
-const currentConversationTitle = computed(() => {
-  const conversation = conversations.value.find((c) => c.id === currentConversationId.value)
-  return conversation?.title || 'New Conversation'
+// Computed Properties
+const promptOptions = computed(() => {
+  if (isLoadingPrompts.value) {
+    return [{ label: 'Loading Prompts...', value: '', disabled: true }]
+  }
+  if (promptsError.value) {
+    return [{ label: 'Error loading prompts', value: '', disabled: true }]
+  }
+  return prompts.value.map((p) => ({
+    label: p.isSystem ? `${p.name} (System)` : p.name,
+    value: p.command,
+  }))
 })
 
-const currentUser = await supabase.auth.getUser()
-const currentUserId: string = currentUser.data.user?.id ?? ''
-
-const currentUsername = ref('')
-
-// Fetch username function
-async function fetchUsername() {
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    // Try 1: GitHub provider username from user identities
-    const githubIdentity = user?.identities?.find((id) => id.provider === 'github')
-    if (githubIdentity && githubIdentity.identity_data?.login) {
-      currentUsername.value = githubIdentity.identity_data.login
-      return
-    }
-
-    // Try 2: Username from user metadata (profile)
-    if (user?.user_metadata?.username) {
-      currentUsername.value = user.user_metadata.username
-      return
-    }
-
-    // Try 3: Username from user_setting table
-    // const { data: settings, error: settingsError } = await supabase
-    //   .from('user_setting')
-    //   .select('settingValue')
-    //   .eq('fkUserId', user?.id)
-    //   .eq('settingKey', 'username')
-    //   .limit(1)
-    //   .single()
-
-    // if (settingsError || !settings) {
-    //   console.error('Failed to fetch username from user_setting:', settingsError)
-    //   currentUsername.value = 'Unknown'
-    //   return
-    // }
-
-    // currentUsername.value = settings.settingValue || 'Unknown'
-  } catch (error) {
-    console.error('Error fetching username:', error)
-    currentUsername.value = 'Unknown'
+// Methods
+const registerMessageComponent = (id: number, element: Element | ActiveChatItemInstance | null) => {
+  if (!element) {
+    messageComponents.value.delete(id)
+    return
   }
+  if ('$' in (element as Element | ActiveChatItemInstance))
+    messageComponents.value.set(id, element as ActiveChatItemInstance)
 }
 
-onMounted(async () => {
-  try {
-    await loadConversations()
-    await initializeCurrentConversation()
-    await fetchUsername() // Fetch username on mount
-  } catch (error) {
-    console.error('Failed to initialize chat:', error)
-  }
-})
+const commitStreamingBuffer = (messageId: number): void => {
+  const componentInstance = messageComponents.value.get(messageId)
+  if (componentInstance?.markdownRef) componentInstance.markdownRef.commitContent()
+}
 
-const clearError = () => {
-  // Error will clear on next successful operation
+const fetchUsername = async (): Promise<void> => {
+  const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
+    const errorMessage =
+      unknownError instanceof Error ? unknownError.message : 'Failed to fetch user'
+    return new Error(errorMessage)
+  })
+
+  getUserResult.match(
+    (response) => {
+      const user = response.data.user
+      const githubIdentity = user?.identities?.find((id) => id.provider === 'github')
+
+      if (githubIdentity?.identity_data?.login) {
+        currentUsername.value = githubIdentity.identity_data.login as string
+      } else if (user?.user_metadata?.username) {
+        currentUsername.value = user.user_metadata.username as string
+      } else {
+        currentUsername.value = 'Unknown'
+      }
+    },
+    (fetchError) => {
+      logger.error('Error fetching username:', fetchError)
+      currentUsername.value = 'Unknown'
+    }
+  )
+}
+
+const loadPersistedSettings = async (): Promise<void> => {
+  const promptResult = await ResultAsync.fromPromise(
+    keyValueStore.get('chat-prompt'),
+    (unknownError) =>
+      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to load prompt')
+  )
+
+  promptResult.match(
+    (storedPrompt) => {
+      if (storedPrompt !== undefined) {
+        currentPrompt.value = storedPrompt as string
+      }
+    },
+    (loadError) => {
+      logger.error('Failed to load persisted prompt:', loadError)
+    }
+  )
+
+  const modelResult = await ResultAsync.fromPromise(
+    keyValueStore.get('chat-model'),
+    (unknownError) =>
+      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to load model')
+  )
+
+  modelResult.match(
+    (storedModel) => {
+      if (storedModel !== undefined) {
+        currentModel.value = storedModel as string
+      }
+    },
+    (loadError) => {
+      logger.error('Failed to load persisted model:', loadError)
+    }
+  )
 }
 
 const handleDeleteMessage = async (messageId: number) => {
-  const success = await deleteMessage(messageId)
-  if (!success) {
-    console.error('Failed to delete message')
-  }
+  await deleteMessage(messageId)
 }
 
 const handleUpdateMessage = async (messageId: number, content: string) => {
-  const success = await addOrUpdateMessage(content, 'user', messageId)
-  if (!success) {
-    console.error('Failed to update message')
-  }
+  await addOrUpdateMessage(content, 'user', messageId)
 }
 
 const handleRewriteMessage = async (messageId: number, modelId: string) => {
-  // TODO: Implement message rewrite with different model
-  console.log('Rewrite message', messageId, 'with model', modelId)
+  logger.log('Rewrite message', messageId.toString(), 'with model', modelId)
 }
 
-const handleSendMessage = async () => {
-  if (!currentMessage.value.trim() || isLoading.value) return
+const buildPrompt = (messages: Message[], newMessage: string, systemPrompt: string): string => {
+  let prompt = `${systemPrompt}\n\n`
+  for (const msg of messages) {
+    if (msg.content.trim()) {
+      prompt += `${msg.role}: ${msg.content}\n\n`
+    }
+  }
+  prompt += `user: ${newMessage}\n\nassistant:`
+  return prompt
+}
+
+const handleSendMessage = async (): Promise<void> => {
+  if (!currentMessage.value.trim() || isLoadingConversation.value || isChatStreaming.value) return
+
+  if (!currentModel.value || !currentModel.value.includes(':')) {
+    conversationError.value = 'Please select a valid model first'
+    return
+  }
+
+  const [provider, selectedModel] = currentModel.value.split(':')
+  if (!provider || !selectedModel) {
+    conversationError.value = 'Invalid model format'
+    return
+  }
 
   const messageContent = currentMessage.value
   currentMessage.value = ''
 
   const userMessage = await addOrUpdateMessage(messageContent, 'user')
-  if (!userMessage) {
+  if (!userMessage || userMessage === true) {
     currentMessage.value = messageContent
     return
   }
 
-  // Auto-generate title from first message
   if (messages.value.length === 1) {
     const newTitle = generateConversationTitle(messageContent)
     await updateConversationTitle(currentConversationId.value, newTitle)
   }
 
-  console.log('Sending message to AI:', messageContent)
-  // TODO: Socket.io integration here
+  const assistantMessage = await addOrUpdateMessage('', 'assistant')
+  if (!assistantMessage || assistantMessage === true) {
+    conversationError.value = 'Failed to create assistant message'
+    return
+  }
+
+  const systemPromptText = 'You are a senior software engineer assistant.' // This could also come from the selected prompt object in the future
+  const fullPrompt = buildPrompt(messages.value.slice(0, -1), messageContent, systemPromptText)
+
+  let streamedContent = ''
+  let lastCommitTime = Date.now()
+  let lastCommitLength = 0
+
+  const result = await sendChatMessage(
+    assistantMessage.id,
+    provider,
+    selectedModel,
+    fullPrompt,
+    (chunk) => {
+      logger.log(
+        'Received chunk: ' + chunk.substring(0, 30) + 'for message: ',
+        assistantMessage.id.toString()
+      )
+      streamedContent += chunk
+      const msg = messages.value.find((m) => m.id === assistantMessage.id) as
+        | Mutable<Message>
+        | undefined
+
+      if (msg) {
+        msg.content = streamedContent
+        if (!msg.isStreaming) msg.isStreaming = true
+
+        const now = Date.now()
+        const charsSinceCommit = streamedContent.length - lastCommitLength
+        if (now - lastCommitTime > commitIntervalMs || charsSinceCommit > commitChunkThreshold) {
+          commitStreamingBuffer(assistantMessage.id)
+          lastCommitTime = now
+          lastCommitLength = streamedContent.length
+        }
+        debouncedAutoSave(assistantMessage.id, streamedContent)
+      }
+    }
+  )
+
+  await result.match(
+    async () => {
+      const msg = messages.value.find((m) => m.id === assistantMessage.id) as
+        | Mutable<Message>
+        | undefined
+      if (msg) {
+        commitStreamingBuffer(assistantMessage.id)
+        msg.content = streamedContent
+        msg.isStreaming = false
+        await addOrUpdateMessage(streamedContent, 'assistant', msg.id)
+        messageComponents.value.delete(assistantMessage.id)
+        logger.log(`Message ${assistantMessage.id} complete`)
+      }
+    },
+    async (streamError) => {
+      logger.error(streamError)
+      await deleteMessage(assistantMessage.id)
+    }
+  )
 }
+
+const handleAbortMessage = async (): Promise<void> => {
+  if (!currentStreamingMessageId.value) return
+  const messageId = currentStreamingMessageId.value
+  const result = await abortChatMessage(messageId)
+
+  await result.match(
+    async () => {
+      textInputRef.value?.focus()
+      const messageToDelete = messages.value.find((m) => m.id === messageId)
+      if (messageToDelete) {
+        await deleteMessage(messageId)
+      } else {
+        logger.warn(`Message ${messageId} not found in array`)
+      }
+      logger.log('Message aborted successfully')
+    },
+    (abortError) => {
+      logger.error('Abort failed:', abortError)
+    }
+  )
+}
+
+// Lifecycle Hooks
+onMounted(async () => {
+  const initResult = await ResultAsync.fromPromise(
+    (async () => {
+      await loadConversations()
+      await Promise.all([
+        initializeCurrentConversation(),
+        fetchUsername(),
+        loadPersistedSettings(),
+        fetchAllModels(),
+      ])
+    })(),
+    (unknownError) =>
+      new Error(unknownError instanceof Error ? unknownError.message : 'Initialization failed')
+  )
+
+  initResult.match(
+    () => {
+      logger.log('Chat initialized successfully')
+    },
+    (initError) => {
+      logger.error('Failed to initialize chat:', initError)
+      conversationError.value = 'Failed to initialize chat. Please refresh the page.'
+    }
+  )
+})
+
+// Watchers
+watch(
+  groupedModels,
+  (newGroups) => {
+    if (!newGroups || newGroups.length === 0) return
+    for (const group of newGroups) {
+      if (group.items.length > 0) {
+        const preferredModel =
+          group.items.find((m) => m.label.toLowerCase().includes('flash-2.0')) ||
+          group.items.find((m) => m.label.toLowerCase().includes('flash')) ||
+          group.items[0]
+        if (preferredModel) {
+          currentModel.value = preferredModel.value
+          return
+        }
+      }
+    }
+  },
+  { deep: true }
+)
+
+watch(currentPrompt, async (newValue) => {
+  const result = await ResultAsync.fromPromise(
+    keyValueStore.set('chat-prompt', newValue),
+    (unknownError) =>
+      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to persist prompt')
+  )
+  result.match(
+    () => {},
+    (persistError) => {
+      logger.error('Failed to persist prompt setting:', persistError)
+    }
+  )
+})
+
+watch(currentModel, async (newValue) => {
+  const result = await ResultAsync.fromPromise(
+    keyValueStore.set('chat-model', newValue),
+    (unknownError) =>
+      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to persist model')
+  )
+  result.match(
+    () => {},
+    (persistError) => {
+      logger.error('Failed to persist model setting:', persistError)
+    }
+  )
+})
 </script>
