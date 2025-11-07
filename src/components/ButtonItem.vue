@@ -7,11 +7,20 @@
   >
     <slot v-if="!loading && $slots.default" />
     <template v-else-if="!loading">
-      <i v-if="icon" :class="icon" />
+      <i
+        v-if="icon"
+        :class="icon"
+      />
       <span v-if="text">{{ text }}</span>
     </template>
-    <slot v-else-if="loading && $slots.loading" name="loading" />
-    <i v-else class="i-svg-spinners:ring-resize text-xl" />
+    <slot
+      v-else-if="loading && $slots.loading"
+      name="loading"
+    />
+    <i
+      v-else
+      class="i-svg-spinners:ring-resize text-xl"
+    />
   </button>
 </template>
 

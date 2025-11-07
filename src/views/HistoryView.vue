@@ -1,5 +1,8 @@
 <template>
-  <section id="history" class="relative flex flex-col w-full h-full overflow-hidden bg-slate">
+  <section
+    id="history"
+    class="relative flex flex-col w-full h-full overflow-hidden bg-slate"
+  >
     <div class="flex flex-row w-full items-center justify-center gap-2 px-4 pt-4">
       <i class="i-weui:search-outlined text-3xl text-subtleText" />
       <TextItem
@@ -21,14 +24,23 @@
       aria-label="Search results dropdown"
       class="absolute top-14 left-3 right-4 bg-panel border border-borderMuted rounded-md shadow-lg z-50 max-h-64 overflow-y-auto"
     >
-      <div v-if="isSearching" class="flex justify-center p-4">
+      <div
+        v-if="isSearching"
+        class="flex justify-center p-4"
+      >
         <div
           class="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"
         />
       </div>
 
-      <div v-else class="flex flex-col">
-        <div v-if="searchResults.length === 0" class="p-3 text-subtleText text-center">
+      <div
+        v-else
+        class="flex flex-col"
+      >
+        <div
+          v-if="searchResults.length === 0"
+          class="p-3 text-subtleText text-center"
+        >
           No matches found
         </div>
         <div v-else>
@@ -69,7 +81,10 @@
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex-1 flex justify-center items-center">
+    <div
+      v-if="isLoading"
+      class="flex-1 flex justify-center items-center"
+    >
       <div class="flex items-center gap-2 text-subtleText">
         <div
           class="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin"
@@ -78,10 +93,16 @@
       </div>
     </div>
 
-    <div v-else class="flex-1 overflow-hidden px-4 pb-4 pt-4">
+    <div
+      v-else
+      class="flex-1 overflow-hidden px-4 pb-4 pt-4"
+    >
       <template v-if="showSelectedMessages">
         <!-- Mobile: Vertical stack -->
-        <div ref="verticalContainerRef" class="flex flex-col md:hidden h-full">
+        <div
+          ref="verticalContainerRef"
+          class="flex flex-col md:hidden h-full"
+        >
           <!-- Conversations (Top Half) -->
           <div
             class="flex flex-col gap-2 overflow-y-auto"
@@ -189,7 +210,10 @@
         </div>
 
         <!-- Desktop: Split view -->
-        <div ref="splitContainerRef" class="hidden md:flex flex-row h-full relative">
+        <div
+          ref="splitContainerRef"
+          class="hidden md:flex flex-row h-full relative"
+        >
           <!-- Left Pane: Conversations -->
           <div
             class="flex flex-col gap-2 overflow-y-auto pr-2"
@@ -298,7 +322,10 @@
       </template>
 
       <!-- Case: No messages selected -->
-      <div v-else class="flex flex-col gap-2 h-full overflow-y-auto">
+      <div
+        v-else
+        class="flex flex-col gap-2 h-full overflow-y-auto"
+      >
         <h3 class="text-lg font-medium text-deepText">Conversations</h3>
 
         <div
@@ -350,7 +377,10 @@
       </div>
     </div>
 
-    <div v-if="error" class="flex-none bg-panel border border-error rounded-md p-3 mx-4 mb-4">
+    <div
+      v-if="error"
+      class="flex-none bg-panel border border-error rounded-md p-3 mx-4 mb-4"
+    >
       <div class="flex items-center gap-2 text-error">
         <i class="i-weui:error-outlined" />
         <span class="text-sm">{{ error }}</span>

@@ -12,7 +12,10 @@
           Enter your email address and we'll send you a reset link.
         </p>
 
-        <form class="flex flex-col gap-4" @submit.prevent="handleSendResetEmail">
+        <form
+          class="flex flex-col gap-4"
+          @submit.prevent="handleSendResetEmail"
+        >
           <input
             v-model="email"
             type="email"
@@ -39,8 +42,18 @@
           />
         </form>
 
-        <p v-if="error" aria-label="Password Reset Error" class="text-error mt-4">{{ error }}</p>
-        <p v-if="success" aria-label="Password Reset Success" class="text-accent mt-4">
+        <p
+          v-if="error"
+          aria-label="Password Reset Error"
+          class="text-error mt-4"
+        >
+          {{ error }}
+        </p>
+        <p
+          v-if="success"
+          aria-label="Password Reset Success"
+          class="text-accent mt-4"
+        >
           Reset link sent! Check your email inbox.
         </p>
       </div>

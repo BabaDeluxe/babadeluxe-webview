@@ -24,7 +24,11 @@
 
         <div class="text-center text-subtleText my-4">or</div>
 
-        <form class="flex flex-col gap-4" autocomplete="on" @submit.prevent="handleAuth">
+        <form
+          class="flex flex-col gap-4"
+          autocomplete="on"
+          @submit.prevent="handleAuth"
+        >
           <input
             v-model="email"
             type="email"
@@ -46,7 +50,10 @@
           />
 
           <!-- Forgot Password button (only show during sign-in) -->
-          <router-link to="/reset-password" class="w-full flex">
+          <router-link
+            to="/reset-password"
+            class="w-full flex"
+          >
             <ButtonItem
               v-if="!isSignUp"
               class="w-full"
@@ -69,7 +76,10 @@
           />
         </form>
 
-        <p v-if="error" class="text-error mt-4">
+        <p
+          v-if="error"
+          class="text-error mt-4"
+        >
           {{ error }}
         </p>
       </div>
