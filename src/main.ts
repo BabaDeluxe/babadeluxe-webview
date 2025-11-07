@@ -17,7 +17,6 @@ import {
   API_KEY_VALIDATOR_KEY,
   APP_DB_KEY,
   ENV_CONFIG_KEY,
-  KEY_VALUE_DB_KEY,
   KEY_VALUE_STORE_KEY,
   LOGGER_KEY,
   SEARCH_SERVICE_KEY,
@@ -78,8 +77,6 @@ app.provide(SEARCH_SERVICE_KEY, searchService)
 app.provide(APP_DB_KEY, appDb)
 
 const keyValueDb = new KeyValueDb()
-app.provide(KEY_VALUE_DB_KEY, keyValueDb)
-
 const keyValueStore = new KeyValueStore(keyValueDb)
 app.provide(KEY_VALUE_STORE_KEY, keyValueStore)
 
