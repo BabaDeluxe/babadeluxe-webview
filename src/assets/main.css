@@ -3,6 +3,11 @@
   box-sizing: border-box !important;
 }
 
+p {
+  margin: 0;
+  padding: 0;
+}
+
 /* Fix for bad behaviour of the UnoCSS preset wind4 */
 input,
 textarea {
