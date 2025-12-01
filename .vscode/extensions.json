@@ -5,8 +5,8 @@
     "vitest.explorer",
     "antfu.iconify",
     "antfu.unocss",
-    "visualstudioexptteam.vscodeintellicode-completions",
     "esbenp.prettier-vscode",
-    "dbaeumer.vscode-eslint"
+    "dbaeumer.vscode-eslint",
+    "bierner.github-markdown-preview"
   ]
 }
