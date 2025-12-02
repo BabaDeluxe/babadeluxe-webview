@@ -23,22 +23,12 @@ import {
   SOCKET_MANAGER_KEY,
   SUPABASE_CLIENT_KEY,
 } from './injection-keys'
+import { initializeModels } from './composables/use-models-socket'
+import { BaseError } from './base-error'
 
-class EnvConfigError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'EnvConfigError'
-    Object.setPrototypeOf(this, EnvConfigError)
-  }
-}
+class EnvConfigError extends BaseError {}
 
-class AuthTokenError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'AuthTokenError'
-    Object.setPrototypeOf(this, AuthTokenError)
-  }
-}
+class AuthTokenError extends BaseError {}
 
 class AppLogger extends ConsoleLogger {
   fatal(message: string, error: Error): never {
@@ -52,8 +42,7 @@ const validationResult = validateEnvConfig()
 
 const envConfig = validationResult.match(
   (config) => config,
-  (error) =>
-    logger.fatal('❌ Environment config validation failed', new EnvConfigError(error.message))
+  (error) => logger.fatal('Environment config validation failed', new EnvConfigError(error.message))
 )
 
 const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SOCKET_URL } = envConfig
@@ -72,7 +61,7 @@ const apiKeyValidator = new ApiKeyValidator(logger)
 app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
 
 const appDb = new AppDb(logger)
-const searchService = new SearchService(appDb)
+const searchService = new SearchService(appDb, logger)
 app.provide(SEARCH_SERVICE_KEY, searchService)
 app.provide(APP_DB_KEY, appDb)
 
@@ -103,30 +92,32 @@ const getAuthToken = async (): Promise<Result<string, AuthTokenError>> => {
 const authTokenResult = await getAuthToken()
 
 if (authTokenResult.isErr()) {
-  logger.warn('⚠️ Auth failed:', authTokenResult.error.message)
+  logger.warn('Auth failed:', authTokenResult.error.message)
   app.provide(SOCKET_MANAGER_KEY, null)
   app.mount('#app')
   await router.push('/login')
 } else {
   const authToken = authTokenResult.value
 
-  // Use SocketManager instead of individual sockets
   const socketManager = new SocketManager(logger, VITE_SOCKET_URL, authToken)
-  const initResult = await socketManager.init()
+  const socketManagerInitResult = await socketManager.init()
 
-  initResult.match(
-    () => {
+  await socketManagerInitResult.match(
+    async () => {
       logger.log('All socket namespaces connected')
       app.provide(SOCKET_MANAGER_KEY, socketManager)
 
-      window.addEventListener('beforeunload', () => {
+      window.addEventListener('beforeunload', () => {})
+
+      app.mount('#app')
+      app.onUnmount(() => {
         socketManager.disconnect()
       })
 
-      app.mount('#app')
+      await initializeModels(socketManager, logger)
     },
     (error) => {
-      logger.error('❌ Socket initialization failed:', error)
+      logger.error('Socket initialization failed:', error)
       app.provide(SOCKET_MANAGER_KEY, null)
       app.mount('#app')
       // Optionally redirect to error page or show notification

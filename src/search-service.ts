@@ -2,27 +2,26 @@ import type { Conversation, Message } from '@babadeluxe/shared'
 import { ok, err, type Result } from 'neverthrow'
 import { damerauLevenshteinSimilarity } from './damerau-levenshtein-similarity'
 import { type AppDb } from './database/app-db'
-import type { SearchError, SearchResult } from './types/search-types'
+import type { SearchResult } from './types/search-types'
+import { type DbError, SearchError } from './errors'
+import type { ConsoleLogger } from '@simwai/utils'
 
 export class SearchService {
-  constructor(private readonly _db: AppDb) {}
+  constructor(
+    private readonly _db: AppDb,
+    private readonly _logger: ConsoleLogger
+  ) {}
 
   async search(query: string, limit = 10): Promise<Result<SearchResult[], SearchError>> {
     const conversationsResult = await this._db.getAllConversations()
     if (conversationsResult.isErr()) {
-      return err({
-        kind: 'DbError',
-        message: conversationsResult.error.message,
-      } as SearchError)
+      this._logger.error('DB query to get get all conversatios failed', conversationsResult.error)
+      return err(conversationsResult.error)
     }
 
     const allMessagesResult = await this._getAllMessages(conversationsResult.value)
-    if (allMessagesResult.isErr()) {
-      return err({
-        kind: 'DbError',
-        message: allMessagesResult.error.message,
-      } as SearchError)
-    }
+    if (allMessagesResult.isErr())
+      return err(new SearchError('Failed to get all messages for search', allMessagesResult.error))
 
     const searchResult = this._performSearch(
       query,
@@ -36,12 +35,18 @@ export class SearchService {
 
   private async _getAllMessages(
     conversations: readonly Conversation[]
-  ): Promise<Result<Message[], { readonly code: string; readonly message: string }>> {
+  ): Promise<Result<Message[], DbError>> {
     const allMessages: Message[] = []
 
     for (const conversation of conversations) {
       const messagesResult = await this._db.getMessageByConversation(conversation.id)
-      if (messagesResult.isErr()) return err(messagesResult.error)
+      if (messagesResult.isErr()) {
+        this._logger.error(
+          `Failed to get message for conversation with conversation ID ${conversation.id}`,
+          messagesResult.error
+        )
+        return err(messagesResult.error)
+      }
       allMessages.push(...messagesResult.value)
     }
 
@@ -73,7 +78,6 @@ export class SearchService {
     for (const message of messages) {
       const score = this._getBestTokenScore(normalizedQuery, message.content)
 
-      console.log('Damerau Levenshtein Score: ', score)
       if (score > 0.3) {
         results.push({
           ...message,

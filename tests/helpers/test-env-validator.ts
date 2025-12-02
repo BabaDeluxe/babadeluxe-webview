@@ -1,6 +1,7 @@
 import process from 'node:process'
 import { z } from 'zod/v4'
 import { Result } from 'neverthrow'
+import { BaseError } from '@/base-error'
 
 const testEnvSchema = z.object({
   NODE_ENV: z.enum(['test']),
@@ -12,12 +13,7 @@ const testEnvSchema = z.object({
 
 export type TestEnvConfig = z.infer<typeof testEnvSchema>
 
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ValidationError'
-  }
-}
+class ValidationError extends BaseError {}
 
 function validateSchema<T>(schema: z.ZodType<T>): Result<T, ValidationError> {
   return Result.fromThrowable(

@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import { Result } from 'neverthrow'
+import { BaseError } from './base-error'
 
 const envSchema = z.object({
   VITE_NODE_ENV: z.enum(['development', 'production', 'test']),
@@ -10,12 +11,7 @@ const envSchema = z.object({
 
 export type EnvConfig = z.infer<typeof envSchema>
 
-class ValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ValidationError'
-  }
-}
+class ValidationError extends BaseError {}
 
 export function validateEnvConfig(): Result<EnvConfig, ValidationError> {
   return validateSchema(envSchema)
