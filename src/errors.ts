@@ -64,3 +64,7 @@ export type ApiKeyValidationError =
   | ValidationTimeoutError
   | SocketConnectionError
   | InvalidResponseError
+
+export class EnvConfigError extends BaseError {}
+
+export class AuthTokenError extends BaseError {}

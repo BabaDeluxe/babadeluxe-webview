@@ -24,11 +24,7 @@ import {
   SUPABASE_CLIENT_KEY,
 } from './injection-keys'
 import { initializeModels } from './composables/use-models-socket'
-import { BaseError } from './base-error'
-
-class EnvConfigError extends BaseError {}
-
-class AuthTokenError extends BaseError {}
+import { AuthTokenError, EnvConfigError } from './errors'
 
 class AppLogger extends ConsoleLogger {
   fatal(message: string, error: Error): never {
