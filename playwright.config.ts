@@ -26,7 +26,7 @@ export default defineConfig<TestOptions>({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://127.0.0.1:5100',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -84,10 +84,28 @@ export default defineConfig<TestOptions>({
     // },
   ],
 
+  /**
+   * Global setup to ensure dev server stability across parallel test workers.
+   *
+   * Problem: Playwright's webServer config polls for HTTP 200, but doesn't guarantee
+   * the app is fully compiled/hydrated when workers spawn. With fullyParallel: true
+   * and multiple browser projects, Firefox workers occasionally won race conditions
+   * and attempted navigation before Vite finished initial HMR compilation, causing
+   * NS_ERROR_CONNECTION_REFUSED.
+   *
+   * Solution: This setup runs once before all workers start, performing a full
+   * navigation + DOM validation to confirm Vue's mount point exists. Only after
+   * this succeeds do test workers begin execution, eliminating the race.
+   *
+   * @see https://playwright.dev/docs/test-global-setup-teardown
+   */
+  globalSetup: './tests/e2e/setup.ts',
+
   /* Run your local dev server before starting the tests */
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5173',
+    url: 'http://127.0.0.1:5100',
     reuseExistingServer: true,
+    timeout: 120000,
   },
 })

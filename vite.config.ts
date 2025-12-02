@@ -16,6 +16,11 @@ export default defineConfig({
     //   Open: true,
     // }),
   ],
+  server: {
+    host: '127.0.0.1', // Force IPv4,
+    port: 5100,
+    strictPort: true, // Fail if port occupied instead of auto-incrementing
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
