@@ -91,8 +91,11 @@ onMounted(async () => {
     if (event === 'SIGNED_IN' && supabaseSession) {
       session.value = supabaseSession
       redirectToChat()
-    } else if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+    } else if (event === 'SIGNED_OUT') {
+      session.value = null
       router.push('/')
+    } else if (event === 'USER_UPDATED' && supabaseSession) {
+      session.value = supabaseSession
     } else if (event === 'PASSWORD_RECOVERY') {
       router.push('/reset-password')
     }
