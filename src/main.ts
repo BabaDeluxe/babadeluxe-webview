@@ -34,6 +34,7 @@ class AppLogger extends ConsoleLogger {
 }
 
 const logger = new AppLogger({ isTimeEnabled: false })
+
 const validationResult = validateEnvConfig()
 
 const envConfig = validationResult.match(
