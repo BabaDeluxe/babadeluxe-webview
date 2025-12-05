@@ -65,7 +65,7 @@ All custom errors **must** extend the `BaseError` class to get automatic namespa
 This class should already exist. If not, create it.
 
 ```typescript
-// src/errors/base-error.ts
+// src/base-error.ts
 export class BaseError extends Error {
   public readonly namespace: string
 
