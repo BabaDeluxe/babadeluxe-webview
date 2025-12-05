@@ -5,9 +5,15 @@ const seedTestData = async (page: Page) => {
   await page.evaluate(() => {
     return new Promise<void>((resolve, reject) => {
       const deleteRequest = indexedDB.deleteDatabase('AppDb')
-      deleteRequest.onsuccess = () => resolve()
-      deleteRequest.onerror = () => reject(deleteRequest.error)
-      deleteRequest.onblocked = () => reject(new Error('Database deletion blocked'))
+      deleteRequest.onsuccess = () => {
+        resolve()
+      }
+      deleteRequest.onerror = () => {
+        reject(deleteRequest.error)
+      }
+      deleteRequest.onblocked = () => {
+        reject(new Error('Database deletion blocked'))
+      }
     })
   })
 
@@ -15,7 +21,9 @@ const seedTestData = async (page: Page) => {
     return new Promise<void>((resolve, reject) => {
       const request = indexedDB.open('AppDb')
 
-      request.onerror = () => reject(request.error)
+      request.onerror = () => {
+        reject(request.error)
+      }
 
       request.onupgradeneeded = () => {
         const db = request.result
@@ -109,7 +117,9 @@ const seedTestData = async (page: Page) => {
           resolve()
         }
 
-        tx.onerror = () => reject(tx.error)
+        tx.onerror = () => {
+          reject(tx.error)
+        }
       }
     })
   })
@@ -124,9 +134,15 @@ test.describe('History Search E2E', () => {
     await page.evaluate(() => {
       return new Promise<void>((resolve, reject) => {
         const request = indexedDB.deleteDatabase('AppDb')
-        request.onsuccess = () => resolve()
-        request.onerror = () => reject(request.error)
-        request.onblocked = () => reject(new Error('Database deletion blocked'))
+        request.onsuccess = () => {
+          resolve()
+        }
+        request.onerror = () => {
+          reject(request.error)
+        }
+        request.onblocked = () => {
+          reject(new Error('Database deletion blocked'))
+        }
       })
     })
 
