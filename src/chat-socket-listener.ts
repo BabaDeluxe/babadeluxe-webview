@@ -1,10 +1,9 @@
-import type { Root } from '@babadeluxe/shared/generated-socket-types'
-import type { SocketService } from './socket-service'
+import type { SocketManager } from './socket-manager'
 import type { AppDb } from '@/database/app-db'
 import type { ConsoleLogger } from '@simwai/utils'
 import { ref } from 'vue'
 
-type ChatSocket = SocketService<Root.Emission, Root.Actions>
+type ChatSocket = SocketManager
 
 interface MessageState {
   handler: ((chunk: string) => void) | undefined

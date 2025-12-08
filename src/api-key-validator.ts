@@ -1,7 +1,6 @@
 import { err, type Result, ResultAsync } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
-import type { SocketService } from './socket-service'
-import type { Root } from '@babadeluxe/shared/generated-socket-types'
+import type { SocketManager } from './socket-manager'
 import { BaseError } from './base-error'
 import type { ApiKeyValidationError } from './errors'
 import {
@@ -66,7 +65,7 @@ function mapResponseToError(response: unknown): BaseError {
 export class ApiKeyValidator {
   constructor(
     private readonly _logger: ConsoleLogger,
-    private readonly _validationSocket: SocketService<Root.Emission, Root.Actions>
+    private readonly _validationSocket: SocketManager
   ) {}
 
   async validate(
