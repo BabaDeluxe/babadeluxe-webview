@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import process from 'node:process'
-import { z } from 'zod/v4'
+import { z, type ZodError } from 'zod/v4'
 import { Result } from 'neverthrow'
-import { BaseError } from '@/base-error'
+import { TestEnvValidationError } from '@/errors'
 
 const testEnvSchema = z.object({
   NODE_ENV: z.enum(['test']),
@@ -13,15 +14,18 @@ const testEnvSchema = z.object({
 
 export type TestEnvConfig = z.infer<typeof testEnvSchema>
 
-class ValidationError extends BaseError {}
-
-function validateSchema<T>(schema: z.ZodType<T>): Result<T, ValidationError> {
+function validateSchema<T>(schema: z.ZodType<T>): Result<T, TestEnvValidationError> {
   return Result.fromThrowable(
     () => schema.parse(process.env),
-    (error) => new ValidationError((error as Error).message)
+    (error) => {
+      // E.g. { name: ['String must contain at least 2 character(s)'], age: ['Number must be greater than or equal to 18'] }
+      const flatError = z.flattenError(error as ZodError)
+      const result = new TestEnvValidationError(JSON.stringify(flatError.fieldErrors))
+      return result
+    }
   )()
 }
 
-export function validateTest(): Result<TestEnvConfig, ValidationError> {
+export function validateTest(): Result<TestEnvConfig, TestEnvValidationError> {
   return validateSchema(testEnvSchema)
 }

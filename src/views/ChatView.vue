@@ -8,9 +8,9 @@
       v-if="messages.length === 0"
       class="flex flex-col gap-0 px-4 py-6 w-full items-center"
     >
-      <AvatarItem />
-      <div class="inline-flex h-full items-center justify-center text-xl text-deepText">
-        {{ currentUsername }}
+      <AvatarItem role="user" />
+      <div class="inline-flex h-full items-center justify-center text-xl text-deepText pt-2">
+        {{ `Hello ${currentUsername}, what's on your mind today?` }}
       </div>
     </div>
 
@@ -35,6 +35,16 @@
       type="warning"
       @close="promptsError = undefined"
     />
+    <ErrorBanner
+      :message="modelsReloadWarning"
+      type="warning"
+      @close="modelsReloadWarning = undefined"
+    />
+    <ErrorBanner
+      :message="persistenceWarning"
+      type="warning"
+      @close="persistenceWarning = undefined"
+    />
 
     <!-- Main Content Area -->
     <div class="flex flex-col flex-1 min-h-0">
@@ -55,7 +65,6 @@
           class="flex xs:flex-row flex-col justify-start xs:justify-center items-center border border-borderMuted rounded bg-panel overflow-hidden"
         >
           <div class="flex flex-1">
-            <!-- FIX: Changed :options to :items to match the data structure -->
             <DropdownSelector
               v-model="currentPrompt"
               icon="i-bi:chat-left"
@@ -199,6 +208,12 @@
         </div>
       </div>
     </div>
+
+    <!-- Upseel Modal Overlay -->
+    <UpsellModal
+      :is-visible="shouldShowModal"
+      @close="handleModalClose"
+    />
   </section>
 </template>
 
@@ -221,6 +236,8 @@ import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import type { KeyValueStore } from '@/database/key-value-store'
 import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import type { Message } from '@babadeluxe/shared'
+import UpsellModal from '@/components/UpsellModal.vue'
+import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 
 // Constants
 const defaultModel = 'gemini:gemini-2.5-flash'
@@ -256,27 +273,34 @@ const {
 const {
   isStreaming: isChatStreaming,
   error: chatError,
-  currentStreamingMessageId,
+  streamingMessageIds,
   sendMessage: sendChatMessage,
   abortMessage: abortChatMessage,
 } = useChatSocket()
 
-const { groupedModels, isLoadingModels, modelsError, fetchAllModels } = useModelsSocket()
+// NEW: Compute the current streaming message ID for the UI
+const currentStreamingMessageId = computed(() =>
+  streamingMessageIds.value.length > 0 ? streamingMessageIds.value[0] : null
+)
 
+const { groupedModels, isLoadingModels, modelsError } = useModelsSocket()
 const {
   prompts,
   isLoading: isLoadingPrompts,
   error: promptsError,
   clearError: clearPromptsError,
 } = usePromptsSocket()
+const { shouldShowModal, dismissModal } = useSubscriptionSocket()
 
 // State Refs
 const currentPrompt = ref('BabaSeniorDev™')
 const currentModel = ref(defaultModel)
 const currentMessage = ref('')
-const currentUsername = ref('')
+const currentUsername = ref('User')
 const textInputRef = useTemplateRef<HTMLElement>('textInput')
 const messageComponents = ref<Map<number, ActiveChatItemInstance>>(new Map())
+const modelsReloadWarning = ref<string>()
+const persistenceWarning = ref<string>()
 
 // Computed Properties
 const promptOptions = computed(() => {
@@ -286,9 +310,9 @@ const promptOptions = computed(() => {
   if (promptsError.value) {
     return [{ label: 'Error loading prompts', value: '', disabled: true }]
   }
-  return prompts.value.map((p) => ({
-    label: p.isSystem ? `${p.name} (System)` : p.name,
-    value: p.command,
+  return prompts.value.map((prompt) => ({
+    label: prompt.isSystem ? `${prompt.name} (System)` : prompt.name,
+    value: prompt.command,
   }))
 })
 
@@ -323,51 +347,22 @@ const fetchUsername = async (): Promise<void> => {
         currentUsername.value = githubIdentity.identity_data.login as string
       } else if (user?.user_metadata?.username) {
         currentUsername.value = user.user_metadata.username as string
-      } else {
-        currentUsername.value = 'Unknown'
       }
     },
     (fetchError) => {
       logger.error('Error fetching username:', fetchError)
-      currentUsername.value = 'Unknown'
     }
   )
 }
 
 const loadPersistedSettings = async (): Promise<void> => {
-  const promptResult = await ResultAsync.fromPromise(
-    keyValueStore.get('chat-prompt'),
-    (unknownError) =>
-      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to load prompt')
-  )
+  const promptResult = await keyValueStore.get('chat-prompt')
+  if (promptResult.isErr()) return
+  if (promptResult.value !== undefined) currentPrompt.value = promptResult.value
 
-  promptResult.match(
-    (storedPrompt) => {
-      if (storedPrompt !== undefined) {
-        currentPrompt.value = storedPrompt as string
-      }
-    },
-    (loadError) => {
-      logger.error('Failed to load persisted prompt:', loadError)
-    }
-  )
-
-  const modelResult = await ResultAsync.fromPromise(
-    keyValueStore.get('chat-model'),
-    (unknownError) =>
-      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to load model')
-  )
-
-  modelResult.match(
-    (storedModel) => {
-      if (storedModel !== undefined) {
-        currentModel.value = storedModel as string
-      }
-    },
-    (loadError) => {
-      logger.error('Failed to load persisted model:', loadError)
-    }
-  )
+  const modelResult = await keyValueStore.get('chat-model')
+  if (modelResult.isErr()) return
+  if (modelResult.value !== undefined) currentModel.value = modelResult.value
 }
 
 const handleDeleteMessage = async (messageId: number) => {
@@ -427,7 +422,7 @@ const handleSendMessage = async (): Promise<void> => {
     return
   }
 
-  const systemPromptText = 'You are a senior software engineer assistant.' // This could also come from the selected prompt object in the future
+  const systemPromptText = 'You are a senior software engineer assistant.'
   const fullPrompt = buildPrompt(messages.value.slice(0, -1), messageContent, systemPromptText)
 
   let streamedContent = ''
@@ -467,17 +462,16 @@ const handleSendMessage = async (): Promise<void> => {
 
   await result.match(
     async () => {
-      const msg = messages.value.find((m) => m.id === assistantMessage.id) as
+      const msg = messages.value.find((message) => message.id === assistantMessage.id) as
         | Mutable<Message>
         | undefined
-      if (msg) {
-        commitStreamingBuffer(assistantMessage.id)
-        msg.content = streamedContent
-        msg.isStreaming = false
-        await addOrUpdateMessage(streamedContent, 'assistant', msg.id)
-        messageComponents.value.delete(assistantMessage.id)
-        logger.log(`Message ${assistantMessage.id} complete`)
-      }
+      if (!msg) return
+
+      commitStreamingBuffer(assistantMessage.id)
+      msg.content = streamedContent
+      msg.isStreaming = false
+      await addOrUpdateMessage(streamedContent, 'assistant', msg.id)
+      messageComponents.value.delete(assistantMessage.id)
     },
     async (streamError) => {
       logger.error(streamError)
@@ -487,14 +481,16 @@ const handleSendMessage = async (): Promise<void> => {
 }
 
 const handleAbortMessage = async (): Promise<void> => {
+  // NEW: Use the computed currentStreamingMessageId
   if (!currentStreamingMessageId.value) return
+
   const messageId = currentStreamingMessageId.value
   const result = await abortChatMessage(messageId)
 
   await result.match(
     async () => {
       textInputRef.value?.focus()
-      const messageToDelete = messages.value.find((m) => m.id === messageId)
+      const messageToDelete = messages.value.find((message) => message.id === messageId)
       if (messageToDelete) {
         await deleteMessage(messageId)
       } else {
@@ -508,17 +504,17 @@ const handleAbortMessage = async (): Promise<void> => {
   )
 }
 
+const handleModalClose = () => {
+  dismissModal()
+  logger.log('User dismissed upgrade modal')
+}
+
 // Lifecycle Hooks
 onMounted(async () => {
   const initResult = await ResultAsync.fromPromise(
     (async () => {
       await loadConversations()
-      await Promise.all([
-        initializeCurrentConversation(),
-        fetchUsername(),
-        loadPersistedSettings(),
-        fetchAllModels(),
-      ])
+      await Promise.all([initializeCurrentConversation(), fetchUsername(), loadPersistedSettings()])
     })(),
     (unknownError) =>
       new Error(unknownError instanceof Error ? unknownError.message : 'Initialization failed')
@@ -538,14 +534,14 @@ onMounted(async () => {
 // Watchers
 watch(
   groupedModels,
-  (newGroups) => {
-    if (!newGroups || newGroups.length === 0) return
-    for (const group of newGroups) {
-      if (group.items.length > 0) {
+  (newModelGroups) => {
+    if (!newModelGroups || newModelGroups.length === 0) return
+    for (const modelGroup of newModelGroups) {
+      if (modelGroup.items.length > 0) {
         const preferredModel =
-          group.items.find((m) => m.label.toLowerCase().includes('flash-2.0')) ||
-          group.items.find((m) => m.label.toLowerCase().includes('flash')) ||
-          group.items[0]
+          modelGroup.items.find((model) => model.label.toLowerCase().includes('flash-2.0')) ||
+          modelGroup.items.find((model) => model.label.toLowerCase().includes('flash')) ||
+          modelGroup.items[0]
         if (preferredModel) {
           currentModel.value = preferredModel.value
           return
@@ -557,30 +553,20 @@ watch(
 )
 
 watch(currentPrompt, async (newValue) => {
-  const result = await ResultAsync.fromPromise(
-    keyValueStore.set('chat-prompt', newValue),
-    (unknownError) =>
-      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to persist prompt')
-  )
-  result.match(
-    () => {},
-    (persistError) => {
-      logger.error('Failed to persist prompt setting:', persistError)
-    }
-  )
+  const result = await keyValueStore.set('chat-prompt', newValue)
+
+  if (result.isErr()) {
+    logger.error('Failed to persist prompt selection after user changed dropdown:', result.error)
+    persistenceWarning.value = 'Failed to save your prompt selection. It may reset after refresh.'
+  }
 })
 
 watch(currentModel, async (newValue) => {
-  const result = await ResultAsync.fromPromise(
-    keyValueStore.set('chat-model', newValue),
-    (unknownError) =>
-      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to persist model')
-  )
-  result.match(
-    () => {},
-    (persistError) => {
-      logger.error('Failed to persist model setting:', persistError)
-    }
-  )
+  const result = await keyValueStore.set('chat-model', newValue)
+
+  if (result.isErr()) {
+    logger.error('Failed to persist model selection after user changed dropdown:', result.error)
+    persistenceWarning.value = 'Failed to save your model selection. It may reset after refresh.'
+  }
 })
 </script>

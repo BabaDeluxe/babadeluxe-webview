@@ -1,9 +1,11 @@
-import { ref, readonly, inject } from 'vue'
-import { useDebounceFn, useStorage } from '@vueuse/core'
+import { ref, readonly, inject, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useDebounceFn, useStorage, useIntervalFn } from '@vueuse/core'
 import type { Message, Conversation } from '@babadeluxe/shared'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { AppDb } from '@/database/app-db'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
+import { resumeStreamingMessage, hasAnyStreamingMessage } from '@/chat-socket-listener'
+import { ResultAsync } from 'neverthrow'
 
 const messages = ref<Message[]>([])
 const conversations = ref<Conversation[]>([])
@@ -15,7 +17,111 @@ export function useConversation() {
   const logger: ConsoleLogger = inject(LOGGER_KEY)!
   const appDb: AppDb = inject(APP_DB_KEY)!
 
-  const _isCreatingConversation = ref(false)
+  const isCreatingConversation = ref(false)
+
+  const resumeInterruptedStreams = async (): Promise<void> => {
+    const streamingMessagesResult = await appDb.getStreamingMessages()
+
+    if (streamingMessagesResult.isErr()) {
+      logger.error(`Failed to get streaming messages: ${streamingMessagesResult.error.message}`)
+      return
+    }
+
+    const streamingMessages = streamingMessagesResult.value
+
+    if (streamingMessages.length === 0) {
+      logger.log('No interrupted streams to recover')
+      return
+    }
+
+    logger.log(`Recovering ${streamingMessages.length} interrupted stream(s)`)
+
+    for (const msg of streamingMessages) {
+      let didReceiveChunk = false
+
+      resumeStreamingMessage(msg.id, async () => {
+        didReceiveChunk = true
+        const updatedResult = await appDb.message.get(msg.id)
+
+        if (updatedResult.isErr()) {
+          logger.error(`Failed to get updated message: ${updatedResult.error.message}`)
+          return
+        }
+
+        const updated = updatedResult.value
+        if (!updated) return
+
+        const index = messages.value.findIndex((m) => m.id === msg.id)
+        if (index !== -1) {
+          messages.value[index] = { ...updated }
+        }
+      })
+
+      setTimeout(async () => {
+        if (!didReceiveChunk) {
+          logger.log(`Message ${msg.id} appears complete, cleaning up`)
+          const updateResult = await appDb.message.update(msg.id, { isStreaming: false })
+          if (updateResult.isErr()) {
+            logger.error(`Failed to mark message as complete: ${updateResult.error.message}`)
+          }
+
+          const updatedResult = await appDb.message.get(msg.id)
+          if (updatedResult.isErr()) {
+            logger.error(`Failed to get updated message: ${updatedResult.error.message}`)
+            return
+          }
+
+          const updated = updatedResult.value
+          if (updated) {
+            const index = messages.value.findIndex((m) => m.id === msg.id)
+            if (index !== -1) {
+              messages.value[index] = { ...updated }
+            }
+          }
+        }
+      }, 1000)
+    }
+
+    logger.log('Stream recovery complete')
+  }
+
+  const refreshStreamingMessages = useIntervalFn(
+    async () => {
+      if (!hasAnyStreamingMessage()) return
+
+      const streamingIds = messages.value.filter((m) => m.isStreaming).map((m) => m.id)
+
+      for (const id of streamingIds) {
+        const updatedResult = await appDb.message.get(id)
+        if (updatedResult.isErr()) {
+          logger.error(`Failed to get updated message: ${updatedResult.error.message}`)
+          continue
+        }
+
+        const updated = updatedResult.value
+        if (!updated) continue
+
+        const index = messages.value.findIndex((m) => m.id === id)
+        if (index !== -1 && messages.value[index].content !== updated.content) {
+          messages.value[index] = { ...updated }
+        }
+      }
+    },
+    500,
+    { immediate: false }
+  )
+
+  watch(
+    hasAnyStreamingMessage,
+    (isStreaming) => {
+      if (isStreaming) {
+        refreshStreamingMessages.resume()
+      } else {
+        refreshStreamingMessages.pause()
+      }
+    },
+    { immediate: true }
+  )
 
   async function loadMessages(): Promise<void> {
     if (!currentConversationId.value || currentConversationId.value === 0) {
@@ -28,7 +134,7 @@ export function useConversation() {
 
     if (result.isErr()) {
       error.value = 'Failed to load messages'
-      logger.error('Failed to load messages', result.error.message)
+      logger.error(`Failed to load messages: ${result.error.message}`)
       messages.value = []
     } else {
       messages.value = [...result.value]
@@ -43,7 +149,7 @@ export function useConversation() {
 
     if (result.isErr()) {
       error.value = 'Failed to load conversations'
-      logger.error('Failed to load conversations', result.error.message)
+      logger.error(`Failed to load conversations: ${result.error.message}`)
     } else {
       conversations.value = [...result.value]
       error.value = undefined
@@ -51,60 +157,58 @@ export function useConversation() {
   }
 
   async function initializeCurrentConversation(): Promise<void> {
-    // Validate that stored conversation actually exists
     if (currentConversationId.value !== 0) {
-      const exists = await appDb.conversation.get(currentConversationId.value)
+      const existsResult = await appDb.conversation.get(currentConversationId.value)
 
-      if (!exists) {
-        logger.warn(
-          `Stored conversation ${currentConversationId.value} no longer exists - resetting`
-        )
+      if (existsResult.isErr()) {
+        logger.error(`Failed to check conversation existence: ${existsResult.error.message}`)
+        currentConversationId.value = 0
+      } else if (existsResult.value === undefined) {
+        logger.warn(`Stored conversation ${currentConversationId.value} no longer exists`)
         currentConversationId.value = 0
       }
     }
 
-    // Set to highest ID if not set
     if (currentConversationId.value === 0 && conversations.value.length > 0) {
       const highestId = Math.max(...conversations.value.map((c) => c.id))
       currentConversationId.value = highestId
     }
 
-    // Load messages if we have a valid conversation
     if (currentConversationId.value !== 0) {
       await loadMessages()
     }
   }
 
   async function createConversation(title: string): Promise<number | undefined> {
-    if (_isCreatingConversation.value) {
+    if (isCreatingConversation.value) {
       logger.warn('Conversation creation already in progress')
       return undefined
     }
 
-    _isCreatingConversation.value = true
+    isCreatingConversation.value = true
 
-    try {
-      const conversationId = await appDb.conversation.add({
-        title,
-        isActive: 1,
-        messageCount: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+    const result = await appDb.conversation.add({
+      title,
+      isActive: 1,
+      messageCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as Conversation)
 
-      const newId = Number(conversationId)
-      await loadConversations()
-      currentConversationId.value = newId
-      messages.value = []
+    isCreatingConversation.value = false
 
-      return newId
-    } catch (error_) {
+    if (result.isErr()) {
       error.value = 'Failed to create conversation'
-      logger.error('Failed to create conversation', error_ as Error)
+      logger.error(`Failed to create conversation: ${result.error.message}`)
       return undefined
-    } finally {
-      _isCreatingConversation.value = false
     }
+
+    const newId = Number(result.value)
+    await loadConversations()
+    currentConversationId.value = newId
+    messages.value = []
+
+    return newId
   }
 
   async function addOrUpdateMessage(
@@ -113,10 +217,10 @@ export function useConversation() {
     messageId?: number
   ): Promise<Message | boolean> {
     if (messageId) {
-      return _updateMessage(messageId, content)
+      return updateMessage(messageId, content)
     }
 
-    const addResult = await _addMessage(content, role)
+    const addResult = await addMessage(content, role)
     return addResult ?? false
   }
 
@@ -125,7 +229,7 @@ export function useConversation() {
 
     if (result.isErr()) {
       error.value = 'Failed to delete message'
-      logger.error('Failed to delete message', result.error.message)
+      logger.error(`Failed to delete message: ${result.error.message}`)
       return false
     }
 
@@ -134,21 +238,27 @@ export function useConversation() {
       messages.value.splice(index, 1)
     }
 
-    // Check if conversation was cascade-deleted
-    const conversationStillExists = await appDb.conversation.get(currentConversationId.value)
+    const existsResult = await appDb.conversation.get(currentConversationId.value)
 
-    if (!conversationStillExists) {
+    if (existsResult.isErr()) {
+      logger.error(`Failed to check conversation existence: ${existsResult.error.message}`)
+      return false
+    }
+
+    if (existsResult.value === undefined) {
       logger.log(`Conversation ${currentConversationId.value} was cascade-deleted`)
-      await _handleConversationSwitch()
+      await handleConversationSwitch()
     } else {
-      // Just update message count
-      try {
-        await appDb.conversation.update(currentConversationId.value, {
-          messageCount: messages.value.length,
+      const updateResult = await ResultAsync.fromPromise(
+        appDb.conversation.update(currentConversationId.value, {
           updatedAt: new Date(),
-        })
-      } catch (error_) {
-        logger.error('Failed to update conversation message count', error_ as Error)
+          messageCount: messages.value.length,
+        }),
+        (error) => new Error(String(error))
+      )
+
+      if (updateResult.isErr()) {
+        logger.error(`Failed to update conversation message count: ${updateResult.error.message}`)
       }
     }
 
@@ -157,30 +267,33 @@ export function useConversation() {
   }
 
   async function updateConversationTitle(conversationId: number, title: string): Promise<boolean> {
-    try {
-      await appDb.conversation.update(conversationId, {
+    const result = await ResultAsync.fromPromise(
+      appDb.conversation.update(conversationId, {
         title,
         updatedAt: new Date(),
-      })
+      }),
+      (error) => new Error(String(error))
+    )
 
-      const conversation = conversations.value.find((c) => c.id === conversationId)
-      if (conversation) {
-        conversation.title = title
-        conversation.updatedAt = new Date()
-      }
-
-      error.value = undefined
-      return true
-    } catch (error_) {
+    if (result.isErr()) {
       error.value = 'Failed to update conversation title'
-      logger.error('Failed to update conversation title', error_ as Error)
+      logger.error(`Failed to update conversation title: ${result.error.message}`)
       return false
     }
+
+    const conversation = conversations.value.find((c) => c.id === conversationId)
+    if (conversation) {
+      conversation.title = title
+      conversation.updatedAt = new Date()
+    }
+
+    error.value = undefined
+    return true
   }
 
   function generateConversationTitle(firstMessage: string): string {
     const title = firstMessage.trim().slice(0, 50)
-    return title.length < firstMessage.trim().length ? title + '...' : title
+    return title.length < firstMessage.trim().length ? `${title}...` : title
   }
 
   async function deleteConversation(conversationId: number): Promise<boolean> {
@@ -188,12 +301,12 @@ export function useConversation() {
 
     if (result.isErr()) {
       error.value = 'Failed to delete conversation'
-      logger.error('Failed to delete conversation', result.error.message)
+      logger.error(`Failed to delete conversation: ${result.error.message}`)
       return false
     }
 
     if (conversationId === currentConversationId.value) {
-      await _handleConversationSwitch()
+      await handleConversationSwitch()
     } else {
       await loadConversations()
     }
@@ -209,13 +322,13 @@ export function useConversation() {
     await loadMessages()
   }
 
-  async function _addMessage(
+  async function addMessage(
     content: string,
     role: 'user' | 'assistant'
   ): Promise<Message | undefined> {
     if (currentConversationId.value === 0) {
       const newId = await createConversation('New Conversation')
-      if (!newId) return undefined
+      if (!newId) return
     }
 
     const result = await appDb.createMessage({
@@ -227,8 +340,8 @@ export function useConversation() {
 
     if (result.isErr()) {
       error.value = 'Failed to add message'
-      logger.error('Failed to add message', result.error.message)
-      return undefined
+      logger.error(`Failed to add message: ${result.error.message}`)
+      return
     }
 
     const newMessage: Message = {
@@ -242,20 +355,23 @@ export function useConversation() {
 
     messages.value.push(newMessage)
 
-    try {
-      await appDb.conversation.update(currentConversationId.value, {
+    const updateResult = await ResultAsync.fromPromise(
+      appDb.conversation.update(currentConversationId.value, {
         updatedAt: new Date(),
         messageCount: messages.value.length,
-      })
-    } catch (error_) {
-      logger.error('Failed to update conversation', error_ as Error)
+      }),
+      (error) => new Error(String(error))
+    )
+
+    if (updateResult.isErr()) {
+      logger.error(`Failed to update conversation: ${updateResult.error.message}`)
     }
 
     error.value = undefined
     return newMessage
   }
 
-  async function _handleConversationSwitch(): Promise<void> {
+  async function handleConversationSwitch(): Promise<void> {
     await loadConversations()
 
     if (conversations.value.length > 0) {
@@ -271,12 +387,12 @@ export function useConversation() {
     }
   }
 
-  async function _updateMessage(messageId: number, content: string): Promise<boolean> {
+  async function updateMessage(messageId: number, content: string): Promise<boolean> {
     const result = await appDb.updateMessage(messageId, content)
 
     if (result.isErr()) {
       error.value = 'Failed to update message'
-      logger.error('Failed to update message', result.error.message)
+      logger.error(`Failed to update message: ${result.error.message}`)
       return false
     }
 
@@ -293,12 +409,22 @@ export function useConversation() {
     async (id: number, content: string) => {
       const result = await appDb.updateMessage(id, content)
       if (result.isErr()) {
-        logger.error('Auto-save failed', result.error.message)
+        logger.error(`Auto-save failed: ${result.error.message}`)
       }
     },
     500,
     { maxWait: 2000 }
   )
+
+  onMounted(async () => {
+    await loadConversations()
+    await initializeCurrentConversation()
+    await resumeInterruptedStreams()
+  })
+
+  onBeforeUnmount(() => {
+    refreshStreamingMessages.pause()
+  })
 
   return {
     messages: readonly(messages),
@@ -318,5 +444,6 @@ export function useConversation() {
     switchConversation,
     generateConversationTitle,
     debouncedAutoSave,
+    resumeInterruptedStreams,
   }
 }

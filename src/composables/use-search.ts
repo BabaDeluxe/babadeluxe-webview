@@ -2,7 +2,8 @@ import { ref } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { type Result } from 'neverthrow'
 import { type SearchService } from '@/search-service'
-import type { SearchResult, SearchError } from '@/types/search-types'
+import type { SearchResult } from '@/types/search-types'
+import type { SearchError } from '@/errors'
 
 export function useSearch(searchService: SearchService) {
   const searchResults = ref<SearchResult[]>([])
@@ -25,7 +26,6 @@ export function useSearch(searchService: SearchService) {
       (results) => {
         searchResults.value = results
         searchError.value = undefined
-        console.log('Raw search results:', results)
       },
       (error: SearchError) => {
         searchResults.value = []

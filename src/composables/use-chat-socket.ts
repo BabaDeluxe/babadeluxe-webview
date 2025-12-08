@@ -1,94 +1,105 @@
-import { ref, onBeforeUnmount, inject, readonly } from 'vue'
-import { type Result, err, ResultAsync } from 'neverthrow'
-import type { ConsoleLogger } from '@simwai/utils'
+import { inject, computed, getCurrentScope, onScopeDispose } from 'vue'
+import { err, ResultAsync, type Result } from 'neverthrow'
 import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
-import type { Chat } from '@babadeluxe/shared'
-import type { SocketManager } from '@/socket-manager'
+import { useTrackedTimeouts } from './use-tracked-timeouts'
+import {
+  registerChunkHandler,
+  unregisterChunkHandler,
+  getAllStreamingMessageIds,
+  getChatSocketState,
+} from '@/chat-socket-listener'
+import { ChatError, NetworkError, RateLimitError } from '@/errors'
+
+const sendTimeoutMs = 60_000
+const abortTimeoutMs = 5_000
 
 export function useChatSocket() {
-  const socketManager: SocketManager = inject(SOCKET_MANAGER_KEY)!
-  const logger: ConsoleLogger = inject(LOGGER_KEY)!
-
-  if (!socketManager) {
-    throw new Error('SocketManager not initialized')
-  }
-
+  const socketManager = inject(SOCKET_MANAGER_KEY)!
+  const logger = inject(LOGGER_KEY)!
   const chatSocket = socketManager.chatSocket
 
-  const isStreaming = ref(false)
-  const error = ref<string | undefined>()
-  const currentStreamingMessageId = ref<number | null>(null)
+  const { createTimeout, cancelTimeout } = useTrackedTimeouts()
 
-  const activeChunkHandlers = new Map<number, (chunk: string) => void>()
-
-  // Use Chat namespace types
-  const onMessageChunk: Chat.Emission['messageChunk'] = ({ messageId, chunk }) => {
-    console.log('🔵 RECEIVED CHUNK:', chunk.substring(0, 50), 'for message:', messageId) // ← ADD THIS
-    const handler = activeChunkHandlers.get(messageId)
-    if (handler) {
-      handler(chunk)
-    } else {
-      logger.warn(`No handler for message ${messageId}`)
+  const streamingMessageIds = computed(() => getAllStreamingMessageIds())
+  const isStreaming = computed(() => streamingMessageIds.value.length > 0)
+  const error = computed(() => {
+    const ids = streamingMessageIds.value
+    if (ids.length === 0) return undefined
+    for (const id of ids) {
+      const state = getChatSocketState(id)
+      if (state.error) return state.error
     }
-  }
-
-  const onMessageComplete: Chat.Emission['messageComplete'] = ({ messageId }) => {
-    logger.log(`Message ${messageId} complete`)
-    activeChunkHandlers.delete(messageId)
-
-    if (currentStreamingMessageId.value === messageId) {
-      isStreaming.value = false
-      currentStreamingMessageId.value = null
-    }
-  }
-
-  const onChatError: Chat.Emission['chatError'] = ({ messageId, error: errorMsg }) => {
-    logger.error(`Chat error for message ${messageId}:`, errorMsg)
-    error.value = errorMsg
-    if (messageId) activeChunkHandlers.delete(messageId)
-
-    if (currentStreamingMessageId.value === messageId) {
-      isStreaming.value = false
-      currentStreamingMessageId.value = null
-    }
-  }
-
-  const onMessageDeleted: Chat.Emission['messageDeleted'] = ({ messageId }) => {
-    logger.log(`Message ${messageId} deleted`)
-    activeChunkHandlers.delete(messageId)
-
-    if (currentStreamingMessageId.value === messageId) {
-      isStreaming.value = false
-      currentStreamingMessageId.value = null
-    }
-  }
-
-  const initListeners = async () => {
-    const waitResult = await chatSocket.waitForConnection()
-    if (waitResult.isOk()) {
-      console.log('🔵 Registering listeners on socket:', chatSocket.socketId) // ← Add
-
-      chatSocket.on('messageChunk', onMessageChunk)
-      chatSocket.on('messageComplete', onMessageComplete)
-      chatSocket.on('chatError', onChatError)
-      chatSocket.on('messageDeleted', onMessageDeleted)
-      console.log('🔵 Chat socket listeners registered')
-    } else {
-      logger.error('Failed to wait for socket connection:', waitResult.error)
-    }
-  }
-
-  // Initialize listeners immediately
-  void initListeners()
-
-  // Cleanup
-  onBeforeUnmount(() => {
-    chatSocket.off('messageChunk', onMessageChunk)
-    chatSocket.off('messageComplete', onMessageComplete)
-    chatSocket.off('chatError', onChatError)
-    chatSocket.off('messageDeleted', onMessageDeleted)
-    activeChunkHandlers.clear()
+    return undefined
   })
+
+  const _sendMessageOnce = async (
+    messageId: number,
+    provider: string,
+    modelId: string,
+    prompt: string,
+    onChunk: (chunk: string) => void
+  ): Promise<Result<void, NetworkError | ChatError | RateLimitError>> => {
+    const connectionResult = await chatSocket.waitForConnection()
+
+    if (connectionResult.isErr()) {
+      logger.error('Failed to connect to chat socket:', connectionResult.error)
+      return err(new NetworkError('Socket connection failed', connectionResult.error))
+    }
+
+    registerChunkHandler(messageId, onChunk)
+
+    const scope = getCurrentScope()
+    const unregister = () => {
+      unregisterChunkHandler(messageId)
+    }
+    if (scope) {
+      onScopeDispose(unregister)
+    }
+
+    return ResultAsync.fromPromise(
+      new Promise<void>((resolve, reject) => {
+        const timeoutId = createTimeout(() => {
+          logger.error(`Acknowledgment timeout for message ${messageId}`)
+          unregister()
+          reject(new NetworkError('Server timeout'))
+        }, sendTimeoutMs)
+
+        chatSocket.emit('sendMessage', { messageId, provider, modelId, prompt }, (response) => {
+          cancelTimeout(timeoutId)
+
+          if (response.success) {
+            resolve()
+          } else {
+            unregister()
+
+            const errorMessage = response.error ?? 'Unknown error'
+
+            if (errorMessage.includes('Rate limit')) {
+              reject(new RateLimitError(errorMessage))
+            } else {
+              reject(new ChatError(errorMessage))
+            }
+          }
+        })
+      }),
+      (unknownError) => {
+        unregister()
+
+        if (
+          unknownError instanceof NetworkError ||
+          unknownError instanceof ChatError ||
+          unknownError instanceof RateLimitError
+        ) {
+          return unknownError
+        }
+
+        return new ChatError(
+          'Failed to send message',
+          unknownError instanceof Error ? unknownError : undefined
+        )
+      }
+    )
+  }
 
   const sendMessage = async (
     messageId: number,
@@ -96,82 +107,91 @@ export function useChatSocket() {
     modelId: string,
     prompt: string,
     onChunk: (chunk: string) => void
-  ): Promise<Result<void, Error>> => {
-    const waitResult = await chatSocket.waitForConnection()
-    if (waitResult.isErr()) {
-      return err(waitResult.error)
+  ): Promise<Result<void, NetworkError | ChatError | RateLimitError>> => {
+    const maxRetries = 5
+    const initialDelayMs = 1000
+    const backoffMultiplier = 2
+    const maxDelayMs = 16000
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const result = await _sendMessageOnce(messageId, provider, modelId, prompt, onChunk)
+
+      if (result.isOk()) {
+        return result
+      }
+
+      // Fail fast on non-rate-limit errors
+      if (!(result.error instanceof RateLimitError)) {
+        return result
+      }
+
+      // Last attempt - return the error
+      const isLastAttempt = attempt === maxRetries - 1
+      if (isLastAttempt) {
+        return result
+      }
+
+      // Calculate exponential backoff with jitter
+      const exponentialDelay = initialDelayMs * Math.pow(backoffMultiplier, attempt)
+      const jitter = Math.random() * 0.3 * exponentialDelay
+      const delayMs = Math.min(exponentialDelay + jitter, maxDelayMs)
+
+      logger.warn(
+        `Rate limit hit for message ${messageId}. Retrying in ${Math.round(delayMs)}ms (attempt ${attempt + 1}/${maxRetries})`
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
 
-    activeChunkHandlers.set(messageId, onChunk)
-    isStreaming.value = true
-    currentStreamingMessageId.value = messageId
-    error.value = undefined
+    // This should never be reached, but TypeScript needs it
+    return err(new RateLimitError('Max retries exceeded'))
+  }
+
+  const abortMessage = async (
+    messageId: number
+  ): Promise<Result<void, NetworkError | ChatError>> => {
+    const connectionResult = await chatSocket.waitForConnection()
+
+    if (connectionResult.isErr()) {
+      logger.error('Failed to connect to chat socket for abort:', connectionResult.error)
+      return err(new NetworkError('Socket connection failed', connectionResult.error))
+    }
+
+    unregisterChunkHandler(messageId)
 
     return ResultAsync.fromPromise(
       new Promise<void>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          logger.error('Acknowledgment timeout')
-          activeChunkHandlers.delete(messageId)
-          reject(new Error('Server timeout'))
-        }, 60000)
+        const timeoutId = createTimeout(() => {
+          reject(new NetworkError('Abort timeout'))
+        }, abortTimeoutMs)
 
-        chatSocket.emit('sendMessage', { messageId, provider, modelId, prompt }, (response) => {
-          clearTimeout(timeoutId)
+        chatSocket.emit('abortMessage', { messageId, deleteMessage: true }, (response) => {
+          cancelTimeout(timeoutId)
 
           if (response.success) {
             resolve()
           } else {
-            activeChunkHandlers.delete(messageId)
-            error.value = response.error
-            reject(new Error(response.error ?? 'Unknown error'))
+            reject(new ChatError(response.error ?? 'Abort failed'))
           }
         })
       }),
       (unknownError) => {
-        activeChunkHandlers.delete(messageId)
-        return unknownError instanceof Error ? unknownError : new Error('Failed to send message')
+        if (unknownError instanceof NetworkError || unknownError instanceof ChatError) {
+          return unknownError
+        }
+
+        return new ChatError(
+          'Abort failed',
+          unknownError instanceof Error ? unknownError : undefined
+        )
       }
     )
   }
 
-  const abortMessage = async (messageId: number): Promise<Result<void, Error>> => {
-    const waitResult = await chatSocket.waitForConnection()
-    if (waitResult.isErr()) {
-      return err(waitResult.error)
-    }
-
-    activeChunkHandlers.delete(messageId)
-
-    return ResultAsync.fromPromise(
-      new Promise<void>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Abort timeout'))
-        }, 5000)
-
-        chatSocket.emit('abortMessage', { messageId, deleteMessage: true }, (response) => {
-          clearTimeout(timeoutId)
-
-          if (response.success) {
-            // Reset streaming state immediately on successful abort
-            if (currentStreamingMessageId.value === messageId) {
-              isStreaming.value = false
-              currentStreamingMessageId.value = null
-            }
-            resolve()
-          } else {
-            error.value = response.error
-            reject(new Error(response.error ?? 'Abort failed'))
-          }
-        })
-      }),
-      (unknownError) => (unknownError instanceof Error ? unknownError : new Error('Abort failed'))
-    )
-  }
-
   return {
-    isStreaming: readonly(isStreaming),
-    error: readonly(error),
-    currentStreamingMessageId: readonly(currentStreamingMessageId),
+    isStreaming,
+    error,
+    streamingMessageIds,
     sendMessage,
     abortMessage,
     isConnected: chatSocket.isConnected,

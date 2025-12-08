@@ -1,33 +1,24 @@
-import type {
-  Chat,
-  Settings,
-  Models,
-  Prompts,
-  Validation,
-} from '@babadeluxe/shared/generated-socket-types'
-import type { ConsoleLogger } from '@simwai/utils'
-import { ResultAsync, type Result } from 'neverthrow'
-import type { ManagerOptions, SocketOptions } from 'socket.io-client'
+import { err, ok, type Result } from 'neverthrow'
+import type { ManagerOptions, Socket, SocketOptions } from 'socket.io-client'
 import { io } from 'socket.io-client'
-import { SocketService, type SocketConnectionError } from './socket-service'
+import type { ConsoleLogger } from '@simwai/utils'
+import { SocketService } from './socket-service'
+import type { SocketConnectionError } from './errors'
+import { SocketManagerError } from './errors'
+import type { BaseError } from './base-error'
+import type { NamespaceName, SocketRegistry, SocketServiceFor } from './types/socket-manager-types'
+import { SocketNamespace } from './socket-namespaces'
 
-export class SocketManagerError extends Error {
-  constructor(
-    message: string,
-    public readonly failures: Array<{ namespace: string; error: SocketConnectionError }>
-  ) {
-    super(message)
-    this.name = 'SocketManagerError'
-    Object.setPrototypeOf(this, SocketManagerError.prototype)
-  }
+type SocketGetterName<K extends string> = `${Lowercase<K>}Socket`
+
+type SocketGetters = {
+  [K in keyof typeof SocketNamespace as SocketGetterName<K>]: SocketServiceFor<
+    (typeof SocketNamespace)[K]
+  >
 }
 
-export class SocketManager {
-  private _chatSocket: SocketService<Chat.Emission, Chat.Actions>
-  private _settingsSocket: SocketService<Settings.Emission, Settings.Actions>
-  private _modelsSocket: SocketService<Models.Emission, Models.Actions>
-  private _promptsSocket: SocketService<Prompts.Emission, Prompts.Actions>
-  private _validationSocket: SocketService<Validation.Emission, Validation.Actions>
+class SocketManagerBase {
+  private readonly _sockets: SocketRegistry
 
   constructor(
     private readonly _logger: ConsoleLogger,
@@ -38,119 +29,100 @@ export class SocketManager {
       transports: ['websocket'],
       withCredentials: true,
       autoConnect: false,
-      auth: { token: _authToken },
+      auth: { token: this._authToken },
     }
 
-    this._chatSocket = new SocketService(_logger, io(`${_baseUrl}/chat`, ioOptions), 'chat')
-    this._settingsSocket = new SocketService(
-      _logger,
-      io(`${_baseUrl}/settings`, ioOptions),
-      'settings'
-    )
-    this._modelsSocket = new SocketService(_logger, io(`${_baseUrl}/models`, ioOptions), 'models')
-    this._promptsSocket = new SocketService(
-      _logger,
-      io(`${_baseUrl}/prompts`, ioOptions),
-      'prompts'
-    )
-    this._validationSocket = new SocketService(
-      _logger,
-      io(`${_baseUrl}/validation`, ioOptions),
-      'validation'
-    )
+    this._sockets = {} as SocketRegistry
+
+    for (const namespace of Object.values(SocketNamespace)) {
+      this._sockets[namespace] = new SocketService(
+        _logger,
+        io(`${_baseUrl}/${namespace}`, ioOptions),
+        namespace
+      ) as SocketServiceFor<typeof namespace>
+    }
+
+    this._createSocketGetters()
+  }
+
+  private _createSocketGetters(): void {
+    for (const [key, value] of Object.entries(SocketNamespace)) {
+      const getterName = `${key.toLowerCase()}Socket` as SocketGetterName<typeof key>
+
+      Object.defineProperty(this, getterName, {
+        get: () => this._sockets[value],
+        enumerable: true,
+        configurable: false,
+      })
+    }
   }
 
   async init(): Promise<Result<void, SocketManagerError>> {
     this._logger.log(`🔌 Connecting to socket namespaces at ${this._baseUrl}`)
 
-    const [chatResult, settingsResult, modelsResult, promptsResult, validationResult] =
-      await Promise.all([
-        this._chatSocket.init(),
-        this._settingsSocket.init(),
-        this._modelsSocket.init(),
-        this._promptsSocket.init(),
-        this._validationSocket.init(),
-      ])
-
-    const failures: Array<{ namespace: string; error: SocketConnectionError }> = []
-
-    chatResult.match(
-      () => this._logger.log('Chat socket connected'),
-      (error) => {
-        this._logger.error('❌ Chat socket failed:', error)
-        failures.push({ namespace: 'chat', error })
-      }
+    const namespaces = Object.values(SocketNamespace)
+    const settledResults = await Promise.allSettled(
+      namespaces.map((namespace) => this._sockets[namespace].connect())
     )
 
-    settingsResult.match(
-      () => this._logger.log('Settings socket connected'),
-      (error) => {
-        this._logger.error('❌ Settings socket failed:', error)
-        failures.push({ namespace: 'settings', error })
-      }
-    )
+    const failures: Array<{ namespace: string; error: BaseError }> = []
 
-    modelsResult.match(
-      () => this._logger.log('Models socket connected'),
-      (error) => {
-        this._logger.error('❌ Models socket failed:', error)
-        failures.push({ namespace: 'models', error })
-      }
-    )
+    for (const [index, settledResult] of settledResults.entries()) {
+      const namespace = namespaces[index]
 
-    promptsResult.match(
-      () => this._logger.log('Prompts socket connected'),
-      (error) => {
-        this._logger.error('❌ Prompts socket failed:', error)
-        failures.push({ namespace: 'prompts', error })
+      if (settledResult.status === 'rejected') {
+        this._logger.error(`${namespace} socket init() promise was rejected:`, settledResult.reason)
+        failures.push({
+          namespace,
+          error: new SocketManagerError(
+            `Unhandled exception during init`,
+            settledResult.reason instanceof Error
+              ? settledResult.reason
+              : new Error(String(settledResult.reason))
+          ),
+        })
+        continue
       }
-    )
 
-    validationResult.match(
-      () => this._logger.log('Validation socket connected'),
-      (error) => {
-        this._logger.error('❌ Validation socket failed:', error)
-        failures.push({ namespace: 'validation', error })
+      const initResult: Result<Socket, SocketConnectionError> = settledResult.value
+
+      if (initResult.isErr()) {
+        this._logger.error(`${namespace} socket failed to connect:`, initResult.error)
+        failures.push({ namespace, error: initResult.error })
       }
-    )
+    }
 
     if (failures.length > 0) {
-      return ResultAsync.fromSafePromise(
-        Promise.reject(
-          new SocketManagerError(`Failed to connect ${failures.length} namespace(s)`, failures)
-        )
+      const errorDetails = failures.map((f) => `${f.namespace}: "${f.error.message}"`).join('; ')
+
+      return err(
+        new SocketManagerError(`Failed to connect to the following socket(s): ${errorDetails}`)
       )
     }
 
-    return ResultAsync.fromSafePromise(Promise.resolve())
+    return ok()
   }
 
   disconnect(): void {
-    this._chatSocket.disconnect()
-    this._settingsSocket.disconnect()
-    this._modelsSocket.disconnect()
-    this._promptsSocket.disconnect()
-    this._validationSocket.disconnect()
+    for (const namespace of Object.values(SocketNamespace)) {
+      this._sockets[namespace].disconnect()
+    }
+
     this._logger.log('🧹 All socket namespaces disconnected')
   }
 
-  get chatSocket(): SocketService<Chat.Emission, Chat.Actions> {
-    return this._chatSocket
-  }
-
-  get settingsSocket(): SocketService<Settings.Emission, Settings.Actions> {
-    return this._settingsSocket
-  }
-
-  get modelsSocket(): SocketService<Models.Emission, Models.Actions> {
-    return this._modelsSocket
-  }
-
-  get promptsSocket(): SocketService<Prompts.Emission, Prompts.Actions> {
-    return this._promptsSocket
-  }
-
-  get validationSocket(): SocketService<Validation.Emission, Validation.Actions> {
-    return this._validationSocket
+  getSocket<N extends NamespaceName>(namespace: N): SocketServiceFor<N> {
+    return this._sockets[namespace]
   }
 }
+
+// Dynamic getters (chatSocket, promptsSocket, etc.) are created at runtime
+// via Object.defineProperty in the constructor loop. We use interface merging
+// to expose them in the type system without duplicating the logic.
+
+// Interface merging: adds socket getters to the type
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
+export interface SocketManager extends SocketGetters {}
+
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
+export class SocketManager extends SocketManagerBase {}

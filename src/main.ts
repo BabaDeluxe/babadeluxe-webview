@@ -1,18 +1,17 @@
 import { createApp } from 'vue'
+import { err, ok, type Result } from 'neverthrow'
+import { createClient } from '@supabase/supabase-js'
 import { ConsoleLogger } from '@simwai/utils'
 import 'virtual:uno.css'
-import { createClient } from '@supabase/supabase-js'
 import './assets/main.css'
 import App from './App.vue'
 import { KeyValueDb } from './database/key-value-db'
 import router from './routes'
-import { SocketManager } from './socket-manager'
 import { ApiKeyValidator } from './api-key-validator'
-import { validateEnvConfig } from './env-validator'
+import { validateEnvConfig, type EnvConfigType } from './env-validator'
 import { AppDb } from './database/app-db'
 import { SearchService } from './search-service'
 import { KeyValueStore } from './database/key-value-store'
-import { err, ok, type Result } from 'neverthrow'
 import {
   API_KEY_VALIDATOR_KEY,
   APP_DB_KEY,
@@ -24,24 +23,21 @@ import {
   SUPABASE_CLIENT_KEY,
 } from './injection-keys'
 import { initializeModels } from './composables/use-models-socket'
-import { AuthTokenError, EnvConfigError } from './errors'
+import { AuthTokenError, EnvValidationError } from './errors'
+import { SocketManager } from './socket-manager'
+import { initChatSocketListeners } from './chat-socket-listener'
 
-class AppLogger extends ConsoleLogger {
-  fatal(message: string, error: Error): never {
-    this.trace(message, error)
-    throw error
-  }
+const logger = new ConsoleLogger({ isTimeEnabled: false })
+
+const envValidationResult = validateEnvConfig()
+if (envValidationResult instanceof EnvValidationError) {
+  process.exit(0)
 }
 
-const logger = new AppLogger({ isTimeEnabled: false })
+// @ts-ignore
+const envConfig: EnvConfigType = import.meta.env
 
-const validationResult = validateEnvConfig()
-
-const envConfig = validationResult.match(
-  (config) => config,
-  (error) => logger.fatal('Environment config validation failed', new EnvConfigError(error.message))
-)
-
+// eslint-disable-next-line @typescript-eslint/naming-convention
 const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SOCKET_URL } = envConfig
 
 const app = createApp(App)
@@ -54,16 +50,13 @@ export type SupabaseClientType = typeof supabase
 
 app.provide(SUPABASE_CLIENT_KEY, supabase)
 
-const apiKeyValidator = new ApiKeyValidator(logger)
-app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
-
 const appDb = new AppDb(logger)
 const searchService = new SearchService(appDb, logger)
 app.provide(SEARCH_SERVICE_KEY, searchService)
 app.provide(APP_DB_KEY, appDb)
 
 const keyValueDb = new KeyValueDb()
-const keyValueStore = new KeyValueStore(keyValueDb)
+const keyValueStore = new KeyValueStore(keyValueDb, logger)
 app.provide(KEY_VALUE_STORE_KEY, keyValueStore)
 
 app.use(router)
@@ -90,34 +83,31 @@ const authTokenResult = await getAuthToken()
 
 if (authTokenResult.isErr()) {
   logger.warn('Auth failed:', authTokenResult.error.message)
-  app.provide(SOCKET_MANAGER_KEY, null)
-  app.mount('#app')
+
   await router.push('/login')
+  app.mount('#app')
 } else {
   const authToken = authTokenResult.value
 
   const socketManager = new SocketManager(logger, VITE_SOCKET_URL, authToken)
   const socketManagerInitResult = await socketManager.init()
+  initChatSocketListeners(socketManager.chatSocket, logger, appDb)
 
-  await socketManagerInitResult.match(
-    async () => {
-      logger.log('All socket namespaces connected')
-      app.provide(SOCKET_MANAGER_KEY, socketManager)
+  if (socketManagerInitResult.isErr()) {
+    logger.error('Socket initialization failed:', socketManagerInitResult.error)
+    process.exit(0)
+  }
 
-      window.addEventListener('beforeunload', () => {})
+  logger.log('All socket namespaces connected')
+  app.provide(SOCKET_MANAGER_KEY, socketManager)
 
-      app.mount('#app')
-      app.onUnmount(() => {
-        socketManager.disconnect()
-      })
+  const apiKeyValidator = new ApiKeyValidator(logger, socketManager.validationSocket)
+  app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
 
-      await initializeModels(socketManager, logger)
-    },
-    (error) => {
-      logger.error('Socket initialization failed:', error)
-      app.provide(SOCKET_MANAGER_KEY, null)
-      app.mount('#app')
-      // Optionally redirect to error page or show notification
-    }
-  )
+  app.mount('#app')
+  window.addEventListener('beforeunload', () => {
+    socketManager.disconnect()
+  })
+
+  await initializeModels(socketManager, logger)
 }

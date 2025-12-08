@@ -1,103 +1,147 @@
-import { ok, err, type Result } from 'neverthrow'
+import { err, type Result, ResultAsync } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { SocketService } from './socket-service'
 import type { Validation } from '@babadeluxe/shared/generated-socket-types'
+import { BaseError } from './base-error'
+import type { ApiKeyValidationError } from './errors'
+import {
+  InvalidResponseError,
+  InvalidApiKeyError,
+  BadRequestError,
+  LlmRateLimitedError,
+  NetworkValidationError,
+  ServerValidationError,
+  UnsupportedProviderError,
+  ValidationTimeoutError,
+  SocketConnectionError,
+} from './errors'
 
-type ValidationSuccess =
-  | {
-      readonly type: 'valid'
-      readonly provider: string
-      readonly statusCode: number
-    }
-  | {
-      readonly type: 'recognized'
-      readonly provider: string
-      readonly statusCode: number
-      readonly reason: 'bad_request' | 'rate_limited'
-    }
+// TODO This shouldn't be hardcoded
+const supportedProviders = ['openai', 'anthropic', 'google'] as const
+type SupportedProvider = (typeof supportedProviders)[number]
 
-type ValidationError =
-  | { readonly type: 'invalid_key'; readonly provider: string; readonly statusCode: number }
-  | { readonly type: 'network_error'; readonly provider: string; readonly cause: unknown }
-  | { readonly type: 'server_error'; readonly provider: string; readonly statusCode: number }
-  | { readonly type: 'unsupported_provider'; readonly provider: string }
+const validationTimeoutMs = 10000
+const defaultSuccessStatusCode = 200
 
-export type ValidationResult = ValidationSuccess | ValidationError
+const validationNamespace = 'validation' as const
 
-class SocketConnectionError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'SocketConnectionError'
-    Object.setPrototypeOf(this, SocketConnectionError.prototype)
-  }
+export type ValidationSuccess = {
+  readonly provider: string
+  readonly statusCode: number
 }
 
-export class ApiKeyValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ApiKeyValidationError'
-    Object.setPrototypeOf(this, ApiKeyValidationError.prototype)
+type ValidationSuccessResponse = {
+  readonly success: true
+  readonly statusCode?: number
+}
+
+function mapResponseToError(response: unknown): BaseError {
+  const isInvalidResponse = !response || typeof response !== 'object'
+  if (isInvalidResponse) {
+    return new InvalidResponseError('Response was not an object')
+  }
+  const res = response as { [key: string]: unknown }
+
+  switch (res.reason) {
+    case 'invalid_key':
+      return new InvalidApiKeyError(`Invalid API key for ${res.provider}`)
+    case 'bad_request':
+      return new BadRequestError(`Bad request for ${res.provider}`)
+    case 'rate_limited':
+      return new LlmRateLimitedError(`Rate limited by ${res.provider}`)
+    default:
+      break
+  }
+
+  switch (res.error) {
+    case 'network_error':
+      return new NetworkValidationError(`Network error for ${res.provider}`)
+    case 'server_error':
+      return new ServerValidationError(`Server error for ${res.provider} (${res.statusCode})`)
+    default:
+      return new InvalidResponseError(
+        typeof res.error === 'string' ? res.error : 'Unknown validation failure'
+      )
   }
 }
 
 export class ApiKeyValidator {
-  constructor(private readonly _logger: ConsoleLogger) {}
+  constructor(
+    private readonly _logger: ConsoleLogger,
+    private readonly _validationSocket: SocketService<Validation.Emission, Validation.Actions>
+  ) {}
 
   async validate(
-    validationSocket: SocketService<Validation.Emission, Validation.Actions> | null,
     provider: string,
     apiKey: string
-  ): Promise<Result<ValidationResult, ApiKeyValidationError>> {
+  ): Promise<Result<ValidationSuccess, ApiKeyValidationError>> {
     if (!this._isValidProvider(provider)) {
-      return err(new ApiKeyValidationError(`Invalid provider: ${provider}`))
+      return err(new UnsupportedProviderError(`Invalid provider: ${provider}`))
     }
 
-    if (!validationSocket) {
-      const error = new ApiKeyValidationError('Validation socket not available')
-      this._logger.error('[ApiKeyValidator.validate]', error)
+    const waitResult = await this._validationSocket.waitForConnection()
+
+    if (waitResult.isErr()) {
+      const errorMessage = `Failed to connect to ${validationNamespace} namespace`
+      const error = new SocketConnectionError(validationNamespace, errorMessage, waitResult.error)
+      this._logger.error(errorMessage, error)
       return err(error)
     }
 
-    const waitResult = await validationSocket.waitForConnection()
-
-    if (waitResult.isErr()) {
-      const error = new SocketConnectionError(waitResult.error.message)
-      this._logger.error('Failed to connect:', error)
-      return err(new ApiKeyValidationError(error.message))
-    }
-
-    return this._emitValidateApiKey(validationSocket, provider, apiKey)
+    return this._emitValidateApiKey(provider, apiKey)
   }
 
-  private _isValidProvider(provider: string): provider is 'openai' | 'anthropic' | 'google' {
-    return ['openai', 'anthropic', 'google'].includes(provider)
+  private _isValidProvider(provider: string): provider is SupportedProvider {
+    return supportedProviders.includes(provider as SupportedProvider)
   }
 
-  private _emitValidateApiKey(
-    validationSocket: SocketService<Validation.Emission, Validation.Actions>,
-    provider: 'openai' | 'anthropic' | 'google',
+  private _isValidationSuccessResponse(response: unknown): response is ValidationSuccessResponse {
+    return (
+      response !== undefined &&
+      response !== null &&
+      typeof response === 'object' &&
+      'success' in response &&
+      response.success === true
+    )
+  }
+
+  private async _emitValidateApiKey(
+    provider: SupportedProvider,
     apiKey: string
-  ): Promise<Result<ValidationResult, ApiKeyValidationError>> {
-    return new Promise((resolve) => {
-      const timeoutId = setTimeout(() => {
-        resolve(err(new ApiKeyValidationError('Validation request timeout after 10s')))
-      }, 10000)
+  ): Promise<Result<ValidationSuccess, ApiKeyValidationError>> {
+    return await ResultAsync.fromPromise(
+      new Promise<ValidationSuccess>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(
+            new ValidationTimeoutError(`Validation request timeout after ${validationTimeoutMs}ms`)
+          )
+        }, validationTimeoutMs)
 
-      validationSocket.emit('validateApiKey', { provider, apiKey }, (response: unknown) => {
-        clearTimeout(timeoutId)
+        this._validationSocket.emit('validateApiKey', { provider, apiKey }, (response: unknown) => {
+          clearTimeout(timeoutId)
 
-        if (
-          typeof response === 'object' &&
-          response !== undefined &&
-          response !== null &&
-          'type' in response &&
-          'provider' in response
-        ) {
-          resolve(ok(response as ValidationResult))
-        } else {
-          resolve(err(new ApiKeyValidationError('Invalid response format from server')))
+          if (this._isValidationSuccessResponse(response)) {
+            resolve({
+              provider,
+              statusCode:
+                typeof response.statusCode === 'number'
+                  ? response.statusCode
+                  : defaultSuccessStatusCode,
+            })
+          } else {
+            reject(mapResponseToError(response))
+          }
+        })
+      }),
+      (error) => {
+        if (error instanceof BaseError) {
+          return error as ApiKeyValidationError
         }
-      })
-    })
+        return new InvalidResponseError(
+          'An unexpected error occurred during validation',
+          error as Error
+        )
+      }
+    )
   }
 }

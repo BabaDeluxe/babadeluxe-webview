@@ -16,11 +16,6 @@ export class KvStoreError extends BaseError {
   }
 }
 
-export class KvNotFoundError extends KvStoreError {}
-export class KvQuotaExceededError extends KvStoreError {}
-export class KvVersionError extends KvStoreError {}
-export class KvDatabaseClosedError extends KvStoreError {}
-
 export class InvalidApiKeyError extends BaseError {}
 export class BadRequestError extends BaseError {}
 export class LlmRateLimitedError extends BaseError {}
@@ -65,6 +60,26 @@ export type ApiKeyValidationError =
   | SocketConnectionError
   | InvalidResponseError
 
-export class EnvConfigError extends BaseError {}
+export class EnvValidationError extends BaseError {}
 
 export class AuthTokenError extends BaseError {}
+export class SocketManagerError extends BaseError {}
+
+export class ModelsFetchError extends BaseError {}
+export class PostMessageError extends BaseError {}
+
+export class TestEnvValidationError extends BaseError {}
+
+export class SubscriptionError extends BaseError {}
+
+export class ChatError extends BaseError {}
+export class NetworkError extends BaseError {}
+export class RateLimitError extends BaseError {
+  constructor(
+    message: string,
+    public readonly retryAfterMs?: number,
+    cause?: Error
+  ) {
+    super(message, cause)
+  }
+}

@@ -1,19 +1,18 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import Dexie, { type EntityTable } from 'dexie'
+import { Dexie, type Table } from 'dexie'
+import { ok, err, type Result, ResultAsync } from 'neverthrow'
 import type { Conversation, Message } from '@babadeluxe/shared'
 import type { ConsoleLogger } from '@simwai/utils'
-import { ResultAsync, type Result } from 'neverthrow'
-
-type DbError = { readonly code: string; readonly message: string }
-
-const toDbError = (error: unknown): DbError => ({
-  code: error instanceof Error ? error.name : 'UNKNOWN_ERROR',
-  message: error instanceof Error ? error.message : String(error),
-})
+import { DbError } from '@/errors'
+import { SafeTable, DexieError } from './safe-table'
+type NewMessage = Omit<Message, 'id' | 'timestamp'> & {
+  timestamp?: Date
+}
 
 export class AppDb extends Dexie {
-  conversation!: EntityTable<Conversation, 'id'>
-  message!: EntityTable<Message, 'id'>
+  conversation!: SafeTable<Conversation, Conversation, number>
+  message!: SafeTable<Message, NewMessage, number>
+  private _conversationTable!: Table<Conversation, number>
+  private _messageTable!: Table<Message, number>
 
   constructor(private readonly _logger: ConsoleLogger) {
     super('AppDb')
@@ -22,113 +21,209 @@ export class AppDb extends Dexie {
       conversation: '++id, title, isActive, createdAt, updatedAt, messageCount',
       message: '++id, conversationId, role, timestamp',
     })
+    this._conversationTable = this.table<Conversation, number>('conversation')
+    this._messageTable = this.table<Message, number>('message')
 
-    this.conversation.hook('creating', (_, myObject) => {
-      const now = new Date()
-      myObject.createdAt = now
-      myObject.updatedAt = now
-      myObject.isActive = 1
-    })
+    this._conversationTable.hook(
+      'creating',
+      (_primaryKey: number | undefined, myObject: Conversation) => {
+        const now = new Date()
+        myObject.createdAt = now
+        myObject.updatedAt = now
+        myObject.isActive = 1
+      }
+    )
 
-    this.conversation.hook('updating', async function (_, __, ___, transaction) {
+    this._conversationTable.hook('updating', function () {
       return { updatedAt: new Date() }
     })
 
-    this.message.hook('creating', function (_, myObject) {
-      myObject.timestamp = new Date()
+    this._messageTable.hook('creating', (_primaryKey: number | undefined, myObject: Message) => {
+      if (myObject.timestamp === undefined) {
+        myObject.timestamp = new Date()
+      }
     })
+
+    this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
+    this.message = new SafeTable<Message, NewMessage, number>(this._messageTable)
   }
 
   async getMessageByConversation(
     conversationId: number
   ): Promise<Result<readonly Message[], DbError>> {
-    return ResultAsync.fromPromise(
-      this.message.where('conversationId').equals(conversationId).toArray(),
-      toDbError
-    )
+    const result = await this.message.where('conversationId').equals(conversationId).toArray()
+
+    if (result.isErr()) {
+      this._logger.error('Failed to get messages by conversation:', result.error)
+      return err(this._toDomainError(result.error))
+    }
+
+    return ok(result.value)
   }
 
   async getAllConversations(): Promise<Result<readonly Conversation[], DbError>> {
-    return ResultAsync.fromPromise(this.conversation.toArray(), toDbError)
+    const result = await this.conversation.toArray()
+
+    if (result.isErr()) {
+      this._logger.error('Failed to get all conversations:', result.error)
+      return err(this._toDomainError(result.error))
+    }
+
+    return ok(result.value)
   }
 
   async deleteConversationWithMessage(conversationId: number): Promise<Result<void, DbError>> {
     return ResultAsync.fromPromise(
-      this.transaction('rw', this.conversation, this.message, async () => {
-        const messageCount = await this.message
-          .where('conversationId')
-          .equals(conversationId)
-          .count()
-        if (messageCount > 0) {
-          await this.message.where('conversationId').equals(conversationId).delete()
-        }
-        await this.conversation.delete(conversationId)
+      this.transaction('rw', this._conversationTable, this._messageTable, async () => {
+        await this._messageTable.where('conversationId').equals(conversationId).delete()
+        await this._conversationTable.delete(conversationId)
       }),
-      toDbError
+      (error) => {
+        this._logger.error(
+          'Failed to delete conversation with messages:',
+          error instanceof Error ? error : new Error(String(error))
+        )
+        return this._toDomainError(error)
+      }
     )
   }
 
   async createMessage(data: Omit<Message, 'id' | 'timestamp'>): Promise<Result<number, DbError>> {
+    const resolvedContent =
+      typeof data.content === 'string' ? data.content : await Promise.resolve(data.content)
+
+    const conversationResult = await this.conversation.get(data.conversationId)
+
+    if (conversationResult.isErr()) {
+      this._logger.error('Failed to verify conversation exists:', conversationResult.error)
+      return err(this._toDomainError(conversationResult.error))
+    }
+
+    if (conversationResult.value === undefined) {
+      const error = new DbError(
+        `Cannot create message: Conversation ${data.conversationId} missing`
+      )
+      this._logger.error('Conversation not found:', error)
+      return err(error)
+    }
+
     return ResultAsync.fromPromise(
-      (async () => {
-        const resolvedContent =
-          typeof data.content === 'string' ? data.content : await Promise.resolve(data.content)
+      this.transaction('rw', this._conversationTable, this._messageTable, async () => {
+        const messageData: NewMessage = {
+          conversationId: data.conversationId,
+          role: data.role,
+          content: resolvedContent,
+          isStreaming: data.isStreaming ?? false,
+        }
 
-        return this.transaction('rw', this.conversation, this.message, async () => {
-          const conversation = await this.conversation.get(data.conversationId)
-          if (!conversation) {
-            throw new Error(`Cannot create message: Conversation ${data.conversationId} missing`)
-          }
+        const addResult = await this.message.add(messageData)
+        if (addResult.isErr()) throw addResult.error
 
-          const messageData = {
-            conversationId: data.conversationId,
-            role: data.role,
-            content: resolvedContent,
-            timestamp: new Date(),
-            isStreaming: data.isStreaming ?? false,
-          }
-
-          const generatedId = await this.message.add(messageData)
-          return Number(generatedId)
-        })
-      })(),
-      toDbError
+        return addResult.value
+      }),
+      (error) => {
+        this._logger.error(
+          'Failed to create message:',
+          error instanceof Error ? error : new Error(String(error))
+        )
+        return this._toDomainError(error)
+      }
     )
   }
 
   async updateMessage(id: number, content: string): Promise<Result<number, DbError>> {
-    return ResultAsync.fromPromise(this.message.update(id, { content }), toDbError)
+    const result = await this.message.update(id, { content })
+
+    if (result.isErr()) {
+      this._logger.error('Failed to update message:', result.error)
+      return err(this._toDomainError(result.error))
+    }
+
+    return ok(result.value)
   }
 
   async deleteMessage(id: number): Promise<Result<void, DbError>> {
     return ResultAsync.fromPromise(
-      this.transaction('rw', this.conversation, this.message, async () => {
-        // Fetch the message BEFORE deleting to get conversationId
-        const message = await this.message.get(id)
+      this.transaction('rw', this._conversationTable, this._messageTable, async () => {
+        const message = await this._messageTable.get(id)
 
         if (!message) {
-          this._logger.warn(`Message ${id} already deleted or not found - skipping`)
-          return // Idempotent: already deleted is success
+          return
         }
 
-        const conversationId = message.conversationId
+        await this._messageTable.delete(id)
 
-        // Delete the message
-        await this.message.delete(id)
-
-        // Check if this was the last message in the conversation
-        const remainingMessages = await this.message
-          .where('conversationId')
-          .equals(conversationId)
-          .count()
-
-        // Cascade delete the conversation if no messages remain
-        if (remainingMessages === 0) {
-          await this.conversation.delete(conversationId)
-          this._logger.log(`Cascade deleted empty conversation ${conversationId}`)
-        }
+        await this._deleteEmptyConversation(message.conversationId)
       }),
-      toDbError
+      (error) => {
+        this._logger.error(
+          'Failed to delete message:',
+          error instanceof Error ? error : new Error(String(error))
+        )
+        return this._toDomainError(error)
+      }
+    )
+  }
+
+  async getStreamingMessages(): Promise<Result<Message[], DbError>> {
+    const allMessagesResult = await this.message.toArray()
+
+    if (allMessagesResult.isErr()) {
+      this._logger.error('Failed to get streaming messages:', allMessagesResult.error)
+      return err(this._toDomainError(allMessagesResult.error))
+    }
+    const streamingMessages = allMessagesResult.value.filter((msg) => msg.isStreaming === true)
+
+    return ok(streamingMessages)
+  }
+
+  async appendChunkToDb(messageId: number, chunk: string): Promise<Result<void, DbError>> {
+    const getResult = await this.message.get(messageId)
+
+    if (getResult.isErr()) {
+      this._logger.error('Failed to get message for appending chunk:', getResult.error)
+      return err(this._toDomainError(getResult.error))
+    }
+
+    const message = getResult.value
+
+    if (message === undefined) {
+      const error = new DbError(`Message ${messageId} not found`)
+      this._logger.error('Message not found for chunk append:', error)
+      return err(error)
+    }
+    const updatedContent = message.content + chunk
+    const updateResult = await this.message.update(messageId, { content: updatedContent })
+
+    if (updateResult.isErr()) {
+      this._logger.error('Failed to update message with appended chunk:', updateResult.error)
+      return err(this._toDomainError(updateResult.error))
+    }
+
+    return ok(undefined)
+  }
+  private async _deleteEmptyConversation(conversationId: number): Promise<void> {
+    const count = await this._messageTable.where('conversationId').equals(conversationId).count()
+    if (count !== 0) {
+      return
+    }
+
+    await this._conversationTable.delete(conversationId)
+
+    this._logger.log(`Cascade deleted empty conversation ${conversationId}`)
+  }
+
+  private _toDomainError(error: unknown): DbError {
+    if (error instanceof DexieError) {
+      return new DbError(
+        `Database operation '${error.operation}' failed on table '${error.tableName}'`,
+        error
+      )
+    }
+
+    return new DbError(
+      error instanceof Error ? error.message : 'An unknown DB error occurred',
+      error instanceof Error ? error : undefined
     )
   }
 }
