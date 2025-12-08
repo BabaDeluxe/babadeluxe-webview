@@ -20,6 +20,22 @@
       <span class="text-error">{{ loadError }}</span>
     </div>
 
+    <!-- Warning -->
+    <div
+      v-if="modelsReloadWarning"
+      class="bg-warning/10 border border-warning text-warning px-4 py-3 rounded-md mb-4 flex items-center justify-between"
+    >
+      <span>
+        {{ modelsReloadWarning }}
+      </span>
+      <button
+        class="ml-4 underline hover:no-underline"
+        @click="modelsReloadWarning = undefined"
+      >
+        Dismiss
+      </button>
+    </div>
+
     <template v-else>
       <section v-if="generalSettings.length > 0">
         <h2 class="text-xl font-semibold mb-4">General Settings</h2>
@@ -129,7 +145,6 @@
 </template>
 
 <script setup lang="ts">
-import { type Result, ResultAsync } from 'neverthrow'
 import { ref, computed, onMounted, onBeforeUnmount, inject, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { z } from 'zod/v4'
@@ -140,15 +155,13 @@ import {
   type SettingKey,
 } from '@babadeluxe/shared'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
+import { reloadModels } from '@/composables/use-models-socket'
 import SettingField from '@/components/SettingField.vue'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 import type { ConsoleLogger } from '@simwai/utils'
-import {
-  ApiKeyValidationError,
-  type ApiKeyValidator,
-  type ValidationResult,
-} from '@/api-key-validator'
+import type { ApiKeyValidator } from '@/api-key-validator'
 import type { SocketManager } from '@/socket-manager'
+import { InvalidApiKeyError, LlmRateLimitedError } from '@/errors'
 
 type FieldStatus = 'idle' | 'validating' | 'valid' | 'invalid'
 
@@ -159,18 +172,13 @@ type FieldState = {
   showSecret: boolean
 }
 
-type UiValidationResult = {
-  success: boolean
-  error?: string
-}
-
 const logger: ConsoleLogger = inject(LOGGER_KEY)!
 const validator: ApiKeyValidator = inject(API_KEY_VALIDATOR_KEY)!
 const socketManager: SocketManager = inject(SOCKET_MANAGER_KEY)!
+
 const { settings, upsertSetting, loadSettings } = useSettingsSocket()
 const apiProviders = getApiProviders()
 
-// Initialize field states for API keys
 const fieldStates = ref<Record<string, FieldState>>(
   Object.fromEntries(
     apiProviders.map((provider) => [
@@ -187,6 +195,7 @@ const fieldStates = ref<Record<string, FieldState>>(
 const isLoadingSettings = ref(true)
 const loadError = ref<string>()
 const isDebounceStopped = ref(false)
+const modelsReloadWarning = ref<string>()
 
 const generalSettings = computed(() =>
   settings.value.filter((s) => !s.settingKey.startsWith('apiKey'))
@@ -255,116 +264,51 @@ const getFieldInputClasses = (key: string) => {
   return `${baseClasses} ${errorClasses}`
 }
 
-const validateApiKey = async (
-  provider: string,
-  apiKey: string
-): Promise<Result<UiValidationResult, ApiKeyValidationError>> => {
-  // Parse schema first
-  const schema = settingSchemas[provider as SettingKey]
-  if (!schema) {
-    return ResultAsync.fromSafePromise(
-      Promise.reject(new ApiKeyValidationError('Unknown provider'))
-    )
-  }
-
-  const parseResult = schema.safeParse(apiKey)
-  if (!parseResult.success) {
-    const errorMsg = parseResult.error.issues[0]?.message ?? 'Invalid format'
-    return ResultAsync.fromSafePromise(Promise.reject(new ApiKeyValidationError(errorMsg)))
-  }
-
-  // Validate against backend
-  const providerName = provider.replace('apiKey', '').toLowerCase()
-  const backendResult = await validator.validate(
-    socketManager.validationSocket,
-    providerName,
-    apiKey
-  )
-
-  // Synchronous transformation - use map
-  return backendResult.map((backendResponse) => mapValidationResponse(backendResponse))
-}
-
-const mapValidationResponse = (response: ValidationResult): UiValidationResult => {
-  if (response.type === 'valid') {
-    return { success: true }
-  }
-
-  if (response.type === 'recognized') {
-    return {
-      success: false,
-      error:
-        response.reason === 'rate_limited'
-          ? 'Rate limited - try again later'
-          : 'Key recognized but request invalid',
-    }
-  }
-
-  if (response.type === 'invalid_key') {
-    return { success: false, error: 'Invalid API key' }
-  }
-
-  if (response.type === 'network_error') {
-    return { success: false, error: 'Network error - check connection' }
-  }
-
-  if (response.type === 'server_error') {
-    return { success: false, error: 'Provider server error - try again' }
-  }
-
-  if (response.type === 'unsupported_provider') {
-    return { success: false, error: 'Unsupported provider' }
-  }
-
-  const _exhaustive: never = response
-  return _exhaustive
-}
-
-const validateSetting = (
-  _key: string,
-  value: unknown,
-  schema: z.ZodTypeAny
-): UiValidationResult => {
-  const result = schema.safeParse(value)
-
-  if (!result.success) {
-    return {
-      success: false,
-      error: result.error.issues[0]?.message ?? 'Invalid value',
-    }
-  }
-
-  return { success: true }
-}
-
 const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
   if (isLoadingSettings.value) return
 
   const meta = settingMetadata[provider as SettingKey]
   if (!meta) return
 
-  if (meta.minLength !== undefined && apiKey.length < meta.minLength) {
-    updateFieldStatus(provider, 'invalid', `Min ${meta.minLength} chars`)
-    return
+  const schema = settingSchemas[provider as SettingKey]
+  if (schema) {
+    const parseResult = schema.safeParse(apiKey)
+    if (!parseResult.success) {
+      const errorMsg = parseResult.error.issues[0]?.message ?? 'Invalid format'
+      updateFieldStatus(provider, 'invalid', errorMsg)
+      return
+    }
   }
 
   updateFieldStatus(provider, 'validating')
-  const result = await validateApiKey(provider, apiKey)
 
-  result.match(
-    (uiResult) => {
-      if (uiResult.success) {
-        updateFieldStatus(provider, 'valid')
-        upsertSetting(provider, apiKey, meta.dataType)
-      } else {
-        updateFieldStatus(provider, 'invalid', uiResult.error)
-      }
-    },
-    (error) => {
+  const providerName = provider.replace('apiKey', '').toLowerCase()
+  const result = await validator.validate(providerName, apiKey)
+
+  if (result.isErr()) {
+    const error = result.error
+    logger.error(`Validation failed for ${provider}`, error)
+
+    if (error instanceof InvalidApiKeyError) {
+      updateFieldStatus(provider, 'invalid', 'The provided API key is not valid.')
+    } else if (error instanceof LlmRateLimitedError) {
+      updateFieldStatus(provider, 'invalid', 'Rate limited. Please wait a moment.')
+    } else {
       updateFieldStatus(provider, 'invalid', error.message)
-      logger.error('[validateAndSaveApiKey]', error)
     }
-  )
+    return
+  }
+
+  updateFieldStatus(provider, 'valid')
+  upsertSetting(provider, apiKey, meta.dataType)
+
+  const reloadModelsResult = await reloadModels(socketManager, logger)
+
+  if (reloadModelsResult.isErr()) {
+    logger.error('Failed to reload models after key validation:', reloadModelsResult.error)
+    modelsReloadWarning.value =
+      'API key saved, but models could not be updated. Please reload the page.'
+  }
 }
 
 const debouncedValidate = useDebounceFn(
@@ -447,10 +391,10 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
   const schema = buildValidationSchema(fieldName)
   if (!schema) return
 
-  const validationResult = validateSetting(fieldName, value, schema)
+  const result = schema.safeParse(value)
 
-  if (!validationResult.success) {
-    updateFieldStatus(fieldName, 'invalid', validationResult.error)
+  if (!result.success) {
+    updateFieldStatus(fieldName, 'invalid', result.error.issues[0]?.message ?? 'Invalid value')
     return
   }
 
@@ -471,7 +415,7 @@ onMounted(async () => {
     hydrateFieldStates()
     isLoadingSettings.value = false
   } catch (error) {
-    logger.error('[SettingsView] Failed to load settings:', error as Error)
+    logger.error('Failed to load settings:', error as Error)
     loadError.value = error instanceof Error ? error.message : 'Failed to load settings'
     isLoadingSettings.value = false
   }

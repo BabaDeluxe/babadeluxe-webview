@@ -9,15 +9,10 @@ import {
 } from '@babadeluxe/shared'
 import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 import type { ConsoleLogger } from '@simwai/utils'
-import type { SocketManager } from '@/socket-manager'
 
 export function useSettingsSocket() {
-  const socketManager = inject(SOCKET_MANAGER_KEY) as SocketManager | null
+  const socketManager = inject(SOCKET_MANAGER_KEY)!
   const logger: ConsoleLogger = inject(LOGGER_KEY)!
-
-  if (!socketManager) {
-    throw new Error('SocketManager not initialized')
-  }
 
   const settingsSocket = socketManager.settingsSocket
 
@@ -25,7 +20,6 @@ export function useSettingsSocket() {
   const isLoading = ref(false)
   const error = ref<string | undefined>()
 
-  // Use Settings namespace types
   const onUpdated: Settings.Emission['updated'] = (updatedSetting) => {
     const definition = getSettingDefinition(updatedSetting.settingKey)
     const metadata = settingMetadata[updatedSetting.settingKey as SettingKey]
@@ -56,7 +50,7 @@ export function useSettingsSocket() {
 
   const onError: Settings.Emission['error'] = (payload) => {
     error.value = payload.error
-    logger.error('[useSettingsSocket] Server error:', payload.error)
+    logger.error('Settings socket error:', payload.error)
   }
 
   // Register handlers
@@ -82,7 +76,7 @@ export function useSettingsSocket() {
       error.value = undefined
 
       const timeoutId = setTimeout(() => {
-        logger.error('[loadSettings] Acknowledgment timeout')
+        logger.error('Acknowledgment timeout on settings socket')
         reject(new Error('Server acknowledgment timeout'))
       }, 5000)
 
