@@ -44,14 +44,14 @@ export function useSubscriptionSocket() {
     error.value = payload.error
   }
 
-  subscriptionSocket.on('messageLimitReached', onMessageLimitReached)
-  subscriptionSocket.on('userTierChanged', onUserTierChanged)
-  subscriptionSocket.on('checkoutSessionError', onCheckoutSessionError)
+  subscriptionSocket.on('subscription:messageLimitReached', onMessageLimitReached)
+  subscriptionSocket.on('subscription:userTierChanged', onUserTierChanged)
+  subscriptionSocket.on('subscription:checkoutSessionError', onCheckoutSessionError)
 
   onBeforeUnmount(() => {
-    subscriptionSocket.off('messageLimitReached', onMessageLimitReached)
-    subscriptionSocket.off('userTierChanged', onUserTierChanged)
-    subscriptionSocket.off('checkoutSessionError', onCheckoutSessionError)
+    subscriptionSocket.off('subscription:messageLimitReached', onMessageLimitReached)
+    subscriptionSocket.off('subscription:userTierChanged', onUserTierChanged)
+    subscriptionSocket.off('subscription:checkoutSessionError', onCheckoutSessionError)
   })
 
   const redirectToCheckout = async (): Promise<void> => {
@@ -73,7 +73,7 @@ export function useSubscriptionSocket() {
         }, 10000)
 
         subscriptionSocket.emit(
-          'createCheckoutSession',
+          'subscription:createCheckoutSession',
           (
             response:
               | { success: boolean; checkoutUrl?: string; error?: string }

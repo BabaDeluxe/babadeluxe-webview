@@ -173,7 +173,7 @@ export async function initializeModels(
           }, 15000)
 
           modelsSocket.emit(
-            'listAllModels',
+            'models:listAllModels',
             (response: {
               success: boolean
               models?: { openai: string[]; anthropic: string[]; gemini: string[] }

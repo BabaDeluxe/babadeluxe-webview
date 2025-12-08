@@ -1,4 +1,4 @@
-export enum SocketNamespace {
+export enum SocketFeatures {
   CHAT = 'chat',
   SETTINGS = 'settings',
   MODELS = 'models',

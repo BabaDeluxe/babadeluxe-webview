@@ -11,8 +11,7 @@ export class SocketService<TEmission, TActions> {
 
   constructor(
     private readonly _logger: ConsoleLogger,
-    private readonly _socket: Socket,
-    private readonly _namespace: string
+    private readonly _socket: Socket
   ) {}
 
   get isConnected(): boolean {
@@ -23,7 +22,7 @@ export class SocketService<TEmission, TActions> {
     if (this._isConnected) return ok(this._socket)
 
     if (this._isConnecting) {
-      return err(new SocketConnectionError(this._namespace, 'Connection already in progress'))
+      return err(new SocketConnectionError('Connection already in progress'))
     }
 
     this._isConnecting = true
@@ -43,17 +42,17 @@ export class SocketService<TEmission, TActions> {
   private _registerInternalHandlers(): void {
     this._socket.on('connect', () => {
       this._isConnected = true
-      this._logger.log(`Connected to ${this._namespace}: ${this._socket.id}`)
+      this._logger.log(`Connected to socket: ${this._socket.id}`)
     })
 
     this._socket.on('disconnect', (reason: string) => {
       this._isConnected = false
-      this._logger.log(`${this._namespace} disconnected: ${reason}`)
+      this._logger.log(`Socket disconnected: ${reason}`)
     })
 
     this._socket.on('connect_error', (error: unknown) => {
       this._logger.warn(
-        `${this._namespace} connection attempt failed, retrying:`,
+        'Socket connection attempt failed, retrying:',
         error instanceof Error ? error.message : 'Socket connect error'
       )
     })
@@ -84,10 +83,7 @@ export class SocketService<TEmission, TActions> {
           hasResolved = true
           this._socket.off('connect', connectHandler)
           reject(
-            new SocketConnectionError(
-              this._namespace,
-              `Connection timeout after ${timeoutMs}ms (retries exhausted)`
-            )
+            new SocketConnectionError(`Connection timeout after ${timeoutMs}ms (retries exhausted)`)
           )
         }, timeoutMs)
 
@@ -95,8 +91,7 @@ export class SocketService<TEmission, TActions> {
       }),
       (error) => {
         return new SocketConnectionError(
-          this._namespace,
-          error instanceof Error ? error.message : 'Unknown connection failure',
+          error instanceof Error ? error.message : 'Unknown socket connection failure',
           error instanceof Error ? error : undefined
         )
       }
@@ -117,15 +112,12 @@ export class SocketService<TEmission, TActions> {
 
         const timeoutId = setTimeout(() => {
           this._socket.off('connect', onConnect)
-          reject(
-            new SocketConnectionError(this._namespace, `Connection timeout after ${timeoutMs}ms`)
-          )
+          reject(new SocketConnectionError(`Connection timeout after ${timeoutMs}ms`))
         }, timeoutMs)
       }),
       (error) => {
         return new SocketConnectionError(
-          this._namespace,
-          error instanceof Error ? error.message : 'Connection timeout',
+          error instanceof Error ? error.message : 'Socket connection timeout',
           error instanceof Error ? error : undefined
         )
       }
@@ -143,7 +135,7 @@ export class SocketService<TEmission, TActions> {
     this._internalHandlersRegistered = false
     this._socket.disconnect()
     this._isConnected = false
-    this._logger.log(`🧹 ${this._namespace} cleaned up`)
+    this._logger.log(`🧹 Socket cleaned up`)
   }
 
   on<T extends keyof TEmission>(event: T, handler: TEmission[T]): void {
@@ -174,14 +166,13 @@ export class SocketService<TEmission, TActions> {
   ): Result<void, SocketConnectionError> {
     if (!this._isConnected) {
       const socketConnectionError = new SocketConnectionError(
-        this._namespace,
         'No socket connection established before emit'
       )
       this._logger.error('Socket emit failed', socketConnectionError)
       return err(socketConnectionError)
     }
 
-    this._logger.log(`[${this._namespace}] [emit] Event: ${String(eventId)}`)
+    this._logger.log(`[emit] Event: ${String(eventId)}`)
     this._socket.emit(String(eventId), ...args)
     return ok()
   }

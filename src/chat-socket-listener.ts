@@ -1,10 +1,10 @@
-import type { Chat } from '@babadeluxe/shared/generated-socket-types'
+import type { Root } from '@babadeluxe/shared/generated-socket-types'
 import type { SocketService } from './socket-service'
 import type { AppDb } from '@/database/app-db'
 import type { ConsoleLogger } from '@simwai/utils'
 import { ref } from 'vue'
 
-type ChatSocket = SocketService<Chat.Emission, Chat.Actions>
+type ChatSocket = SocketService<Root.Emission, Root.Actions>
 
 interface MessageState {
   handler: ((chunk: string) => void) | undefined
@@ -40,7 +40,7 @@ export function initChatSocketListeners(
   appDb = db
   loggerInstance = logger
 
-  chatSocket.on('messageChunk', async ({ messageId, chunk }) => {
+  chatSocket.on('chat:messageChunk', async ({ messageId, chunk }) => {
     const state = messageStates.value.get(messageId)
     if (!state) {
       loggerInstance?.warn(`Late chunk for message ${messageId} - writing directly to DB`)
@@ -71,7 +71,7 @@ export function initChatSocketListeners(
     else loggerInstance?.warn(`No handler for message ${messageId}`)
   })
 
-  chatSocket.on('messageComplete', async ({ messageId }) => {
+  chatSocket.on('chat:messageComplete', async ({ messageId }) => {
     const state = messageStates.value.get(messageId)
     if (!state) {
       loggerInstance?.warn(`Complete event for unknown message ${messageId}`)
@@ -83,7 +83,7 @@ export function initChatSocketListeners(
     await cleanupMessage(messageId)
   })
 
-  chatSocket.on('chatError', async ({ messageId, error: errorMessage }) => {
+  chatSocket.on('chat:chatError', async ({ messageId, error: errorMessage }) => {
     const state = messageId !== undefined ? messageStates.value.get(messageId) : undefined
 
     if (messageId !== undefined && !state) {
@@ -99,7 +99,7 @@ export function initChatSocketListeners(
     await cleanupMessage(messageId)
   })
 
-  chatSocket.on('messageDeleted', async ({ messageId }) => {
+  chatSocket.on('chat:messageDeleted', async ({ messageId }) => {
     const state = messageStates.value.get(messageId)
     if (!state) {
       loggerInstance?.warn(`Delete event for unknown message ${messageId}`)
