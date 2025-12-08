@@ -3,7 +3,6 @@
     class="markdown-content"
     :class="{ 'max-w-screen-md': true }"
   >
-    <!-- Committed content (never re-renders during streaming) -->
     <VueMarkdown
       v-if="committedContent"
       :key="committedKey"
@@ -11,18 +10,18 @@
       :plugins="markdownItPlugins"
     />
 
-    <!-- Streaming buffer (plain text, incremental append) -->
     <span
       v-if="isStreaming"
       ref="streamingBufferRef"
       class="streaming-buffer"
-      >{{ streamingBuffer
-      }}<span
+    >
+      {{ streamingBuffer }}
+      <span
         v-if="cursor"
         class="cursor"
         >▎</span
-      ></span
-    >
+      >
+    </span>
   </div>
 </template>
 
@@ -32,17 +31,6 @@ import VueMarkdown from 'vue-markdown-render'
 import highlightjs from 'markdown-it-highlightjs'
 
 import 'highlight.js/styles/base16/rebecca.css'
-
-// import hljs from 'highlight.js/lib/core'
-// import javascript from 'highlight.js/lib/languages/javascript'
-// import typescript from 'highlight.js/lib/languages/typescript'
-// import python from 'highlight.js/lib/languages/python'
-// import bash from 'highlight.js/lib/languages/bash'
-
-// hljs.registerLanguage('javascript', javascript)
-// hljs.registerLanguage('typescript', typescript)
-// hljs.registerLanguage('python', python)
-// hljs.registerLanguage('bash', bash)
 
 const props = withDefaults(
   defineProps<{
@@ -56,15 +44,10 @@ const props = withDefaults(
   }
 )
 
-// Committed content (parsed as markdown, immutable during streaming)
 const committedContent = ref('')
-const committedKey = ref(0) // Force re-render on commit
-
-// Streaming buffer (plain text, appended incrementally)
+const committedKey = ref(0)
 const streamingBuffer = ref('')
-
 const streamingBufferRef = useTemplateRef<HTMLSpanElement>('streamingBufferRef')
-
 const markdownItPlugins = [highlightjs]
 
 onMounted(() => {
@@ -74,29 +57,23 @@ onMounted(() => {
   }
 })
 
-// ✅ FIXED: Handle streaming completion explicitly
 watch(
   () => props.isStreaming,
   (isStreaming, wasStreaming) => {
-    if (wasStreaming && !isStreaming && props.content) {
-      // Streaming complete - commit everything to markdown
-      committedContent.value = props.content
-      committedKey.value++
-      streamingBuffer.value = ''
-    }
+    if (!(wasStreaming && !isStreaming && props.content)) return
+
+    committedContent.value = props.content
+    committedKey.value++
+    streamingBuffer.value = ''
   }
 )
 
-// ✅ FIXED: Separate logic for streaming vs non-streaming
 watch(
   () => props.content,
   (newContent) => {
     if (props.isStreaming) {
-      // During streaming: only update the plain text buffer
       streamingBuffer.value = newContent.slice(committedContent.value.length)
     } else if (!props.isStreaming && newContent) {
-      // ✅ FIXED: Commit on any content change when NOT streaming
-      // This ensures non-streaming updates are properly rendered as markdown
       committedContent.value = newContent
       committedKey.value++
       streamingBuffer.value = ''
@@ -104,11 +81,9 @@ watch(
   }
 )
 
-// Expose ref for parent access
 defineExpose({
   streamingBufferRef,
   commitContent: () => {
-    // Commit current buffer to markdown
     committedContent.value = props.content
     committedKey.value++
     streamingBuffer.value = ''
@@ -118,12 +93,9 @@ defineExpose({
 
 <style scoped>
 .markdown-content {
-  @apply w-full;
-  max-width: 100%;
-  overflow-x: hidden;
+  @apply w-full max-w-full overflow-x-hidden;
 }
 
-/* Width constraint for md and above */
 @media (min-width: 768px) {
   .markdown-content {
     @apply max-w-[70vw];
@@ -131,8 +103,7 @@ defineExpose({
 }
 
 .streaming-buffer {
-  @apply whitespace-pre-wrap break-words text-sm leading-relaxed;
-  color: inherit;
+  @apply whitespace-pre-wrap break-words text-sm leading-relaxed color-inherit;
 }
 
 .cursor {
@@ -140,32 +111,53 @@ defineExpose({
 }
 
 .markdown-content :deep(h1) {
-  @apply text-xl font-semibold text-deepText mb-3 mt-4 first:mt-0;
+  @apply text-xl font-semibold text-deepText;
 }
 
 .markdown-content :deep(h2) {
-  @apply text-lg font-semibold text-deepText mb-2 mt-3;
+  @apply text-lg font-semibold text-deepText;
 }
 
 .markdown-content :deep(h3) {
-  @apply text-base font-semibold text-deepText mb-2 mt-3;
+  @apply text-base font-semibold text-deepText;
 }
 
 .markdown-content :deep(p) {
-  @apply text-sm leading-relaxed mb-3 last:mb-0;
-  color: inherit;
+  @apply text-sm leading-normal color-inherit;
+}
+
+.markdown-content :deep(p:has(+ ul)),
+.markdown-content :deep(p:has(+ ol)) {
+  @apply leading-tight;
 }
 
 .markdown-content :deep(ul) {
-  @apply list-disc list-inside mb-3 space-y-1;
+  @apply list-none flex flex-col gap-4 m-0;
 }
 
 .markdown-content :deep(ol) {
-  @apply list-decimal list-inside mb-3 space-y-1;
+  @apply list-none flex flex-col gap-4 m-0;
+  counter-reset: list-counter;
 }
 
-.markdown-content :deep(li) {
-  @apply text-sm leading-relaxed;
+.markdown-content :deep(ul > li),
+.markdown-content :deep(ol > li) {
+  @apply text-sm leading-normal flex items-start;
+  gap: 0.5rem;
+  color: inherit;
+}
+
+.markdown-content :deep(ol > li) {
+  counter-increment: list-counter;
+}
+
+.markdown-content :deep(ul > li::before) {
+  content: '•';
+  color: inherit;
+}
+
+.markdown-content :deep(ol > li::before) {
+  content: counter(list-counter) '.';
   color: inherit;
 }
 
@@ -174,42 +166,26 @@ defineExpose({
 }
 
 .markdown-content :deep(code) {
-  @apply bg-codeBg text-accent px-1 py-0.5 rounded text-sm font-mono;
-  word-break: break-word;
+  @apply bg-codeBg text-accent px-1 py-0.5 rounded text-sm font-mono break-words;
 }
 
 .markdown-content :deep(pre) {
-  @apply bg-codeBg border border-borderMuted rounded-lg p-4 my-3 font-mono text-sm;
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
+  @apply bg-codeBg border border-borderMuted rounded-lg p-4 my-3 font-mono text-sm max-w-full overflow-x-auto whitespace-pre;
 }
 
-/* Mobile: Always wrap */
 @media (max-width: 767px) {
   .markdown-content :deep(pre) {
-    white-space: pre-wrap;
-    word-break: break-all;
-    overflow-x: hidden;
-  }
-
-  .markdown-content :deep(pre code) {
-    white-space: pre-wrap;
-    word-break: break-all;
+    @apply whitespace-pre-wrap break-all overflow-x-hidden;
   }
 }
 
 .markdown-content :deep(pre code) {
-  @apply text-subtleText;
+  @apply text-subtleText block max-w-full;
   background: transparent !important;
-  display: block;
-  max-width: 100%;
 }
 
 .markdown-content :deep(a) {
-  @apply text-accent hover:text-accentHover underline transition-colors;
-  word-break: break-word;
+  @apply text-accent hover:text-accentHover underline transition-colors break-words;
 }
 
 .markdown-content :deep(strong) {

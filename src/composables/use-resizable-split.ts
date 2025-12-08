@@ -1,7 +1,7 @@
 import { ref, computed, onMounted, inject } from 'vue'
 import { useEventListener } from '@vueuse/core'
-import type { KeyValueStore } from '@/database/key-value-store'
 import type { ConsoleLogger } from '@simwai/utils'
+import type { KeyValueStore } from '@/database/key-value-store'
 import { LOGGER_KEY } from '@/injection-keys'
 
 type UseResizableSplitOptions = {
@@ -34,17 +34,18 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
   const rightWidthPercent = computed(() => `${100 - leftWidth.value}%`)
 
   const loadSavedRatio = async () => {
-    try {
-      const saved = await keyValueStore.get(storageKey)
-      if (saved) {
-        const parsed = Number(saved)
-        if (!Number.isNaN(parsed) && parsed >= minRatio && parsed <= maxRatio) {
-          leftWidth.value = parsed
-        }
+    const saved = await keyValueStore.get(storageKey)
+
+    if (saved) {
+      const parsed = Number(saved)
+      if (!Number.isNaN(parsed) && parsed >= minRatio && parsed <= maxRatio) {
+        leftWidth.value = parsed
       }
-    } catch (error) {
-      _logger.error('Failed to load split ratio:', error as Error)
+
+      return
     }
+
+    _logger.error('Failed to load split ratio from key value store')
   }
 
   const saveRatio = async (ratio: number) => {

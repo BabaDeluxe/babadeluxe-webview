@@ -155,7 +155,7 @@
             </div>
           </div>
 
-          <!-- Resizer Handle - FIXED -->
+          <!-- Resizer Handle -->
           <div
             class="relative flex items-center justify-center cursor-row-resize group flex-shrink-0"
             :class="{ 'bg-accent/10': verticalIsDragging }"
@@ -490,7 +490,6 @@ const {
 const searchQuery = ref('')
 const messagesLoading = ref(false)
 const highlightedIndex = ref(-1)
-// const searchInputRef = useTemplateRef('searchInputRef')
 const dropdownRef = useTemplateRef('dropdownRef')
 
 const renameDialog = ref({
@@ -750,14 +749,6 @@ const getSearchResultSubtitle = (result: AnySearchResult) => {
   if (isMessageResult(result)) {
     const found = conversations.value.find((c) => c.id === result.conversationId)
     const title = found?.title || 'Unknown'
-
-    // DEBUG: Log what we're returning
-    console.log('📍 Message subtitle:', {
-      messageId: result.id,
-      conversationId: result.conversationId,
-      foundConversation: found,
-      returning: `Message in "${title}"`,
-    })
 
     return `Message in "${title}"`
   }
