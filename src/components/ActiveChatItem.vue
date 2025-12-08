@@ -138,17 +138,17 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useTextareaAutosize } from '@vueuse/core'
-import type { Message } from '@babadeluxe/shared'
-import type { KeyValueStore } from '../database/key-value-store'
 import type { ConsoleLogger } from '@simwai/utils'
+import type { Message } from '@babadeluxe/shared'
+import type { KeyValueStore } from '@/database/key-value-store'
 import type { AppDb } from '@/database/app-db'
 import type { ActiveChatItemEmitter } from '@/types/active-chat-item-types'
+import { APP_DB_KEY, KEY_VALUE_STORE_KEY, LOGGER_KEY } from '@/injection-keys'
+import { useDropdown } from '@/composables/use-dropdown-state'
+import { useModelsSocket } from '@/composables/use-models-socket'
 import MarkdownRenderItem from './MarkdownRenderItem.vue'
 import AvatarItem from './AvatarItem.vue'
 import DropdownSelector from './DropdownSelector.vue'
-import { APP_DB_KEY, KEY_VALUE_STORE_KEY, LOGGER_KEY } from '@/injection-keys'
-import { useDropdown } from '@/composables/use-dropdown-state'
-import { useModelsSocket } from '@/composables/use-models-socket' // ✅ ADD THIS
 import ErrorBanner from './ErrorBanner.vue'
 
 const _appDb: AppDb = inject(APP_DB_KEY)!
@@ -163,24 +163,22 @@ const {
   modelsError: _modelsError,
 } = useModelsSocket()
 
+type Item = { value: string; label: string; icon?: string }
+type ItemGroup = { label: string; items: Item[] }
+type ItemGroupWithIcon = ItemGroup & { icon?: string }
+
+const markdownRef = useTemplateRef<InstanceType<typeof MarkdownRenderItem>>('markdownRef')
+defineExpose({ markdownRef })
+
 const _isEditing = ref(false)
 const _selectedModel = ref<string>('')
-const markdownRef = useTemplateRef<InstanceType<typeof MarkdownRenderItem>>('markdownRef')
 const _errorMessage = ref('')
-
-defineExpose({ markdownRef })
 
 const props = withDefaults(defineProps<Message & { showRewrite?: boolean }>(), {
   isStreaming: false,
   showRewrite: true,
 })
 const emit = defineEmits<ActiveChatItemEmitter>()
-
-// Local type definitions to match expected structures
-type Item = { value: string; label: string; icon?: string }
-type ItemGroup = { label: string; items: Item[] }
-type ItemGroupWithIcon = ItemGroup & { icon?: string }
-
 const bubbleClass = computed(() => {
   if (props.role === 'user') return 'bg-panel text-deepText border border-borderMuted'
   if (props.role === 'assistant') return 'bg-codeBg text-subtleText border border-borderMuted'
@@ -247,16 +245,6 @@ async function saveEdit() {
 
 async function handleDelete() {
   _errorMessage.value = ''
-
-  // const deleteResult = await _appDb.deleteMessage(props.id)
-  // if (deleteResult.isErr()) {
-  //   _logger.error(`Failed to delete message id: ${props.id}`, String(deleteResult.error))
-  //   _errorMessage.value = "Message couldn't be deleted. Please try again."
-
-  //   close()
-  //   return
-  // }
-
   emit('delete', props.id)
   close()
 }

@@ -436,7 +436,7 @@ const handleSendMessage = async (): Promise<void> => {
     fullPrompt,
     (chunk) => {
       logger.log(
-        'Received chunk: ' + chunk.substring(0, 30) + 'for message: ',
+        `Received chunk: ${chunk.substring(0, 30)}for message: `,
         assistantMessage.id.toString()
       )
       streamedContent += chunk
@@ -481,7 +481,6 @@ const handleSendMessage = async (): Promise<void> => {
 }
 
 const handleAbortMessage = async (): Promise<void> => {
-  // NEW: Use the computed currentStreamingMessageId
   if (!currentStreamingMessageId.value) return
 
   const messageId = currentStreamingMessageId.value
@@ -490,12 +489,6 @@ const handleAbortMessage = async (): Promise<void> => {
   await result.match(
     async () => {
       textInputRef.value?.focus()
-      const messageToDelete = messages.value.find((message) => message.id === messageId)
-      if (messageToDelete) {
-        await deleteMessage(messageId)
-      } else {
-        logger.warn(`Message ${messageId} not found in array`)
-      }
       logger.log('Message aborted successfully')
     },
     (abortError) => {

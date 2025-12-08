@@ -165,7 +165,7 @@ export function useChatSocket() {
           reject(new NetworkError('Abort timeout'))
         }, abortTimeoutMs)
 
-        chatSocket.emit('abortMessage', { messageId, deleteMessage: true }, (response) => {
+        chatSocket.emit('abortMessage', { messageId, deleteMessage: false }, (response) => {
           cancelTimeout(timeoutId)
 
           if (response.success) {

@@ -2,6 +2,7 @@ import type { Chat } from '@babadeluxe/shared/generated-socket-types'
 import type { SocketService } from './socket-service'
 import type { AppDb } from '@/database/app-db'
 import type { ConsoleLogger } from '@simwai/utils'
+import { ref } from 'vue'
 
 type ChatSocket = SocketService<Chat.Emission, Chat.Actions>
 
@@ -12,17 +13,17 @@ interface MessageState {
   error?: string
 }
 
-const messageStates = new Map<number, MessageState>()
+const messageStates = ref(new Map<number, MessageState>())
 let isInitialized = false
 let appDb: AppDb | undefined
 let loggerInstance: ConsoleLogger | undefined
 
 const cleanupMessage = async (messageId: number): Promise<void> => {
-  const state = messageStates.get(messageId)
+  const state = messageStates.value.get(messageId)
   if (!state) return
 
   await Promise.allSettled(state.pendingWrites)
-  messageStates.delete(messageId)
+  messageStates.value.delete(messageId)
 }
 
 export function initChatSocketListeners(
@@ -40,7 +41,7 @@ export function initChatSocketListeners(
   loggerInstance = logger
 
   chatSocket.on('messageChunk', async ({ messageId, chunk }) => {
-    const state = messageStates.get(messageId)
+    const state = messageStates.value.get(messageId)
     if (!state) {
       loggerInstance?.warn(`Late chunk for message ${messageId} - writing directly to DB`)
 
@@ -71,18 +72,19 @@ export function initChatSocketListeners(
   })
 
   chatSocket.on('messageComplete', async ({ messageId }) => {
-    const state = messageStates.get(messageId)
+    const state = messageStates.value.get(messageId)
     if (!state) {
       loggerInstance?.warn(`Complete event for unknown message ${messageId}`)
       return
     }
 
+    state.isStreaming = false
     loggerInstance?.log(`Message ${messageId} complete`)
     await cleanupMessage(messageId)
   })
 
   chatSocket.on('chatError', async ({ messageId, error: errorMessage }) => {
-    const state = messageId !== undefined ? messageStates.get(messageId) : undefined
+    const state = messageId !== undefined ? messageStates.value.get(messageId) : undefined
 
     if (messageId !== undefined && !state) {
       loggerInstance?.warn(`Error event for unknown message ${messageId}`)
@@ -91,18 +93,20 @@ export function initChatSocketListeners(
 
     if (!(messageId !== undefined && state)) return
 
+    state.isStreaming = false
     loggerInstance?.error(`Chat error for message ${messageId}: ${errorMessage}`)
     state.error = errorMessage
     await cleanupMessage(messageId)
   })
 
   chatSocket.on('messageDeleted', async ({ messageId }) => {
-    const state = messageStates.get(messageId)
+    const state = messageStates.value.get(messageId)
     if (!state) {
       loggerInstance?.warn(`Delete event for unknown message ${messageId}`)
       return
     }
 
+    state.isStreaming = false
     loggerInstance?.log(`Message ${messageId} deleted`)
     await cleanupMessage(messageId)
   })
@@ -111,14 +115,14 @@ export function initChatSocketListeners(
 }
 
 export function registerChunkHandler(messageId: number, handler: (chunk: string) => void): void {
-  const existing = messageStates.get(messageId)
+  const existing = messageStates.value.get(messageId)
 
   if (existing) {
     existing.handler = handler
     return
   }
 
-  messageStates.set(messageId, {
+  messageStates.value.set(messageId, {
     handler,
     isStreaming: true,
     pendingWrites: [],
@@ -133,7 +137,7 @@ export function getChatSocketState(messageId: number): {
   isStreaming: boolean
   error?: string
 } {
-  const state = messageStates.get(messageId)
+  const state = messageStates.value.get(messageId)
   return {
     isStreaming: state?.isStreaming ?? false,
     error: state?.error,
@@ -141,20 +145,20 @@ export function getChatSocketState(messageId: number): {
 }
 
 export function getAllStreamingMessageIds(): number[] {
-  return Array.from(messageStates.entries())
+  return Array.from(messageStates.value.entries())
     .filter(([, state]) => state.isStreaming)
     .map(([id]) => id)
 }
 
 export function resumeStreamingMessage(messageId: number, handler: (chunk: string) => void): void {
-  const existing = messageStates.get(messageId)
+  const existing = messageStates.value.get(messageId)
 
   if (existing) {
     existing.handler = handler
     return
   }
 
-  messageStates.set(messageId, {
+  messageStates.value.set(messageId, {
     handler,
     isStreaming: true,
     pendingWrites: [],
@@ -162,5 +166,5 @@ export function resumeStreamingMessage(messageId: number, handler: (chunk: strin
 }
 
 export function hasAnyStreamingMessage(): boolean {
-  return Array.from(messageStates.values()).some((state) => state.isStreaming)
+  return Array.from(messageStates.value.values()).some((state) => state.isStreaming)
 }
