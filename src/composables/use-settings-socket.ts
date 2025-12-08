@@ -1,5 +1,5 @@
 import { ref, onBeforeUnmount, inject, readonly } from 'vue'
-import type { Settings } from '@babadeluxe/shared'
+import type { Root } from '@babadeluxe/shared'
 import {
   type UserSettingWithValidation,
   getSettingDefinition,
@@ -20,7 +20,7 @@ export function useSettingsSocket() {
   const isLoading = ref(false)
   const error = ref<string | undefined>()
 
-  const onUpdated: Settings.Emission['updated'] = (updatedSetting) => {
+  const onUpdated: Root.Emission['settings:updated'] = (updatedSetting) => {
     const definition = getSettingDefinition(updatedSetting.settingKey)
     const metadata = settingMetadata[updatedSetting.settingKey as SettingKey]
 
@@ -44,25 +44,25 @@ export function useSettingsSocket() {
     else settings.value[index] = settingWithValidation
   }
 
-  const onDeleted: Settings.Emission['deleted'] = (payload) => {
+  const onDeleted: Root.Emission['settings:deleted'] = (payload) => {
     settings.value = settings.value.filter((s) => s.settingKey !== payload.settingKey)
   }
 
-  const onError: Settings.Emission['error'] = (payload) => {
+  const onError: Root.Emission['settings:error'] = (payload) => {
     error.value = payload.error
     logger.error('Settings socket error:', payload.error)
   }
 
   // Register handlers
-  settingsSocket.on('updated', onUpdated)
-  settingsSocket.on('deleted', onDeleted)
-  settingsSocket.on('error', onError)
+  settingsSocket.on('settings:updated', onUpdated)
+  settingsSocket.on('settings:deleted', onDeleted)
+  settingsSocket.on('settings:error', onError)
 
   // Cleanup
   onBeforeUnmount(() => {
-    settingsSocket.off('updated', onUpdated)
-    settingsSocket.off('deleted', onDeleted)
-    settingsSocket.off('error', onError)
+    settingsSocket.off('settings:updated', onUpdated)
+    settingsSocket.off('settings:deleted', onDeleted)
+    settingsSocket.off('settings:error', onError)
   })
 
   const loadSettings = async (): Promise<void> => {
@@ -80,7 +80,7 @@ export function useSettingsSocket() {
         reject(new Error('Server acknowledgment timeout'))
       }, 5000)
 
-      settingsSocket.emit('getAll', (response) => {
+      settingsSocket.emit('settings:getAll', (response) => {
         clearTimeout(timeoutId)
         isLoading.value = false
 
@@ -106,7 +106,7 @@ export function useSettingsSocket() {
     }
 
     return new Promise((resolve, reject) => {
-      settingsSocket.emit('upsert', { settingKey, settingValue, dataType }, (response) => {
+      settingsSocket.emit('settings:upsert', { settingKey, settingValue, dataType }, (response) => {
         if (response.success) {
           resolve()
         } else {
@@ -124,7 +124,7 @@ export function useSettingsSocket() {
     }
 
     return new Promise((resolve, reject) => {
-      settingsSocket.emit('delete', { settingKey }, (response) => {
+      settingsSocket.emit('settings:delete', { settingKey }, (response) => {
         if (response.success) {
           resolve()
         } else {

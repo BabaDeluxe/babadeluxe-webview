@@ -3,24 +3,25 @@ import { ResultAsync, err, ok, type Result } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { SocketManager } from '@/socket-manager'
 import { SOCKET_MANAGER_KEY, LOGGER_KEY } from '@/injection-keys'
-import type { Prompts } from '@babadeluxe/shared/generated-socket-types'
+import type { Root } from '@babadeluxe/shared/generated-socket-types'
 import { PromptError } from '@/errors'
 
-// TODO Double check this, looks pretty much like a code smell
-type GetPromptsResponse = Parameters<Parameters<Prompts.Actions['getPrompts']>[0]>[0]
+// Extract types from zod-sockets with prefixed event names
+type GetPromptsResponse = Parameters<Parameters<Root.Actions['prompts:getPrompts']>[0]>[0]
 type PromptItem = GetPromptsResponse['data'][0]
 
-type CreatePromptPayload = Parameters<Prompts.Actions['createPrompt']>[0]
-type CreatePromptResponse = Parameters<Parameters<Prompts.Actions['createPrompt']>[1]>[0]
+type CreatePromptPayload = Parameters<Root.Actions['prompts:createPrompt']>[0]
+type CreatePromptResponse = Parameters<Parameters<Root.Actions['prompts:createPrompt']>[1]>[0]
 
-type UpdatePromptPayload = Parameters<Prompts.Actions['updatePrompt']>[0]
-type UpdatePromptResponse = Parameters<Parameters<Prompts.Actions['updatePrompt']>[1]>[0]
+type UpdatePromptPayload = Parameters<Root.Actions['prompts:updatePrompt']>[0]
+type UpdatePromptResponse = Parameters<Parameters<Root.Actions['prompts:updatePrompt']>[1]>[0]
 
-type DeletePromptPayload = Parameters<Prompts.Actions['deletePrompt']>[0]
-type DeletePromptResponse = Parameters<Parameters<Prompts.Actions['deletePrompt']>[1]>[0]
-type PromptCreatedPayload = Parameters<Prompts.Emission['promptCreated']>[0]
-type PromptUpdatedPayload = Parameters<Prompts.Emission['promptUpdated']>[0]
-type PromptDeletedPayload = Parameters<Prompts.Emission['promptDeleted']>[0]
+type DeletePromptPayload = Parameters<Root.Actions['prompts:deletePrompt']>[0]
+type DeletePromptResponse = Parameters<Parameters<Root.Actions['prompts:deletePrompt']>[1]>[0]
+
+type PromptCreatedPayload = Parameters<Root.Emission['prompts:promptCreated']>[0]
+type PromptUpdatedPayload = Parameters<Root.Emission['prompts:promptUpdated']>[0]
+type PromptDeletedPayload = Parameters<Root.Emission['prompts:promptDeleted']>[0]
 
 const mapToPromptError = (error: unknown) =>
   error instanceof PromptError ? error : new PromptError(String(error))
@@ -53,7 +54,7 @@ function emitGetPrompts(socket: SocketManager['promptsSocket']) {
     const timeoutId = setTimeout(() => {
       reject(new PromptError('Request for getPrompts timed out'))
     }, 15000)
-    socket.emit('getPrompts', (response) => {
+    socket.emit('prompts:getPrompts', (response) => {
       clearTimeout(timeoutId)
       if (response.success) resolve(response)
       else reject(new PromptError(response.error || 'Backend error on getPrompts'))
@@ -66,7 +67,7 @@ function emitCreatePrompt(socket: SocketManager['promptsSocket'], payload: Creat
     const timeoutId = setTimeout(() => {
       reject(new PromptError('Request for createPrompt timed out'))
     }, 15000)
-    socket.emit('createPrompt', payload, (response) => {
+    socket.emit('prompts:createPrompt', payload, (response) => {
       clearTimeout(timeoutId)
       if (response.success) resolve(response)
       else reject(new PromptError(response.error || 'Backend error on createPrompt'))
@@ -79,7 +80,7 @@ function emitUpdatePrompt(socket: SocketManager['promptsSocket'], payload: Updat
     const timeoutId = setTimeout(() => {
       reject(new PromptError('Request for updatePrompt timed out'))
     }, 15000)
-    socket.emit('updatePrompt', payload, (response) => {
+    socket.emit('prompts:updatePrompt', payload, (response) => {
       clearTimeout(timeoutId)
       if (response.success) resolve(response)
       else reject(new PromptError(response.error || 'Backend error on updatePrompt'))
@@ -92,7 +93,7 @@ function emitDeletePrompt(socket: SocketManager['promptsSocket'], payload: Delet
     const timeoutId = setTimeout(() => {
       reject(new PromptError('Request for deletePrompt timed out'))
     }, 15000)
-    socket.emit('deletePrompt', payload, (response) => {
+    socket.emit('prompts:deletePrompt', payload, (response) => {
       clearTimeout(timeoutId)
       if (response.success) resolve(response)
       else reject(new PromptError(response.error || 'Backend error on deletePrompt'))
@@ -214,16 +215,16 @@ export function usePromptsSocket() {
     return ok(result.value)
   }
   onMounted(() => {
-    promptsSocket.on('promptCreated', onPromptCreated)
-    promptsSocket.on('promptUpdated', onPromptUpdated)
-    promptsSocket.on('promptDeleted', onPromptDeleted)
+    promptsSocket.on('prompts:promptCreated', onPromptCreated)
+    promptsSocket.on('prompts:promptUpdated', onPromptUpdated)
+    promptsSocket.on('prompts:promptDeleted', onPromptDeleted)
     void fetchAllPrompts()
   })
 
   onUnmounted(() => {
-    promptsSocket.off('promptCreated', onPromptCreated)
-    promptsSocket.off('promptUpdated', onPromptUpdated)
-    promptsSocket.off('promptDeleted', onPromptDeleted)
+    promptsSocket.off('prompts:promptCreated', onPromptCreated)
+    promptsSocket.off('prompts:promptUpdated', onPromptUpdated)
+    promptsSocket.off('prompts:promptDeleted', onPromptDeleted)
   })
 
   return {

@@ -64,23 +64,27 @@ export function useChatSocket() {
           reject(new NetworkError('Server timeout'))
         }, sendTimeoutMs)
 
-        chatSocket.emit('sendMessage', { messageId, provider, modelId, prompt }, (response) => {
-          cancelTimeout(timeoutId)
+        chatSocket.emit(
+          'chat:sendMessage',
+          { messageId, provider, modelId, prompt },
+          (response) => {
+            cancelTimeout(timeoutId)
 
-          if (response.success) {
-            resolve()
-          } else {
-            unregister()
-
-            const errorMessage = response.error ?? 'Unknown error'
-
-            if (errorMessage.includes('Rate limit')) {
-              reject(new RateLimitError(errorMessage))
+            if (response.success) {
+              resolve()
             } else {
-              reject(new ChatError(errorMessage))
+              unregister()
+
+              const errorMessage = response.error ?? 'Unknown error'
+
+              if (errorMessage.includes('Rate limit')) {
+                reject(new RateLimitError(errorMessage))
+              } else {
+                reject(new ChatError(errorMessage))
+              }
             }
           }
-        })
+        )
       }),
       (unknownError) => {
         unregister()
@@ -165,7 +169,7 @@ export function useChatSocket() {
           reject(new NetworkError('Abort timeout'))
         }, abortTimeoutMs)
 
-        chatSocket.emit('abortMessage', { messageId, deleteMessage: false }, (response) => {
+        chatSocket.emit('chat:abortMessage', { messageId, deleteMessage: false }, (response) => {
           cancelTimeout(timeoutId)
 
           if (response.success) {

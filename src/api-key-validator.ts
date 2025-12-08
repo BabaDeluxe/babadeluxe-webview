@@ -1,7 +1,6 @@
 import { err, type Result, ResultAsync } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
-import type { SocketService } from './socket-service'
-import type { Validation } from '@babadeluxe/shared/generated-socket-types'
+import type { SocketManager } from './socket-manager'
 import { BaseError } from './base-error'
 import type { ApiKeyValidationError } from './errors'
 import {
@@ -22,8 +21,6 @@ type SupportedProvider = (typeof supportedProviders)[number]
 
 const validationTimeoutMs = 10000
 const defaultSuccessStatusCode = 200
-
-const validationNamespace = 'validation' as const
 
 export type ValidationSuccess = {
   readonly provider: string
@@ -68,7 +65,7 @@ function mapResponseToError(response: unknown): BaseError {
 export class ApiKeyValidator {
   constructor(
     private readonly _logger: ConsoleLogger,
-    private readonly _validationSocket: SocketService<Validation.Emission, Validation.Actions>
+    private readonly _validationSocket: SocketManager
   ) {}
 
   async validate(
@@ -82,8 +79,8 @@ export class ApiKeyValidator {
     const waitResult = await this._validationSocket.waitForConnection()
 
     if (waitResult.isErr()) {
-      const errorMessage = `Failed to connect to ${validationNamespace} namespace`
-      const error = new SocketConnectionError(validationNamespace, errorMessage, waitResult.error)
+      const errorMessage = `Failed to connect to socket`
+      const error = new SocketConnectionError(errorMessage, waitResult.error)
       this._logger.error(errorMessage, error)
       return err(error)
     }
@@ -117,21 +114,25 @@ export class ApiKeyValidator {
           )
         }, validationTimeoutMs)
 
-        this._validationSocket.emit('validateApiKey', { provider, apiKey }, (response: unknown) => {
-          clearTimeout(timeoutId)
+        this._validationSocket.emit(
+          'validation:validateApiKey',
+          { provider, apiKey },
+          (response: unknown) => {
+            clearTimeout(timeoutId)
 
-          if (this._isValidationSuccessResponse(response)) {
-            resolve({
-              provider,
-              statusCode:
-                typeof response.statusCode === 'number'
-                  ? response.statusCode
-                  : defaultSuccessStatusCode,
-            })
-          } else {
-            reject(mapResponseToError(response))
+            if (this._isValidationSuccessResponse(response)) {
+              resolve({
+                provider,
+                statusCode:
+                  typeof response.statusCode === 'number'
+                    ? response.statusCode
+                    : defaultSuccessStatusCode,
+              })
+            } else {
+              reject(mapResponseToError(response))
+            }
           }
-        })
+        )
       }),
       (error) => {
         if (error instanceof BaseError) {
