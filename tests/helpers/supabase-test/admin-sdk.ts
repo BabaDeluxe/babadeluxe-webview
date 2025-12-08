@@ -36,7 +36,7 @@ export async function createTestUserSdk(prefix = 'test'): Promise<TestUser> {
   const { data, error } = await getSharedAdminClient().auth.admin.createUser({
     email,
     password,
-
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     email_confirm: true,
   })
 

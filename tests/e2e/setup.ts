@@ -97,7 +97,7 @@ async function checkBackendHealth(
     const result = await checkBackendHealthOnce(backendUrl, attempt)
 
     if (result.isOk()) {
-      logger.log(`✅ Backend ready after ${attempt} attempts`)
+      logger.log(`Backend ready after ${attempt} attempts`)
       return result
     }
 
@@ -166,7 +166,7 @@ async function waitForServer(
     const result = await checkServerReady(baseURL, attempt)
 
     if (result.isOk()) {
-      logger.log(`✅ Dev server ready after ${attempt} attempts`)
+      logger.log(`Dev server ready after ${attempt} attempts`)
       return result
     }
 

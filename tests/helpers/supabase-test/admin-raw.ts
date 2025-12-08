@@ -12,6 +12,7 @@ async function makeAdminRequest(
   const response = await fetch(`${url}/auth/v1/admin/${endpoint}`, {
     method: options.method,
     headers: {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       Authorization: `Bearer ${serviceRole}`,
       'Content-Type': 'application/json',
       apiKey: serviceRole,
@@ -55,7 +56,7 @@ export async function generatePasswordResetLinkRaw(
     body: {
       type: 'recovery',
       email,
-
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       options: { redirect_to: redirectUrl },
     },
   })
@@ -76,7 +77,7 @@ export async function createTestUserRaw(prefix = 'test'): Promise<TestUser> {
     body: {
       email,
       password,
-
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       email_confirm: true,
     },
   })

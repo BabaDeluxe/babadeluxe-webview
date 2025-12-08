@@ -29,11 +29,18 @@
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import type { EnvConfig } from '@/env-validator'
-import { ENV_CONFIG_KEY } from '@/injection-keys'
+import type { EnvConfigType } from '@/env-validator'
+import type { Session } from '@supabase/supabase-js'
+import type { ConsoleLogger } from '@simwai/utils'
+import { ENV_CONFIG_KEY, LOGGER_KEY } from '@/injection-keys'
 import RobotIcon from '@/components/RobotIcon.vue'
+import { err, ok, Result } from 'neverthrow'
+import { SessionParseError } from '@/errors'
 
-const envConfig: EnvConfig = inject(ENV_CONFIG_KEY)!
+const logger: ConsoleLogger = inject(LOGGER_KEY)!
+
+const envConfig: EnvConfigType = inject(ENV_CONFIG_KEY)!
+// eslint-disable-next-line @typescript-eslint/naming-convention
 const { VITE_SUPABASE_URL } = envConfig
 const projectRef = new URL(VITE_SUPABASE_URL).hostname.split('.')[0]
 
@@ -44,18 +51,22 @@ defineProps<{
 const ttl = 5 * 60 * 1000
 const cache = new Map<string, { url: string | undefined; timestamp: number }>()
 
-const getSessionFromStorage = ():
-  | { user: { identities?: Array<{ identity_data?: { avatar_url?: string } }> } }
-  | undefined => {
-  try {
-    const storageKey = `sb-${projectRef}-auth-token`
-    const item = localStorage.getItem(storageKey)
-    if (!item) return undefined
-    return JSON.parse(item)
-  } catch (error) {
-    console.error('Failed to parse session from localStorage:', error)
-    return undefined
+const getSessionFromStorage = (): Result<Session | void, SessionParseError> => {
+  const storageKey = `sb-${projectRef}-auth-token`
+  const item = localStorage.getItem(storageKey)
+  if (!item) return ok(undefined)
+
+  const parseResult = Result.fromThrowable(
+    () => JSON.parse(item) as Session,
+    (error) => new SessionParseError('Failed to parse session from localStorage', error as Error)
+  )()
+
+  if (parseResult.isErr()) {
+    logger.error('Session parse failed:', parseResult.error)
+    return err(parseResult.error)
   }
+
+  return ok(parseResult.value)
 }
 
 const avatarUrl = computed(() => {
@@ -66,8 +77,14 @@ const avatarUrl = computed(() => {
     return cached.url
   }
 
-  const session = getSessionFromStorage()
-  const url = session?.user?.identities?.[0]?.identity_data?.avatar_url
+  const sessionResult = getSessionFromStorage()
+
+  if (sessionResult.isErr()) {
+    logger.warn('Avatar fetch failed. Now, placeholder is used.', String(sessionResult.error))
+    return undefined
+  }
+
+  const url = sessionResult.value?.user?.identities?.[0]?.identity_data?.avatar_url
 
   cache.set('avatar', {
     url,

@@ -13,6 +13,7 @@ const myExport = (context: { mode: string }) => {
         env: {
           ...loadEnv(mode, process.cwd(), ''),
 
+          // eslint-disable-next-line @typescript-eslint/naming-convention
           NODE_ENV: 'test', // Explicitly set for Vitest
         },
         environment: 'node',

@@ -27,7 +27,7 @@
       </div>
     </div>
 
-    <!-- Error State -->
+    <!-- Error State (Initial Load Only) -->
     <div
       v-else-if="error"
       class="flex-1 flex flex-col justify-center items-center text-error p-4"
@@ -36,9 +36,10 @@
       <p>{{ error }}</p>
       <ButtonItem
         class="mt-4"
-        @click="fetchAllPrompts"
-        >Retry</ButtonItem
+        @click="handleRetryFetch"
       >
+        Retry
+      </ButtonItem>
     </div>
 
     <!-- Main Content -->
@@ -46,6 +47,13 @@
       v-else
       class="flex-1 overflow-hidden px-4 pb-4 pt-4"
     >
+      <!-- Save/Delete Error Banner -->
+      <ErrorBanner
+        :message="saveErrorMessage"
+        :type="saveErrorType"
+        @close="saveErrorMessage = undefined"
+      />
+
       <!-- Mobile: Vertical stack -->
       <div
         ref="verticalContainerRef"
@@ -106,11 +114,13 @@
               v-model:value="editablePrompt.name"
               label="Prompt Name"
               placeholder="e.g. Code Reviewer"
+              @update:value="handleFormChange"
             />
             <TextItem
               v-model:value="editablePrompt.command"
               label="Command"
               placeholder="e.g. review"
+              @update:value="handleFormChange"
             >
               <template #prepend><span class="text-subtleText px-2">/</span></template>
             </TextItem>
@@ -118,6 +128,7 @@
               v-model:value="editablePrompt.description"
               label="Description (Optional)"
               placeholder="e.g. Acts as a senior dev providing a code review."
+              @update:value="handleFormChange"
             />
             <TextItem
               v-model:value="editablePrompt.template"
@@ -125,6 +136,7 @@
               label="Template"
               placeholder="<role>Act as a senior software engineer doing a code review.</role> Focus on code clarity, performance, and adherence to best practices. The user's code is: {{userInput}}"
               :rows="6"
+              @update:value="handleFormChange"
             />
             <ButtonItem
               :disabled="!isFormValid || isSaving"
@@ -167,8 +179,9 @@
               <span
                 v-if="prompt.isSystem"
                 class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"
-                >System</span
               >
+                System
+              </span>
               <button
                 v-if="!prompt.isSystem"
                 class="text-subtleText hover:text-error p-1 transition-colors"
@@ -217,11 +230,13 @@
               v-model:value="editablePrompt.name"
               label="Prompt Name"
               placeholder="e.g. Code Reviewer"
+              @update:value="handleFormChange"
             />
             <TextItem
               v-model:value="editablePrompt.command"
               label="Command"
               placeholder="e.g. review"
+              @update:value="handleFormChange"
             >
               <template #prepend><span class="text-subtleText px-2">/</span></template>
             </TextItem>
@@ -229,6 +244,7 @@
               v-model:value="editablePrompt.description"
               label="Description (Optional)"
               placeholder="e.g. Acts as a senior dev providing a code review."
+              @update:value="handleFormChange"
             />
             <TextItem
               v-model:value="editablePrompt.template"
@@ -236,13 +252,9 @@
               label="Template"
               placeholder="<role>Act as a senior software engineer doing a code review.</role><instruct>Focus on code clarity, performance, and adherence to best practices.</instruct>"
               :rows="10"
+              @update:value="handleFormChange"
             />
             <div class="flex justify-end gap-2 mt-4">
-              <ButtonItem
-                variant="secondary"
-                @click="resetEditablePrompt"
-                >Cancel</ButtonItem
-              >
               <ButtonItem
                 :disabled="!isFormValid || isSaving"
                 @click="handleSaveChanges"
@@ -265,14 +277,18 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, inject } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useResizableSplit } from '@/composables/use-resizable-split'
-import { KEY_VALUE_STORE_KEY } from '@/injection-keys'
+import { KEY_VALUE_STORE_KEY, LOGGER_KEY } from '@/injection-keys'
 import type { KeyValueStore } from '@/database/key-value-store'
+import type { ConsoleLogger } from '@simwai/utils'
 import TextItem from '@/components/TextItem.vue'
 import ButtonItem from '@/components/ButtonItem.vue'
+import ErrorBanner from '@/components/ErrorBanner.vue'
 
 const keyValueStore = inject<KeyValueStore>(KEY_VALUE_STORE_KEY)!
+const logger = inject<ConsoleLogger>(LOGGER_KEY)!
 
 const {
   prompts,
@@ -284,6 +300,7 @@ const {
   createPrompt,
   updatePrompt,
   deletePrompt,
+  isValidationError,
 } = usePromptsSocket()
 
 // Setup for horizontal (desktop) resizable split
@@ -319,6 +336,7 @@ const {
 
 const isCreatingNewPrompt = ref(false)
 const isSaving = ref(false)
+const saveErrorMessage = ref<string | undefined>()
 
 const editablePrompt = ref({
   id: undefined as number | undefined,
@@ -331,7 +349,7 @@ const editablePrompt = ref({
 watch(
   selectedPrompt,
   (newSelection) => {
-    if (isCreatingNewPrompt.value) return // Don't override the form if user is creating a new prompt
+    if (isCreatingNewPrompt.value) return
 
     if (newSelection) {
       editablePrompt.value = { ...newSelection, description: newSelection.description ?? '' }
@@ -350,8 +368,15 @@ const isFormValid = computed(() => {
   )
 })
 
+const saveErrorType = computed<'error' | 'warning'>(() => {
+  if (!saveErrorMessage.value) return 'error'
+
+  return saveErrorMessage.value.startsWith('Invalid input:') ? 'warning' : 'error'
+})
+
 function resetEditablePrompt(forceClear = false) {
   isCreatingNewPrompt.value = false
+  saveErrorMessage.value = undefined
   if (selectedPrompt.value && !forceClear) {
     editablePrompt.value = {
       ...selectedPrompt.value,
@@ -365,12 +390,25 @@ function resetEditablePrompt(forceClear = false) {
 function handleCreateNewPrompt() {
   isCreatingNewPrompt.value = true
   selectedPromptId.value = undefined
+  saveErrorMessage.value = undefined
   editablePrompt.value = { id: undefined, name: '', command: '', description: '', template: '' }
+}
+
+const debouncedClearError = useDebounceFn(() => {
+  saveErrorMessage.value = undefined
+}, 3000)
+
+function handleFormChange() {
+  if (saveErrorMessage.value) {
+    debouncedClearError()
+  }
 }
 
 async function handleSaveChanges() {
   if (!isFormValid.value) return
+
   isSaving.value = true
+  saveErrorMessage.value = undefined
 
   const { id, name, command, template, description } = editablePrompt.value
   const payload = { name, command, template, description: description || undefined }
@@ -379,21 +417,55 @@ async function handleSaveChanges() {
     ? await createPrompt(payload)
     : await updatePrompt({ id: id!, ...payload })
 
-  result.match(
-    () => {
-      isCreatingNewPrompt.value = false
-    },
-    (saveError) => {
-      console.error('Failed to save prompt:', saveError)
-    }
-  )
+  if (result.isErr()) {
+    const action = isCreatingNewPrompt.value ? 'create' : 'update'
+    logger.error(`[PromptsView] Failed to ${action} prompt after user clicked Save:`, result.error)
 
+    const isValidation = isValidationError(result.error)
+    const cleanMessage = result.error.message.replace(/^\[.*?\]\s*/, '')
+
+    saveErrorMessage.value = isValidation
+      ? `Invalid input: ${cleanMessage}`
+      : `Server error: ${cleanMessage}. Please try again later or contact support.`
+
+    isSaving.value = false
+    return
+  }
+
+  logger.log(`Successfully ${isCreatingNewPrompt.value ? 'created' : 'updated'} prompt`)
+  isCreatingNewPrompt.value = false
   isSaving.value = false
 }
 
 async function handleDeletePrompt(id: number) {
-  if (confirm('Are you sure you want to delete this prompt?')) {
-    await deletePrompt(id)
+  const shouldDelete = confirm('Are you sure you want to delete this prompt?')
+  if (!shouldDelete) return
+
+  saveErrorMessage.value = undefined
+
+  const result = await deletePrompt(id)
+
+  if (result.isErr()) {
+    logger.error('Failed to delete prompt after user clicked Delete:', result.error)
+
+    const isValidation = isValidationError(result.error)
+    const cleanMessage = result.error.message.replace(/^\[.*?\]\s*/, '')
+
+    saveErrorMessage.value = isValidation
+      ? `Cannot delete: ${cleanMessage}`
+      : `Server error: ${cleanMessage}. Please try again later.`
+
+    return
+  }
+
+  logger.log('Successfully deleted prompt')
+}
+
+async function handleRetryFetch() {
+  const result = await fetchAllPrompts()
+
+  if (result.isErr()) {
+    logger.error('Retry failed after user clicked Retry button:', result.error)
   }
 }
 </script>

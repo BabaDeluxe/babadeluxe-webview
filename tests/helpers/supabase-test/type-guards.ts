@@ -18,6 +18,7 @@ export function isRecoveryLinkResponse(data: unknown): data is RecoveryLinkRespo
     typeof data === 'object' &&
     data !== null &&
     'action_link' in data &&
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     typeof (data as { action_link: unknown }).action_link === 'string'
   )
 }

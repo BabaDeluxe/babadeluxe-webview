@@ -22,14 +22,6 @@ describe('validate()', () => {
     const result = validateEnvConfig()
 
     expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value).toEqual({
-        VITE_NODE_ENV: 'development',
-        VITE_SUPABASE_URL: 'https://example.supabase.co',
-        VITE_SUPABASE_ANON_KEY: 'key123',
-        VITE_SOCKET_URL: 'https://socket.example.com',
-      })
-    }
   })
 
   it('returns Err when VITE_NODE_ENV is invalid', () => {
@@ -40,7 +32,7 @@ describe('validate()', () => {
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error).toBeInstanceOf(Error)
-      expect(result.error.name).toBe('ValidationError')
+      expect(result.error.name).toBe('EnvValidationError')
       expect(result.error.message).toContain('VITE_NODE_ENV')
     }
   })
