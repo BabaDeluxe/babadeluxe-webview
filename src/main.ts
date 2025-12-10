@@ -31,7 +31,7 @@ const logger = new ConsoleLogger({ isTimeEnabled: false })
 
 const envValidationResult = validateEnvConfig()
 if (envValidationResult instanceof EnvValidationError) {
-  process.exit(0)
+  process.exit(1)
 }
 
 // @ts-ignore
@@ -95,7 +95,7 @@ if (authTokenResult.isErr()) {
 
   if (socketManagerInitResult.isErr()) {
     logger.error('Socket initialization failed:', socketManagerInitResult.error)
-    process.exit(0)
+    process.exit(1)
   }
 
   logger.log('All socket namespaces connected')
