@@ -56,7 +56,7 @@
 
       <!-- Mobile: Vertical stack -->
       <div
-        ref="verticalContainerRef"
+        ref="verticalContainer"
         class="flex flex-col md:hidden h-full"
       >
         <!-- Top Pane: Prompts List -->
@@ -156,7 +156,7 @@
 
       <!-- Desktop: Horizontal split -->
       <div
-        ref="splitContainerRef"
+        ref="splitContainer"
         class="hidden md:flex flex-row h-full relative"
       >
         <!-- Left Pane: Prompts List -->
@@ -305,7 +305,6 @@ const {
 
 // Setup for horizontal (desktop) resizable split
 const {
-  containerRef: splitContainerRef,
   leftWidthPercent: splitLeftWidthPercent,
   rightWidthPercent: splitRightWidthPercent,
   isDragging: splitIsDragging,
@@ -313,6 +312,7 @@ const {
 } = useResizableSplit({
   keyValueStore,
   storageKey: 'prompts-split-ratio',
+  refKey: 'splitContainer',
   defaultRatio: 33,
   minRatio: 20,
   maxRatio: 50,
@@ -320,7 +320,6 @@ const {
 
 // Setup for vertical (mobile) resizable split
 const {
-  containerRef: verticalContainerRef,
   leftWidthPercent: verticalTopHeightPercent,
   rightWidthPercent: verticalBottomHeightPercent,
   isDragging: verticalIsDragging,
@@ -328,6 +327,7 @@ const {
 } = useResizableSplit({
   keyValueStore,
   storageKey: 'prompts-vertical-split-ratio',
+  refKey: 'verticalContainer',
   defaultRatio: 40,
   direction: 'vertical',
   minRatio: 20,

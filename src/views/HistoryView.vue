@@ -100,7 +100,7 @@
       <template v-if="showSelectedMessages">
         <!-- Mobile: Vertical stack -->
         <div
-          ref="verticalContainerRef"
+          ref="verticalContainer"
           class="flex flex-col md:hidden h-full"
         >
           <!-- Conversations (Top Half) -->
@@ -211,7 +211,7 @@
 
         <!-- Desktop: Split view -->
         <div
-          ref="splitContainerRef"
+          ref="splitContainer"
           class="hidden md:flex flex-row h-full relative"
         >
           <!-- Left Pane: Conversations -->
@@ -459,7 +459,6 @@ const {
 } = useConversation()
 
 const {
-  containerRef: splitContainerRef,
   leftWidthPercent: splitLeftWidthPercent,
   rightWidthPercent: splitRightWidthPercent,
   isDragging: splitIsDragging,
@@ -467,13 +466,13 @@ const {
 } = useResizableSplit({
   keyValueStore,
   storageKey: 'history-split-ratio',
+  refKey: 'splitContainer',
   defaultRatio: 35,
   minRatio: 25,
   maxRatio: 65,
 })
 
 const {
-  containerRef: verticalContainerRef,
   leftWidthPercent: verticalTopHeightPercent,
   rightWidthPercent: verticalBottomHeightPercent,
   isDragging: verticalIsDragging,
@@ -481,6 +480,7 @@ const {
 } = useResizableSplit({
   keyValueStore,
   storageKey: 'history-vertical-split-ratio',
+  refKey: 'verticalContainer',
   defaultRatio: 50,
   minRatio: 30,
   maxRatio: 70,
