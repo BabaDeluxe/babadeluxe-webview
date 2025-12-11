@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, inject, useTemplateRef } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { KeyValueStore } from '@/database/key-value-store'
@@ -7,6 +7,7 @@ import { LOGGER_KEY } from '@/injection-keys'
 type UseResizableSplitOptions = {
   keyValueStore: KeyValueStore
   storageKey: string
+  refKey: string
   defaultRatio: number
   minRatio: number
   maxRatio: number
@@ -19,6 +20,7 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
   const {
     keyValueStore,
     storageKey,
+    refKey,
     defaultRatio,
     minRatio,
     maxRatio,
@@ -27,8 +29,7 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
 
   const leftWidth = ref<number>(defaultRatio)
   const isDragging = ref(false)
-  // TODO Check if I can use useTemplate()
-  const containerRef = ref<HTMLElement | undefined>()
+  const containerRef = useTemplateRef<HTMLElement>(refKey)
 
   const leftWidthPercent = computed(() => `${leftWidth.value}%`)
   const rightWidthPercent = computed(() => `${100 - leftWidth.value}%`)
@@ -40,9 +41,8 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
       const parsed = Number(saved)
       if (!Number.isNaN(parsed) && parsed >= minRatio && parsed <= maxRatio) {
         leftWidth.value = parsed
+        return
       }
-
-      return
     }
 
     _logger.error('Failed to load split ratio from key value store')
@@ -91,7 +91,6 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
   })
 
   return {
-    containerRef,
     leftWidth,
     leftWidthPercent,
     rightWidthPercent,
