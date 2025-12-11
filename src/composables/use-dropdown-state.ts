@@ -42,7 +42,6 @@ export interface DropdownController {
 
 export function useDropdown(options?: { nested?: boolean }): DropdownController {
   const dropdownId = Symbol('dropdown-id')
-  // TODO Check if I can use useTemplate()
   const containerRef = ref<HTMLElement>()
   const isNested = options?.nested ?? false
 
