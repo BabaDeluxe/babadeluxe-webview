@@ -19,7 +19,7 @@
           icon="i-simple-icons:github"
           :disabled="isLoading"
           type="submit"
-          @click="loginWithGitHub"
+          @click="handleGitHubLogin"
         />
 
         <div class="text-center text-subtleText my-4">or</div>
@@ -61,7 +61,7 @@
               :disabled="isLoading"
             />
           </router-link>
-          <!-- MAIN BUTTON: Now triggers handleAuth on click -->
+
           <ButtonItem
             type="button"
             :text="isSignUp ? 'Sign Up' : 'Sign In'"
@@ -89,6 +89,7 @@
 
 <script setup lang="ts">
 import { inject, ref } from 'vue'
+import { ResultAsync, ok, err, type Result } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
 import BabaDeluxeIcon from '../components/BabaDeluxeIcon.vue'
 import ButtonItem from '../components/ButtonItem.vue'
@@ -101,56 +102,132 @@ const logger: ConsoleLogger = inject(LOGGER_KEY)!
 const email = ref('')
 const password = ref('')
 const isSignUp = ref(false)
-const error = ref<string | null>(null)
+const error = ref<string | undefined>()
 const isLoading = ref(false)
-const isResetEmailSent = ref(false)
 
 const toggleMode = () => {
   isSignUp.value = !isSignUp.value
-  error.value = null
-  isResetEmailSent.value = false
+  error.value = undefined
 }
 
-const handleAuth = async () => {
-  if (isLoading.value) return
-  isLoading.value = true
-  error.value = null
-  isResetEmailSent.value = false
+// Performs email/password sign-up via Supabase
+const signUpWithEmail = async (
+  emailAddress: string,
+  userPassword: string,
+  supabaseClient: SupabaseClientType
+): Promise<Result<void, Error>> => {
+  const result = await ResultAsync.fromPromise(
+    supabaseClient.auth.signUp({
+      email: emailAddress,
+      password: userPassword,
+    }),
+    (unknownError) => new Error(String(unknownError))
+  )
 
-  try {
-    let result
-    if (isSignUp.value) {
-      result = await supabase.auth.signUp({
-        email: email.value,
-        password: password.value,
-      })
-    } else {
-      result = await supabase.auth.signInWithPassword({
-        email: email.value,
-        password: password.value,
-      })
-    }
-
-    if (result.error) throw result.error
-  } catch (error_: unknown) {
-    error.value = error_ instanceof Error ? error_.message : String(error_)
-    password.value = ''
-  } finally {
-    isLoading.value = false
+  if (result.isErr()) {
+    return err(result.error)
   }
+
+  if (result.value.error) {
+    return err(new Error(result.value.error.message))
+  }
+
+  return ok(undefined)
 }
 
-const loginWithGitHub = async () => {
+// Performs email/password sign-in via Supabase
+const signInWithEmail = async (
+  emailAddress: string,
+  userPassword: string,
+  supabaseClient: SupabaseClientType
+): Promise<Result<void, Error>> => {
+  const result = await ResultAsync.fromPromise(
+    supabaseClient.auth.signInWithPassword({
+      email: emailAddress,
+      password: userPassword,
+    }),
+    (unknownError) => new Error(String(unknownError))
+  )
+
+  if (result.isErr()) {
+    return err(result.error)
+  }
+
+  if (result.value.error) {
+    return err(new Error(result.value.error.message))
+  }
+
+  return ok(undefined)
+}
+
+// Handles email/password authentication (sign-up or sign-in)
+const handleAuth = async (): Promise<void> => {
   if (isLoading.value) return
 
   isLoading.value = true
-  error.value = null
+  error.value = undefined
 
-  const { error: oauthError } = await supabase.auth.signInWithOAuth({
-    provider: 'github',
-  })
+  const authAction = isSignUp.value ? 'sign up' : 'sign in'
+  const result = isSignUp.value
+    ? await signUpWithEmail(email.value, password.value, supabase)
+    : await signInWithEmail(email.value, password.value, supabase)
 
-  if (oauthError) logger.trace(oauthError)
+  result.match(
+    () => {
+      logger.log(`User successfully ${authAction === 'sign up' ? 'signed up' : 'signed in'}`)
+      // Navigation happens automatically via Supabase auth state change
+    },
+    (authError) => {
+      logger.error(`Email ${authAction} failed after user clicked button:`, authError)
+      error.value = authError.message
+      password.value = ''
+    }
+  )
+
+  isLoading.value = false
+}
+
+// Initiates GitHub OAuth login
+const loginWithGitHub = async (
+  supabaseClient: SupabaseClientType
+): Promise<Result<void, Error>> => {
+  const result = await ResultAsync.fromPromise(
+    supabaseClient.auth.signInWithOAuth({
+      provider: 'github',
+    }),
+    (unknownError) => new Error(String(unknownError))
+  )
+
+  if (result.isErr()) {
+    return err(result.error)
+  }
+
+  if (result.value.error) {
+    return err(new Error(result.value.error.message))
+  }
+
+  return ok(undefined)
+}
+
+// Handles GitHub OAuth login button click
+const handleGitHubLogin = async (): Promise<void> => {
+  if (isLoading.value) return
+
+  isLoading.value = true
+  error.value = undefined
+
+  const result = await loginWithGitHub(supabase)
+
+  result.match(
+    () => {
+      logger.log('GitHub OAuth initiated successfully')
+      // Redirect happens automatically
+    },
+    (oauthError) => {
+      logger.error('GitHub OAuth login failed after user clicked button:', oauthError)
+      error.value = oauthError.message
+    }
+  )
 
   isLoading.value = false
 }
