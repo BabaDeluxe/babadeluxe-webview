@@ -1,10 +1,9 @@
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
-import type { ManagerOptions, Socket, SocketOptions } from 'socket.io-client'
-import { io } from 'socket.io-client'
-import type { ConsoleLogger } from '@simwai/utils'
-import { SocketConnectionError } from './errors'
+import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client'
 import type { Root } from '@babadeluxe/shared'
-import { SocketFeatures } from './socket-features'
+import type { ConsoleLogger } from '@simwai/utils'
+import { SocketConnectionError } from '@/errors'
+import { SocketFeatures } from '@/socket-features'
 
 // Dynamic getters
 type SocketGetterName<K extends string> = `${Lowercase<K>}Socket`

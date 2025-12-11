@@ -1,4 +1,4 @@
-import { BaseError } from './base-error'
+import { BaseError } from '@/base-error'
 
 export class DbError extends BaseError {}
 export class StorageError extends BaseError {}

@@ -3,7 +3,7 @@ import { ok, err, type Result, ResultAsync } from 'neverthrow'
 import type { Conversation, Message } from '@babadeluxe/shared'
 import type { ConsoleLogger } from '@simwai/utils'
 import { DbError } from '@/errors'
-import { SafeTable, DexieError } from './safe-table'
+import { SafeTable, DexieError } from '@/database/safe-table'
 type NewMessage = Omit<Message, 'id' | 'timestamp'> & {
   timestamp?: Date
 }

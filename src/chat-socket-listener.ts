@@ -1,7 +1,7 @@
-import type { SocketManager } from './socket-manager'
-import type { AppDb } from '@/database/app-db'
-import type { ConsoleLogger } from '@simwai/utils'
 import { ref } from 'vue'
+import type { ConsoleLogger } from '@simwai/utils'
+import type { SocketManager } from '@/socket-manager'
+import type { AppDb } from '@/database/app-db'
 
 type ChatSocket = SocketManager
 

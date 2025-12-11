@@ -1,8 +1,8 @@
 import { BaseError } from '@/base-error'
 import type { Table } from 'dexie'
 import { ResultAsync, type Result } from 'neverthrow'
-import { SafeCollection } from './safe-collection'
-import { SafeWhereClause } from './safe-where-clause'
+import { SafeCollection } from '@/database/safe-collection'
+import { SafeWhereClause } from '@/database/safe-where-clause'
 
 export class DexieError extends BaseError {
   constructor(

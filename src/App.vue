@@ -65,13 +65,13 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { inject, onMounted, ref } from 'vue'
-import type { ConsoleLogger } from '@simwai/utils'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
-import { useConversation } from './composables/use-conversation'
-import BabaDeluxeIcon from './components/BabaDeluxeIcon.vue'
-import ButtonItem from './components/ButtonItem.vue'
+import type { ConsoleLogger } from '@simwai/utils'
+import { useConversation } from '@/composables/use-conversation'
+import BabaDeluxeIcon from '@/components/BabaDeluxeIcon.vue'
+import ButtonItem from '@/components/ButtonItem.vue'
 import { type SupabaseClientType } from '@/main'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from './injection-keys'
+import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 
 const logger: ConsoleLogger = inject(LOGGER_KEY)!
 const supabase: SupabaseClientType = inject(SUPABASE_CLIENT_KEY)!

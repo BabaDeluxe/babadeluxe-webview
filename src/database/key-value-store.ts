@@ -2,9 +2,9 @@ import type { Table } from 'dexie'
 import { ok, err, type Result } from 'neverthrow'
 import type { KeyValuePair } from '@babadeluxe/shared'
 import type { ConsoleLogger } from '@simwai/utils'
-import type { KeyValueDb } from './key-value-db'
+import type { KeyValueDb } from '@/database/key-value-db'
+import { SafeTable, type DexieError } from '@/database/safe-table'
 import { BaseError } from '@/base-error'
-import { SafeTable, type DexieError } from './safe-table'
 
 export class KeyValueStoreError extends BaseError {}
 
