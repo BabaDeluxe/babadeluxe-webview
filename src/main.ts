@@ -3,15 +3,15 @@ import { err, ok, type Result } from 'neverthrow'
 import { createClient } from '@supabase/supabase-js'
 import { ConsoleLogger } from '@simwai/utils'
 import 'virtual:uno.css'
-import './assets/main.css'
-import App from './App.vue'
-import { KeyValueDb } from './database/key-value-db'
-import router from './routes'
-import { ApiKeyValidator } from './api-key-validator'
-import { validateEnvConfig, type EnvConfigType } from './env-validator'
-import { AppDb } from './database/app-db'
-import { SearchService } from './search-service'
-import { KeyValueStore } from './database/key-value-store'
+import '@/assets/main.css'
+import App from '@/App.vue'
+import { KeyValueDb } from '@/database/key-value-db'
+import router from '@/routes'
+import { ApiKeyValidator } from '@/api-key-validator'
+import { validateEnvConfig, type EnvConfigType } from '@/env-validator'
+import { AppDb } from '@/database/app-db'
+import { SearchService } from '@/search-service'
+import { KeyValueStore } from '@/database/key-value-store'
 import {
   API_KEY_VALIDATOR_KEY,
   APP_DB_KEY,
@@ -21,11 +21,11 @@ import {
   SEARCH_SERVICE_KEY,
   SOCKET_MANAGER_KEY,
   SUPABASE_CLIENT_KEY,
-} from './injection-keys'
-import { initializeModels } from './composables/use-models-socket'
-import { AuthTokenError, EnvValidationError } from './errors'
-import { SocketManager } from './socket-manager'
-import { initChatSocketListeners } from './chat-socket-listener'
+} from '@/injection-keys'
+import { initializeModels } from '@/composables/use-models-socket'
+import { AuthTokenError, EnvValidationError } from '@/errors'
+import { SocketManager } from '@/socket-manager'
+import { initChatSocketListeners } from '@/chat-socket-listener'
 
 const logger = new ConsoleLogger({ isTimeEnabled: false })
 

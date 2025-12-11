@@ -1,5 +1,5 @@
 import type { WhereClause, IndexableType } from 'dexie'
-import { SafeCollection } from './safe-collection'
+import { SafeCollection } from '@/database/safe-collection'
 
 export class SafeWhereClause<T, TKey> {
   constructor(

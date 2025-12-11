@@ -1,9 +1,11 @@
 {
-  "editor.tabSize": 2,
   "unocss.autocomplete.strict": true,
-  "editor.indentSize": "tabSize",
-  "typescript.preferences.importModuleSpecifier": "shortest",
-  "editor.insertSpaces": true,
+  "search.quickOpen.includeHistory": true,
+  "typescript.suggest.autoImports": true,
+  "typescript.preferences.importModuleSpecifierEnding": "js",
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.suggest.paths": true,
+  "javascript.suggest.paths": true,
   "javascript.format.semicolons": "remove",
   "typescript.format.semicolons": "remove",
   "vue.format.wrapAttributes": "auto",
@@ -13,6 +15,9 @@
   "vue.autoInsert.dotValue": false,
   "vue.format.template.initialIndent": false,
   "vue.editor.templateInterpolationDecorators": true,
+  "editor.insertSpaces": true,
+  "editor.tabSize": 2,
+  "editor.indentSize": "tabSize",
   "editor.suggest.showInterfaces": false,
   "editor.suggest.showTypeParameters": false,
   "editor.suggest.showStructs": false,
@@ -20,20 +25,9 @@
   "editor.wordBasedSuggestions": "off",
   "editor.suggest.showSnippets": false,
   "editor.suggest.showKeywords": true,
-  "typescript.suggest.autoImports": true,
-  "search.quickOpen.includeHistory": true,
   "editor.formatOnSave": true,
   "editor.formatOnSaveMode": "file",
   "editor.formatOnType": false,
-  "eslint.enable": true,
-  "eslint.format.enable": false,
-  "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
-  "typescript.suggest.paths": true,
-  "javascript.suggest.paths": true,
-  "conventionalCommits.promptScopes": false,
-  "files.eol": "\n",
-  "files.encoding": "utf8",
-  "terminal.integrated.detectLocale": "on",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
@@ -49,5 +43,12 @@
   },
   "[markdown]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
-  }
+  },
+  "eslint.enable": true,
+  "eslint.format.enable": false,
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
+  "conventionalCommits.promptScopes": false,
+  "files.eol": "\n",
+  "files.encoding": "utf8",
+  "terminal.integrated.detectLocale": "on"
 }

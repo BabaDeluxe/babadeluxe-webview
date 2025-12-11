@@ -1,7 +1,7 @@
 import { inject, computed, getCurrentScope, onScopeDispose } from 'vue'
 import { err, ResultAsync, type Result } from 'neverthrow'
 import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
-import { useTrackedTimeouts } from './use-tracked-timeouts'
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import {
   registerChunkHandler,
   unregisterChunkHandler,

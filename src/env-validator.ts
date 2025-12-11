@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { z } from 'zod/v4'
 import { type Result, err, ok } from 'neverthrow'
-import { EnvValidationError } from './errors'
+import { EnvValidationError } from '@/errors'
 
 const envSchema = z.object({
   VITE_NODE_ENV: z.enum(['development', 'production', 'test']),

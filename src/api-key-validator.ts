@@ -1,8 +1,8 @@
 import { err, type Result, ResultAsync } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
-import type { SocketManager } from './socket-manager'
-import { BaseError } from './base-error'
-import type { ApiKeyValidationError } from './errors'
+import type { SocketManager } from '@/socket-manager'
+import { BaseError } from '@/base-error'
+import type { ApiKeyValidationError } from '@/errors'
 import {
   InvalidResponseError,
   InvalidApiKeyError,
@@ -13,7 +13,7 @@ import {
   UnsupportedProviderError,
   ValidationTimeoutError,
   SocketConnectionError,
-} from './errors'
+} from '@/errors'
 
 // TODO This shouldn't be hardcoded
 const supportedProviders = ['openai', 'anthropic', 'google'] as const

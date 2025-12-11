@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+import type { InjectionKey } from 'vue'
+import type { ConsoleLogger } from '@simwai/utils'
 import type { ApiKeyValidator } from '@/api-key-validator'
 import type { AppDb } from '@/database/app-db'
 import type { KeyValueStore } from '@/database/key-value-store'
 import type { EnvConfigType } from '@/env-validator'
 import type { SearchService } from '@/search-service'
-import type { ConsoleLogger } from '@simwai/utils'
-import type { InjectionKey } from 'vue'
-import type { SupabaseClientType } from './main'
-import type { SocketManager } from './socket-manager'
+import type { SupabaseClientType } from '@/main'
+import type { SocketManager } from '@/socket-manager'
 
 // Type-safe injection keys - Symbols guarantee uniqueness
 export const LOGGER_KEY: InjectionKey<ConsoleLogger> = Symbol('logger')

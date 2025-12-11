@@ -1,6 +1,6 @@
 import type { Collection } from 'dexie'
 import { ResultAsync, type Result } from 'neverthrow'
-import { DexieError } from './safe-table'
+import { DexieError } from '@/database/safe-table'
 
 export class SafeCollection<T, TKey> {
   constructor(

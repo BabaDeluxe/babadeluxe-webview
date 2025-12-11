@@ -1,10 +1,10 @@
-import type { Conversation, Message } from '@babadeluxe/shared'
 import { ok, err, type Result } from 'neverthrow'
-import { damerauLevenshteinSimilarity } from './damerau-levenshtein-similarity'
-import { type AppDb } from './database/app-db'
-import type { SearchResult } from './types/search-types'
-import { type DbError, SearchError } from './errors'
+import type { Conversation, Message } from '@babadeluxe/shared'
 import type { ConsoleLogger } from '@simwai/utils'
+import { damerauLevenshteinSimilarity } from '@/damerau-levenshtein-similarity'
+import { type AppDb } from '@/database/app-db'
+import type { SearchResult } from '@/types/search-types'
+import { type DbError, SearchError } from '@/errors'
 
 export class SearchService {
   constructor(
