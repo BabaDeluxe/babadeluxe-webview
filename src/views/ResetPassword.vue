@@ -121,7 +121,7 @@ const handleSendResetEmail = async () => {
     },
     (errorMessage) => {
       error.value = errorMessage
-      logger.trace('Reset email failed:', errorMessage)
+      logger.error('Reset email failed:', errorMessage)
     }
   )
 
