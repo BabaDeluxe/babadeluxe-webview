@@ -147,6 +147,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, inject, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
+import { ResultAsync } from 'neverthrow'
 import { z } from 'zod/v4'
 import {
   getApiProviders,
@@ -287,7 +288,7 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
 
   if (result.isErr()) {
     const error = result.error
-    logger.error(`Validation failed for ${provider}`, error)
+    logger.error(`Validation failed for ${provider} after user entered API key:`, error)
 
     if (error instanceof InvalidApiKeyError) {
       updateFieldStatus(provider, 'invalid', 'The provided API key is not valid.')
@@ -305,7 +306,7 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
   const reloadModelsResult = await reloadModels(socketManager, logger)
 
   if (reloadModelsResult.isErr()) {
-    logger.error('Failed to reload models after key validation:', reloadModelsResult.error)
+    logger.error('Failed to reload models after API key validation:', reloadModelsResult.error)
     modelsReloadWarning.value =
       'API key saved, but models could not be updated. Please reload the page.'
   }
@@ -410,15 +411,23 @@ const formatSettingLabel = (settingKey: string) => {
 }
 
 onMounted(async () => {
-  try {
-    await loadSettings()
-    hydrateFieldStates()
-    isLoadingSettings.value = false
-  } catch (error) {
-    logger.error('Failed to load settings:', error as Error)
-    loadError.value = error instanceof Error ? error.message : 'Failed to load settings'
-    isLoadingSettings.value = false
-  }
+  const result = await ResultAsync.fromPromise(
+    loadSettings(),
+    (unknownError) =>
+      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to load settings')
+  )
+
+  result.match(
+    () => {
+      hydrateFieldStates()
+      isLoadingSettings.value = false
+    },
+    (loadErr) => {
+      logger.error('Failed to load settings on initial page load:', loadErr)
+      loadError.value = loadErr.message
+      isLoadingSettings.value = false
+    }
+  )
 })
 
 onBeforeUnmount(() => {
