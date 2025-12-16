@@ -1,14 +1,8 @@
 import { ref, onBeforeUnmount, inject, readonly } from 'vue'
-import type { Root } from '@babadeluxe/shared'
-import {
-  type UserSettingWithValidation,
-  getSettingDefinition,
-  settingMetadata,
-  type SettingKey,
-  fromWire,
-} from '@babadeluxe/shared'
-import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 import type { ConsoleLogger } from '@simwai/utils'
+import { type Root, type UserSettingWithValidation, getSettingDefinition } from '@babadeluxe/shared'
+import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys.js'
+import { fromWire } from '@/settings-utils'
 
 export function useSettingsSocket() {
   const socketManager = inject(SOCKET_MANAGER_KEY)!
@@ -22,7 +16,6 @@ export function useSettingsSocket() {
 
   const onUpdated: Root.Emission['settings:updated'] = (updatedSetting) => {
     const definition = getSettingDefinition(updatedSetting.settingKey)
-    const metadata = settingMetadata[updatedSetting.settingKey as SettingKey]
 
     const settingWithValidation: UserSettingWithValidation = {
       settingKey: updatedSetting.settingKey,
@@ -30,7 +23,7 @@ export function useSettingsSocket() {
       dataType: updatedSetting.dataType,
       updatedAt: new Date(updatedSetting.updatedAt),
       category: definition?.category ?? '',
-      encrypted: metadata?.encrypted ?? false,
+      encrypted: definition?.encrypted ?? false, // ← Use definition instead
       required: definition?.required ?? false,
       description: definition?.description ?? '',
       minLength: definition?.minLength,

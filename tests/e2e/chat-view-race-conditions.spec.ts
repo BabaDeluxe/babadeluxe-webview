@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { authTest as test } from '../helpers/fixtures'
-import { mockChatSocket } from 'tests/helpers/mock-chat-socket.js'
+import { mockChatSocket } from '../helpers/mock-chat-socket'
 
 const seedChatData = async (page: Page) => {
   await page.evaluate(() => {

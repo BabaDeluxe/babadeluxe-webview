@@ -155,12 +155,8 @@
 import { ref, computed, onMounted, onBeforeUnmount, inject, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { ResultAsync } from 'neverthrow'
-import {
-  getApiProviders,
-  settingMetadata,
-  validateSetting,
-  type SettingKey,
-} from '@babadeluxe/shared'
+import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
+import { getApiProviders } from '@/settings-utils'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
 import { reloadModels } from '@/composables/use-models-socket'
 import SettingField from '@/components/SettingField.vue'
@@ -273,8 +269,8 @@ const getFieldInputClasses = (key: string) => {
 const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
   if (isLoadingSettings.value) return
 
-  const meta = settingMetadata[provider as SettingKey]
-  if (!meta) return
+  const definition = getSettingDefinition(provider)
+  if (!definition) return
 
   const validationResult = validateSetting(provider, apiKey)
   if (!validationResult.success) {
@@ -302,7 +298,7 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
   }
 
   updateFieldStatus(provider, 'valid')
-  upsertSetting(provider, apiKey, meta.dataType)
+  upsertSetting(provider, apiKey, definition.dataType)
 
   const reloadModelsResult = await reloadModels(socketManager, logger)
 
