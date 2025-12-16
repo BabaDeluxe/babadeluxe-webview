@@ -1,6 +1,6 @@
 import { ref, readonly, inject, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useDebounceFn, useStorage, useIntervalFn } from '@vueuse/core'
-import type { Message, Conversation } from '@babadeluxe/shared'
+import type { Message, Conversation } from '@/database/types'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { AppDb } from '@/database/app-db'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'

@@ -1,6 +1,6 @@
 import { Dexie, type Table } from 'dexie'
 import { ok, err, type Result, ResultAsync } from 'neverthrow'
-import type { Conversation, Message } from '@babadeluxe/shared'
+import type { Conversation, Message } from '@/database/types'
 import type { ConsoleLogger } from '@simwai/utils'
 import { DbError } from '@/errors'
 import { SafeTable, DexieError } from '@/database/safe-table'

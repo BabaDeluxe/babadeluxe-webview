@@ -1,7 +1,7 @@
 import { err, type Result, ResultAsync } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { SocketManager } from '@/socket-manager'
-import { BaseError } from '@/base-error'
+import { BaseError } from '@babadeluxe/shared'
 import type { ApiKeyValidationError } from '@/errors'
 import {
   InvalidResponseError,

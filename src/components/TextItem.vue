@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue' // ← MUST HAVE THIS
+import { watch } from 'vue'
 import { useTextareaAutosize } from '@vueuse/core'
 
 defineOptions({

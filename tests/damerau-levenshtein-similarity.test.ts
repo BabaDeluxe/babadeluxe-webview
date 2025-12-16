@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { damerauLevenshteinSimilarity } from '@/damerau-levenshtein-similarity'
+import { damerauLevenshteinSimilarity } from '@babadeluxe/shared'
 
 describe('damerauLevenshteinSimilarity', () => {
   it('should return 1 for identical strings', () => {

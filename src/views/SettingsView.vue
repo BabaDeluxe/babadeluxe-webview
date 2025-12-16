@@ -155,13 +155,8 @@
 import { ref, computed, onMounted, onBeforeUnmount, inject, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { ResultAsync } from 'neverthrow'
-import { z } from 'zod/v4'
-import {
-  getApiProviders,
-  settingMetadata,
-  settingSchemas,
-  type SettingKey,
-} from '@babadeluxe/shared'
+import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
+import { getApiProviders } from '@/settings-utils'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
 import { reloadModels } from '@/composables/use-models-socket'
 import SettingField from '@/components/SettingField.vue'
@@ -274,17 +269,13 @@ const getFieldInputClasses = (key: string) => {
 const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
   if (isLoadingSettings.value) return
 
-  const meta = settingMetadata[provider as SettingKey]
-  if (!meta) return
+  const definition = getSettingDefinition(provider)
+  if (!definition) return
 
-  const schema = settingSchemas[provider as SettingKey]
-  if (schema) {
-    const parseResult = schema.safeParse(apiKey)
-    if (!parseResult.success) {
-      const errorMsg = parseResult.error.issues[0]?.message ?? 'Invalid format'
-      updateFieldStatus(provider, 'invalid', errorMsg)
-      return
-    }
+  const validationResult = validateSetting(provider, apiKey)
+  if (!validationResult.success) {
+    updateFieldStatus(provider, 'invalid', validationResult.error)
+    return
   }
 
   updateFieldStatus(provider, 'validating')
@@ -307,7 +298,7 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
   }
 
   updateFieldStatus(provider, 'valid')
-  upsertSetting(provider, apiKey, meta.dataType)
+  upsertSetting(provider, apiKey, definition.dataType)
 
   const reloadModelsResult = await reloadModels(socketManager, logger)
 
@@ -339,69 +330,16 @@ const handleApiKeyInput = (provider: string, event: Event) => {
   }
 }
 
-const buildValidationSchema = (key: string): z.ZodTypeAny | undefined => {
-  const setting = getSettingByKey(key)
-
-  if (!setting) return undefined
-
-  let schema: z.ZodTypeAny
-
-  switch (setting.dataType) {
-    case 'string': {
-      schema = z.string()
-      if (setting.minLength !== undefined) {
-        schema = (schema as z.ZodString).min(
-          setting.minLength,
-          `Must be at least ${setting.minLength} characters`
-        )
-      }
-      if (setting.maxLength !== undefined) {
-        schema = (schema as z.ZodString).max(
-          setting.maxLength,
-          `Must be at most ${setting.maxLength} characters`
-        )
-      }
-      break
-    }
-    case 'number': {
-      schema = z.number()
-      if (setting.minValue !== undefined) {
-        schema = (schema as z.ZodNumber).min(setting.minValue)
-      }
-      if (setting.maxValue !== undefined) {
-        schema = (schema as z.ZodNumber).max(setting.maxValue)
-      }
-      break
-    }
-    case 'boolean': {
-      schema = z.boolean()
-      break
-    }
-    default: {
-      schema = z.unknown()
-    }
-  }
-
-  if (!setting.required) {
-    schema = schema.optional()
-  }
-
-  return schema
-}
-
 const handleFieldChange = async (fieldName: string, value: unknown) => {
   if (isLoadingSettings.value) return
 
   const setting = getSettingByKey(fieldName)
   if (!setting) return
 
-  const schema = buildValidationSchema(fieldName)
-  if (!schema) return
+  const validationResult = validateSetting(fieldName, value)
 
-  const result = schema.safeParse(value)
-
-  if (!result.success) {
-    updateFieldStatus(fieldName, 'invalid', result.error.issues[0]?.message ?? 'Invalid value')
+  if (!validationResult.success) {
+    updateFieldStatus(fieldName, 'invalid', validationResult.error)
     return
   }
 

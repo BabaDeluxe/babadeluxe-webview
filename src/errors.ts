@@ -1,20 +1,12 @@
-import { BaseError } from '@/base-error'
+import { BaseError } from '@babadeluxe/shared'
 
 export class DbError extends BaseError {}
-export class StorageError extends BaseError {}
-export class ParseError extends BaseError {}
 
 export class SearchError extends BaseError {}
 
 export class PromptError extends BaseError {}
 
 export class SessionParseError extends BaseError {}
-
-export class KvStoreError extends BaseError {
-  constructor(message: string, cause?: Error) {
-    super(message, cause)
-  }
-}
 
 export class InvalidApiKeyError extends BaseError {}
 export class BadRequestError extends BaseError {}

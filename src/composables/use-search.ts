@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { type Result } from 'neverthrow'
 import { type SearchService } from '@/search-service'
-import type { SearchResult } from '@/types/search-types'
+import type { SearchResult } from '@/search-types'
 import type { SearchError } from '@/errors'
 
 export function useSearch(searchService: SearchService) {
