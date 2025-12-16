@@ -49,16 +49,32 @@ export default defineConfig<TestOptions>({
       use: { ...devices['Desktop Safari'] },
     },
 
+    // Regular e2e tests (no variant)
     {
-      name: 'e2e-raw',
+      name: 'e2e',
+      testMatch: /.*\.spec\.ts$/,
+      testIgnore: /.*auth\.spec\.ts$/, // Exclude auth tests
       use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
+
+    // Auth tests with raw variant
+    {
+      name: 'e2e-auth-raw',
+      testMatch: /.*auth\.spec\.ts$/,
+      use: {
+        ...devices['Desktop Chrome'],
         variant: 'raw',
       },
     },
 
+    // Auth tests with sdk variant
     {
-      name: 'e2e-sdk',
+      name: 'e2e-auth-sdk',
+      testMatch: /.*auth\.spec\.ts$/,
       use: {
+        ...devices['Desktop Chrome'],
         variant: 'sdk',
       },
     },
