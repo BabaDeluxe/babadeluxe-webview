@@ -1,6 +1,7 @@
 <template>
   <section
     id="chat"
+    data-testid="chat-view-container"
     class="flex flex-col w-full h-full bg-slate overflow-x-hidden"
   >
     <!-- Header with Avatar (only when no messages) -->
@@ -18,7 +19,7 @@
     <ErrorBanner
       :message="conversationError"
       type="error"
-      @close="clearPromptsError"
+      @close="conversationError = undefined"
     />
     <ErrorBanner
       :message="chatError"
@@ -33,7 +34,7 @@
     <ErrorBanner
       :message="promptsError"
       type="warning"
-      @close="promptsError = undefined"
+      @close="clearPromptsError"
     />
     <ErrorBanner
       :message="modelsReloadWarning"
@@ -51,6 +52,7 @@
       <!-- Input at Top (only when no messages) -->
       <div
         v-if="messages.length === 0"
+        data-testid="empty-state-input-section"
         class="flex flex-col gap-0 px-4 py-2"
       >
         <TextItem
@@ -58,7 +60,8 @@
           v-model:value="currentMessage"
           style="w-0"
           placeholder="How can I help you today?"
-          :disabled="isLoadingConversation || isChatStreaming"
+          data-testid="chat-message-input-top"
+          :disabled="isLoadingConversation || isSendingMessage"
           @keydown.enter.exact.prevent="handleSendMessage"
         />
         <div
@@ -80,9 +83,10 @@
           <ButtonItem
             v-if="!isChatStreaming"
             icon="i-bi:play-circle"
+            data-testid="chat-send-button-top"
             :class="'bg-transparent text-accent hover:bg-transparent hover:text-accent/80 rounded-none border-0 shrink-0'"
-            :disabled="!currentMessage.trim()"
-            :loading="isLoadingConversation"
+            :disabled="!currentMessage.trim() || isSendingMessage"
+            :loading="isLoadingConversation || isSendingMessage"
             @click="handleSendMessage"
           >
             <template #loading>
@@ -99,6 +103,7 @@
           <ButtonItem
             v-else
             icon="i-bi:stop-circle"
+            data-testid="chat-abort-button-top"
             :class="'bg-transparent text-error hover:bg-transparent hover:text-error/80 rounded-none border-0 shrink-0'"
             @click="handleAbortMessage"
           />
@@ -154,20 +159,21 @@
       <!-- Input at Bottom (when messages exist) -->
       <div
         v-if="messages.length > 0"
+        data-testid="message-list-input-section"
         class="flex flex-col gap-0 p-4 border-t border-borderMuted"
       >
         <TextItem
           ref="textInput"
           v-model:value="currentMessage"
           placeholder="How can I help you today?"
-          :disabled="isLoadingConversation || isChatStreaming"
+          data-testid="chat-message-input-bottom"
+          :disabled="isLoadingConversation || isSendingMessage"
           @keydown.enter.exact.prevent="handleSendMessage"
         />
         <div
           class="flex xs:flex-row flex-col justify-start xs:justify-center items-center border border-borderMuted rounded bg-panel overflow-hidden"
         >
           <div class="flex flex-1">
-            <!-- FIX: Changed :options to :items to match the data structure -->
             <DropdownSelector
               v-model="currentPrompt"
               icon="i-bi:chat-left"
@@ -183,9 +189,10 @@
           <ButtonItem
             v-if="!isChatStreaming"
             icon="i-bi:play-circle"
+            data-testid="chat-send-button-bottom"
             class="bg-transparent text-accent hover:bg-transparent hover:text-accent/80 rounded-none border-0 shrink-0"
-            :disabled="!currentMessage.trim()"
-            :loading="isLoadingConversation"
+            :disabled="!currentMessage.trim() || isSendingMessage"
+            :loading="isLoadingConversation || isSendingMessage"
             @click="handleSendMessage"
           >
             <template #loading>
@@ -202,6 +209,7 @@
           <ButtonItem
             v-else
             icon="i-bi:stop-circle"
+            data-testid="chat-abort-button-bottom"
             class="bg-transparent text-error hover:bg-transparent hover:text-error/80 rounded-none border-0 shrink-0"
             @click="handleAbortMessage"
           />
@@ -209,7 +217,7 @@
       </div>
     </div>
 
-    <!-- Upseel Modal Overlay -->
+    <!-- Upsell Modal Overlay -->
     <UpsellModal
       :is-visible="shouldShowModal"
       @close="handleModalClose"
@@ -278,7 +286,6 @@ const {
   abortMessage: abortChatMessage,
 } = useChatSocket()
 
-// NEW: Compute the current streaming message ID for the UI
 const currentStreamingMessageId = computed(() =>
   streamingMessageIds.value.length > 0 ? streamingMessageIds.value[0] : null
 )
@@ -301,6 +308,7 @@ const textInputRef = useTemplateRef<HTMLElement>('textInput')
 const messageComponents = ref<Map<number, ActiveChatItemInstance>>(new Map())
 const modelsReloadWarning = ref<string>()
 const persistenceWarning = ref<string>()
+const isSendingMessage = ref(false)
 
 // Computed Properties
 const promptOptions = computed(() => {
@@ -350,7 +358,7 @@ const fetchUsername = async (): Promise<void> => {
       }
     },
     (fetchError) => {
-      logger.error('Error fetching username:', fetchError)
+      logger.error('Error fetching username:', fetchError.message)
     }
   )
 }
@@ -389,7 +397,13 @@ const buildPrompt = (messages: Message[], newMessage: string, systemPrompt: stri
 }
 
 const handleSendMessage = async (): Promise<void> => {
-  if (!currentMessage.value.trim() || isLoadingConversation.value || isChatStreaming.value) return
+  if (
+    !currentMessage.value.trim() ||
+    isLoadingConversation.value ||
+    isChatStreaming.value ||
+    isSendingMessage.value
+  )
+    return
 
   if (!currentModel.value || !currentModel.value.includes(':')) {
     conversationError.value = 'Please select a valid model first'
@@ -402,25 +416,74 @@ const handleSendMessage = async (): Promise<void> => {
     return
   }
 
+  isSendingMessage.value = true
+
   const messageContent = currentMessage.value
   currentMessage.value = ''
 
-  const userMessage = await addOrUpdateMessage(messageContent, 'user')
-  if (!userMessage || userMessage === true) {
+  const userMessageResult = await ResultAsync.fromPromise(
+    addOrUpdateMessage(messageContent, 'user'),
+    (error) => new Error(error instanceof Error ? error.message : 'Failed to create user message')
+  )
+
+  if (userMessageResult.isErr()) {
+    logger.error(
+      'Failed to save user message after user clicked send button:',
+      userMessageResult.error.message
+    )
     currentMessage.value = messageContent
+    isSendingMessage.value = false
+    return
+  }
+
+  const userMessage = userMessageResult.value
+  if (!userMessage || userMessage === true) {
+    logger.error('User message creation returned invalid value after send button click')
+    currentMessage.value = messageContent
+    isSendingMessage.value = false
     return
   }
 
   if (messages.value.length === 1) {
     const newTitle = generateConversationTitle(messageContent)
-    await updateConversationTitle(currentConversationId.value, newTitle)
+    const updateTitleResult = await ResultAsync.fromPromise(
+      updateConversationTitle(currentConversationId.value, newTitle),
+      (error) => new Error(error instanceof Error ? error.message : 'Failed to update title')
+    )
+
+    if (updateTitleResult.isErr()) {
+      logger.warn(
+        'Failed to update conversation title after first message:',
+        updateTitleResult.error.message
+      )
+    }
   }
 
-  const assistantMessage = await addOrUpdateMessage('', 'assistant')
-  if (!assistantMessage || assistantMessage === true) {
+  const assistantMessageResult = await ResultAsync.fromPromise(
+    addOrUpdateMessage('', 'assistant'),
+    (error) =>
+      new Error(error instanceof Error ? error.message : 'Failed to create assistant message')
+  )
+
+  if (assistantMessageResult.isErr()) {
+    logger.error(
+      'Failed to create assistant message after user sent message:',
+      assistantMessageResult.error.message
+    )
     conversationError.value = 'Failed to create assistant message'
+    isSendingMessage.value = false
     return
   }
+
+  const assistantMessage = assistantMessageResult.value
+  if (!assistantMessage || assistantMessage === true) {
+    logger.error('Assistant message creation returned invalid value after user sent message')
+    conversationError.value = 'Failed to create assistant message'
+    isSendingMessage.value = false
+    return
+  }
+
+  isSendingMessage.value = false
 
   const systemPromptText = 'You are a senior software engineer assistant.'
   const fullPrompt = buildPrompt(messages.value.slice(0, -1), messageContent, systemPromptText)
@@ -429,14 +492,14 @@ const handleSendMessage = async (): Promise<void> => {
   let lastCommitTime = Date.now()
   let lastCommitLength = 0
 
-  const result = await sendChatMessage(
+  const streamResult = await sendChatMessage(
     assistantMessage.id,
     provider,
     selectedModel,
     fullPrompt,
     (chunk) => {
       logger.log(
-        `Received chunk: ${chunk.substring(0, 30)}for message: `,
+        `Received chunk: ${chunk.substring(0, 30)} for message: `,
         assistantMessage.id.toString()
       )
       streamedContent += chunk
@@ -460,7 +523,7 @@ const handleSendMessage = async (): Promise<void> => {
     }
   )
 
-  await result.match(
+  await streamResult.match(
     async () => {
       const msg = messages.value.find((message) => message.id === assistantMessage.id) as
         | Mutable<Message>
@@ -474,7 +537,10 @@ const handleSendMessage = async (): Promise<void> => {
       messageComponents.value.delete(assistantMessage.id)
     },
     async (streamError) => {
-      logger.error(streamError)
+      logger.error(
+        'Failed to stream assistant response after user sent message:',
+        streamError.message
+      )
       await deleteMessage(assistantMessage.id)
     }
   )
@@ -489,10 +555,10 @@ const handleAbortMessage = async (): Promise<void> => {
   await result.match(
     async () => {
       textInputRef.value?.focus()
-      logger.log('Message aborted successfully')
+      logger.log('Message aborted successfully after user clicked stop button')
     },
     (abortError) => {
-      logger.error('Abort failed:', abortError)
+      logger.error('Failed to abort message after user clicked stop button:', abortError.message)
     }
   )
 }
@@ -502,7 +568,6 @@ const handleModalClose = () => {
   logger.log('User dismissed upgrade modal')
 }
 
-// Lifecycle Hooks
 onMounted(async () => {
   const initResult = await ResultAsync.fromPromise(
     (async () => {
@@ -518,13 +583,12 @@ onMounted(async () => {
       logger.log('Chat initialized successfully')
     },
     (initError) => {
-      logger.error('Failed to initialize chat:', initError)
+      logger.error('Failed to initialize chat on page load:', initError.message)
       conversationError.value = 'Failed to initialize chat. Please refresh the page.'
     }
   )
 })
 
-// Watchers
 watch(
   groupedModels,
   (newModelGroups) => {
@@ -549,7 +613,10 @@ watch(currentPrompt, async (newValue) => {
   const result = await keyValueStore.set('chat-prompt', newValue)
 
   if (result.isErr()) {
-    logger.error('Failed to persist prompt selection after user changed dropdown:', result.error)
+    logger.error(
+      'Failed to persist prompt selection after user changed dropdown:',
+      result.error.message
+    )
     persistenceWarning.value = 'Failed to save your prompt selection. It may reset after refresh.'
   }
 })
@@ -558,7 +625,10 @@ watch(currentModel, async (newValue) => {
   const result = await keyValueStore.set('chat-model', newValue)
 
   if (result.isErr()) {
-    logger.error('Failed to persist model selection after user changed dropdown:', result.error)
+    logger.error(
+      'Failed to persist model selection after user changed dropdown:',
+      result.error.message
+    )
     persistenceWarning.value = 'Failed to save your model selection. It may reset after refresh.'
   }
 })

@@ -1,5 +1,6 @@
 <template>
   <article
+    :data-testid="`message-${id}`"
     class="flex gap-3 py-2 items-start rounded-lg px-2"
     :class="role === 'user' ? 'self-end flex-row-reverse' : 'self-start flex-row'"
   >
@@ -30,6 +31,8 @@
           v-else
           ref="_textareaRef"
           v-model="_editValue"
+          data-testid="message-edit-textarea"
+          :disabled="_isSaving"
           class="w-full bg-transparent resize-none outline-none border-none text-sm font-sans leading-relaxed pr-3 focus:ring-2 focus:ring-accent/20 rounded"
           :class="role === 'user' ? 'text-deepText' : 'text-subtleText'"
           @keydown="handleKeydown"
@@ -42,14 +45,27 @@
         >
           <button
             class="flex items-center justify-center w-7 h-7 rounded-md hover:bg-accent/20 text-accent transition-all duration-200 active:scale-95"
+            :class="{ 'opacity-50 cursor-not-allowed': _isSaving }"
+            :disabled="_isSaving"
             title="Save (Enter)"
+            data-testid="message-save-button"
             @click="saveEdit"
           >
-            <i class="i-weui:done-outlined text-lg" />
+            <i
+              v-if="!_isSaving"
+              class="i-weui:done-outlined text-lg"
+            />
+            <i
+              v-else
+              class="i-svg-spinners:ring-resize text-lg"
+            />
           </button>
           <button
             class="flex items-center justify-center w-7 h-7 rounded-md hover:bg-borderMuted/20 text-subtleText hover:text-deepText transition-all duration-200 active:scale-95"
+            :class="{ 'opacity-50 cursor-not-allowed': _isSaving }"
+            :disabled="_isSaving"
             title="Cancel (Esc)"
+            data-testid="message-cancel-button"
             @click="cancelEdit"
           >
             <i class="i-weui:close-outlined text-lg" />
@@ -65,6 +81,7 @@
           <button
             class="flex items-center justify-center w-7 h-7 rounded-md hover:bg-borderMuted/20 text-subtleText hover:text-deepText transition-all duration-200 active:scale-95"
             :class="{ 'bg-borderMuted/20': isOpen }"
+            data-testid="message-menu-button"
             @click="toggle"
           >
             <i class="i-weui:more-outlined text-lg" />
@@ -74,11 +91,13 @@
           <div
             v-if="isOpen"
             class="absolute top-full mt-1 right-0 bg-panel border border-borderMuted rounded-lg shadow-xl py-1 min-w-40 z-20 animate-in fade-in slide-in-from-top-2 duration-200"
+            data-testid="message-menu-dropdown"
           >
             <!-- Only show edit/rewrite for user messages -->
             <template v-if="role === 'user'">
               <button
                 class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 first:rounded-t-lg"
+                data-testid="message-edit-button"
                 @click="startEdit"
               >
                 <i class="i-weui:pencil-outlined text-base" />
@@ -117,6 +136,7 @@
             <!-- Delete button for both roles -->
             <button
               class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-error transition-colors flex items-center gap-2.5 last:rounded-b-lg"
+              data-testid="message-delete-button"
               @click="handleDelete"
             >
               <i class="i-weui:delete-outlined text-base" />
@@ -171,6 +191,7 @@ const markdownRef = useTemplateRef<InstanceType<typeof MarkdownRenderItem>>('mar
 defineExpose({ markdownRef })
 
 const _isEditing = ref(false)
+const _isSaving = ref(false)
 const _selectedModel = ref<string>('')
 const _errorMessage = ref('')
 
@@ -179,6 +200,7 @@ const props = withDefaults(defineProps<Message & { showRewrite?: boolean }>(), {
   showRewrite: true,
 })
 const emit = defineEmits<ActiveChatItemEmitter>()
+
 const bubbleClass = computed(() => {
   if (props.role === 'user') return 'bg-panel text-deepText border border-borderMuted'
   if (props.role === 'assistant') return 'bg-codeBg text-subtleText border border-borderMuted'
@@ -217,9 +239,13 @@ async function startEdit() {
 function cancelEdit() {
   _isEditing.value = false
   _editValue.value = ''
+  _isSaving.value = false
 }
 
 async function saveEdit() {
+  if (_isSaving.value) return
+
+  _isSaving.value = true
   _errorMessage.value = ''
 
   const trimmedValue = _editValue.value.trim()
@@ -228,19 +254,26 @@ async function saveEdit() {
   if (!isContentChanged) {
     _isEditing.value = false
     _editValue.value = ''
+    _isSaving.value = false
     return
   }
 
   const updateResult = await _appDb.updateMessage(props.id, trimmedValue)
+
   if (updateResult.isErr()) {
-    _logger.error(`Failed to save message edit for id: ${props.id}`, updateResult.error)
+    _logger.error(
+      `Failed to save message edit after user clicked save button for message id: ${props.id}`,
+      updateResult.error.message
+    )
     _errorMessage.value = "Couldn't save the message edit. Please try again."
+    _isSaving.value = false
     return
   }
 
   emit('update', props.id, trimmedValue)
   _isEditing.value = false
   _editValue.value = ''
+  _isSaving.value = false
 }
 
 async function handleDelete() {
@@ -257,6 +290,11 @@ function selectModel(model: Item) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  if (_isSaving.value) {
+    event.preventDefault()
+    return
+  }
+
   const wasOnlyEnterPressed = event.key === 'Enter' && !event.ctrlKey && !event.shiftKey
   if (wasOnlyEnterPressed) {
     event.preventDefault()
@@ -285,14 +323,16 @@ watch(
     const hasSelection = !!currentSelection
 
     if (!hasModels || hasSelection) {
-      return // Nothing to do yet, or user already selected
+      return
     }
 
-    // Try stored preference first
     const getResult = await _keyValueStore.get('selected-rewrite-model')
 
     if (getResult.isErr()) {
-      // Store already logged it. Fall back to first model.
+      _logger.warn(
+        'Failed to load saved rewrite model preference, using first available model:',
+        getResult.error.message
+      )
       _selectedModel.value = models[0].value
       return
     }
@@ -306,7 +346,6 @@ watch(
       return
     }
 
-    // Fallback to first model
     _selectedModel.value = models[0].value
   },
   { immediate: true }
