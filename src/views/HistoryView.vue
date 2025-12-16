@@ -10,6 +10,7 @@
         v-model:value="searchQuery"
         placeholder="Search for a message"
         max-height="44px"
+        data-testid="history-search-input"
         @update:value="handleSearch"
         @keydown.down.prevent="highlightNext"
         @keydown.up.prevent="highlightPrevious"

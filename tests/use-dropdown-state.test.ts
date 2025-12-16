@@ -3,7 +3,6 @@
  */
 /* eslint-disable vue/one-component-per-file */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// use-dropdown-state.test.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, nextTick, h } from 'vue'

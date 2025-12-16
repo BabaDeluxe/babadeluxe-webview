@@ -23,12 +23,14 @@
     <!-- Warning -->
     <div
       v-if="modelsReloadWarning"
+      data-testid="models-reload-warning"
       class="bg-warning/10 border border-warning text-warning px-4 py-3 rounded-md mb-4 flex items-center justify-between"
     >
       <span>
         {{ modelsReloadWarning }}
       </span>
       <button
+        data-testid="dismiss-warning-button"
         class="ml-4 underline hover:no-underline"
         @click="modelsReloadWarning = undefined"
       >
@@ -37,7 +39,10 @@
     </div>
 
     <template v-else>
-      <section v-if="generalSettings.length > 0">
+      <section
+        v-if="generalSettings.length > 0"
+        data-testid="general-settings-section"
+      >
         <h2 class="text-xl font-semibold mb-4">General Settings</h2>
         <div
           v-for="setting in generalSettings"
@@ -64,12 +69,13 @@
           <SettingField
             :setting="setting"
             :field-name="setting.settingKey"
-            :data-testid="`field-${setting.settingKey}`"
+            :name="setting.settingKey"
             @field-changed="handleFieldChange"
           />
           <div
             v-if="fieldStates[setting.settingKey]?.error"
-            :data-testid="`error-${setting.settingKey}`"
+            role="alert"
+            :aria-label="`Error for ${setting.settingKey}`"
             class="text-error text-xs mt-1"
           >
             {{ fieldStates[setting.settingKey]?.error }}
@@ -77,7 +83,7 @@
         </div>
       </section>
 
-      <section>
+      <section data-testid="api-providers-section">
         <h3 class="text-lg font-semibold mb-3">API Keys</h3>
         <div
           v-for="provider in apiProviders"
@@ -98,8 +104,8 @@
           <div class="flex gap-2 items-center">
             <input
               :id="`api-${provider.key}`"
-              :data-testid="`input-${provider.key}`"
-              :aria-label="provider.name"
+              :name="provider.key"
+              :aria-label="`${provider.name} API key`"
               :aria-invalid="fieldStates[provider.key]?.status === 'invalid'"
               :type="fieldStates[provider.key]?.showSecret ? 'text' : 'password'"
               :value="fieldStates[provider.key]?.value ?? ''"
@@ -109,7 +115,7 @@
             />
             <button
               type="button"
-              :data-testid="`toggle-secret-${provider.key}`"
+              :name="`toggle-secret-${provider.key}`"
               :aria-label="`Toggle ${provider.name} visibility`"
               class="px-3 py-2 bg-panel hover:bg-slate border border-borderMuted rounded-md transition-colors text-deepText"
               @click="toggleSecretVisibility(provider.key)"
@@ -118,14 +124,14 @@
             </button>
             <span
               v-if="fieldStates[provider.key]?.status === 'validating'"
-              :data-testid="`validation-status-${provider.key}`"
+              :aria-label="`Validation status for ${provider.name}`"
               class="text-sm text-subtleText whitespace-nowrap"
             >
               Validating...
             </span>
             <span
               v-else-if="fieldStates[provider.key]?.status === 'valid'"
-              :data-testid="`validation-success-${provider.key}`"
+              :aria-label="`Validation success for ${provider.name}`"
               class="text-accent text-lg"
             >
               ✓
@@ -133,7 +139,8 @@
           </div>
           <div
             v-if="fieldStates[provider.key]?.error"
-            :data-testid="`error-${provider.key}`"
+            role="alert"
+            :aria-label="`Error for ${provider.name}`"
             class="text-error text-xs pt-1"
           >
             {{ fieldStates[provider.key]?.error }}
@@ -208,8 +215,7 @@ const hydrateFieldStates = () => {
   for (const provider of apiProviders) {
     const setting = getSettingByKey(provider.key)
 
-    if (!setting?.settingValue) continue
-    if (!fieldStates.value[provider.key]) continue
+    if (!setting?.settingValue || !fieldStates.value[provider.key]) continue
 
     fieldStates.value[provider.key].value = String(setting.settingValue)
     fieldStates.value[provider.key].status = 'idle'

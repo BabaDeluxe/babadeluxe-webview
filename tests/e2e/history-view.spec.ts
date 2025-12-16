@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { test } from '../helpers/fixtures'
+import { authTest as test } from '../helpers/fixtures'
 
 const seedTestData = async (page: Page) => {
   await page.evaluate(() => {
@@ -125,42 +125,48 @@ const seedTestData = async (page: Page) => {
   })
 }
 
-test.describe('History Search E2E', () => {
-  test.beforeEach(async ({ page, testUser }) => {
-    const { email, password } = testUser
+test.describe('History View E2E', () => {
+  test.beforeEach(async ({ page, browserName }, testInfo) => {
+    if (browserName === 'webkit') {
+      testInfo.setTimeout(60000)
+    }
 
-    await page.goto('/', { waitUntil: 'networkidle' })
-
-    await page.evaluate(() => {
-      return new Promise<void>((resolve, reject) => {
-        const request = indexedDB.deleteDatabase('AppDb')
-        request.onsuccess = () => {
-          resolve()
-        }
-        request.onerror = () => {
-          reject(request.error)
-        }
-        request.onblocked = () => {
-          reject(new Error('Database deletion blocked'))
-        }
-      })
+    await page.goto('/chat', {
+      waitUntil: browserName === 'webkit' ? 'commit' : 'domcontentloaded',
+      timeout: 20000,
     })
 
-    await page.getByLabel('Email Address').fill(email)
-    await page.getByLabel('Password').fill(password)
-    await page.click('button:has-text("Sign In")')
-
-    await page.waitForURL('**/chat')
-
     await seedTestData(page)
-    await page.reload()
+
+    if (browserName === 'webkit') {
+      await page.waitForTimeout(500)
+    }
+
+    await page.goto('/chat', {
+      waitUntil: browserName === 'webkit' ? 'commit' : 'domcontentloaded',
+      timeout: 20000,
+    })
+
+    await page
+      .getByTestId('chat-message-input-bottom')
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .catch(() => {})
 
     await page.getByText('History').click()
-    await page.waitForURL('**/history')
+    await page.waitForURL('**/history', { timeout: 15000 })
+
+    await page.getByTestId('history-search-input').waitFor({ state: 'visible', timeout: 15000 })
+
+    const conversationsHeading = page.getByRole('heading', { name: /^conversations$/i })
+    await expect(conversationsHeading).toBeVisible({ timeout: 10000 })
+
+    await expect(
+      conversationsHeading.locator('..').getByText('Vue component patterns')
+    ).toBeVisible({ timeout: 10000 })
   })
 
   test('user can search and find their conversation by title', async ({ page }) => {
-    await page.getByPlaceholder('Search for a message').fill('typescript')
+    await page.getByTestId('history-search-input').fill('typescript')
 
     const searchDropdown = page.getByLabel('Search results dropdown')
     await expect(
@@ -169,8 +175,9 @@ test.describe('History Search E2E', () => {
         .getByText('TypeScript debugging guide')
     ).toBeVisible()
   })
+
   test('user can search and find message content', async ({ page }) => {
-    await page.getByPlaceholder('Search for a message').fill('neverthrow')
+    await page.getByTestId('history-search-input').fill('neverthrow')
 
     const searchDropdown = page.getByLabel('Search results dropdown')
     await expect(searchDropdown.getByText(/neverthrow/i)).toBeVisible()
@@ -183,31 +190,29 @@ test.describe('History Search E2E', () => {
   })
 
   test('user sees helpful message when no results match their search', async ({ page }) => {
-    await page.getByPlaceholder('Search for a message').fill('nonexistentquery123')
+    await page.getByTestId('history-search-input').fill('nonexistentquery123')
 
     await expect(page.getByText(/no matches found/i)).toBeVisible()
   })
 
   test('user can open a conversation from search results', async ({ page }) => {
-    await page.getByPlaceholder('Search for a message').fill('typescript')
+    await page.getByTestId('history-search-input').fill('typescript')
 
     const searchDropdown = page.getByLabel('Search results dropdown')
     await searchDropdown.locator('[data-result-type="conversation"]').click()
 
-    // Wait for conversation heading to confirm navigation
     const messagesHeading = page.getByRole('heading', {
       name: /messages in "typescript debugging guide"/i,
     })
     await expect(messagesHeading).toBeVisible()
 
-    // Scope to message panel region (sibling of heading)
     const messagePanel = messagesHeading.locator('..')
     await expect(messagePanel.getByText(/how to debug typescript errors/i)).toBeVisible()
     await expect(messagePanel.getByText(/use neverthrow/i)).toBeVisible()
   })
 
   test('user can quickly dismiss search with escape key', async ({ page }) => {
-    const searchInput = page.getByPlaceholder('Search for a message')
+    const searchInput = page.getByTestId('history-search-input')
 
     await searchInput.fill('typescript')
 
@@ -221,7 +226,7 @@ test.describe('History Search E2E', () => {
   })
 
   test('user can filter their conversation list by typing', async ({ page }) => {
-    await page.getByPlaceholder('Search for a message').fill('Vue')
+    await page.getByTestId('history-search-input').fill('Vue')
 
     const conversationsList = page.getByRole('heading', { name: /^conversations$/i }).locator('..')
 
