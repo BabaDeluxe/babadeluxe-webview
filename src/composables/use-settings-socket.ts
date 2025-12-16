@@ -23,7 +23,7 @@ export function useSettingsSocket() {
       dataType: updatedSetting.dataType,
       updatedAt: new Date(updatedSetting.updatedAt),
       category: definition?.category ?? '',
-      encrypted: definition?.encrypted ?? false, // ← Use definition instead
+      encrypted: definition?.encrypted ?? false,
       required: definition?.required ?? false,
       description: definition?.description ?? '',
       minLength: definition?.minLength,

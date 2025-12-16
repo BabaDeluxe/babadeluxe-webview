@@ -159,10 +159,9 @@
 import { computed, inject, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useTextareaAutosize } from '@vueuse/core'
 import type { ConsoleLogger } from '@simwai/utils'
-import type { Message } from '@babadeluxe/shared'
+import type { Message } from '@/database/types'
 import type { KeyValueStore } from '@/database/key-value-store'
 import type { AppDb } from '@/database/app-db'
-import type { ActiveChatItemEmitter } from '@/types/active-chat-item-types'
 import { APP_DB_KEY, KEY_VALUE_STORE_KEY, LOGGER_KEY } from '@/injection-keys'
 import { useDropdown } from '@/composables/use-dropdown-state'
 import { useModelsSocket } from '@/composables/use-models-socket'
@@ -186,6 +185,11 @@ const {
 type Item = { value: string; label: string; icon?: string }
 type ItemGroup = { label: string; items: Item[] }
 type ItemGroupWithIcon = ItemGroup & { icon?: string }
+type ActiveChatItemEmitter = {
+  delete: [id: number]
+  update: [id: number, content: string]
+  rewrite: [id: number, model: string]
+}
 
 const markdownRef = useTemplateRef<InstanceType<typeof MarkdownRenderItem>>('markdownRef')
 defineExpose({ markdownRef })

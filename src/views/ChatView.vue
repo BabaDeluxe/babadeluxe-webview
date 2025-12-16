@@ -243,7 +243,7 @@ import { useModelsSocket } from '@/composables/use-models-socket'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import type { KeyValueStore } from '@/database/key-value-store'
 import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
-import type { Message } from '@babadeluxe/shared'
+import type { Message } from '@/database/types'
 import UpsellModal from '@/components/UpsellModal.vue'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 

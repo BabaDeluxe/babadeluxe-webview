@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { KeyValuePair } from '@babadeluxe/shared'
+import type { KeyValuePair } from '@/database/types'
 
 export class KeyValueDb extends Dexie {
   keyValue!: Table<KeyValuePair, string>

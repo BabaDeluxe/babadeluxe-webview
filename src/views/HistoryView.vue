@@ -426,7 +426,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, inject, nextTick, watch, useTemplateRef } from 'vue'
-import { type Conversation } from '@babadeluxe/shared'
+import { type Conversation } from '@/database/types'
 import { type ConsoleLogger } from '@simwai/utils'
 import { onClickOutside } from '@vueuse/core'
 import ActiveChatItem from '../components/ActiveChatItem.vue'

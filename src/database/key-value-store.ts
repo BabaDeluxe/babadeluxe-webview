@@ -1,6 +1,6 @@
 import type { Table } from 'dexie'
 import { ok, err, type Result } from 'neverthrow'
-import type { KeyValuePair } from '@babadeluxe/shared'
+import type { KeyValuePair } from '@/database/types'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { KeyValueDb } from '@/database/key-value-db'
 import { SafeTable, type DexieError } from '@/database/safe-table'
