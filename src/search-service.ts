@@ -1,6 +1,6 @@
 import { ok, err, type Result } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
-import { damerauLevenshteinSimilarity } from '@/damerau-levenshtein-similarity'
+import { damerauLevenshteinSimilarity } from '@babadeluxe/shared'
 import type { Conversation, Message } from '@/database/types'
 import { type AppDb } from '@/database/app-db'
 import type { SearchResult } from '@/search-types'

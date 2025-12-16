@@ -4,7 +4,7 @@ import type { KeyValuePair } from '@/database/types'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { KeyValueDb } from '@/database/key-value-db'
 import { SafeTable, type DexieError } from '@/database/safe-table'
-import { BaseError } from '@/base-error'
+import { BaseError } from '@babadeluxe/shared'
 
 export class KeyValueStoreError extends BaseError {}
 

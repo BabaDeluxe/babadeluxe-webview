@@ -1,4 +1,4 @@
-import { BaseError } from '@/base-error'
+import { BaseError } from '@babadeluxe/shared'
 import type { Table } from 'dexie'
 import { ResultAsync, type Result } from 'neverthrow'
 import { SafeCollection } from '@/database/safe-collection'

@@ -60,7 +60,7 @@
     "find-dead-code": "knip"
   },
   "dependencies": {
-    "@babadeluxe/shared": "^0.11.2",
+    "@babadeluxe/shared": "^0.12.0",
     "@lottiefiles/dotlottie-vue": "^0.10.1",
     "@simwai/utils": "^2.0.13",
     "@supabase/supabase-js": "^2.57.0",
