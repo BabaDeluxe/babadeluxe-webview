@@ -35,24 +35,41 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
   const rightWidthPercent = computed(() => `${100 - leftWidth.value}%`)
 
   const loadSavedRatio = async () => {
-    const saved = await keyValueStore.get(storageKey)
+    const result = await keyValueStore.get(storageKey)
 
-    if (saved) {
-      const parsed = Number(saved)
-      if (!Number.isNaN(parsed) && parsed >= minRatio && parsed <= maxRatio) {
-        leftWidth.value = parsed
-        return
-      }
+    // Case 1: Database error
+    if (result.isErr()) {
+      _logger.error('Failed to load split ratio from storage:', result.error)
+      leftWidth.value = defaultRatio
+      return
     }
 
-    _logger.error('Failed to load split ratio from key value store')
+    const saved = result.value
+
+    // Case 2: No value stored (first use) - silently use default
+    if (saved === undefined) {
+      leftWidth.value = defaultRatio
+      return
+    }
+
+    // Case 3: Validate stored value
+    const parsed = Number(saved)
+    if (Number.isNaN(parsed) || parsed < minRatio || parsed > maxRatio) {
+      _logger.warn(
+        `Invalid split ratio "${saved}" (expected ${minRatio}-${maxRatio}), using default ${defaultRatio}%`
+      )
+      leftWidth.value = defaultRatio
+      return
+    }
+
+    // Case 4: Valid stored value
+    leftWidth.value = parsed
   }
 
   const saveRatio = async (ratio: number) => {
-    try {
-      await keyValueStore.set(storageKey, String(ratio))
-    } catch (error) {
-      _logger.error('Failed to save split ratio:', error as Error)
+    const result = await keyValueStore.set(storageKey, String(ratio))
+    if (result.isErr()) {
+      _logger.error('Failed to save split ratio:', result.error)
     }
   }
 
