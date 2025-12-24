@@ -47,7 +47,6 @@
   "eslint.enable": true,
   "eslint.format.enable": false,
   "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
-  "conventionalCommits.promptScopes": false,
   "files.eol": "\n",
   "files.encoding": "utf8",
   "terminal.integrated.detectLocale": "on"
