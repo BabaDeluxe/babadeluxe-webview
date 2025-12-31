@@ -35,6 +35,7 @@ git push -u origin feat/my-feature-name
 - **Tense**: Past tense ("Added", "Fixed", "Refactored")
 - **Capitalization**: Start with capital letter
 - **Examples**:
+
   ```bash
   git commit -m ":sparkles: feat(auth): Added Google OAuth login"
   git commit -m ":bug: fix(navbar): Corrected mobile menu overlap"
