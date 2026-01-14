@@ -24,81 +24,65 @@ export interface ItemGroup {
 }
 
 const modelsLoadedCount = ref(0)
+const modelIdPrefix = 'models/'
 
-const stripModelPrefix = (models: string[]): string[] => {
-  const result: string[] = []
-  for (const model of models) {
-    const cleaned = model.startsWith('models/') ? model.slice(7) : model
-    result.push(cleaned)
-  }
-  return result
+const baseExcludePatterns = [
+  'tts',
+  'audio',
+  'video',
+  'image',
+  'embedding',
+  'computer',
+  'robot',
+] as const
+
+const excludePatterns: Record<Provider, readonly string[]> = {
+  openai: [
+    ...baseExcludePatterns,
+    'realtime',
+    'transcribe',
+    'moderation',
+    'whisper',
+    'sora',
+    'dall',
+    'davinci',
+    'babbage',
+  ],
+  anthropic: [...baseExcludePatterns],
+  gemini: [...baseExcludePatterns, 'vision', 'robotics', 'veo', 'aqa'],
 }
 
-const modelFilters: Record<Provider, (models: string[]) => string[]> = {
-  openai: (models: string[]) => {
-    const excludePatterns = [
-      'tts',
-      'audio',
-      'realtime',
-      'video',
-      'image',
-      'embedding',
-      'transcribe',
-      'moderation',
-      'whisper',
-      'computer',
-      'sora',
-      'dall',
-    ]
-    const result: string[] = []
-    for (const model of models) {
-      const lowerModel = model.toLowerCase()
-      let shouldExclude = false
-      for (const pattern of excludePatterns) {
-        if (lowerModel.includes(pattern)) {
-          shouldExclude = true
-          break
-        }
-      }
-      if (!shouldExclude) {
-        const cleaned = model.startsWith('models/') ? model.slice(7) : model
-        result.push(cleaned)
-      }
-    }
-    return result
-  },
-  anthropic: stripModelPrefix,
-  gemini: (models: string[]) => {
-    const excludePatterns = [
-      'tts',
-      'audio',
-      'video',
-      'image',
-      'vision',
-      'embedding',
-      'robotics',
-      'veo',
-      'aqa',
-      'computer',
-    ]
-    const result: string[] = []
-    for (const model of models) {
-      const lowerModel = model.toLowerCase()
-      let shouldExclude = false
-      for (const pattern of excludePatterns) {
-        if (lowerModel.includes(pattern)) {
-          shouldExclude = true
-          break
-        }
-      }
+const createExcludeSet = (patterns: readonly string[]): Set<string> => {
+  return new Set(patterns)
+}
 
-      if (!shouldExclude) {
-        const cleaned = model.startsWith('models/') ? model.slice(7) : model
-        result.push(cleaned)
-      }
+const excludeSets: Record<Provider, Set<string>> = {
+  openai: createExcludeSet(excludePatterns.openai),
+  anthropic: createExcludeSet(excludePatterns.anthropic),
+  gemini: createExcludeSet(excludePatterns.gemini),
+}
+
+const shouldExcludeModel = (modelLower: string, excludeSet: Set<string>): boolean => {
+  for (const pattern of excludeSet) {
+    if (modelLower.includes(pattern)) {
+      return true
     }
-    return result
-  },
+  }
+  return false
+}
+
+const stripPrefix = (model: string): string => {
+  return model.startsWith(modelIdPrefix) ? model.slice(modelIdPrefix.length) : model
+}
+
+const filterModels = (models: string[], excludeSet: Set<string>): string[] => {
+  const result: string[] = []
+  for (const model of models) {
+    if (!shouldExcludeModel(model.toLowerCase(), excludeSet)) {
+      result.push(stripPrefix(model))
+    }
+  }
+  return result
 }
 
 const filterModelsByProvider = (
@@ -111,8 +95,7 @@ const filterModelsByProvider = (
   }
 
   for (const provider of providers) {
-    const filterFn = modelFilters[provider]
-    filtered[provider] = filterFn(rawModels[provider])
+    filtered[provider] = filterModels(rawModels[provider], excludeSets[provider])
   }
 
   return filtered
@@ -250,9 +233,8 @@ export function useModelsSocket() {
   const logger: ConsoleLogger = inject(LOGGER_KEY)!
   const modelsSocket = socketManager.modelsSocket
 
-  // Listen for server-side models update broadcast
   const handleModelsUpdate = async () => {
-    logger.log('🔔 Reloading models due to server update')
+    logger.log('Reloading models due to server update')
     fetchPromise = undefined
     const initResult = await initializeModels(socketManager, logger)
 
@@ -282,7 +264,7 @@ export function useModelsSocket() {
   })
 
   const reload = async (): Promise<Result<void, ModelsFetchError>> => {
-    logger.log('🔄 Forcing models reload...')
+    logger.log('Forcing models reload')
     fetchPromise = undefined
     return await initializeModels(socketManager, logger)
   }
