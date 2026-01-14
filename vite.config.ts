@@ -16,6 +16,7 @@ export default defineConfig({
     //   Open: true,
     // }),
   ],
+  appType: 'spa',
   server: {
     host: '127.0.0.1', // Force IPv4,
     port: 5100,

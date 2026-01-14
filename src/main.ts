@@ -25,7 +25,7 @@ import {
 import { initializeModels } from '@/composables/use-models-socket'
 import { AuthTokenError, EnvValidationError } from '@/errors'
 import { SocketManager } from '@/socket-manager'
-import { initChatSocketListeners } from '@/chat-socket-listener'
+import { createPinia } from 'pinia'
 
 const logger = new ConsoleLogger({ isTimeEnabled: false })
 
@@ -41,6 +41,9 @@ const envConfig: EnvConfigType = import.meta.env
 const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SOCKET_URL } = envConfig
 
 const app = createApp(App)
+
+const pinia = createPinia()
+app.use(pinia)
 
 app.provide(ENV_CONFIG_KEY, envConfig)
 app.provide(LOGGER_KEY, logger)
@@ -91,7 +94,6 @@ if (authTokenResult.isErr()) {
 
   const socketManager = new SocketManager(logger, VITE_SOCKET_URL, authToken)
   const socketManagerInitResult = await socketManager.init()
-  initChatSocketListeners(socketManager.chatSocket, logger, appDb)
 
   if (socketManagerInitResult.isErr()) {
     logger.error('Socket initialization failed:', socketManagerInitResult.error)

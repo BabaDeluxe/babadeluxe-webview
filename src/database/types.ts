@@ -20,13 +20,6 @@ export type Message = {
   content: string
   timestamp: Date
   isStreaming?: boolean
-}
-
-export type Prompt = {
-  id: number
-  title: string
-  content: string
-  category?: string
-  createdAt: Date
-  updatedAt?: Date
+  model?: string
+  systemPrompt?: string
 }

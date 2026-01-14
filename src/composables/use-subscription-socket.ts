@@ -10,6 +10,7 @@ export function useSubscriptionSocket() {
   const logger: ConsoleLogger = inject(LOGGER_KEY)!
 
   const subscriptionSocket = socketManager.subscriptionSocket
+  const chatSocket = socketManager.chatSocket
 
   const isUpgrading = ref(false)
   const error = ref<string | undefined>()
@@ -17,7 +18,7 @@ export function useSubscriptionSocket() {
   const isDismissed = ref(false)
 
   const onMessageLimitReached = () => {
-    logger.warn('Message limit reached. Redirecting to upsell page.')
+    logger.warn('Message limit reached. Showing upsell modal.')
     isMessageLimitReached.value = true
     isDismissed.value = false
   }
@@ -43,13 +44,12 @@ export function useSubscriptionSocket() {
     logger.error('Checkout session error:', payload.error)
     error.value = payload.error
   }
-
-  subscriptionSocket.on('subscription:messageLimitReached', onMessageLimitReached)
+  chatSocket.on('subscription:messageLimitReached', onMessageLimitReached)
   subscriptionSocket.on('subscription:userTierChanged', onUserTierChanged)
   subscriptionSocket.on('subscription:checkoutSessionError', onCheckoutSessionError)
 
   onBeforeUnmount(() => {
-    subscriptionSocket.off('subscription:messageLimitReached', onMessageLimitReached)
+    chatSocket.off('subscription:messageLimitReached', onMessageLimitReached)
     subscriptionSocket.off('subscription:userTierChanged', onUserTierChanged)
     subscriptionSocket.off('subscription:checkoutSessionError', onCheckoutSessionError)
   })

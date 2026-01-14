@@ -67,7 +67,6 @@ import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { inject, onMounted, ref } from 'vue'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import type { ConsoleLogger } from '@simwai/utils'
-import { useConversation } from '@/composables/use-conversation'
 import BabaDeluxeIcon from '@/components/BabaDeluxeIcon.vue'
 import ButtonItem from '@/components/ButtonItem.vue'
 import { type SupabaseClientType } from '@/main'
@@ -75,7 +74,6 @@ import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 
 const logger: ConsoleLogger = inject(LOGGER_KEY)!
 const supabase: SupabaseClientType = inject(SUPABASE_CLIENT_KEY)!
-const { createConversation } = useConversation()
 
 const session = ref()
 const router = useRouter()
@@ -117,7 +115,6 @@ onMounted(async () => {
 })
 
 const handleNewChat = async () => {
-  await createConversation('New Conversation')
-  redirectToChat()
+  await router.push({ path: '/chat', query: { newConversation: 'true' } })
 }
 </script>

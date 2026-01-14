@@ -63,3 +63,30 @@ export class RateLimitError extends BaseError {
     super(message, cause)
   }
 }
+
+export class MessageNotFoundError extends BaseError {
+  constructor(public readonly messageId: string | number) {
+    super(`Message with ID ${messageId} not found`)
+  }
+}
+
+export class InvalidModelFormatError extends BaseError {
+  constructor(public readonly modelId: string) {
+    super(`Invalid model format: ${modelId}. Expected format: 'provider:model'`)
+  }
+}
+
+export class MessageCreationError extends BaseError {
+  constructor(
+    public readonly role: 'user' | 'assistant',
+    cause?: Error
+  ) {
+    super(`Failed to create ${role} message`, cause)
+  }
+}
+
+export class NoUserMessageError extends BaseError {
+  constructor(public readonly assistantMessageId: string | number) {
+    super(`Cannot rewrite: no user message found before assistant message ${assistantMessageId}`)
+  }
+}

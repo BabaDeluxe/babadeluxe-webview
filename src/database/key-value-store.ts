@@ -10,7 +10,7 @@ export class KeyValueStoreError extends BaseError {}
 
 export class KeyValueStore {
   private _table: Table<KeyValuePair, string>
-  private _safe: SafeTable<KeyValuePair, KeyValuePair, string> // All 3 params
+  private _safe: SafeTable<KeyValuePair, KeyValuePair, string>
 
   constructor(
     private readonly _keyValueDb: KeyValueDb,

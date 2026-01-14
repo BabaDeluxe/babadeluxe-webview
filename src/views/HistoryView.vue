@@ -442,22 +442,21 @@ const logger: ConsoleLogger = inject(LOGGER_KEY)!
 const searchService: SearchService = inject(SEARCH_SERVICE_KEY)!
 const keyValueStore: KeyValueStore = inject(KEY_VALUE_STORE_KEY)!
 
-const { searchResults, isSearching, performSearch } = useSearch(searchService)
-
 const {
+  initialize,
   messages,
   conversations,
   currentConversationId,
   isLoading,
   error,
-  loadMessages,
-  loadConversations,
   deleteConversation,
   switchConversation,
   deleteMessage,
-  addOrUpdateMessage,
+  updateUserMessage,
   updateConversationTitle,
 } = useConversation()
+
+const { searchResults, isSearching, performSearch } = useSearch(searchService)
 
 const {
   leftWidthPercent: splitLeftWidthPercent,
@@ -500,12 +499,7 @@ const renameDialog = ref({
 })
 
 onMounted(async () => {
-  try {
-    await loadMessages()
-    await loadConversations()
-  } catch (error) {
-    logger.error('Failed to load conversations:', error as Error)
-  }
+  await initialize()
 })
 
 onClickOutside(dropdownRef, () => {
@@ -626,14 +620,8 @@ const handleDeleteMessage = async (messageId: number) => {
 }
 
 const handleUpdateMessage = async (messageId: number, content: string) => {
-  try {
-    const success = await addOrUpdateMessage(content, 'user', messageId)
-    if (!success) {
-      logger.error('Failed to update message')
-    }
-  } catch (error) {
-    logger.error('Error updating message:', error as Error)
-  }
+  const result = await updateUserMessage(messageId, content)
+  if (result.isErr()) logger.error('Failed to update message:', result.error)
 }
 
 const formatDate = (date: Date | undefined) => {

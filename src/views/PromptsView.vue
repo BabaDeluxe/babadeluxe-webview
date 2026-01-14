@@ -352,7 +352,13 @@ watch(
     if (isCreatingNewPrompt.value) return
 
     if (newSelection) {
-      editablePrompt.value = { ...newSelection, description: newSelection.description ?? '' }
+      editablePrompt.value = {
+        id: newSelection.id,
+        name: newSelection.name,
+        command: newSelection.command ?? '',
+        description: newSelection.description ?? '',
+        template: newSelection.template,
+      }
     } else {
       resetEditablePrompt(true)
     }
@@ -379,8 +385,11 @@ function resetEditablePrompt(forceClear = false) {
   saveErrorMessage.value = undefined
   if (selectedPrompt.value && !forceClear) {
     editablePrompt.value = {
-      ...selectedPrompt.value,
+      id: selectedPrompt.value.id,
+      name: selectedPrompt.value.name,
+      command: selectedPrompt.value.command ?? '', // ← normalize
       description: selectedPrompt.value.description ?? '',
+      template: selectedPrompt.value.template,
     }
   } else {
     editablePrompt.value = { id: undefined, name: '', command: '', description: '', template: '' }

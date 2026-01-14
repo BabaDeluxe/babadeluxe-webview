@@ -1,34 +1,38 @@
 <template>
   <div
-    ref="containerRef"
-    class="relative flex flex-col w-auto"
+    ref="dropdownContainerRef"
+    :class="['relative flex flex-col', props.fullWidth ? 'w-full' : 'w-auto']"
   >
     <div
-      class="flex items-center gap-2 px-2 py-2 cursor-pointer hover:text-accent transition-colors"
+      :class="[
+        'cursor-pointer transition-colors',
+        props.fullWidth ? 'w-full' : '',
+        props.triggerClass || 'flex items-center gap-2 p-1 text-subtleText hover:text-accent',
+      ]"
       @click="toggle"
     >
       <slot>
         <i
-          :class="icon"
-          class="text-base text-subtleText"
+          :class="props.icon"
+          class="text-base"
         />
-        <span class="text-sm text-deepText">{{ currentLabel }}</span>
-        <i class="i-weui:arrow-outlined rotate-90 text-base transform text-subtleText" />
+        <span class="text-sm">{{ selectedLabel }}</span>
+        <i class="i-weui:arrow-outlined rotate-90 text-base transform" />
       </slot>
     </div>
 
     <div
       v-if="isOpen"
       class="bg-panel border border-borderMuted rounded shadow-lg z-50 min-w-[200px]"
-      :class="menuPosClass"
+      :class="menuPositionClass"
     >
       <!-- Flat items (backward compatible) -->
-      <template v-if="!properties.groups">
+      <template v-if="!props.groups">
         <div
-          v-for="option in normalized"
+          v-for="option in flatItems"
           :key="option.value"
           class="px-4 py-2 hover:bg-slate cursor-pointer text-sm text-deepText transition-colors flex items-center gap-2"
-          :class="{ 'bg-slate': option.value === modelValue }"
+          :class="{ 'bg-slate': option.value === props.modelValue }"
           @click="selectOption(option.value)"
         >
           <i
@@ -40,11 +44,19 @@
         </div>
       </template>
 
+      <!-- Empty state when groups exist but are empty -->
+      <template v-else-if="props.groups.length === 0">
+        <div class="px-4 py-3 text-sm text-subtleText text-center">
+          No models available. Configure API keys in settings.
+        </div>
+      </template>
+
       <!-- Grouped items -->
       <template v-else>
         <div
-          v-for="(group, index) in properties.groups"
+          v-for="(group, index) in props.groups"
           :key="group.label"
+          :data-testid="`dropdown-item-${index}`"
         >
           <div
             v-if="index > 0"
@@ -57,7 +69,7 @@
             v-for="option in group.items"
             :key="option.value"
             class="px-6 py-2 hover:bg-slate cursor-pointer text-sm text-deepText transition-colors flex items-center gap-2"
-            :class="{ 'bg-slate': option.value === modelValue }"
+            :class="{ 'bg-slate': option.value === props.modelValue }"
             @click="selectOption(option.value)"
           >
             <i
@@ -78,63 +90,75 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useDropdown } from '@/composables/use-dropdown-state'
+import { useDropdown } from '@/composables/use-dropdown'
 
-interface Item {
+export interface DropdownItem {
   value: string
   label: string
+  disabled: boolean
   icon?: string
 }
 
-interface ItemGroup {
+export interface DropdownGroup {
   label: string
-  items: Item[]
+  items: DropdownItem[]
 }
 
-interface Properties {
+export interface DropdownProps {
   modelValue: string
   icon: string
   options?: string[]
-  items?: Item[]
-  groups?: ItemGroup[]
+  items?: DropdownItem[]
+  groups?: DropdownGroup[]
   placement?: 'bottom' | 'right'
+  triggerClass?: string
+  fullWidth?: boolean
 }
 
-interface Emits {
-  (event: 'update:modelValue', value: string): void
-}
-
-const properties = withDefaults(defineProps<Properties>(), {
+const props = withDefaults(defineProps<DropdownProps>(), {
   placement: 'bottom',
   options: undefined,
   items: undefined,
   groups: undefined,
+  triggerClass: '',
+  fullWidth: false,
 })
-const emit = defineEmits<Emits>()
 
-const { isOpen, containerRef, toggle, close } = useDropdown({ nested: true })
+interface DropdownEmits {
+  (event: 'update:modelValue', value: string): void
+}
 
-const normalized = computed<Item[]>(
+const emit = defineEmits<DropdownEmits>()
+
+const { isOpen, containerRef: dropdownContainerRef, toggle, close } = useDropdown()
+
+const flatItems = computed<DropdownItem[]>(
   () =>
-    properties.items?.map((item) => ({ value: item.value, label: item.label, icon: item.icon })) ??
-    (properties.options ?? []).map((item) => ({ value: item, label: item }))
+    props.items?.map((item) => ({
+      value: item.value,
+      label: item.label,
+      icon: item.icon,
+      disabled: item.disabled ?? false, // ensure boolean
+    })) ??
+    (props.options ?? []).map((value) => ({
+      value,
+      label: value,
+      disabled: false, // flat options are enabled by default
+    }))
 )
 
-const currentLabel = computed(() => {
-  if (properties.groups) {
-    for (const group of properties.groups) {
-      const found = group.items.find((item) => item.value === properties.modelValue)
+const selectedLabel = computed(() => {
+  if (props.groups) {
+    for (const group of props.groups) {
+      const found = group.items.find((item) => item.value === props.modelValue)
       if (found) return found.label
     }
   }
-  return (
-    normalized.value.find((item) => item.value === properties.modelValue)?.label ??
-    properties.modelValue
-  )
+  return flatItems.value.find((item) => item.value === props.modelValue)?.label ?? props.modelValue
 })
 
-const menuPosClass = computed(() =>
-  properties.placement === 'right' ? 'left-full top-0 ml-1' : 'left-0 mt-1'
+const menuPositionClass = computed(() =>
+  props.placement === 'right' ? 'left-full top-0 ml-1' : 'left-0 mt-1'
 )
 
 function selectOption(value: string) {

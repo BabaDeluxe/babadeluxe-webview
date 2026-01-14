@@ -24,14 +24,14 @@ class SocketManagerBase {
     private readonly _baseUrl: string,
     private readonly _authToken: string
   ) {
-    const ioOptions: Partial<ManagerOptions & SocketOptions> = {
+    const socketOptions: Partial<ManagerOptions & SocketOptions> = {
       transports: ['websocket'],
       withCredentials: true,
       autoConnect: false,
       auth: { token: this._authToken },
     }
 
-    this._socket = io(_baseUrl, ioOptions)
+    this._socket = io(this._baseUrl, socketOptions)
     this._createSocketGetters()
   }
 
@@ -40,7 +40,7 @@ class SocketManagerBase {
       const getterName = `${key.toLowerCase()}Socket` as SocketGetterName<typeof key>
 
       Object.defineProperty(this, getterName, {
-        get: () => this, // Return self - all getters point to same manager
+        get: () => this,
         enumerable: true,
         configurable: false,
       })
@@ -52,13 +52,13 @@ class SocketManagerBase {
   }
 
   async init(): Promise<Result<void, SocketConnectionError>> {
-    if (this._isConnected) return ok()
+    if (this._isConnected) return ok(undefined)
 
     if (this._isConnecting) {
       return err(new SocketConnectionError('Connection already in progress'))
     }
 
-    this._logger.log(`🔌 Connecting to socket at ${this._baseUrl}`)
+    this._logger.log(`Connecting to socket at ${this._baseUrl}`)
     this._isConnecting = true
 
     if (!this._internalHandlersRegistered) {
@@ -66,7 +66,7 @@ class SocketManagerBase {
       this._internalHandlersRegistered = true
     }
 
-    const result = await this._performConnection(10000)
+    const result = await this._performConnection(10_000)
     this._isConnecting = false
 
     if (result.isErr()) {
@@ -100,7 +100,7 @@ class SocketManagerBase {
   }
 
   private async _performConnection(
-    timeoutMs: number
+    timeoutMilliseconds: number
   ): Promise<Result<Socket, SocketConnectionError>> {
     return ResultAsync.fromPromise(
       new Promise<Socket>((resolve, reject) => {
@@ -120,9 +120,11 @@ class SocketManagerBase {
           hasResolved = true
           this._socket.off('connect', connectHandler)
           reject(
-            new SocketConnectionError(`Connection timeout after ${timeoutMs}ms (retries exhausted)`)
+            new SocketConnectionError(
+              `Connection timeout after ${timeoutMilliseconds}ms (retries exhausted)`
+            )
           )
-        }, timeoutMs)
+        }, timeoutMilliseconds)
 
         this._socket.connect()
       }),
@@ -134,8 +136,10 @@ class SocketManagerBase {
     )
   }
 
-  async waitForConnection(timeoutMs = 10000): Promise<Result<void, SocketConnectionError>> {
-    if (this._isConnected) return ok()
+  async waitForConnection(
+    timeoutMilliseconds = 10_000
+  ): Promise<Result<void, SocketConnectionError>> {
+    if (this._isConnected) return ok(undefined)
 
     return ResultAsync.fromPromise(
       new Promise<void>((resolve, reject) => {
@@ -148,8 +152,8 @@ class SocketManagerBase {
 
         const timeoutId = setTimeout(() => {
           this._socket.off('connect', onConnect)
-          reject(new SocketConnectionError(`Connection timeout after ${timeoutMs}ms`))
-        }, timeoutMs)
+          reject(new SocketConnectionError(`Connection timeout after ${timeoutMilliseconds}ms`))
+        }, timeoutMilliseconds)
       }),
       (error) =>
         new SocketConnectionError(
@@ -170,29 +174,35 @@ class SocketManagerBase {
     this._internalHandlersRegistered = false
     this._socket.disconnect()
     this._isConnected = false
-    this._logger.log('🧹 Socket disconnected')
+    this._logger.log('Socket disconnected and listeners cleared')
   }
 
-  on<T extends keyof Root.Emission>(event: T, handler: Root.Emission[T]): void {
-    const eventString = String(event)
-    this._trackedEvents.add(eventString)
-    this._socket.on(eventString, handler as (...args: unknown[]) => void)
+  // Typed events (from shared contract)
+  on<T extends keyof Root.Emission>(event: T, handler: Root.Emission[T]): void
+  // String events (for composables / internal app events)
+  on(event: string, handler: (...args: unknown[]) => void): void
+  on(event: string, handler: (...args: unknown[]) => void): void {
+    const eventName = String(event)
+    this._trackedEvents.add(eventName)
+    this._socket.on(eventName, handler)
   }
 
-  off<T extends keyof Root.Emission>(event: T, handler?: Root.Emission[T]): void {
-    const eventString = String(event)
+  off<T extends keyof Root.Emission>(event: T, handler?: Root.Emission[T]): void
+  off(event: string, handler?: (...args: unknown[]) => void): void
+  off(event: string, handler?: (...args: unknown[]) => void): void {
+    const eventName = String(event)
 
     if (handler !== undefined) {
-      this._socket.off(eventString, handler as (...args: unknown[]) => void)
+      this._socket.off(eventName, handler)
 
-      if (this._socket.listeners(eventString).length === 0) {
-        this._trackedEvents.delete(eventString)
+      if (this._socket.listeners(eventName).length === 0) {
+        this._trackedEvents.delete(eventName)
       }
       return
     }
 
-    this._socket.off(eventString)
-    this._trackedEvents.delete(eventString)
+    this._socket.off(eventName)
+    this._trackedEvents.delete(eventName)
   }
 
   emit<T extends keyof Root.Actions>(
@@ -209,7 +219,7 @@ class SocketManagerBase {
 
     this._logger.log(`[emit] Event: ${String(eventId)}`)
     this._socket.emit(String(eventId), ...args)
-    return ok()
+    return ok(undefined)
   }
 }
 

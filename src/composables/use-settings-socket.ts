@@ -20,7 +20,7 @@ export function useSettingsSocket() {
     const settingWithValidation: UserSettingWithValidation = {
       settingKey: updatedSetting.settingKey,
       settingValue: updatedSetting.settingValue,
-      dataType: updatedSetting.dataType,
+      dataType: updatedSetting.dataType as 'string' | 'number' | 'boolean',
       updatedAt: new Date(updatedSetting.updatedAt),
       category: definition?.category ?? '',
       encrypted: definition?.encrypted ?? false,
@@ -94,9 +94,7 @@ export function useSettingsSocket() {
     dataType: 'string' | 'number' | 'boolean'
   ): Promise<void> => {
     const waitResult = await settingsSocket.waitForConnection()
-    if (waitResult.isErr()) {
-      throw waitResult.error
-    }
+    if (waitResult.isErr()) throw waitResult.error
 
     return new Promise((resolve, reject) => {
       settingsSocket.emit('settings:upsert', { settingKey, settingValue, dataType }, (response) => {

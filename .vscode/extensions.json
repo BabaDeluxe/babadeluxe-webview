@@ -7,6 +7,17 @@
     "antfu.unocss",
     "esbenp.prettier-vscode",
     "dbaeumer.vscode-eslint",
-    "bierner.github-markdown-preview"
+    "davidanson.vscode-markdownlint",
+    "p42ai.refactor",
+    "nyxb.vscode-styled-colors",
+    "dariofuzinato.vue-peek",
+    "nicoespeon.abracadabra",
+    "yoavbls.pretty-ts-errors",
+    "kisstkondoros.vscode-codemetrics",
+    "bierner.markdown-checkbox",
+    "bierner.markdown-emoji",
+    "bierner.markdown-footnotes",
+    "bierner.markdown-mermaid",
+    "bierner.markdown-yaml-preamble"
   ]
 }
