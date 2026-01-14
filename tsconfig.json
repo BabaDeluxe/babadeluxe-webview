@@ -8,7 +8,6 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client", "vitest", "node"],
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
@@ -18,6 +17,6 @@
     "isolatedModules": true,
     "jsx": "preserve"
   },
-  "include": ["src/**/*", "tests/**/*", "*.config.ts", "env.d.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": ["./src/**/*", "./tests/**/*", "./*.config.ts"],
+  "exclude": ["./dist", "./node_modules"]
 }
