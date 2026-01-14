@@ -36,9 +36,12 @@ const baseExcludePatterns = [
   'robot',
 ] as const
 
-const excludePatterns: Record<Provider, readonly string[]> = {
-  openai: [
-    ...baseExcludePatterns,
+// Generic function that preserves literal types
+const createExcludePatterns = <T extends readonly string[]>(additional: T) =>
+  [...baseExcludePatterns, ...additional] as const
+
+const excludePatterns = {
+  openai: createExcludePatterns([
     'realtime',
     'transcribe',
     'moderation',
@@ -47,19 +50,15 @@ const excludePatterns: Record<Provider, readonly string[]> = {
     'dall',
     'davinci',
     'babbage',
-  ],
-  anthropic: [...baseExcludePatterns],
-  gemini: [...baseExcludePatterns, 'vision', 'robotics', 'veo', 'aqa'],
-}
-
-const createExcludeSet = (patterns: readonly string[]): Set<string> => {
-  return new Set(patterns)
-}
+  ] as const),
+  anthropic: createExcludePatterns([] as const),
+  gemini: createExcludePatterns(['vision', 'robotics', 'veo', 'aqa'] as const),
+} as const
 
 const excludeSets: Record<Provider, Set<string>> = {
-  openai: createExcludeSet(excludePatterns.openai),
-  anthropic: createExcludeSet(excludePatterns.anthropic),
-  gemini: createExcludeSet(excludePatterns.gemini),
+  openai: new Set(excludePatterns.openai),
+  anthropic: new Set(excludePatterns.anthropic),
+  gemini: new Set(excludePatterns.gemini),
 }
 
 const shouldExcludeModel = (modelLower: string, excludeSet: Set<string>): boolean => {
