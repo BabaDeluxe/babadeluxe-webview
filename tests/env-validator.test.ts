@@ -1,21 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { validateEnvConfig } from '../src/env-validator'
 
+// @ts-ignore
+const env = import.meta.env
+
 describe('validate()', () => {
-  const originalEnv = { ...import.meta.env }
+  const originalEnv = { ...env }
 
   beforeEach(() => {
-    import.meta.env.VITE_NODE_ENV = 'development'
-    import.meta.env.VITE_SUPABASE_URL = 'https://example.supabase.co'
-    import.meta.env.VITE_SUPABASE_ANON_KEY = 'key123'
-    import.meta.env.VITE_SOCKET_URL = 'https://socket.example.com'
+    env.VITE_NODE_ENV = 'development'
+    env.VITE_SUPABASE_URL = 'https://example.supabase.co'
+    env.VITE_SUPABASE_ANON_KEY = 'key123'
+    env.VITE_SOCKET_URL = 'https://socket.example.com'
   })
 
   afterEach(() => {
-    Object.keys(import.meta.env).forEach((key) => {
-      delete import.meta.env[key]
+    Object.keys(env).forEach((key) => {
+      delete env[key]
     })
-    Object.assign(import.meta.env, originalEnv)
+    Object.assign(env, originalEnv)
   })
 
   it('returns Ok with valid env config', () => {
@@ -25,7 +28,7 @@ describe('validate()', () => {
   })
 
   it('returns Err when VITE_NODE_ENV is invalid', () => {
-    import.meta.env.VITE_NODE_ENV = 'staging'
+    env.VITE_NODE_ENV = 'staging'
 
     const result = validateEnvConfig()
 
@@ -38,7 +41,7 @@ describe('validate()', () => {
   })
 
   it('returns Err when URL is invalid', () => {
-    import.meta.env.VITE_SUPABASE_URL = 'not-a-url'
+    env.VITE_SUPABASE_URL = 'not-a-url'
 
     const result = validateEnvConfig()
 
@@ -49,7 +52,7 @@ describe('validate()', () => {
   })
 
   it('returns Err when VITE_SUPABASE_ANON_KEY is missing', () => {
-    delete import.meta.env.VITE_SUPABASE_ANON_KEY
+    delete env.VITE_SUPABASE_ANON_KEY
 
     const result = validateEnvConfig()
 
@@ -60,9 +63,9 @@ describe('validate()', () => {
   })
 
   it('returns Err when multiple fields are invalid', () => {
-    import.meta.env.VITE_NODE_ENV = 'invalid'
-    import.meta.env.VITE_SUPABASE_URL = 'bad-url'
-    import.meta.env.VITE_SOCKET_URL = 'also-bad'
+    env.VITE_NODE_ENV = 'invalid'
+    env.VITE_SUPABASE_URL = 'bad-url'
+    env.VITE_SOCKET_URL = 'also-bad'
 
     const result = validateEnvConfig()
 

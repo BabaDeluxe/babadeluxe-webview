@@ -17,7 +17,7 @@ export function validateEnvConfig(): Result<void, EnvValidationError> {
 }
 
 function validateSchema<T>(schema: z.ZodType<T>): Result<void, EnvValidationError> {
-  // ts-ignore
+  // @ts-ignore
   const parseResult = schema.safeParse(import.meta.env)
 
   if (parseResult.error) {

@@ -93,7 +93,7 @@
             class="absolute top-full mt-1 right-0 bg-panel border border-borderMuted rounded-lg shadow-xl py-1 min-w-40 z-20 animate-in fade-in slide-in-from-top-2 duration-200"
             data-testid="message-menu-dropdown"
           >
-            <!-- Only show edit/rewrite for user messages -->
+            <!-- USER MESSAGES: Edit + Delete -->
             <template v-if="role === 'user'">
               <button
                 class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 first:rounded-t-lg"
@@ -104,31 +104,30 @@
                 <span>Edit Message</span>
               </button>
 
-              <div
-                v-if="showRewrite"
-                class="hover:bg-codeBg hover:text-deepText"
+              <div class="border-t border-borderMuted my-1" />
+            </template>
+
+            <!-- ASSISTANT MESSAGES: Rewrite + Delete -->
+            <template v-else-if="role === 'assistant'">
+              <DropdownSelector
+                v-model="_selectedModel"
+                icon="i-fluent:arrow-repeat"
+                :groups="_groupedModels"
+                :disabled="_isLoadingModels"
+                placement="right"
+                data-testid="message-rewrite-selector"
+                full-width
+                trigger-class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 justify-between cursor-pointer rounded-t-lg"
+                @update:model-value="onModelSelected"
               >
-                <DropdownSelector
-                  v-model="_selectedModel"
-                  icon="i-simple-icons:openai"
-                  :items="_availableModels"
-                  :disabled="_isLoadingModels || !!_modelsError"
-                  placement="bottom"
-                  @update:model-value="onModelSelected"
-                >
-                  <div
-                    class="w-full px-3 py-2.5 text-left text-sm text-subtleText transition-colors flex items-center gap-2.5 justify-between"
-                  >
-                    <div class="flex items-center gap-2.5">
-                      <i class="i-simple-icons:openai text-base" />
-                      <span v-if="_isLoadingModels">Loading models...</span>
-                      <span v-else-if="_modelsError">Error loading models</span>
-                      <span v-else>Rewrite with...</span>
-                    </div>
-                    <i class="i-weui:arrow-outlined rotate-90 text-xs opacity-50" />
-                  </div>
-                </DropdownSelector>
-              </div>
+                <div class="flex items-center gap-2.5">
+                  <i class="i-fluent:arrow-repeat text-base" />
+                  <span v-if="_isLoadingModels">Loading models...</span>
+                  <span v-else-if="_modelsError">Error loading models</span>
+                  <span v-else>Rewrite with...</span>
+                </div>
+                <i class="i-weui:arrow-outlined rotate-90 text-xs opacity-50" />
+              </DropdownSelector>
 
               <div class="border-t border-borderMuted my-1" />
             </template>
@@ -156,35 +155,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import { useTextareaAutosize } from '@vueuse/core'
-import type { ConsoleLogger } from '@simwai/utils'
 import type { Message } from '@/database/types'
-import type { KeyValueStore } from '@/database/key-value-store'
-import type { AppDb } from '@/database/app-db'
-import { APP_DB_KEY, KEY_VALUE_STORE_KEY, LOGGER_KEY } from '@/injection-keys'
-import { useDropdown } from '@/composables/use-dropdown-state'
+import { useDropdown } from '@/composables/use-dropdown'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import MarkdownRenderItem from './MarkdownRenderItem.vue'
 import AvatarItem from './AvatarItem.vue'
 import DropdownSelector from './DropdownSelector.vue'
 import ErrorBanner from './ErrorBanner.vue'
 
-const _appDb: AppDb = inject(APP_DB_KEY)!
-const _keyValueStore: KeyValueStore = inject(KEY_VALUE_STORE_KEY)!
-const _logger: ConsoleLogger = inject(LOGGER_KEY)!
-
+// TODO: Check the unused container ref
 const { isOpen, containerRef, toggle, close } = useDropdown()
 const { textarea: _textareaRef, input: _editValue } = useTextareaAutosize()
 const {
-  groupedModels: _groupedModels,
+  groupedModels: _rawGroupedModels,
   isLoadingModels: _isLoadingModels,
   modelsError: _modelsError,
 } = useModelsSocket()
 
-type Item = { value: string; label: string; icon?: string }
-type ItemGroup = { label: string; items: Item[] }
-type ItemGroupWithIcon = ItemGroup & { icon?: string }
 type ActiveChatItemEmitter = {
   delete: [id: number]
   update: [id: number, content: string]
@@ -196,8 +185,8 @@ defineExpose({ markdownRef })
 
 const _isEditing = ref(false)
 const _isSaving = ref(false)
-const _selectedModel = ref<string>('')
 const _errorMessage = ref('')
+const _selectedModel = ref('')
 
 const props = withDefaults(defineProps<Message & { showRewrite?: boolean }>(), {
   isStreaming: false,
@@ -211,26 +200,19 @@ const bubbleClass = computed(() => {
   throw new Error(`Unsupported role "${props.role}"`)
 })
 
-const _availableModels = computed((): Item[] => {
-  const areModelsUnavailable = !_groupedModels.value || _groupedModels.value.length === 0
-  if (areModelsUnavailable) {
-    return []
-  }
-
-  const allModels = _groupedModels.value.flatMap((group: ItemGroup) => {
-    const modelsInGroup = group.items.map((item: Item) => {
-      const defaultIcon = 'i-weui:info-outlined'
-      return {
-        value: item.value,
-        label: item.label,
-        icon: (group as ItemGroupWithIcon).icon || defaultIcon,
-      }
-    })
-    return modelsInGroup
-  })
-
-  return allModels
-})
+// TODO It shouldn't send disabled, the models should be well-prepared server-side
+// I think the update of the models if a model changes is also not handled already
+const _groupedModels = computed(() =>
+  _rawGroupedModels.value.map((group) => ({
+    label: group.label,
+    items: group.items.map((item) => ({
+      value: item.value,
+      label: item.label,
+      icon: item.icon,
+      disabled: item.disabled ?? false, // default
+    })),
+  }))
+)
 
 async function startEdit() {
   _editValue.value = props.content
@@ -262,19 +244,8 @@ async function saveEdit() {
     return
   }
 
-  const updateResult = await _appDb.updateMessage(props.id, trimmedValue)
-
-  if (updateResult.isErr()) {
-    _logger.error(
-      `Failed to save message edit after user clicked save button for message id: ${props.id}`,
-      updateResult.error.message
-    )
-    _errorMessage.value = "Couldn't save the message edit. Please try again."
-    _isSaving.value = false
-    return
-  }
-
   emit('update', props.id, trimmedValue)
+
   _isEditing.value = false
   _editValue.value = ''
   _isSaving.value = false
@@ -285,14 +256,6 @@ async function handleDelete() {
   emit('delete', props.id)
   close()
 }
-
-function selectModel(model: Item) {
-  _selectedModel.value = model.value
-  close()
-
-  emit('rewrite', props.id, model.value)
-}
-
 function handleKeydown(event: KeyboardEvent) {
   if (_isSaving.value) {
     event.preventDefault()
@@ -313,45 +276,9 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-function onModelSelected(id: string) {
-  const model = _availableModels.value.find((model) => model.value === id)
-  if (model) {
-    selectModel(model)
-  }
+function onModelSelected(modelId: string) {
+  close() // Close the main menu
+  emit('rewrite', props.id, modelId)
+  _selectedModel.value = '' // Reset selection
 }
-
-watch(
-  [_availableModels, () => _selectedModel.value],
-  async ([models, currentSelection]) => {
-    const hasModels = models.length > 0
-    const hasSelection = !!currentSelection
-
-    if (!hasModels || hasSelection) {
-      return
-    }
-
-    const getResult = await _keyValueStore.get('selected-rewrite-model')
-
-    if (getResult.isErr()) {
-      _logger.warn(
-        'Failed to load saved rewrite model preference, using first available model:',
-        getResult.error.message
-      )
-      _selectedModel.value = models[0].value
-      return
-    }
-
-    const storedModelId = getResult.value
-    const isStoredModelValid =
-      storedModelId && models.some((model) => model.value === storedModelId)
-
-    if (isStoredModelValid) {
-      _selectedModel.value = storedModelId
-      return
-    }
-
-    _selectedModel.value = models[0].value
-  },
-  { immediate: true }
-)
 </script>

@@ -10,6 +10,7 @@ const testEnvSchema = z.object({
   SUPABASE_PROJECT_REF: z.string().min(1),
   TEST_USER_EMAIL: z.email(),
   TEST_USER_PASSWORD: z.string().min(8),
+  OPENAI_API_KEY: z.string(),
 })
 
 export type TestEnvConfig = z.infer<typeof testEnvSchema>

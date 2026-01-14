@@ -19,8 +19,6 @@
     >
       <span class="text-error">{{ loadError }}</span>
     </div>
-
-    <!-- Warning -->
     <div
       v-if="modelsReloadWarning"
       data-testid="models-reload-warning"
@@ -158,12 +156,11 @@ import { ResultAsync } from 'neverthrow'
 import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
 import { getApiProviders } from '@/settings-utils'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
-import { reloadModels } from '@/composables/use-models-socket'
+import { useModelsSocket } from '@/composables/use-models-socket'
 import SettingField from '@/components/SettingField.vue'
-import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { API_KEY_VALIDATOR_KEY, LOGGER_KEY } from '@/injection-keys'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { ApiKeyValidator } from '@/api-key-validator'
-import type { SocketManager } from '@/socket-manager'
 import { InvalidApiKeyError, LlmRateLimitedError } from '@/errors'
 
 type FieldStatus = 'idle' | 'validating' | 'valid' | 'invalid'
@@ -177,9 +174,9 @@ type FieldState = {
 
 const logger: ConsoleLogger = inject(LOGGER_KEY)!
 const validator: ApiKeyValidator = inject(API_KEY_VALIDATOR_KEY)!
-const socketManager: SocketManager = inject(SOCKET_MANAGER_KEY)!
 
 const { settings, upsertSetting, loadSettings } = useSettingsSocket()
+const { reloadModels } = useModelsSocket()
 const apiProviders = getApiProviders()
 
 const fieldStates = ref<Record<string, FieldState>>(
@@ -201,10 +198,11 @@ const isDebounceStopped = ref(false)
 const modelsReloadWarning = ref<string>()
 
 const generalSettings = computed(() =>
-  settings.value.filter((s) => !s.settingKey.startsWith('apiKey'))
+  settings.value.filter((setting) => !setting.settingKey.startsWith('apiKey'))
 )
 
-const getSettingByKey = (key: string) => settings.value.find((s) => s.settingKey === key)
+const getSettingByKey = (key: string) =>
+  settings.value.find((setting) => setting.settingKey === key)
 
 const hydrateFieldStates = () => {
   for (const provider of apiProviders) {
@@ -299,9 +297,7 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
 
   updateFieldStatus(provider, 'valid')
   upsertSetting(provider, apiKey, definition.dataType)
-
-  const reloadModelsResult = await reloadModels(socketManager, logger)
-
+  const reloadModelsResult = await reloadModels()
   if (reloadModelsResult.isErr()) {
     logger.error('Failed to reload models after API key validation:', reloadModelsResult.error)
     modelsReloadWarning.value =

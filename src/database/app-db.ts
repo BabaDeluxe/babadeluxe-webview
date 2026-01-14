@@ -1,12 +1,11 @@
 import { Dexie, type Table } from 'dexie'
-import { ok, err, type Result, ResultAsync } from 'neverthrow'
+import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import type { Conversation, Message } from '@/database/types'
 import type { ConsoleLogger } from '@simwai/utils'
 import { DbError } from '@/errors'
-import { SafeTable, DexieError } from '@/database/safe-table'
-type NewMessage = Omit<Message, 'id' | 'timestamp'> & {
-  timestamp?: Date
-}
+import { DexieError, SafeTable } from '@/database/safe-table'
+
+type NewMessage = Omit<Message, 'id' | 'timestamp'> & { timestamp?: Date }
 
 export class AppDb extends Dexie {
   conversation!: SafeTable<Conversation, Conversation, number>
@@ -16,54 +15,25 @@ export class AppDb extends Dexie {
 
   constructor(private readonly _logger: ConsoleLogger) {
     super('AppDb')
-
-    this.version(1).stores({
-      conversation: '++id, title, isActive, createdAt, updatedAt, messageCount',
-      message: '++id, conversationId, role, timestamp',
-    })
-    this._conversationTable = this.table<Conversation, number>('conversation')
-    this._messageTable = this.table<Message, number>('message')
-
-    this._conversationTable.hook(
-      'creating',
-      (_primaryKey: number | undefined, myObject: Conversation) => {
-        const now = new Date()
-        myObject.createdAt = now
-        myObject.updatedAt = now
-        myObject.isActive = 1
-      }
-    )
-
-    this._conversationTable.hook('updating', function () {
-      return { updatedAt: new Date() }
-    })
-
-    this._messageTable.hook('creating', (_primaryKey: number | undefined, myObject: Message) => {
-      if (myObject.timestamp === undefined) {
-        myObject.timestamp = new Date()
-      }
-    })
-
-    this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
-    this.message = new SafeTable<Message, NewMessage, number>(this._messageTable)
+    this._declareVersions()
+    this._bindTables()
+    this._setupHooks()
+    this._wrapSafeTables()
   }
 
   async getMessageByConversation(
     conversationId: number
   ): Promise<Result<readonly Message[], DbError>> {
-    const result = await this.message.where('conversationId').equals(conversationId).toArray()
-
+    const result = await this.message.where('conversationId').equals(conversationId).sortBy('id')
     if (result.isErr()) {
       this._logger.error('Failed to get messages by conversation:', result.error)
       return err(this._toDomainError(result.error))
     }
-
     return ok(result.value)
   }
 
   async getAllConversations(): Promise<Result<readonly Conversation[], DbError>> {
     const result = await this.conversation.toArray()
-
     if (result.isErr()) {
       this._logger.error('Failed to get all conversations:', result.error)
       return err(this._toDomainError(result.error))
@@ -73,7 +43,7 @@ export class AppDb extends Dexie {
   }
 
   async deleteConversationWithMessage(conversationId: number): Promise<Result<void, DbError>> {
-    return ResultAsync.fromPromise(
+    const result = await ResultAsync.fromPromise(
       this.transaction('rw', this._conversationTable, this._messageTable, async () => {
         await this._messageTable.where('conversationId').equals(conversationId).delete()
         await this._conversationTable.delete(conversationId)
@@ -86,6 +56,8 @@ export class AppDb extends Dexie {
         return this._toDomainError(error)
       }
     )
+
+    return result
   }
 
   async createMessage(data: Omit<Message, 'id' | 'timestamp'>): Promise<Result<number, DbError>> {
@@ -93,12 +65,10 @@ export class AppDb extends Dexie {
       typeof data.content === 'string' ? data.content : await Promise.resolve(data.content)
 
     const conversationResult = await this.conversation.get(data.conversationId)
-
     if (conversationResult.isErr()) {
       this._logger.error('Failed to verify conversation exists:', conversationResult.error)
       return err(this._toDomainError(conversationResult.error))
     }
-
     if (conversationResult.value === undefined) {
       const error = new DbError(
         `Cannot create message: Conversation ${data.conversationId} missing`
@@ -107,18 +77,18 @@ export class AppDb extends Dexie {
       return err(error)
     }
 
-    return ResultAsync.fromPromise(
+    const result = await ResultAsync.fromPromise(
       this.transaction('rw', this._conversationTable, this._messageTable, async () => {
         const messageData: NewMessage = {
           conversationId: data.conversationId,
           role: data.role,
           content: resolvedContent,
           isStreaming: data.isStreaming ?? false,
+          model: data.model,
+          systemPrompt: data.systemPrompt,
         }
-
         const addResult = await this.message.add(messageData)
         if (addResult.isErr()) throw addResult.error
-
         return addResult.value
       }),
       (error) => {
@@ -129,30 +99,16 @@ export class AppDb extends Dexie {
         return this._toDomainError(error)
       }
     )
-  }
 
-  async updateMessage(id: number, content: string): Promise<Result<number, DbError>> {
-    const result = await this.message.update(id, { content })
-
-    if (result.isErr()) {
-      this._logger.error('Failed to update message:', result.error)
-      return err(this._toDomainError(result.error))
-    }
-
-    return ok(result.value)
+    return result
   }
 
   async deleteMessage(id: number): Promise<Result<void, DbError>> {
-    return ResultAsync.fromPromise(
+    const result = await ResultAsync.fromPromise(
       this.transaction('rw', this._conversationTable, this._messageTable, async () => {
         const message = await this._messageTable.get(id)
-
-        if (!message) {
-          return
-        }
-
+        if (!message) return
         await this._messageTable.delete(id)
-
         await this._deleteEmptyConversation(message.conversationId)
       }),
       (error) => {
@@ -163,53 +119,74 @@ export class AppDb extends Dexie {
         return this._toDomainError(error)
       }
     )
+
+    return result
+  }
+
+  async updateMessage(id: number, content: string): Promise<Result<number, DbError>> {
+    const result = await this.message.update(id, { content, isStreaming: false })
+    if (result.isErr()) {
+      this._logger.error('Failed to update message:', result.error)
+      return err(this._toDomainError(result.error))
+    }
+
+    return ok(result.value)
   }
 
   async getStreamingMessages(): Promise<Result<Message[], DbError>> {
     const allMessagesResult = await this.message.toArray()
-
     if (allMessagesResult.isErr()) {
       this._logger.error('Failed to get streaming messages:', allMessagesResult.error)
       return err(this._toDomainError(allMessagesResult.error))
     }
-    const streamingMessages = allMessagesResult.value.filter((msg) => msg.isStreaming === true)
 
-    return ok(streamingMessages)
+    return ok(allMessagesResult.value.filter((message) => message.isStreaming === true))
   }
 
-  async appendChunkToDb(messageId: number, chunk: string): Promise<Result<void, DbError>> {
-    const getResult = await this.message.get(messageId)
-
-    if (getResult.isErr()) {
-      this._logger.error('Failed to get message for appending chunk:', getResult.error)
-      return err(this._toDomainError(getResult.error))
-    }
-
-    const message = getResult.value
-
-    if (message === undefined) {
-      const error = new DbError(`Message ${messageId} not found`)
-      this._logger.error('Message not found for chunk append:', error)
-      return err(error)
-    }
-    const updatedContent = message.content + chunk
-    const updateResult = await this.message.update(messageId, { content: updatedContent })
-
-    if (updateResult.isErr()) {
-      this._logger.error('Failed to update message with appended chunk:', updateResult.error)
-      return err(this._toDomainError(updateResult.error))
-    }
-
-    return ok(undefined)
+  private _declareVersions(): void {
+    this.version(1).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt, messageCount',
+      message: '++id, conversationId, role, timestamp',
+    })
+    this.version(2).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt, messageCount',
+      message: '++id, conversationId, role, timestamp, model',
+    })
   }
+
+  private _bindTables(): void {
+    this._conversationTable = this.table<Conversation, number>('conversation')
+    this._messageTable = this.table<Message, number>('message')
+  }
+
+  private _setupHooks(): void {
+    this._conversationTable.hook(
+      'creating',
+      (_primaryKey: number | undefined, myObject: Conversation) => {
+        const now = new Date()
+        myObject.createdAt = now
+        myObject.updatedAt = now
+        myObject.isActive = 1
+      }
+    )
+
+    this._conversationTable.hook('updating', () => ({ updatedAt: new Date() }))
+
+    this._messageTable.hook('creating', (_primaryKey: number | undefined, myObject: Message) => {
+      if (myObject.timestamp === undefined) myObject.timestamp = new Date()
+    })
+  }
+
+  private _wrapSafeTables(): void {
+    this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
+    this.message = new SafeTable<Message, NewMessage, number>(this._messageTable)
+  }
+
   private async _deleteEmptyConversation(conversationId: number): Promise<void> {
     const count = await this._messageTable.where('conversationId').equals(conversationId).count()
-    if (count !== 0) {
-      return
-    }
+    if (count !== 0) return
 
     await this._conversationTable.delete(conversationId)
-
     this._logger.log(`Cascade deleted empty conversation ${conversationId}`)
   }
 

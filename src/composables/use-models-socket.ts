@@ -1,23 +1,29 @@
-import { ref, computed, inject, onMounted, onBeforeUnmount } from 'vue'
-import { err, ok, Result, ResultAsync } from 'neverthrow'
+import { ref, computed, inject, onUnmounted } from 'vue'
+import { type Result, err, ok, ResultAsync } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
+import { BaseError } from '@babadeluxe/shared/utils'
 import type { SocketManager } from '@/socket-manager'
 import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
-import { ModelsFetchError, PostMessageError } from '@/errors'
+import { ModelsFetchError } from '@/errors'
+
+export class ModelsReloadError extends BaseError {}
 
 const providers = ['openai', 'anthropic', 'gemini'] as const
 type Provider = (typeof providers)[number]
 
-interface Item {
+export interface Item {
   value: string
   label: string
   icon?: string
+  disabled: boolean
 }
 
-interface ItemGroup {
+export interface ItemGroup {
   label: string
   items: Item[]
 }
+
+const modelsLoadedCount = ref(0)
 
 const stripModelPrefix = (models: string[]): string[] => {
   const result: string[] = []
@@ -130,29 +136,37 @@ const getProviderDisplayName = (provider: Provider): string => {
   return displayNames[provider]
 }
 
-// Singleton state
 const models = ref<Record<Provider, string[]>>({
   openai: [],
   anthropic: [],
   gemini: [],
 })
+
 const isLoadingModels = ref(false)
 const modelsError = ref<string>()
 let fetchPromise: Promise<Result<void, ModelsFetchError>> | undefined
 
-// Standalone init function
 export async function initializeModels(
   socketManager: SocketManager,
   logger: ConsoleLogger
 ): Promise<Result<void, ModelsFetchError>> {
-  if (fetchPromise !== undefined) {
-    return await fetchPromise
-  }
+  if (fetchPromise !== undefined) return await fetchPromise
 
   isLoadingModels.value = true
   modelsError.value = undefined
 
   const fetchWork = async (): Promise<Result<void, ModelsFetchError>> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (typeof window !== 'undefined' && (window as any).__TEST_MODELS__) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const testModels = (window as any).__TEST_MODELS__
+      models.value = filterModelsByProvider(testModels)
+      modelsLoadedCount.value++
+      logger.log('Using test models')
+      isLoadingModels.value = false
+      return ok()
+    }
+
     const modelsSocket = socketManager.modelsSocket
 
     const waitResult = await modelsSocket.waitForConnection()
@@ -176,7 +190,11 @@ export async function initializeModels(
             'models:listAllModels',
             (response: {
               success: boolean
-              models?: { openai: string[]; anthropic: string[]; gemini: string[] }
+              models?: {
+                openai: Array<{ modelId: string; contextWindow?: number; source?: string }>
+                anthropic: Array<{ modelId: string; contextWindow?: number; source?: string }>
+                gemini: Array<{ modelId: string; contextWindow?: number; source?: string }>
+              }
               error?: string
             }) => {
               clearTimeout(timeoutId)
@@ -191,7 +209,11 @@ export async function initializeModels(
                 return
               }
 
-              resolve(response.models)
+              resolve({
+                openai: response.models.openai.map((message) => message.modelId),
+                anthropic: response.models.anthropic.map((message) => message.modelId),
+                gemini: response.models.gemini.map((message) => message.modelId),
+              })
             }
           )
         }
@@ -208,6 +230,8 @@ export async function initializeModels(
 
     const rawModels = listResult.value
     models.value = filterModelsByProvider(rawModels)
+    modelsError.value = undefined
+    modelsLoadedCount.value++
     logger.log('Models loaded and filtered')
     isLoadingModels.value = false
 
@@ -221,88 +245,54 @@ export async function initializeModels(
   return fetchResult
 }
 
-const modelsChannel = new BroadcastChannel('models-sync')
-
-// Force reload (on e.g. LLM API key change of user)
-export async function reloadModels(
-  socketManager: SocketManager,
-  logger: ConsoleLogger
-): Promise<Result<void, ModelsFetchError | PostMessageError>> {
-  logger.log('🔄 Forcing models reload...')
-  fetchPromise = undefined
-
-  const initResult = await initializeModels(socketManager, logger)
-  if (initResult.isErr()) return err(initResult.error)
-
-  // Notify other tabs
-  const postResult = Result.fromThrowable(
-    () => {
-      modelsChannel.postMessage({ type: 'reload' })
-    },
-    (error) =>
-      new PostMessageError(error instanceof DOMException ? error.message : 'Unknown exception')
-  )()
-
-  if (postResult.isErr()) {
-    logger.warn('Failed to notify other tabs:', postResult.error.message)
-  }
-
-  // Success even if broadcast fails, because it's not mandatory to receive the update on each tab to make the application work
-  return ok(undefined)
-}
-
-modelsChannel.onmessage = (event) => {
-  if (event.data.type === 'reload') {
-    console.log('🔔 Models reload triggered by another tab')
-    fetchPromise = undefined
-  }
-}
-
-// Composable for components
 export function useModelsSocket() {
   const socketManager: SocketManager = inject(SOCKET_MANAGER_KEY)!
   const logger: ConsoleLogger = inject(LOGGER_KEY)!
+  const modelsSocket = socketManager.modelsSocket
 
-  const groupedModels = computed<ItemGroup[]>(() => {
-    return providers.map((provider) => ({
-      label: getProviderDisplayName(provider),
-      items: models.value[provider].map((model) => ({
-        value: `${provider}:${model}`,
-        label: model,
-        icon: getProviderIcon(provider),
-      })),
-    }))
-  })
+  // Listen for server-side models update broadcast
+  const handleModelsUpdate = async () => {
+    logger.log('🔔 Reloading models due to server update')
+    fetchPromise = undefined
+    const initResult = await initializeModels(socketManager, logger)
 
-  const reload = async (): Promise<Result<void, ModelsFetchError | PostMessageError>> =>
-    await reloadModels(socketManager, logger)
-
-  // Auto-reload when other tabs update
-  const handleMessage = async (event: MessageEvent) => {
-    if (event.data.type === 'reload' && socketManager && logger) {
-      logger.log('🔔 Reloading models due to cross-tab update')
-      fetchPromise = undefined
-      const initResult = await initializeModels(socketManager, logger)
-
-      if (initResult.isErr()) {
-        logger.error('Failed to reload from cross-tab:', initResult.error)
-      }
+    if (initResult.isErr()) {
+      logger.error('Failed to reload models after server update:', initResult.error)
     }
   }
 
-  onMounted(() => {
-    modelsChannel.addEventListener('message', handleMessage)
+  modelsSocket.on('models:updated', handleModelsUpdate)
+
+  onUnmounted(() => {
+    modelsSocket.off('models:updated', handleModelsUpdate)
   })
 
-  onBeforeUnmount(() => {
-    modelsChannel.removeEventListener('message', handleMessage)
+  const groupedModels = computed<ItemGroup[]>(() => {
+    return providers
+      .map((provider) => ({
+        label: getProviderDisplayName(provider),
+        items: models.value[provider].map((model) => ({
+          value: `${provider}:${model}`,
+          label: model,
+          icon: getProviderIcon(provider),
+          disabled: false,
+        })),
+      }))
+      .filter((group) => group.items.length > 0)
   })
+
+  const reload = async (): Promise<Result<void, ModelsFetchError>> => {
+    logger.log('🔄 Forcing models reload...')
+    fetchPromise = undefined
+    return await initializeModels(socketManager, logger)
+  }
 
   return {
     models,
     groupedModels,
     isLoadingModels,
     modelsError,
+    modelsLoadedCount,
     reloadModels: reload,
   }
 }

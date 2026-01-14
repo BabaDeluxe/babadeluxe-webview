@@ -27,6 +27,13 @@ export class SafeCollection<T, TKey> {
     )
   }
 
+  async sortBy(keyPath: string): Promise<Result<T[], DexieError>> {
+    return await ResultAsync.fromPromise(
+      this._collection.sortBy(keyPath),
+      (error) => new DexieError('sortBy', this._tableName, error as Error)
+    )
+  }
+
   async count(): Promise<Result<number, DexieError>> {
     return await ResultAsync.fromPromise(
       this._collection.count(),
