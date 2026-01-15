@@ -390,7 +390,7 @@ test.describe('Chat View Race Conditions E2E', () => {
       await editButton.waitFor({ state: 'attached', timeout: 3000 })
       await editButton.click()
 
-      const textarea = userMessage.getByTestId('message-edit-textarea')
+      const textarea = userMessage.getByTestId('editable-textarea')
       await textarea.waitFor({ state: 'attached', timeout: 3000 })
       await textarea.fill('Edited content')
 
@@ -398,7 +398,7 @@ test.describe('Chat View Race Conditions E2E', () => {
       await sendButton.waitFor({ state: 'attached', timeout: 3000 })
       await sendButton.click()
 
-      const saveButton = userMessage.getByTestId('message-save-button')
+      const saveButton = userMessage.getByTestId('editable-save-button')
       await saveButton.waitFor({ state: 'attached', timeout: 3000 })
       await saveButton.click()
 
@@ -432,12 +432,12 @@ test.describe('Chat View Race Conditions E2E', () => {
       await editButton.waitFor({ state: 'attached', timeout: 3000 })
       await editButton.click()
 
-      const textarea = userMessage.getByTestId('message-edit-textarea')
+      const textarea = userMessage.getByTestId('editable-textarea')
       await textarea.waitFor({ state: 'attached', timeout: 3000 })
       await expect(textarea).toBeVisible()
       await textarea.fill('Edited message content')
 
-      const saveButton = userMessage.getByTestId('message-save-button')
+      const saveButton = userMessage.getByTestId('editable-save-button')
       await saveButton.waitFor({ state: 'attached', timeout: 3000 })
       await saveButton.click()
 
@@ -459,11 +459,11 @@ test.describe('Chat View Race Conditions E2E', () => {
       await editButton.waitFor({ state: 'attached', timeout: 3000 })
       await editButton.click()
 
-      const textarea = userMessage.getByTestId('message-edit-textarea')
+      const textarea = userMessage.getByTestId('editable-textarea')
       await textarea.waitFor({ state: 'attached', timeout: 3000 })
       await textarea.fill('Updated content')
 
-      const saveButton = userMessage.getByTestId('message-save-button')
+      const saveButton = userMessage.getByTestId('editable-save-button')
       await saveButton.waitFor({ state: 'attached', timeout: 3000 })
       await saveButton.click()
       await textarea.waitFor({ state: 'hidden', timeout: 5000 })
@@ -486,11 +486,11 @@ test.describe('Chat View Race Conditions E2E', () => {
       await editButton.waitFor({ state: 'attached', timeout: 3000 })
       await editButton.click()
 
-      const textarea = userMessage.getByTestId('message-edit-textarea')
+      const textarea = userMessage.getByTestId('editable-textarea')
       await textarea.waitFor({ state: 'attached', timeout: 3000 })
       await textarea.fill('Testing save loading state')
 
-      const saveButton = userMessage.getByTestId('message-save-button')
+      const saveButton = userMessage.getByTestId('editable-save-button')
       await saveButton.waitFor({ state: 'attached', timeout: 3000 })
       await saveButton.click()
 
@@ -514,12 +514,12 @@ test.describe('Chat View Race Conditions E2E', () => {
       await editButton.waitFor({ state: 'attached', timeout: 3000 })
       await editButton.click()
 
-      const textarea = userMessage.getByTestId('message-edit-textarea')
+      const textarea = userMessage.getByTestId('editable-textarea')
       await textarea.waitFor({ state: 'attached', timeout: 3000 })
       const originalContent = await textarea.inputValue()
       await textarea.fill('This should be cancelled')
 
-      const cancelButton = userMessage.getByTestId('message-cancel-button')
+      const cancelButton = userMessage.getByTestId('editable-cancel-button')
       await cancelButton.waitFor({ state: 'attached', timeout: 3000 })
       await cancelButton.click()
       await expect(textarea).not.toBeVisible({ timeout: 5000 })
@@ -598,11 +598,11 @@ test.describe('Chat View Race Conditions E2E', () => {
       await editButton.waitFor({ state: 'attached', timeout: 3000 })
       await editButton.click()
 
-      const textarea = userMessage.getByTestId('message-edit-textarea')
+      const textarea = userMessage.getByTestId('editable-textarea')
       await textarea.waitFor({ state: 'attached', timeout: 3000 })
       await textarea.fill('Edited first message - triggers regenerate')
 
-      const saveButton = userMessage.getByTestId('message-save-button')
+      const saveButton = userMessage.getByTestId('editable-save-button')
       await saveButton.waitFor({ state: 'attached', timeout: 3000 })
       await saveButton.click()
       await expect(textarea).not.toBeVisible({ timeout: 5000 })
@@ -648,11 +648,11 @@ test.describe('Chat View Race Conditions E2E', () => {
       await editButton.waitFor({ state: 'attached', timeout: 3000 })
       await editButton.click()
 
-      const textarea = userMessage.getByTestId('message-edit-textarea')
+      const textarea = userMessage.getByTestId('editable-textarea')
       await textarea.waitFor({ state: 'attached', timeout: 3000 })
       await textarea.fill('Testing ID preservation')
 
-      const saveButton = userMessage.getByTestId('message-save-button')
+      const saveButton = userMessage.getByTestId('editable-save-button')
       await saveButton.waitFor({ state: 'attached', timeout: 3000 })
       await saveButton.click()
       await expect(textarea).not.toBeVisible({ timeout: 5000 })
@@ -702,11 +702,11 @@ test.describe('Chat View Race Conditions E2E', () => {
       await editButton.waitFor({ state: 'attached', timeout: 3000 })
       await editButton.click()
 
-      const textarea = userMessage.getByTestId('message-edit-textarea')
+      const textarea = userMessage.getByTestId('editable-textarea')
       await textarea.waitFor({ state: 'attached', timeout: 3000 })
       await textarea.fill('Edited after abort')
 
-      const saveButton = userMessage.getByTestId('message-save-button')
+      const saveButton = userMessage.getByTestId('editable-save-button')
       await saveButton.waitFor({ state: 'attached', timeout: 3000 })
       await saveButton.click()
       await expect(textarea).not.toBeVisible({ timeout: 5000 })
