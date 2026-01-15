@@ -1,5 +1,5 @@
 {
-  "unocss.autocomplete.strict": true,
+  "unocss.autocomplete.strict": false,
   "search.quickOpen.includeHistory": true,
   "typescript.suggest.autoImports": true,
   "typescript.preferences.importModuleSpecifierEnding": "js",
@@ -8,6 +8,7 @@
   "javascript.suggest.paths": true,
   "javascript.format.semicolons": "remove",
   "typescript.format.semicolons": "remove",
+  "typescript.preferences.includePackageJsonAutoImports": "on",
   "vue.format.wrapAttributes": "auto",
   "vue.format.script.initialIndent": false,
   "vue.format.style.initialIndent": false,
