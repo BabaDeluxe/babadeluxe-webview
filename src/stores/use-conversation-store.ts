@@ -52,8 +52,8 @@ export const useConversationStore = defineStore('conversation', () => {
 
     try {
       initializePromise = (async () => {
-        await initializeCurrentConversation()
         await loadConversations()
+        await initializeCurrentConversation()
         await resumeInterruptedStreams()
       })()
 

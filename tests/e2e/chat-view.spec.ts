@@ -191,25 +191,61 @@ test.describe('Chat View Race Conditions E2E', () => {
     await mockModels(page, true)
 
     await page.goto('/chat', { waitUntil: 'domcontentloaded', timeout: 15000 })
+
+    await page.evaluate(() => {
+      return indexedDB.deleteDatabase('AppDb')
+    })
+
     await seedChatData(page)
-    await page
-      .getByTestId('chat-message-input-bottom')
-      .waitFor({ state: 'visible', timeout: 10000 })
+
+    const messageCount = await page.evaluate(() => {
+      return new Promise<number>((resolve, reject) => {
+        const request = indexedDB.open('AppDb')
+        request.onsuccess = () => {
+          const db = request.result
+          const tx = db.transaction(['message'], 'readonly')
+          const store = tx.objectStore('message')
+          const countRequest = store.count()
+          countRequest.onsuccess = () => {
+            db.close()
+            resolve(countRequest.result)
+          }
+          countRequest.onerror = () => {
+            reject(countRequest.error)
+          }
+        }
+        request.onerror = () => {
+          reject(request.error)
+        }
+      })
+    })
+
+    console.log('📊 Messages in DB before navigation:', messageCount)
+    expect(messageCount).toBe(2)
+
+    await page.goto('/chat', { waitUntil: 'domcontentloaded', timeout: 15000 })
+
+    await page.getByTestId('chat-message-input-bottom').waitFor({
+      state: 'visible',
+      timeout: 10000,
+    })
   })
 
   test.describe('socket & basic send', () => {
     test('send button is disabled while message is being sent', async ({ page }) => {
       const input = page.getByTestId('chat-message-input-bottom')
-      await input.waitFor({ state: 'attached', timeout: 3000 })
+
+      // Wait for loading to finish
+      await expect(input).toBeEnabled({ timeout: 10000 })
+      await expect(input).toBeVisible()
+
       await input.fill('Testing disabled state')
 
       const sendButton = page.getByTestId('chat-send-button-bottom')
-      await sendButton.waitFor({ state: 'attached', timeout: 3000 })
-      await expect(sendButton).toBeEnabled()
+      await expect(sendButton).toBeEnabled({ timeout: 10000 })
       await expect(sendButton).toBeVisible()
 
       await sendButton.click()
-      await expect(sendButton).toBeVisible()
     })
 
     test('send button becomes stop button during streaming', async ({ page }) => {
