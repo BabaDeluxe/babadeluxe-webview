@@ -50,9 +50,7 @@ function ensureChatSocketListeners(chatSocket: SocketManager): void {
   if (!handlers) {
     const onChunk = (payload: MessageChunkPayload) => {
       const state = messageStateById.get(payload.messageId)
-      if (!state) return
-
-      if (!Number.isFinite(payload.sequence)) return
+      if (!state || !Number.isFinite(payload.sequence)) return
 
       if (payload.sequence <= state.lastSequence) return
 

@@ -5,7 +5,7 @@
   >
     <div class="flex flex-row w-full items-center justify-center gap-2 px-4 pt-4">
       <i class="i-weui:search-outlined text-3xl text-subtleText" />
-      <TextItem
+      <BaseTextField
         ref="searchInputRef"
         v-model:value="searchQuery"
         placeholder="Search for a message"
@@ -190,7 +190,7 @@
             </template>
 
             <template v-else>
-              <ActiveChatItem
+              <ChatMessage
                 v-for="message in selectedConversationMessages"
                 :key="message.id"
                 v-bind="message"
@@ -301,7 +301,7 @@
             </template>
 
             <template v-else>
-              <ActiveChatItem
+              <ChatMessage
                 v-for="message in selectedConversationMessages"
                 :key="message.id"
                 v-bind="message"
@@ -396,7 +396,7 @@
     >
       <div class="bg-panel border border-borderMuted rounded-lg p-6 max-w-md w-full mx-4">
         <h3 class="text-lg font-medium mb-4 text-deepText">Rename Conversation</h3>
-        <TextItem
+        <BaseTextField
           v-model:value="renameDialog.title"
           placeholder="Enter new title"
           max-height="44px"
@@ -429,10 +429,10 @@ import { ref, onMounted, computed, inject, nextTick, watch, useTemplateRef } fro
 import { type Conversation } from '@/database/types'
 import { type ConsoleLogger } from '@simwai/utils'
 import { onClickOutside } from '@vueuse/core'
-import ActiveChatItem from '../components/ActiveChatItem.vue'
+import ChatMessage from '../components/ChatMessage.vue'
 import { useConversation } from '@/composables/use-conversation'
 import { type SearchService } from '@/search-service'
-import TextItem from '@/components/TextItem.vue'
+import BaseTextField from '@/components/BaseTextField.vue'
 import { KEY_VALUE_STORE_KEY, LOGGER_KEY, SEARCH_SERVICE_KEY } from '@/injection-keys'
 import { useSearch } from '@/composables/use-search'
 import { type KeyValueStore } from '@/database/key-value-store'

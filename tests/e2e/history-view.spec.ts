@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { authTest as test } from '../helpers/fixtures'
-import { seedTestData } from 'tests/helpers/e2e.js'
+import { seedTestData } from '../helpers/e2e'
 
 test.describe('History View E2E', () => {
   test.beforeEach(async ({ page, browserName }, testInfo) => {

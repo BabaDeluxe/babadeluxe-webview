@@ -26,14 +26,14 @@
             autocomplete="email"
           />
 
-          <ButtonItem
+          <BaseButton
             aria-label="Send Reset Link"
             type="submit"
             text="Send Reset Link"
             :disabled="isLoading || !email"
           />
 
-          <ButtonItem
+          <BaseButton
             aria-label="Back to Login"
             type="button"
             text="Back to Login"
@@ -66,7 +66,7 @@ import { inject, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ConsoleLogger } from '@simwai/utils'
 import { ok, err, type Result } from 'neverthrow'
-import ButtonItem from '../components/ButtonItem.vue'
+import BaseButton from '../components/BaseButton.vue'
 import type { SupabaseClientType } from '@/main'
 import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
 

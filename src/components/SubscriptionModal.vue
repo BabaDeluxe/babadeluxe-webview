@@ -69,13 +69,13 @@
                 <span>10 free messages per day</span>
               </li>
             </ul> -->
-            <ButtonItem
+            <BaseButton
               variant="secondary"
               class="mt-auto w-full"
               :disabled="true"
             >
               Your Current Plan
-            </ButtonItem>
+            </BaseButton>
           </div>
 
           <!-- Pro Plan -->
@@ -111,13 +111,13 @@
                 <span>Prioritized email support</span>
               </li>
             </ul>
-            <ButtonItem
+            <BaseButton
               class="mt-auto w-full"
               :disabled="isUpgrading"
               @click="handleUpgrade"
             >
               {{ isUpgrading ? 'Redirecting...' : 'Upgrade to Pro' }}
-            </ButtonItem>
+            </BaseButton>
           </div>
         </div>
       </div>
@@ -126,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import ButtonItem from '@/components/ButtonItem.vue'
+import BaseButton from '@/components/BaseButton.vue'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 
 defineProps<{

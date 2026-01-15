@@ -3,138 +3,69 @@
     id="chat"
     data-testid="chat-view-container"
     :data-models-loaded-count="modelsLoadedCount"
-    class="flex flex-col w-full h-full bg-slate overflow-x-hidden"
+    class="flex flex-col lg:max-w-80vw mx-auto h-full bg-slate overflow-x-hidden rounded"
   >
-    <div
+    <EmptyState
       v-if="messages.length === 0"
-      class="flex flex-col gap-0 px-4 py-6 w-full items-center"
-    >
-      <AvatarItem role="user" />
-      <div class="inline-flex h-full items-center justify-center text-xl text-deepText pt-2">
-        {{ `Hello ${currentUsername}, what's on your mind today?` }}
-      </div>
-    </div>
-    <ErrorBanner
-      :message="conversationError"
-      type="error"
-      @close="conversationError = undefined"
+      :greeting="`Hello ${currentUsername}, what's on your mind today?`"
     />
-    <ErrorBanner
-      :message="chatError"
-      type="error"
-      @close="chatError = undefined"
-    />
-    <ErrorBanner
-      :message="modelsError"
-      type="warning"
-      @close="modelsError = undefined"
-    />
-    <ErrorBanner
-      :message="promptsError"
-      type="warning"
-      @close="clearPromptsError"
-    />
-    <ErrorBanner
-      :message="modelsReloadWarning"
-      type="warning"
-      @close="modelsReloadWarning = undefined"
-    />
-    <ErrorBanner
-      :message="persistenceWarning"
-      type="warning"
-      @close="persistenceWarning = undefined"
-    />
-    <div class="flex flex-col flex-1 min-h-0">
+
+    <BaseAlertList :banners="activeBaseAlerts" />
+
+    <div class="flex flex-col w-full h-full">
       <div
         v-if="messages.length === 0"
         data-testid="empty-state-input-section"
         class="flex flex-col gap-0 px-4 py-2"
       >
-        <TextItem
-          ref="textInput"
-          v-model:value="currentMessage"
-          style="w-0"
+        <ChatInput
+          ref="ChatInputRef"
+          v-model="currentMessage"
+          :disabled="isLoadingConversation || isLoadingMessage"
+          :is-loading="isLoadingConversation || isLoadingMessage"
+          :is-submitting="isChatStreaming"
           placeholder="How can I help you today?"
-          data-testid="chat-message-input-top"
-          :disabled="isLoadingConversation || isSendingMessage"
-          @keydown.enter.exact.prevent="handleSendMessage"
-        />
-        <div
-          class="flex xs:flex-row flex-col justify-start xs:justify-center items-center border border-borderMuted rounded bg-panel overflow-hidden"
+          test-id="chat-message-input-top"
+          submit-button-test-id="chat-send-button-top"
+          abort-button-test-id="chat-abort-button-top"
+          @submit="handleSendMessage"
+          @abort="handleAbortMessage"
         >
-          <div class="flex flex-1">
-            <DropdownSelector
-              v-model="currentPrompt"
-              icon="i-bi:chat-left"
-              :items="promptOptions"
+          <template #controls>
+            <ChatInputControls
+              v-model:prompt="currentPrompt"
+              v-model:model="currentModel"
+              :prompt-options="promptOptions"
+              :model-groups="groupedModels"
+              :is-loading-models="isLoadingModels"
             />
-            <DropdownSelector
-              v-model="currentModel"
-              icon="i-simple-icons:openai"
-              :groups="groupedModels"
-              :disabled="isLoadingModels"
-              :data-testid="'model-selector'"
-            />
-          </div>
-          <ButtonItem
-            v-if="!isChatStreaming"
-            icon="i-bi:play-circle"
-            data-testid="chat-send-button-top"
-            :class="'bg-transparent text-accent hover:bg-transparent hover:text-accent/80 rounded-none border-0 shrink-0'"
-            :disabled="!currentMessage.trim() || isSendingMessage"
-            :loading="isLoadingConversation || isSendingMessage"
-            @click="handleSendMessage"
-          >
-            <template #loading>
-              <div class="w-5 h-5">
-                <DotLottieVue
-                  :style="'height: 20px; width: 20px'"
-                  autoplay
-                  loop
-                  src="https://lottie.host/61eb14b2-5dd2-471a-88c3-9e9c61862e83/Rldo3dbFyi.lottie"
-                />
-              </div>
-            </template>
-          </ButtonItem>
-          <ButtonItem
-            v-else
-            icon="i-bi:stop-circle"
-            data-testid="chat-abort-button-top"
-            :class="'bg-transparent text-error hover:bg-transparent hover:text-error/80 rounded-none border-0 shrink-0'"
-            @click="handleAbortMessage"
-          />
-        </div>
+          </template>
+        </ChatInput>
       </div>
+
       <div
-        v-if="isLoadingConversation && messages.length === 0"
-        class="flex justify-center p-8"
+        v-if="messages.length === 0 && isLoadingConversation"
+        class="flex flex-col flex-1 w-full justify-center p-8"
       >
-        <div class="flex items-center gap-2 text-subtleText">
-          <div class="w-8 h-8">
-            <DotLottieVue
-              :style="'height: 32px; width: 32px'"
-              autoplay
-              loop
-              src="https://lottie.host/61eb14b2-5dd2-471a-88c3-9e9c61862e83/Rldo3dbFyi.lottie"
-            />
-          </div>
-          <span>Loading conversation...</span>
-        </div>
+        <BaseSpinner
+          message="Loading conversation..."
+          size="medium"
+        />
       </div>
-      <div
+
+      <BaseEmptyState
         v-else-if="messages.length === 0"
-        class="flex flex-col items-center justify-center p-8 text-subtleText"
-      >
-        <i class="i-bi:chat-left-dots text-6xl mb-4 opacity-50" />
-        <h3 class="text-lg font-medium mb-2 text-deepText">Start a conversation</h3>
-        <p class="text-sm">Ask me anything to begin!</p>
-      </div>
+        icon="i-bi:chat-left-dots"
+        title="Start a conversation"
+        description="Ask me anything to begin!"
+      />
+
       <div
         v-if="messages.length > 0"
-        class="flex-1 overflow-y-auto px-4 min-h-0"
+        class="flex flex-col flex-1 w-full overflow-y-auto"
       >
-        <div class="flex flex-col gap-0 max-w-full md:max-w-4xl mx-auto">
-          <ActiveChatItem
+        <div class="flex flex-col flex-1 gap-0">
+          <ChatMessage
             v-for="message in messages"
             :key="message.id"
             :ref="(element) => registerMessageComponent(message.id, element as Element)"
@@ -145,66 +76,39 @@
           />
         </div>
       </div>
+
       <div
         v-if="messages.length > 0"
         data-testid="message-list-input-section"
-        class="flex flex-col gap-0 p-4 border-t border-borderMuted"
+        class="flex flex-col gap-0 pr-2 pl-2 pt-4 pb-4"
       >
-        <TextItem
-          ref="textInput"
-          v-model:value="currentMessage"
+        <ChatInput
+          ref="ChatInputRef"
+          v-model="currentMessage"
+          :disabled="isLoadingConversation || isLoadingMessage"
+          :is-loading="isLoadingConversation || isLoadingMessage"
+          :is-submitting="isChatStreaming"
           placeholder="How can I help you today?"
-          data-testid="chat-message-input-bottom"
-          :disabled="isLoadingConversation || isSendingMessage"
-          @keydown.enter.exact.prevent="handleSendMessage"
-        />
-        <div
-          class="flex xs:flex-row flex-col justify-start xs:justify-center items-center border border-borderMuted rounded bg-panel overflow-hidden"
+          test-id="chat-message-input-bottom"
+          submit-button-test-id="chat-send-button-bottom"
+          abort-button-test-id="chat-abort-button-bottom"
+          @submit="handleSendMessage"
+          @abort="handleAbortMessage"
         >
-          <div class="flex flex-1">
-            <DropdownSelector
-              v-model="currentPrompt"
-              icon="i-bi:chat-left"
-              :items="promptOptions"
+          <template #controls>
+            <ChatInputControls
+              v-model:prompt="currentPrompt"
+              v-model:model="currentModel"
+              :prompt-options="promptOptions"
+              :model-groups="groupedModels"
+              :is-loading-models="isLoadingModels"
             />
-            <DropdownSelector
-              v-model="currentModel"
-              icon="i-simple-icons:openai"
-              :groups="groupedModels"
-              :disabled="isLoadingModels"
-            />
-          </div>
-          <ButtonItem
-            v-if="!isChatStreaming"
-            icon="i-bi:play-circle"
-            data-testid="chat-send-button-bottom"
-            class="bg-transparent text-accent hover:bg-transparent hover:text-accent/80 rounded-none border-0 shrink-0"
-            :disabled="!currentMessage.trim() || isSendingMessage"
-            :loading="isLoadingConversation || isSendingMessage"
-            @click="handleSendMessage"
-          >
-            <template #loading>
-              <div class="w-5 h-5">
-                <DotLottieVue
-                  :style="'height: 20px; width: 20px'"
-                  autoplay
-                  loop
-                  src="https://lottie.host/61eb14b2-5dd2-471a-88c3-9e9c61862e83/Rldo3dbFyi.lottie"
-                />
-              </div>
-            </template>
-          </ButtonItem>
-          <ButtonItem
-            v-else
-            icon="i-bi:stop-circle"
-            data-testid="chat-abort-button-bottom"
-            class="bg-transparent text-error hover:bg-transparent hover:text-error/80 rounded-none border-0 shrink-0"
-            @click="handleAbortMessage"
-          />
-        </div>
+          </template>
+        </ChatInput>
       </div>
     </div>
-    <UpsellModal
+
+    <SubscriptionModal
       :is-visible="shouldShowModal"
       @close="handleModalClose"
     />
@@ -212,36 +116,39 @@
 </template>
 
 <script setup lang="ts">
-import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 import { inject, onMounted, ref, useTemplateRef, watch, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ConsoleLogger } from '@simwai/utils'
 import { useRoute } from 'vue-router'
 import { ResultAsync } from 'neverthrow'
+import EmptyState from '@/components/BaseEmptyState.vue'
+import BaseEmptyState from '@/components/BaseEmptyState.vue'
+import BaseSpinner from '@/components/BaseSpinner.vue'
+import ChatInput from '@/components/ChatInput.vue'
+import ChatInputControls from '@/components/ChatInputControls.vue'
+import ChatMessage from '@/components/ChatMessage.vue'
+import BaseAlertList from '@/components/BaseAlertList.vue'
+import SubscriptionModal from '@/components/SubscriptionModal.vue'
 import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
-import AvatarItem from '@/components/AvatarItem.vue'
-import ActiveChatItem from '@/components/ActiveChatItem.vue'
-import DropdownSelector, { type DropdownItem } from '@/components/DropdownSelector.vue'
-import TextItem from '@/components/TextItem.vue'
-import ButtonItem from '@/components/ButtonItem.vue'
-import ErrorBanner from '@/components/ErrorBanner.vue'
 import type { KeyValueStore } from '@/database/key-value-store'
 import type { Message } from '@/database/types'
-import UpsellModal from '@/components/UpsellModal.vue'
 import { useChatSocket } from '@/composables/use-chat-socket'
 import { useConversation, type Mutable } from '@/composables/use-conversation'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
-import router from '@/routes.js'
-const defaultModel = 'gemini:gemini-2.5-flash'
-const commitIntervalMs = 2000
-type ActiveChatItemInstance = InstanceType<typeof ActiveChatItem>
+import { defaultModel, streamingCommitIntervalMs } from '@/constants'
+import { createStreamingCommitHandler, finalizeStreamingMessage } from '@/streaming-helpers'
+import router from '@/routes'
+
+type ChatMessageInstance = InstanceType<typeof ChatMessage>
+
 const logger = inject<ConsoleLogger>(LOGGER_KEY)!
 const keyValueStore = inject<KeyValueStore>(KEY_VALUE_STORE_KEY)!
 const supabase = inject<SupabaseClient>(SUPABASE_CLIENT_KEY)!
 
 const route = useRoute()
+
 const {
   initialize,
   messages,
@@ -279,16 +186,75 @@ const {
 } = usePromptsSocket()
 
 const { shouldShowModal, dismissModal } = useSubscriptionSocket()
+
 const currentPrompt = ref('BabaSeniorDev™')
 const currentModel = ref(defaultModel)
 const currentMessage = ref('')
 const currentUsername = ref('User')
-const textInputRef = useTemplateRef<HTMLElement>('textInput')
-const messageComponents = ref<Map<number, ActiveChatItemInstance>>(new Map())
+const chatInputRef = useTemplateRef<InstanceType<typeof ChatInput>>('chatInputRef')
+const messageComponents = ref<Map<number, ChatMessageInstance>>(new Map())
 const modelsReloadWarning = ref<string>()
 const persistenceWarning = ref<string>()
-const isSendingMessage = ref(false)
-const promptOptions = computed<DropdownItem[]>(() => {
+const isLoadingMessage = ref(false)
+
+const baseAlerts = computed(() => [
+  {
+    id: 'conversation-error',
+    message: conversationError.value,
+    type: 'error' as const,
+    dismissible: true,
+    onClose: () => {
+      conversationError.value = undefined
+    },
+  },
+  {
+    id: 'chat-error',
+    message: chatError.value,
+    type: 'error' as const,
+    dismissible: false,
+    onClose: () => {},
+  },
+  {
+    id: 'models-error',
+    message: modelsError.value,
+    type: 'warning' as const,
+    dismissible: true,
+    onClose: () => {
+      modelsError.value = undefined
+    },
+  },
+  {
+    id: 'prompts-error',
+    message: promptsError.value,
+    type: 'warning' as const,
+    dismissible: true,
+    onClose: clearPromptsError,
+  },
+  {
+    id: 'models-reload-warning',
+    message: modelsReloadWarning.value,
+    type: 'warning' as const,
+    dismissible: true,
+    onClose: () => {
+      modelsReloadWarning.value = undefined
+    },
+  },
+  {
+    id: 'persistence-warning',
+    message: persistenceWarning.value,
+    type: 'warning' as const,
+    dismissible: true,
+    onClose: () => {
+      persistenceWarning.value = undefined
+    },
+  },
+])
+
+const activeBaseAlerts = computed(() =>
+  baseAlerts.value.filter((banner) => banner.message !== undefined)
+)
+
+const promptOptions = computed(() => {
   if (isLoadingPrompts.value) {
     return [
       {
@@ -309,26 +275,20 @@ const promptOptions = computed<DropdownItem[]>(() => {
     ]
   }
 
-  return prompts.value.map(
-    (prompt): DropdownItem => ({
-      label: prompt.isSystem ? `${prompt.name} (System)` : prompt.name,
-      value: prompt.command ?? '',
-      disabled: !prompt.command,
-    })
-  )
+  return prompts.value.map((prompt) => ({
+    label: prompt.isSystem ? `${prompt.name} (System)` : prompt.name,
+    value: prompt.command ?? '',
+    disabled: !prompt.command,
+  }))
 })
-const registerMessageComponent = (id: number, element: Element | ActiveChatItemInstance | null) => {
+
+const registerMessageComponent = (id: number, element: Element | ChatMessageInstance | null) => {
   if (!element) {
     messageComponents.value.delete(id)
     return
   }
-  if ('$' in (element as Element | ActiveChatItemInstance))
-    messageComponents.value.set(id, element as ActiveChatItemInstance)
-}
-
-const commitStreamingBuffer = (messageId: number): void => {
-  const componentInstance = messageComponents.value.get(messageId)
-  if (componentInstance?.markdownRef) componentInstance.markdownRef.commitContent()
+  if ('$' in (element as Element | ChatMessageInstance))
+    messageComponents.value.set(id, element as ChatMessageInstance)
 }
 
 const fetchUsername = async (): Promise<void> => {
@@ -406,27 +366,18 @@ async function handleUpdateMessage(messageId: number, newContent: string) {
   const selectedPromptObject = prompts.value.find((p) => p.command === currentPrompt.value)
   const systemPromptText = selectedPromptObject?.template || nextMessage.systemPrompt
 
-  let lastCommitTime = Date.now()
+  const handleChunk = createStreamingCommitHandler(
+    messages,
+    messageComponents,
+    streamingCommitIntervalMs
+  )
 
   await resendFromMessage(messageId, {
     provider,
     model,
     systemPrompt: systemPromptText,
     existingAssistantId: nextMessage.id,
-    onChunk: (assistantMsgId: number) => {
-      const msg = messages.value.find((m) => m.id === assistantMsgId) as
-        | Mutable<Message>
-        | undefined
-      if (!msg) return
-
-      if (!msg.isStreaming) msg.isStreaming = true
-
-      const now = Date.now()
-      if (now - lastCommitTime > commitIntervalMs) {
-        commitStreamingBuffer(assistantMsgId)
-        lastCommitTime = now
-      }
-    },
+    onChunk: handleChunk,
     onError: (errorResult: Error) => {
       logger.error('Failed to regenerate after edit:', errorResult.message)
       conversationError.value = errorResult.message
@@ -440,33 +391,23 @@ async function handleRewriteMessage(assistantMessageId: number, newModelId: stri
   )
   const systemPromptText = selectedPromptObject?.template || undefined
 
-  let lastCommitTime = Date.now()
+  const handleChunk = createStreamingCommitHandler(
+    messages,
+    messageComponents,
+    streamingCommitIntervalMs
+  )
 
   await rewriteWithModel(assistantMessageId, newModelId, {
     systemPrompt: systemPromptText,
-    onChunk: (messageId: number) => {
-      const msg = messages.value.find((message) => message.id === messageId) as
-        | Mutable<Message>
-        | undefined
-      if (!msg) return
-
-      if (!msg.isStreaming) msg.isStreaming = true
-
-      const now = Date.now()
-      if (now - lastCommitTime > commitIntervalMs) {
-        commitStreamingBuffer(messageId)
-        lastCommitTime = now
-      }
-    },
+    onChunk: handleChunk,
     onComplete: async (messageId: number) => {
       const msg = messages.value.find((message) => message.id === messageId) as
         | Mutable<Message>
         | undefined
       if (!msg) return
 
-      commitStreamingBuffer(messageId)
+      finalizeStreamingMessage(messageId, messageComponents)
       msg.isStreaming = false
-      messageComponents.value.delete(messageId)
     },
     onError: (error: Error) => {
       logger.error('Failed to rewrite message:', error.message)
@@ -480,9 +421,21 @@ async function handleSendMessage(): Promise<void> {
     !currentMessage.value.trim() ||
     isLoadingConversation.value ||
     isChatStreaming.value ||
-    isSendingMessage.value
+    isLoadingMessage.value
   )
     return
+
+  if (currentConversationId.value === 0) {
+    const result = await createConversation('New Conversation')
+
+    if (result.isErr()) {
+      conversationError.value = `Cannot send message: ${result.error.message}`
+      logger.error(`Failed to auto-create conversation: ${result.error.message}`)
+      return
+    }
+
+    logger.log(`Auto-created conversation ${result.value} for first message`)
+  }
 
   if (!currentModel.value || !currentModel.value.includes(':')) {
     conversationError.value = 'Please select a valid model first'
@@ -497,40 +450,31 @@ async function handleSendMessage(): Promise<void> {
 
   const messageContent = currentMessage.value
   currentMessage.value = ''
-  isSendingMessage.value = true
+  isLoadingMessage.value = true
 
   const selectedPromptObject = prompts.value.find(
     (prompt) => prompt.command === currentPrompt.value
   )
   const systemPromptText = selectedPromptObject?.template || undefined
 
-  let lastCommitTime = Date.now()
+  const handleChunk = createStreamingCommitHandler(
+    messages,
+    messageComponents,
+    streamingCommitIntervalMs
+  )
 
   const result = await sendConversationMessage(messageContent, {
     provider,
     model: selectedModel,
     systemPrompt: systemPromptText,
-    onChunk: (messageId: number) => {
-      const msg = messages.value.find((message) => message.id === messageId) as
-        | Mutable<Message>
-        | undefined
-      if (!msg) return
-
-      if (!msg.isStreaming) msg.isStreaming = true
-
-      const now = Date.now()
-      if (now - lastCommitTime > commitIntervalMs) {
-        commitStreamingBuffer(messageId)
-        lastCommitTime = now
-      }
-    },
+    onChunk: handleChunk,
     onComplete: async (messageId: number) => {
       const msg = messages.value.find((message) => message.id === messageId) as
         | Mutable<Message>
         | undefined
       if (!msg) return
 
-      commitStreamingBuffer(messageId)
+      finalizeStreamingMessage(messageId, messageComponents)
       msg.isStreaming = false
 
       const finalizeResult = await finalizeAssistantMessage(messageId, msg.content)
@@ -539,7 +483,6 @@ async function handleSendMessage(): Promise<void> {
         conversationError.value = 'Failed to persist assistant message'
       }
 
-      messageComponents.value.delete(messageId)
       if (messages.value.length === 2) {
         const newTitle = generateConversationTitle(messageContent)
         await updateConversationTitle(currentConversationId.value, newTitle)
@@ -551,7 +494,7 @@ async function handleSendMessage(): Promise<void> {
     },
   })
 
-  isSendingMessage.value = false
+  isLoadingMessage.value = false
 
   if (result.isErr()) {
     currentMessage.value = messageContent
@@ -566,7 +509,7 @@ const handleAbortMessage = async (): Promise<void> => {
 
   await result.match(
     async () => {
-      textInputRef.value?.focus()
+      chatInputRef.value?.textInputRef?.focus()
       logger.log('Message aborted successfully after user clicked stop button')
     },
     (abortError) => {

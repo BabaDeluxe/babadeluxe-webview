@@ -225,7 +225,7 @@ async function handleSaveAndReload() {
 
   if (result.isErr()) {
     logger.error('Failed to reload models after saving settings:', result.error) // Business context log
-    errorBanner.value =
+    baseAlert.value =
       'Your settings were saved, but we failed to refresh the models. Please reload.' // User feedback
     return // Stop the operation
   }

@@ -64,7 +64,7 @@
           >
             {{ setting.description }}
           </p>
-          <SettingField
+          <SettingsField
             :setting="setting"
             :field-name="setting.settingKey"
             :name="setting.settingKey"
@@ -157,7 +157,7 @@ import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
 import { getApiProviders } from '@/settings-utils'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
 import { useModelsSocket } from '@/composables/use-models-socket'
-import SettingField from '@/components/SettingField.vue'
+import SettingsField from '@/components/SettingsField.vue'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY } from '@/injection-keys'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { ApiKeyValidator } from '@/api-key-validator'

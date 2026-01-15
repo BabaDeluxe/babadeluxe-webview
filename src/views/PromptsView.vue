@@ -6,12 +6,12 @@
     <!-- Header -->
     <div class="flex flex-row w-full items-center justify-between gap-2 px-4 pt-4 flex-shrink-0">
       <h3 class="text-lg font-medium text-deepText">All Prompts</h3>
-      <ButtonItem
+      <BaseButton
         icon="i-bi:plus-circle"
         @click="handleCreateNewPrompt"
       >
         New Prompt
-      </ButtonItem>
+      </BaseButton>
     </div>
 
     <!-- Loading State -->
@@ -34,12 +34,12 @@
     >
       <i class="i-weui:error-outlined text-4xl mb-2"></i>
       <p>{{ error }}</p>
-      <ButtonItem
+      <BaseButton
         class="mt-4"
         @click="handleRetryFetch"
       >
         Retry
-      </ButtonItem>
+      </BaseButton>
     </div>
 
     <!-- Main Content -->
@@ -48,7 +48,7 @@
       class="flex-1 overflow-hidden px-4 pb-4 pt-4"
     >
       <!-- Save/Delete Error Banner -->
-      <ErrorBanner
+      <BaseAlert
         :message="saveErrorMessage"
         :type="saveErrorType"
         @close="saveErrorMessage = undefined"
@@ -110,27 +110,27 @@
             <h4 class="text-md font-medium text-deepText">
               {{ isCreatingNewPrompt ? 'Create New Prompt' : 'Edit Prompt' }}
             </h4>
-            <TextItem
+            <BaseTextField
               v-model:value="editablePrompt.name"
               label="Prompt Name"
               placeholder="e.g. Code Reviewer"
               @update:value="handleFormChange"
             />
-            <TextItem
+            <BaseTextField
               v-model:value="editablePrompt.command"
               label="Command"
               placeholder="e.g. review"
               @update:value="handleFormChange"
             >
               <template #prepend><span class="text-subtleText px-2">/</span></template>
-            </TextItem>
-            <TextItem
+            </BaseTextField>
+            <BaseTextField
               v-model:value="editablePrompt.description"
               label="Description (Optional)"
               placeholder="e.g. Acts as a senior dev providing a code review."
               @update:value="handleFormChange"
             />
-            <TextItem
+            <BaseTextField
               v-model:value="editablePrompt.template"
               type="textarea"
               label="Template"
@@ -138,12 +138,12 @@
               :rows="6"
               @update:value="handleFormChange"
             />
-            <ButtonItem
+            <BaseButton
               :disabled="!isFormValid || isSaving"
               @click="handleSaveChanges"
             >
               {{ isSaving ? 'Saving...' : 'Save Changes' }}
-            </ButtonItem>
+            </BaseButton>
           </template>
           <div
             v-else-if="prompts.length > 0"
@@ -226,27 +226,27 @@
             <h4 class="text-md font-medium text-deepText">
               {{ isCreatingNewPrompt ? 'Create New Prompt' : 'Edit Prompt' }}
             </h4>
-            <TextItem
+            <BaseTextField
               v-model:value="editablePrompt.name"
               label="Prompt Name"
               placeholder="e.g. Code Reviewer"
               @update:value="handleFormChange"
             />
-            <TextItem
+            <BaseTextField
               v-model:value="editablePrompt.command"
               label="Command"
               placeholder="e.g. review"
               @update:value="handleFormChange"
             >
               <template #prepend><span class="text-subtleText px-2">/</span></template>
-            </TextItem>
-            <TextItem
+            </BaseTextField>
+            <BaseTextField
               v-model:value="editablePrompt.description"
               label="Description (Optional)"
               placeholder="e.g. Acts as a senior dev providing a code review."
               @update:value="handleFormChange"
             />
-            <TextItem
+            <BaseTextField
               v-model:value="editablePrompt.template"
               type="textarea"
               label="Template"
@@ -255,12 +255,12 @@
               @update:value="handleFormChange"
             />
             <div class="flex justify-end gap-2 mt-4">
-              <ButtonItem
+              <BaseButton
                 :disabled="!isFormValid || isSaving"
                 @click="handleSaveChanges"
               >
                 {{ isSaving ? 'Saving...' : 'Save Changes' }}
-              </ButtonItem>
+              </BaseButton>
             </div>
           </template>
           <div
@@ -283,9 +283,9 @@ import { useResizableSplit } from '@/composables/use-resizable-split'
 import { KEY_VALUE_STORE_KEY, LOGGER_KEY } from '@/injection-keys'
 import type { KeyValueStore } from '@/database/key-value-store'
 import type { ConsoleLogger } from '@simwai/utils'
-import TextItem from '@/components/TextItem.vue'
-import ButtonItem from '@/components/ButtonItem.vue'
-import ErrorBanner from '@/components/ErrorBanner.vue'
+import BaseTextField from '@/components/BaseTextField.vue'
+import BaseButton from '@/components/BaseButton.vue'
+import BaseAlert from '@/components/BaseAlert.vue'
 
 const keyValueStore = inject<KeyValueStore>(KEY_VALUE_STORE_KEY)!
 const logger = inject<ConsoleLogger>(LOGGER_KEY)!

@@ -14,7 +14,8 @@
         <i :class="iconClass" />
         <span>{{ message }}</span>
       </div>
-      <ButtonItem
+      <BaseButton
+        v-if="dismissible"
         icon="i-weui:close-outlined"
         :class="`bg-transparent hover:bg-transparent rounded-none border-0 ${textColorClass}`"
         @click="emit('close')"
@@ -24,13 +25,14 @@
 </template>
 
 <script setup lang="ts">
-import ButtonItem from '@/components/ButtonItem.vue'
+import BaseButton from '@/components/BaseButton.vue'
 
 type ErrorType = 'error' | 'warning'
 
 interface Props {
   message?: string
   type?: ErrorType
+  dismissible?: boolean
 }
 
 interface Emits {
@@ -40,6 +42,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   message: undefined,
   type: 'error',
+  dismissible: true,
 })
 
 const emit = defineEmits<Emits>()
