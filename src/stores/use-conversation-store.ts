@@ -12,6 +12,7 @@ import {
   InvalidModelFormatError,
   MessageCreationError,
   NoUserMessageError,
+  ChatError,
 } from '@/errors'
 
 export type Mutable<T> = {
@@ -42,20 +43,24 @@ export const useConversationStore = defineStore('conversation', () => {
   const isLoading = ref(false)
   const error = ref<string | undefined>(undefined)
 
-  const isCreatingConversation = ref(false)
+  let creationPromise: Promise<Result<number, Error>> | undefined = undefined
 
   let initializePromise: Promise<void> | undefined
 
   async function initialize(): Promise<void> {
     if (initializePromise) return initializePromise
 
-    initializePromise = (async () => {
-      await loadConversations()
-      await initializeCurrentConversation()
-      await resumeInterruptedStreams()
-    })()
+    try {
+      initializePromise = (async () => {
+        await loadConversations()
+        await initializeCurrentConversation()
+        await resumeInterruptedStreams()
+      })()
 
-    await initializePromise
+      await initializePromise
+    } finally {
+      initializePromise = undefined
+    }
   }
 
   async function resumeInterruptedStreams(): Promise<void> {
@@ -155,7 +160,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
     const messageIndex = messages.value.findIndex((m) => m.id === messageId)
     if (messageIndex === -1) {
-      return err(new Error(`Message ${messageId} not found locally`))
+      return err(new ChatError(`Message ${messageId} not found locally`))
     }
 
     messages.value.splice(messageIndex, 1, { ...updated })
@@ -218,36 +223,68 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  async function createConversation(title: string): Promise<number | undefined> {
-    if (isCreatingConversation.value) {
-      logger.warn('Conversation creation already in progress')
-      return undefined
+  async function createConversation(title: string): Promise<Result<number, Error>> {
+    if (creationPromise !== undefined) {
+      logger.log('Conversation creation already in progress, reusing existing promise')
+      return creationPromise
     }
 
-    isCreatingConversation.value = true
+    creationPromise = (async (): Promise<Result<number, Error>> => {
+      try {
+        const addResult = await appDb.conversation.add({
+          title,
+          isActive: 1,
+          messageCount: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as Conversation)
 
-    const result = await appDb.conversation.add({
-      title,
-      isActive: 1,
-      messageCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as Conversation)
+        if (addResult.isErr()) {
+          error.value = 'Failed to create conversation'
+          logger.error(`Failed to create conversation: ${addResult.error.message}`)
+          return err(addResult.error)
+        }
 
-    isCreatingConversation.value = false
+        const newId = Number(addResult.value)
 
-    if (result.isErr()) {
-      error.value = 'Failed to create conversation'
-      logger.error(`Failed to create conversation: ${result.error.message}`)
-      return undefined
-    }
+        // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
+        const loadError = await loadConversations()
+        if (loadError !== undefined) {
+          logger.error('loadConversations failed after successful DB write, rolling back')
 
-    const newId = Number(result.value)
-    await loadConversations()
-    currentConversationId.value = newId
-    messages.value = []
+          const deleteResult = await appDb.conversation.delete(newId)
+          if (deleteResult.isErr()) {
+            logger.error(`Rollback failed for conversation ${newId}: ${deleteResult.error.message}`)
+          }
 
-    return newId
+          return err(new ChatError('Failed to load conversations after creation'))
+        }
+
+        const conversationExists = conversations.value.some(
+          (conversation) => conversation.id === newId
+        )
+        if (!conversationExists) {
+          logger.error(`New conversation ${newId} not in loaded list, rolling back`)
+
+          const deleteResult = await appDb.conversation.delete(newId)
+          if (deleteResult.isErr()) {
+            logger.error(`Rollback failed for conversation ${newId}: ${deleteResult.error.message}`)
+          }
+
+          return err(new ChatError('Created conversation missing from loaded list'))
+        }
+
+        currentConversationId.value = newId
+        messages.value = []
+
+        logger.log(`Created conversation ${newId}: "${title}"`)
+        return ok(newId)
+      } finally {
+        creationPromise = undefined
+      }
+    })()
+
+    return creationPromise
   }
 
   async function switchConversation(conversationId: number): Promise<void> {
@@ -256,21 +293,23 @@ export const useConversationStore = defineStore('conversation', () => {
     await loadMessages()
   }
 
-  async function handleConversationSwitch(): Promise<void> {
+  async function handleConversationSwitch(): Promise<Result<void, ChatError>> {
     await loadConversations()
 
     if (conversations.value.length > 0) {
       const highestId = Math.max(...conversations.value.map((conversation) => conversation.id))
       currentConversationId.value = highestId
       await loadMessages()
-      return
+      return ok()
     }
 
     const newId = await createConversation('New Conversation')
-    if (newId) {
-      currentConversationId.value = newId
-      messages.value = []
-    }
+    if (newId.isErr()) return err(new ChatError('Failed to switch conversation'))
+
+    currentConversationId.value = newId.value
+    messages.value = []
+
+    return ok()
   }
 
   async function updateUserMessage(
@@ -280,14 +319,14 @@ export const useConversationStore = defineStore('conversation', () => {
     const message = messages.value.find((m) => m.id === messageId)
     if (!message) return err(new MessageNotFoundError(messageId.toString()))
     if (message.role !== 'user')
-      return err(new Error('updateUserMessage can only update user messages'))
+      return err(new ChatError('updateUserMessage can only update user messages'))
 
     return updateMessageContent(messageId, newContent)
   }
 
   const requireConversationId = (): Result<number, Error> => {
     if (!currentConversationId.value || currentConversationId.value === 0) {
-      return err(new Error('No active conversation'))
+      return err(new ChatError('No active conversation'))
     }
     return ok(currentConversationId.value)
   }
@@ -359,7 +398,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
       const messageIndex = messages.value.findIndex((message) => message.id === existingAssistantId)
       if (messageIndex === -1) {
-        return err(new Error(`Assistant message ${existingAssistantId} not found locally`))
+        return err(new ChatError(`Assistant message ${existingAssistantId} not found locally`))
       }
 
       const oldMessage = messages.value[messageIndex]
@@ -453,14 +492,21 @@ export const useConversationStore = defineStore('conversation', () => {
 
     if (existsResult.value === undefined) {
       logger.log(`Conversation ${currentConversationId.value} was cascade-deleted`)
-      await handleConversationSwitch()
+
+      const handleConversationSwitchResult = await handleConversationSwitch()
+      if (handleConversationSwitchResult.isErr()) {
+        error.value = 'Failed to switch conversation'
+        logger.error(
+          `Failed to switch conversation ${handleConversationSwitchResult.error.message}`
+        )
+      }
     } else {
       const updateResult = await ResultAsync.fromPromise(
         appDb.conversation.update(currentConversationId.value, {
           updatedAt: new Date(),
           messageCount: messages.value.length,
         }),
-        (unknownError) => new Error(String(unknownError))
+        (unknownError) => new ChatError(String(unknownError))
       )
 
       if (updateResult.isErr()) {
@@ -478,7 +524,7 @@ export const useConversationStore = defineStore('conversation', () => {
         title,
         updatedAt: new Date(),
       }),
-      (unknownError) => new Error(String(unknownError))
+      (unknownError) => new ChatError(String(unknownError))
     )
 
     if (result.isErr()) {
@@ -502,15 +548,23 @@ export const useConversationStore = defineStore('conversation', () => {
 
     if (result.isErr()) {
       error.value = 'Failed to delete conversation'
-      logger.error(`Failed to delete conversation: ${result.error.message}`)
+      logger.error(`Failed to delete conversation ${result.error.message}`)
       return false
     }
 
     if (conversationId === currentConversationId.value) {
-      await handleConversationSwitch()
-    } else {
-      await loadConversations()
+      const handleConversationSwitchResult = await handleConversationSwitch()
+      if (handleConversationSwitchResult.isErr()) {
+        error.value = 'Failed to switch conversation'
+        logger.error(
+          `Failed to switch conversation ${handleConversationSwitchResult.error.message}`
+        )
+      }
+
+      return true
     }
+
+    await loadConversations()
 
     error.value = undefined
     return true
@@ -589,7 +643,7 @@ export const useConversationStore = defineStore('conversation', () => {
           messages.value.splice(messageIndex, 1, updated)
         },
         onError: (errorMessage: string) => {
-          onError?.(new Error(errorMessage))
+          onError?.(new ChatError(errorMessage))
         },
       }
     )
@@ -624,7 +678,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
     // Success: persist the real final content (do not trust chunk accumulation)
     if (fullContentFromServer === undefined) {
-      return err(new Error(`Missing fullContent for completed message ${messageId}`))
+      return err(new ChatError(`Missing fullContent for completed message ${messageId}`))
     }
 
     const finalizeResult = await finalizeAssistantMessage(messageId, fullContentFromServer)
@@ -745,14 +799,14 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   return {
-    // state
+    // State
     messages,
     conversations,
     currentConversationId,
     isLoading,
     error,
 
-    // actions
+    // Actions
     initialize,
     refreshMessageById,
     loadMessages,

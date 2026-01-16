@@ -8,14 +8,14 @@ export function useConversation() {
   const { messages, conversations, currentConversationId, isLoading, error } = storeToRefs(store)
 
   return {
-    // reactive state
+    // Reactive state
     messages,
     conversations,
     currentConversationId,
     isLoading,
     error,
 
-    // store actions (legacy-compatible surface)
+    // Store actions (legacy-compatible surface)
     initialize: store.initialize,
     refreshMessageById: store.refreshMessageById,
     loadMessages: store.loadMessages,

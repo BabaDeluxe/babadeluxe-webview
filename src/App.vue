@@ -1,11 +1,11 @@
 <template>
-  <div class="h-100vh w-full bg-slate flex flex-col font-onest text-deepText min-w-[340px]">
+  <div class="h-100vh w-full bg-slate flex flex-col font-onest text-deepText">
     <div v-if="session && $route.path !== '/'">
       <header class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20">
-        <BabaDeluxeIcon />
+        <IconBabaDeluxe />
 
         <div class="flex flex-row gap-4 justify-end items-center">
-          <ButtonItem
+          <BaseButton
             text="New Chat"
             icon="i-weui:pencil-outlined"
             @click="handleNewChat"
@@ -15,7 +15,7 @@
             to="/settings"
             class="px-4 py-2 rounded-lg hover:text-accent transition-colors"
           >
-            <ButtonItem
+            <BaseButton
               :class="'bg-none text-deepText text-2xl'"
               icon="i-weui:setting-outlined"
             />
@@ -49,12 +49,10 @@
 
     <Suspense>
       <template #default>
-        <RouterView class="flex-1 flex flex-col" />
+        <RouterView class="flex flex-col" />
       </template>
       <template #fallback>
-        <div
-          class="flex-1 flex flex-col items-center justify-center bg-slate text-lg text-deepText"
-        >
+        <div class="flex flex-col items-center justify-center bg-slate text-lg text-deepText">
           Loading...
         </div>
       </template>
@@ -67,8 +65,8 @@ import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { inject, onMounted, ref } from 'vue'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import type { ConsoleLogger } from '@simwai/utils'
-import BabaDeluxeIcon from '@/components/BabaDeluxeIcon.vue'
-import ButtonItem from '@/components/ButtonItem.vue'
+import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
+import BaseButton from '@/components/BaseButton.vue'
 import { type SupabaseClientType } from '@/main'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 

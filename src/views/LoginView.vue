@@ -4,7 +4,7 @@
       class="flex flex-col items-center justify-center w-full h-full bg-slate text-deepText font-onest p-4"
     >
       <div class="flex flex-row justify-center items-center">
-        <BabaDeluxeIcon class="flex flex-1" />
+        <IconBabaDeluxe class="flex flex-1" />
 
         <div class="flex flex-2 justify-center items-center">
           <h2 class="text-2xl font-bold text-accent">BabaDeluxe Login</h2>
@@ -14,7 +14,7 @@
       <div
         class="flex flex-col w-full max-w-md bg-panel rounded-lg shadow-lg p-6 my-4 border border-borderMuted"
       >
-        <ButtonItem
+        <BaseButton
           text="Login with GitHub"
           icon="i-simple-icons:github"
           :disabled="isLoading"
@@ -54,7 +54,7 @@
             to="/reset-password"
             class="w-full flex"
           >
-            <ButtonItem
+            <BaseButton
               v-if="!isSignUp"
               class="w-full"
               text="Forgot Password?"
@@ -62,13 +62,13 @@
             />
           </router-link>
 
-          <ButtonItem
+          <BaseButton
             type="button"
             :text="isSignUp ? 'Sign Up' : 'Sign In'"
             :disabled="isLoading"
             @click="handleAuth"
           />
-          <ButtonItem
+          <BaseButton
             type="button"
             :text="isSignUp ? 'Switch to Sign In' : 'Switch to Sign Up'"
             :disabled="isLoading"
@@ -91,8 +91,8 @@
 import { inject, ref } from 'vue'
 import { ResultAsync, ok, err, type Result } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
-import BabaDeluxeIcon from '../components/BabaDeluxeIcon.vue'
-import ButtonItem from '../components/ButtonItem.vue'
+import IconBabaDeluxe from '../components/IconBabaDeluxe.vue'
+import BaseButton from '../components/BaseButton.vue'
 import type { SupabaseClientType } from '@/main'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 

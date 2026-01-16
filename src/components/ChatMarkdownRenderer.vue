@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="markdown-content"
-    :class="{ 'max-w-screen-md': true }"
-  >
+  <div class="markdown-content min-h-5 pr-6 md:max-w-60vw overflow-x-hidden">
     <VueMarkdown
       v-if="committedContent"
       :key="committedKey"
@@ -92,16 +89,6 @@ defineExpose({
 </script>
 
 <style scoped>
-.markdown-content {
-  @apply w-full max-w-full overflow-x-hidden;
-}
-
-@media (min-width: 768px) {
-  .markdown-content {
-    @apply max-w-[70vw];
-  }
-}
-
 .streaming-buffer {
   @apply whitespace-pre-wrap break-words text-sm leading-relaxed color-inherit;
 }

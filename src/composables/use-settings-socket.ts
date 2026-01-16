@@ -1,7 +1,7 @@
 import { ref, onBeforeUnmount, inject, readonly } from 'vue'
 import type { ConsoleLogger } from '@simwai/utils'
 import { type Root, type UserSettingWithValidation, getSettingDefinition } from '@babadeluxe/shared'
-import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys.js'
+import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 import { fromWire } from '@/settings-utils'
 
 export function useSettingsSocket() {
