@@ -1,4 +1,4 @@
-# CONTRIBUTING.md
+# CONTRIBUTING
 
 ## Git Workflow for Solo Developers
 
@@ -8,7 +8,7 @@ This repository follows a professional Git workflow designed for solo developers
 
 - **master**: Production branch. Always deployable. Never commit directly here.
 - **dev**: Staging branch. Collects finished features for the next release.
-- **feat/**, **fix/**, **refactor/**, **chore/**, **docs/**, **test/**, **style/**: Short-lived feature branches.
+- **feat/**, **fix/**, **refactor/**, **chore/**, **docs/**, **test/**: Short-lived feature branches.
 
 ### Starting a New Feature
 
@@ -25,7 +25,7 @@ git switch -c chore/update-deps           # Maintenance/CI/build
 
 # Work and commit
 git add .
-git commit -m ":sparkles: feat(auth): Added Google OAuth login"
+git commit -m "feat: :sparkles: Added Google OAuth login"
 git push -u origin feat/my-feature-name
 ```
 
@@ -37,10 +37,10 @@ git push -u origin feat/my-feature-name
 - **Examples**:
 
   ```bash
-  git commit -m ":sparkles: feat(auth): Added Google OAuth login"
-  git commit -m ":bug: fix(navbar): Corrected mobile menu overlap"
-  git commit -m ":recycle: refactor(api): Optimized database queries"
-  git commit -m ":wrench: chore(deps): Updated React to v19"
+  git commit -m "feat: :sparkles: Added Google OAuth login"
+  git commit -m "fix: :bug: Corrected mobile menu overlap"
+  git commit -m "refactor: :recycle: Refactored optimized database queries"
+  git commit -m "chore: :wrench: Updated React to v19"
   ```
 
 ### Merging to Dev
@@ -87,18 +87,17 @@ git push origin dev
 
 ### Allowed Types
 
-| Type         | Gitmoji     | Branch? | Commit? | Use For                                                   |
-| ------------ | ----------- | ------- | ------- | --------------------------------------------------------- |
-| **feat**     | :sparkles:  | Yes     | Yes     | New features, initial commits, breaking changes (`feat!`) |
-| **fix**      | :bug:       | Yes     | Yes     | Bug fixes                                                 |
-| **refactor** | :recycle:   | Yes     | Yes     | Code cleanup, performance improvements                    |
-| **chore**    | :wrench:    | Yes     | Yes     | Dependencies, build config, CI changes                    |
-| **docs**     | :memo:      | Rarely  | Yes     | Documentation updates                                     |
-| **test**     | :test_tube: | Rarely  | Yes     | Adding tests                                              |
-| **style**    | :art:       | Rarely  | Yes     | Formatting, UI polish                                     |
-| **revert**   | :rewind:    | No      | Yes     | Undoing commits                                           |
+| Type         | Gitmoji     | Commit? | Use For                                                   |
+| ------------ | ----------- | ------- | --------------------------------------------------------- |
+| **feat**     | :sparkles:  | Yes     | New features, initial commits, breaking changes (`feat!`) |
+| **fix**      | :bug:       | Yes     | Bug fixes                                                 |
+| **refactor** | :recycle:   | Yes     | Code cleanup, performance improvements                    |
+| **chore**    | :wrench:    | Yes     | Dependencies, build config, CI changes                    |
+| **docs**     | :memo:      | Yes     | Documentation updates                                     |
+| **test**     | :test_tube: | Yes     | Adding tests                                              |
+| **revert**   | :rewind:    | Yes     | Undoing commits                                           |
 
-**Forbidden**: `ci`, `build`, `perf` (use `chore` or `refactor` instead).
+**Forbidden**: `ci`, `build`, `perf` (use `chore` or `refactor` instead), `style` (use `refactor` instead).
 
 ### Feature Branch Size
 
