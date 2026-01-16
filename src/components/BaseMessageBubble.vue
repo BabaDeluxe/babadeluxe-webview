@@ -7,7 +7,7 @@
 
     <div
       ref="contentWrapperRef"
-      class="flex flex-col flex-1 w-full rounded-lg px-2 py-2 text-sm whitespace-pre-wrap break-words relative transition-all duration-200"
+      class="flex flex-col flex-1 w-full rounded-lg px-2 py-2 text-sm whitespace-pre-wrap break-words relative transition-all duration-200 overflow-x-auto"
       :class="bubbleClass"
     >
       <slot />

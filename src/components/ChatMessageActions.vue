@@ -4,7 +4,7 @@
     menu-test-id="message-menu-dropdown"
   >
     <template #default="{ close }">
-      <!-- USER MESSAGES: Edit + Delete -->
+      <!-- USER MESSAGES: Edit + Rewrite + Delete -->
       <template v-if="role === 'user'">
         <button
           class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 first:rounded-t-lg"
@@ -15,30 +15,30 @@
           <span>Edit Message</span>
         </button>
 
-        <div class="border-t border-borderMuted my-1" />
-      </template>
+        <!-- Rewrite for USER messages (conditionally shown) -->
+        <template v-if="showRewrite">
+          <div class="border-t border-borderMuted my-1" />
 
-      <!-- ASSISTANT MESSAGES: Conditionally show Rewrite -->
-      <template v-else-if="role === 'assistant' && showRewrite">
-        <BaseDropdown
-          :model-value="selectedModel"
-          icon="i-fluent:arrow-repeat"
-          :groups="modelGroups"
-          :disabled="isLoadingModels"
-          placement="right"
-          data-testid="message-rewrite-selector"
-          full-width
-          trigger-class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 justify-between cursor-pointer rounded-t-lg"
-          @update:model-value="(modelId) => handleRewrite(modelId, close)"
-        >
-          <div class="flex items-center gap-2.5">
-            <i class="i-fluent:arrow-repeat text-base" />
-            <span v-if="isLoadingModels">Loading models...</span>
-            <span v-else-if="modelsError">Error loading models</span>
-            <span v-else>Rewrite with...</span>
-          </div>
-          <i class="i-weui:arrow-outlined rotate-90 text-xs opacity-50" />
-        </BaseDropdown>
+          <BaseDropdown
+            :model-value="selectedModel"
+            icon="i-fluent:arrow-repeat"
+            :groups="modelGroups"
+            :disabled="isLoadingModels"
+            placement="right"
+            data-testid="message-rewrite-selector"
+            full-width
+            trigger-class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 justify-between cursor-pointer"
+            @update:model-value="(modelId) => handleRewrite(modelId, close)"
+          >
+            <div class="flex items-center gap-2.5">
+              <i class="i-fluent:arrow-repeat text-base" />
+              <span v-if="isLoadingModels">Loading models...</span>
+              <span v-else-if="modelsError">Error loading models</span>
+              <span v-else>Rewrite with...</span>
+            </div>
+            <i class="i-weui:arrow-outlined rotate-90 text-xs opacity-50" />
+          </BaseDropdown>
+        </template>
 
         <div class="border-t border-borderMuted my-1" />
       </template>

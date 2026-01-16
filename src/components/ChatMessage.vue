@@ -75,6 +75,11 @@ const props = withDefaults(defineProps<ChatMessageProps>(), {
   showRewrite: true, // Default true for chat view
 })
 
+console.log('ChatMessage received:', {
+  role: props.role,
+  showRewrite: props.showRewrite,
+})
+
 const emit = defineEmits<ChatMessageEmitter>()
 
 const markdownRef = useTemplateRef<InstanceType<typeof MarkdownRenderer>>('markdownRef')

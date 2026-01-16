@@ -96,7 +96,7 @@
 
     <div
       v-else
-      class="flex-1 overflow-hidden px-4 pb-4 pt-4"
+      class="flex-1 overflow-hidden px-4 pt-4"
     >
       <template v-if="showSelectedMessages">
         <!-- Mobile: Vertical stack -->
@@ -193,9 +193,9 @@
               <ChatMessage
                 v-for="message in selectedConversationMessages"
                 :key="message.id"
-                v-bind="message"
                 :data-message-id="message.id"
                 :show-rewrite="false"
+                v-bind="message"
                 @delete="handleDeleteMessage"
                 @update="handleUpdateMessage"
               />
@@ -304,9 +304,9 @@
               <ChatMessage
                 v-for="message in selectedConversationMessages"
                 :key="message.id"
-                v-bind="message"
                 :data-message-id="message.id"
-                :show-rewrite="false"
+                :show-rewrite="true"
+                v-bind="message"
                 @delete="handleDeleteMessage"
                 @update="handleUpdateMessage"
               />
