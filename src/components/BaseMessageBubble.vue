@@ -44,6 +44,8 @@ const bubbleClass = computed(() => {
 })
 
 const alignmentClass = computed(() => {
-  return props.align === 'right' ? 'items-end sm:flex-row-reverse' : 'self-start flex-row'
+  return props.align === 'right'
+    ? 'items-end sm:items-start sm:flex-row-reverse'
+    : 'self-start flex-row'
 })
 </script>

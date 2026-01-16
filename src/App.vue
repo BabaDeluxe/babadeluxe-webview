@@ -1,5 +1,5 @@
 <template>
-  <div class="h-100vh w-full bg-slate flex flex-col font-onest text-deepText min-w-[340px]">
+  <div class="h-100vh w-full bg-slate flex flex-col font-onest text-deepText">
     <div v-if="session && $route.path !== '/'">
       <header class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20">
         <IconBabaDeluxe />
