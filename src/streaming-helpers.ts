@@ -2,7 +2,7 @@ import type { Ref } from 'vue'
 import type { Message } from '@/database/types'
 import type { Mutable } from '@/composables/use-conversation'
 
-export interface StreamingMessageComponent {
+interface StreamingMessageComponent {
   markdownRef?: {
     commitContent: () => void
   } | null

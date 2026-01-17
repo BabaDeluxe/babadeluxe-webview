@@ -1,7 +1,7 @@
 import { type Ref, ref } from 'vue'
 import { onClickOutside } from '@vueuse/core'
 
-export interface DropdownController {
+interface DropdownController {
   readonly isOpen: Readonly<Ref<boolean>>
   readonly containerRef: Ref<HTMLElement | undefined>
   toggle(): void

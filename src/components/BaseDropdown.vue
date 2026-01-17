@@ -104,7 +104,7 @@ export interface DropdownGroup {
   items: DropdownItem[]
 }
 
-export interface DropdownProps {
+interface DropdownProps {
   modelValue: string
   icon: string
   options?: string[]

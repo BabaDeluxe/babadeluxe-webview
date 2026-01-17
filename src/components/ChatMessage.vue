@@ -67,17 +67,12 @@ type ChatMessageEmitter = {
 }
 
 interface ChatMessageProps extends Message {
-  showRewrite?: boolean // NEW: Pass through from parent
+  showRewrite?: boolean
 }
 
 const props = withDefaults(defineProps<ChatMessageProps>(), {
   isStreaming: false,
-  showRewrite: true, // Default true for chat view
-})
-
-console.log('ChatMessage received:', {
-  role: props.role,
-  showRewrite: props.showRewrite,
+  showRewrite: true,
 })
 
 const emit = defineEmits<ChatMessageEmitter>()

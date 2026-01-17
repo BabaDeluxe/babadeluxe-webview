@@ -1,3 +1,4 @@
+// main.ts
 import { createApp } from 'vue'
 import { err, ok, type Result } from 'neverthrow'
 import { createClient } from '@supabase/supabase-js'
@@ -6,7 +7,7 @@ import 'virtual:uno.css'
 import '@/assets/main.css'
 import App from '@/App.vue'
 import { KeyValueDb } from '@/database/key-value-db'
-import router from '@/routes'
+import { createAppRouter } from '@/routes'
 import { ApiKeyValidator } from '@/api-key-validator'
 import { validateEnvConfig, type EnvConfigType } from '@/env-validator'
 import { AppDb } from '@/database/app-db'
@@ -61,6 +62,8 @@ app.provide(APP_DB_KEY, appDb)
 const keyValueDb = new KeyValueDb()
 const keyValueStore = new KeyValueStore(keyValueDb, logger)
 app.provide(KEY_VALUE_STORE_KEY, keyValueStore)
+
+const router = createAppRouter(supabase)
 
 app.use(router)
 await router.isReady()

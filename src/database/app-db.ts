@@ -32,6 +32,31 @@ export class AppDb extends Dexie {
     return ok(result.value)
   }
 
+  async getMessageCountsByConversation(): Promise<Result<Map<number, number>, DbError>> {
+    const result = await ResultAsync.fromPromise(
+      (async () => {
+        const allMessages = await this._messageTable.toArray()
+        const countMap = new Map<number, number>()
+
+        for (const message of allMessages) {
+          const currentCount = countMap.get(message.conversationId) ?? 0
+          countMap.set(message.conversationId, currentCount + 1)
+        }
+
+        return countMap
+      })(),
+      (error) => {
+        this._logger.error(
+          'Failed to get message counts:',
+          error instanceof Error ? error : new Error(String(error))
+        )
+        return this._toDomainError(error)
+      }
+    )
+
+    return result
+  }
+
   async getAllConversations(): Promise<Result<readonly Conversation[], DbError>> {
     const result = await this.conversation.toArray()
     if (result.isErr()) {
@@ -150,6 +175,10 @@ export class AppDb extends Dexie {
     })
     this.version(2).stores({
       conversation: '++id, title, isActive, createdAt, updatedAt, messageCount',
+      message: '++id, conversationId, role, timestamp, model',
+    })
+    this.version(3).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt',
       message: '++id, conversationId, role, timestamp, model',
     })
   }

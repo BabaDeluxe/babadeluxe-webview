@@ -119,7 +119,7 @@
 import { inject, onMounted, ref, useTemplateRef, watch, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ConsoleLogger } from '@simwai/utils'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ResultAsync } from 'neverthrow'
 import EmptyState from '@/components/BaseEmptyState.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
@@ -139,7 +139,6 @@ import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { defaultModel, streamingCommitIntervalMs } from '@/constants'
 import { createStreamingCommitHandler, finalizeStreamingMessage } from '@/streaming-helpers'
-import router from '@/routes'
 
 type ChatMessageInstance = InstanceType<typeof ChatMessage>
 
@@ -148,6 +147,7 @@ const keyValueStore = inject<KeyValueStore>(KEY_VALUE_STORE_KEY)!
 const supabase = inject<SupabaseClient>(SUPABASE_CLIENT_KEY)!
 
 const route = useRoute()
+const router = useRouter()
 
 const {
   initialize,
@@ -551,8 +551,7 @@ watch(
       await createConversation('New Conversation')
       await router.replace({ query: {} })
     }
-  },
-  { immediate: true }
+  }
 )
 
 watch(
