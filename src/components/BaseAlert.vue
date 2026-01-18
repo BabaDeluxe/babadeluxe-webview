@@ -15,7 +15,7 @@
         <span>{{ message }}</span>
       </div>
       <BaseButton
-        v-if="dismissible"
+        v-if="isDismissible"
         icon="i-weui:close-outlined"
         :class="`bg-transparent hover:bg-transparent rounded-none border-0 ${textColorClass}`"
         @click="emit('close')"
@@ -32,7 +32,7 @@ type ErrorType = 'error' | 'warning'
 interface Props {
   message?: string
   type?: ErrorType
-  dismissible?: boolean
+  isDismissible?: boolean
 }
 
 interface Emits {
@@ -42,7 +42,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   message: undefined,
   type: 'error',
-  dismissible: true,
+  isDismissible: true,
 })
 
 const emit = defineEmits<Emits>()

@@ -202,7 +202,7 @@ const baseAlerts = computed(() => [
     id: 'conversation-error',
     message: conversationError.value,
     type: 'error' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: () => {
       conversationError.value = undefined
     },
@@ -211,14 +211,14 @@ const baseAlerts = computed(() => [
     id: 'chat-error',
     message: chatError.value,
     type: 'error' as const,
-    dismissible: false,
+    isDismissible: false,
     onClose: () => {},
   },
   {
     id: 'models-error',
     message: modelsError.value,
     type: 'warning' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: () => {
       modelsError.value = undefined
     },
@@ -227,14 +227,14 @@ const baseAlerts = computed(() => [
     id: 'prompts-error',
     message: promptsError.value,
     type: 'warning' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: clearPromptsError,
   },
   {
     id: 'models-reload-warning',
     message: modelsReloadWarning.value,
     type: 'warning' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: () => {
       modelsReloadWarning.value = undefined
     },
@@ -243,7 +243,7 @@ const baseAlerts = computed(() => [
     id: 'persistence-warning',
     message: persistenceWarning.value,
     type: 'warning' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: () => {
       persistenceWarning.value = undefined
     },

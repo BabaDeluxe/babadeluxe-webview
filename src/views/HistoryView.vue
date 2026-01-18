@@ -179,7 +179,7 @@
       v-if="error"
       :message="error"
       type="error"
-      :dismissible="false"
+      :is-dismissible="false"
     />
 
     <!-- Rename Dialog -->

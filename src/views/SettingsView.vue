@@ -4,66 +4,34 @@
     data-testid="settings-container"
     class="flex-1 flex flex-col gap-6 p-4"
   >
+    <!-- Unified Alert Banners -->
+    <BaseAlertList :banners="alertBanners" />
+
+    <!-- Loading State -->
     <div
       v-if="isLoadingSettings"
       data-testid="loading-state"
-      class="flex items-center justify-center p-8"
+      class="flex-1 flex items-center justify-center"
     >
-      <span class="text-subtleText">Loading settings...</span>
+      <BaseSpinner
+        size="medium"
+        message="Loading settings..."
+      />
     </div>
 
-    <div
-      v-else-if="loadError"
-      data-testid="error-state"
-      class="flex items-center justify-center p-8"
-    >
-      <span class="text-error">{{ loadError }}</span>
-    </div>
-    <div
-      v-if="modelsReloadWarning"
-      data-testid="models-reload-warning"
-      class="bg-warning/10 border border-warning text-warning px-4 py-3 rounded-md mb-4 flex items-center justify-between"
-    >
-      <span>
-        {{ modelsReloadWarning }}
-      </span>
-      <button
-        data-testid="dismiss-warning-button"
-        class="ml-4 underline hover:no-underline"
-        @click="modelsReloadWarning = undefined"
-      >
-        Dismiss
-      </button>
-    </div>
-
+    <!-- Main Content -->
     <template v-else>
+      <!-- General Settings Section -->
       <section
         v-if="generalSettings.length > 0"
         data-testid="general-settings-section"
       >
-        <h2 class="text-xl font-semibold mb-4">General Settings</h2>
+        <h2 class="text-xl font-semibold mb-4 text-deepText">General Settings</h2>
         <div
           v-for="setting in generalSettings"
           :key="setting.settingKey"
           class="mb-4"
         >
-          <label
-            :for="setting.settingKey"
-            class="block font-medium mb-1"
-          >
-            {{ formatSettingLabel(setting.settingKey) }}
-            <span
-              v-if="setting.required"
-              class="text-error"
-              >*</span
-            >
-          </label>
-          <p
-            v-if="setting.description"
-            class="text-sm text-subtleText mb-2"
-          >
-            {{ setting.description }}
-          </p>
           <SettingsField
             :setting="setting"
             :field-name="setting.settingKey"
@@ -81,68 +49,26 @@
         </div>
       </section>
 
+      <!-- API Providers Section -->
       <section data-testid="api-providers-section">
-        <h3 class="text-lg font-semibold mb-3">API Keys</h3>
+        <h3 class="text-lg font-semibold mb-3 text-deepText">API Keys</h3>
         <div
           v-for="provider in apiProviders"
           :key="provider.key"
           class="mb-4"
         >
-          <label
-            :for="`api-${provider.key}`"
-            class="block font-medium mb-1"
-          >
-            {{ provider.name }}
-            <span
-              v-if="provider.required"
-              class="text-error"
-              >*</span
-            >
-          </label>
-          <div class="flex gap-2 items-center">
-            <input
-              :id="`api-${provider.key}`"
-              :name="provider.key"
-              :aria-label="`${provider.name} API key`"
-              :aria-invalid="fieldStates[provider.key]?.status === 'invalid'"
-              :type="fieldStates[provider.key]?.showSecret ? 'text' : 'password'"
-              :value="fieldStates[provider.key]?.value ?? ''"
-              :placeholder="`Enter ${provider.name} API key...`"
-              :class="getFieldInputClasses(provider.key)"
-              @input="handleApiKeyInput(provider.key, $event)"
-            />
-            <button
-              type="button"
-              :name="`toggle-secret-${provider.key}`"
-              :aria-label="`Toggle ${provider.name} visibility`"
-              class="px-3 py-2 bg-panel hover:bg-slate border border-borderMuted rounded-md transition-colors text-deepText"
-              @click="toggleSecretVisibility(provider.key)"
-            >
-              {{ fieldStates[provider.key]?.showSecret ? '🙈' : '👁️' }}
-            </button>
-            <span
-              v-if="fieldStates[provider.key]?.status === 'validating'"
-              :aria-label="`Validation status for ${provider.name}`"
-              class="text-sm text-subtleText whitespace-nowrap"
-            >
-              Validating...
-            </span>
-            <span
-              v-else-if="fieldStates[provider.key]?.status === 'valid'"
-              :aria-label="`Validation success for ${provider.name}`"
-              class="text-accent text-lg"
-            >
-              ✓
-            </span>
-          </div>
-          <div
-            v-if="fieldStates[provider.key]?.error"
-            role="alert"
-            :aria-label="`Error for ${provider.name}`"
-            class="text-error text-xs pt-1"
-          >
-            {{ fieldStates[provider.key]?.error }}
-          </div>
+          <BaseInput
+            v-model="fieldStates[provider.key].value"
+            type="password"
+            :label="provider.name"
+            :placeholder="`Enter ${provider.name} API key...`"
+            :required="provider.required"
+            :validation-state="fieldStates[provider.key].status"
+            :error="fieldStates[provider.key].error"
+            :toggleable="true"
+            :data-testid="`api-${provider.key}`"
+            @update:model-value="handleApiKeyInput(provider.key, $event)"
+          />
         </div>
       </section>
     </template>
@@ -158,6 +84,9 @@ import { getApiProviders } from '@/settings-utils'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import SettingsField from '@/components/SettingsField.vue'
+import BaseAlertList from '@/components/BaseAlertList.vue'
+import BaseSpinner from '@/components/BaseSpinner.vue'
+import BaseInput from '@/components/BaseInput.vue'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY } from '@/injection-keys'
 import type { ConsoleLogger } from '@simwai/utils'
 import type { ApiKeyValidator } from '@/api-key-validator'
@@ -169,7 +98,6 @@ type FieldState = {
   value: string
   status: FieldStatus
   error?: string
-  showSecret: boolean
 }
 
 const logger: ConsoleLogger = inject(LOGGER_KEY)!
@@ -186,20 +114,46 @@ const fieldStates = ref<Record<string, FieldState>>(
       {
         value: '',
         status: 'idle' as FieldStatus,
-        showSecret: false,
       },
     ])
   )
 )
 
 const isLoadingSettings = ref(true)
-const loadError = ref<string>()
+const loadError = ref<string | undefined>()
 const isDebounceStopped = ref(false)
-const modelsReloadWarning = ref<string>()
+const modelsReloadWarning = ref<string | undefined>()
 
 const generalSettings = computed(() =>
   settings.value.filter((setting) => !setting.settingKey.startsWith('apiKey'))
 )
+
+const alertBanners = computed(() => {
+  const banners = []
+
+  if (loadError.value) {
+    banners.push({
+      id: 'load-error',
+      message: loadError.value,
+      type: 'error' as const,
+      isDismissible: false,
+    })
+  }
+
+  if (modelsReloadWarning.value) {
+    banners.push({
+      id: 'models-reload-warning',
+      message: modelsReloadWarning.value,
+      type: 'warning' as const,
+      isDismissible: true,
+      onClose: () => {
+        modelsReloadWarning.value = undefined
+      },
+    })
+  }
+
+  return banners
+})
 
 const getSettingByKey = (key: string) =>
   settings.value.find((setting) => setting.settingKey === key)
@@ -234,36 +188,6 @@ const updateFieldStatus = (key: string, status: FieldStatus, error?: string) => 
   }
 }
 
-const updateFieldValue = (key: string, value: string) => {
-  if (!fieldStates.value[key]) return
-
-  fieldStates.value[key] = {
-    ...fieldStates.value[key],
-    value,
-  }
-}
-
-const toggleSecretVisibility = (key: string) => {
-  if (!fieldStates.value[key]) return
-
-  fieldStates.value[key].showSecret = !fieldStates.value[key].showSecret
-}
-
-const getFieldInputClasses = (key: string) => {
-  const baseClasses =
-    'w-full px-3 py-2 bg-codeBg border rounded-lg text-deepText focus:outline-none transition-colors'
-  const status = fieldStates.value[key]?.status ?? 'idle'
-
-  const errorClasses =
-    status === 'invalid'
-      ? 'border-error focus:border-error'
-      : status === 'valid'
-        ? 'border-accent focus:border-accent'
-        : 'border-borderMuted focus:border-accent'
-
-  return `${baseClasses} ${errorClasses}`
-}
-
 const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
   if (isLoadingSettings.value) return
 
@@ -283,7 +207,7 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
 
   if (result.isErr()) {
     const error = result.error
-    logger.error(`Validation failed for ${provider} after user entered API key:`, error)
+    logger.error(`Validation failed for ${provider}:`, error)
 
     if (error instanceof InvalidApiKeyError) {
       updateFieldStatus(provider, 'invalid', 'The provided API key is not valid.')
@@ -297,6 +221,7 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
 
   updateFieldStatus(provider, 'valid')
   upsertSetting(provider, apiKey, definition.dataType)
+
   const reloadModelsResult = await reloadModels()
   if (reloadModelsResult.isErr()) {
     logger.error('Failed to reload models after API key validation:', reloadModelsResult.error)
@@ -314,11 +239,10 @@ const debouncedValidate = useDebounceFn(
   { rejectOnCancel: false }
 )
 
-const handleApiKeyInput = (provider: string, event: Event) => {
-  const input = event.target as HTMLInputElement
-  const apiKey = input.value.trim()
+const handleApiKeyInput = (provider: string, value: string | number) => {
+  const apiKey = String(value).trim()
 
-  updateFieldValue(provider, apiKey)
+  fieldStates.value[provider].value = apiKey
   updateFieldStatus(provider, 'idle')
 
   if (apiKey) {
@@ -341,13 +265,6 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
 
   updateFieldStatus(fieldName, 'valid')
   await upsertSetting(fieldName, value, setting.dataType)
-}
-
-const formatSettingLabel = (settingKey: string) => {
-  return settingKey
-    .replace(/^apiKey/, '')
-    .split(/(?=[A-Z])/)
-    .join(' ')
 }
 
 onMounted(async () => {

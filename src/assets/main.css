@@ -12,6 +12,7 @@ p {
 input,
 textarea {
   all: revert;
+  border-style: solid;
 }
 
 /* Custom scrollbar */

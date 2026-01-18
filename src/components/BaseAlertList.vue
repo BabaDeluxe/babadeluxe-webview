@@ -6,7 +6,7 @@
     <BaseAlert
       :message="banner.message"
       :type="banner.type"
-      :dismissible="banner.dismissible"
+      :is-dismissible="banner.isDismissible"
       @close="banner.onClose"
     />
   </template>
@@ -20,8 +20,8 @@ interface BaseAlertItem {
   id: string
   message: string | undefined
   type: 'error' | 'warning'
-  dismissible: boolean
-  onClose: () => void
+  isDismissible: boolean
+  onClose?: () => void
 }
 
 interface BaseAlertListProps {

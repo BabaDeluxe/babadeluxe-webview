@@ -14,32 +14,18 @@
       </BaseButton>
     </div>
 
+    <!-- Unified Error/Warning Banners -->
+    <BaseAlertList :banners="alertBanners" />
+
     <!-- Loading State -->
     <div
       v-if="isLoading"
       class="flex-1 flex justify-center items-center"
     >
-      <div class="flex items-center gap-2 text-subtleText">
-        <div
-          class="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin"
-        />
-        <span>Loading prompts...</span>
-      </div>
-    </div>
-
-    <!-- Error State (Initial Load Only) -->
-    <div
-      v-else-if="error"
-      class="flex-1 flex flex-col justify-center items-center text-error p-4"
-    >
-      <i class="i-weui:error-outlined text-4xl mb-2"></i>
-      <p>{{ error }}</p>
-      <BaseButton
-        class="mt-4"
-        @click="handleRetryFetch"
-      >
-        Retry
-      </BaseButton>
+      <BaseSpinner
+        size="medium"
+        message="Loading prompts..."
+      />
     </div>
 
     <!-- Main Content -->
@@ -47,13 +33,6 @@
       v-else
       class="flex-1 overflow-hidden px-4 pb-4 pt-4"
     >
-      <!-- Save/Delete Error Banner -->
-      <BaseAlert
-        :message="saveErrorMessage"
-        :type="saveErrorType"
-        @close="saveErrorMessage = undefined"
-      />
-
       <!-- Mobile: Vertical stack -->
       <div
         ref="verticalContainer"
@@ -61,28 +40,16 @@
       >
         <!-- Top Pane: Prompts List -->
         <div
-          class="flex flex-col gap-2 overflow-y-auto"
+          class="overflow-y-auto"
           :style="{ height: verticalTopHeightPercent }"
         >
-          <div
-            v-for="prompt in prompts"
-            :key="prompt.id"
-            class="flex items-center justify-between p-3 border border-borderMuted rounded-md hover:bg-panel cursor-pointer transition-colors"
-            :class="{ 'bg-accent/10 border-accent': prompt.id === selectedPromptId }"
-            @click="selectedPromptId = prompt.id"
-          >
-            <div class="flex-1 min-w-0">
-              <div class="font-medium text-deepText truncate">{{ prompt.name }}</div>
-              <div class="text-sm text-subtleText truncate">/{{ prompt.command }}</div>
-            </div>
-          </div>
-          <div
-            v-if="prompts.length === 0"
-            class="text-center text-subtleText p-8"
-          >
-            No prompts created yet. <br />
-            Click "New Prompt" to start.
-          </div>
+          <PromptList
+            :prompts="prompts"
+            :selected-prompt-id="selectedPromptId"
+            :empty-description="'No prompts created yet. Click New Prompt to start.'"
+            @select="handleSelectPrompt"
+            @delete="handleDeletePrompt"
+          />
         </div>
 
         <!-- Resizer Handle -->
@@ -103,54 +70,23 @@
 
         <!-- Bottom Pane: Prompt Editor -->
         <div
-          class="flex flex-col gap-4 overflow-y-auto border-t border-borderMuted pt-4"
+          class="overflow-y-auto border-t border-borderMuted pt-4"
           :style="{ height: verticalBottomHeightPercent }"
         >
-          <template v-if="selectedPrompt || isCreatingNewPrompt">
-            <h4 class="text-md font-medium text-deepText">
-              {{ isCreatingNewPrompt ? 'Create New Prompt' : 'Edit Prompt' }}
-            </h4>
-            <BaseTextField
-              v-model:value="editablePrompt.name"
-              label="Prompt Name"
-              placeholder="e.g. Code Reviewer"
-              @update:value="handleFormChange"
-            />
-            <BaseTextField
-              v-model:value="editablePrompt.command"
-              label="Command"
-              placeholder="e.g. review"
-              @update:value="handleFormChange"
-            >
-              <template #prepend><span class="text-subtleText px-2">/</span></template>
-            </BaseTextField>
-            <BaseTextField
-              v-model:value="editablePrompt.description"
-              label="Description (Optional)"
-              placeholder="e.g. Acts as a senior dev providing a code review."
-              @update:value="handleFormChange"
-            />
-            <BaseTextField
-              v-model:value="editablePrompt.template"
-              type="textarea"
-              label="Template"
-              placeholder="<role>Act as a senior software engineer doing a code review.</role> Focus on code clarity, performance, and adherence to best practices. The user's code is: {{userInput}}"
-              :rows="6"
-              @update:value="handleFormChange"
-            />
-            <BaseButton
-              :disabled="!isFormValid || isSaving"
-              @click="handleSaveChanges"
-            >
-              {{ isSaving ? 'Saving...' : 'Save Changes' }}
-            </BaseButton>
-          </template>
-          <div
+          <PromptEditor
+            v-if="selectedPrompt || isCreatingNewPrompt"
+            :prompt="editablePrompt"
+            :is-creating="isCreatingNewPrompt"
+            :is-saving="isSaving"
+            :rows="6"
+            @save="handleSaveChanges"
+            @change="handleFormChange"
+          />
+          <BaseEmptyState
             v-else-if="prompts.length > 0"
-            class="flex h-full items-center justify-center text-subtleText"
-          >
-            <p>Select a prompt to edit.</p>
-          </div>
+            icon="i-bi:cursor-text"
+            description="Select a prompt to edit."
+          />
         </div>
       </div>
 
@@ -161,44 +97,16 @@
       >
         <!-- Left Pane: Prompts List -->
         <div
-          class="flex flex-col gap-2 overflow-y-auto pr-4"
+          class="overflow-y-auto pr-4"
           :style="{ width: splitLeftWidthPercent }"
         >
-          <div
-            v-for="prompt in prompts"
-            :key="prompt.id"
-            class="flex items-center justify-between p-3 border border-borderMuted rounded-md hover:bg-panel cursor-pointer transition-colors"
-            :class="{ 'bg-accent/10 border-accent': prompt.id === selectedPromptId }"
-            @click="selectedPromptId = prompt.id"
-          >
-            <div class="flex-1 min-w-0">
-              <div class="font-medium text-deepText truncate">{{ prompt.name }}</div>
-              <div class="text-sm text-subtleText truncate">/{{ prompt.command }}</div>
-            </div>
-            <div class="flex items-center gap-1 flex-shrink-0">
-              <span
-                v-if="prompt.isSystem"
-                class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"
-              >
-                System
-              </span>
-              <button
-                v-if="!prompt.isSystem"
-                class="text-subtleText hover:text-error p-1 transition-colors"
-                title="Delete prompt"
-                @click.stop="handleDeletePrompt(prompt.id)"
-              >
-                <i class="i-weui:delete-outlined" />
-              </button>
-            </div>
-          </div>
-          <div
-            v-if="prompts.length === 0"
-            class="text-center text-subtleText p-8"
-          >
-            No prompts created yet. <br />
-            Click "New Prompt" to start.
-          </div>
+          <PromptList
+            :prompts="prompts"
+            :selected-prompt-id="selectedPromptId"
+            :empty-description="'No prompts created yet. Click New Prompt to start.'"
+            @select="handleSelectPrompt"
+            @delete="handleDeletePrompt"
+          />
         </div>
 
         <!-- Resizer Handle -->
@@ -219,73 +127,62 @@
 
         <!-- Right Pane: Prompt Editor -->
         <div
-          class="flex flex-col gap-4 overflow-y-auto pl-4 border-l border-borderMuted"
+          class="overflow-y-auto pl-4 border-l border-borderMuted"
           :style="{ width: splitRightWidthPercent }"
         >
-          <template v-if="selectedPrompt || isCreatingNewPrompt">
-            <h4 class="text-md font-medium text-deepText">
-              {{ isCreatingNewPrompt ? 'Create New Prompt' : 'Edit Prompt' }}
-            </h4>
-            <BaseTextField
-              v-model:value="editablePrompt.name"
-              label="Prompt Name"
-              placeholder="e.g. Code Reviewer"
-              @update:value="handleFormChange"
-            />
-            <BaseTextField
-              v-model:value="editablePrompt.command"
-              label="Command"
-              placeholder="e.g. review"
-              @update:value="handleFormChange"
-            >
-              <template #prepend><span class="text-subtleText px-2">/</span></template>
-            </BaseTextField>
-            <BaseTextField
-              v-model:value="editablePrompt.description"
-              label="Description (Optional)"
-              placeholder="e.g. Acts as a senior dev providing a code review."
-              @update:value="handleFormChange"
-            />
-            <BaseTextField
-              v-model:value="editablePrompt.template"
-              type="textarea"
-              label="Template"
-              placeholder="<role>Act as a senior software engineer doing a code review.</role><instruct>Focus on code clarity, performance, and adherence to best practices.</instruct>"
-              :rows="10"
-              @update:value="handleFormChange"
-            />
-            <div class="flex justify-end gap-2 mt-4">
-              <BaseButton
-                :disabled="!isFormValid || isSaving"
-                @click="handleSaveChanges"
-              >
-                {{ isSaving ? 'Saving...' : 'Save Changes' }}
-              </BaseButton>
-            </div>
-          </template>
-          <div
+          <PromptEditor
+            v-if="selectedPrompt || isCreatingNewPrompt"
+            :prompt="editablePrompt"
+            :is-creating="isCreatingNewPrompt"
+            :is-saving="isSaving"
+            :rows="10"
+            @save="handleSaveChanges"
+            @change="handleFormChange"
+          />
+          <BaseEmptyState
             v-else-if="prompts.length > 0"
-            class="flex h-full items-center justify-center text-subtleText"
-          >
-            <p>Select a prompt to view or edit its details.</p>
-          </div>
+            icon="i-bi:cursor-text"
+            description="Select a prompt to view or edit its details."
+          />
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <BaseModal
+      v-model:show="deleteModal.show"
+      title="Delete Prompt"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      size="small"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    >
+      <p class="text-deepText">
+        Are you sure you want to delete
+        <strong class="text-accent">{{ deleteModal.promptName }}</strong
+        >?
+      </p>
+      <p class="text-sm text-subtleText mt-2">This action cannot be undone.</p>
+    </BaseModal>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, inject } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useResizableSplit } from '@/composables/use-resizable-split'
 import { KEY_VALUE_STORE_KEY, LOGGER_KEY } from '@/injection-keys'
 import type { KeyValueStore } from '@/database/key-value-store'
 import type { ConsoleLogger } from '@simwai/utils'
-import BaseTextField from '@/components/BaseTextField.vue'
 import BaseButton from '@/components/BaseButton.vue'
-import BaseAlert from '@/components/BaseAlert.vue'
+import BaseAlertList from '@/components/BaseAlertList.vue'
+import BaseSpinner from '@/components/BaseSpinner.vue'
+import BaseEmptyState from '@/components/BaseEmptyState.vue'
+import BaseModal from '@/components/BaseModal.vue'
+import PromptList from '@/components/PromptList.vue'
+import PromptEditor from '@/components/PromptEditor.vue'
 
 const keyValueStore = inject<KeyValueStore>(KEY_VALUE_STORE_KEY)!
 const logger = inject<ConsoleLogger>(LOGGER_KEY)!
@@ -296,14 +193,13 @@ const {
   selectedPromptId,
   isLoading,
   error,
-  fetchAllPrompts,
   createPrompt,
   updatePrompt,
   deletePrompt,
   isValidationError,
+  clearError,
 } = usePromptsSocket()
 
-// Setup for horizontal (desktop) resizable split
 const {
   leftWidthPercent: splitLeftWidthPercent,
   rightWidthPercent: splitRightWidthPercent,
@@ -318,7 +214,6 @@ const {
   maxRatio: 50,
 })
 
-// Setup for vertical (mobile) resizable split
 const {
   leftWidthPercent: verticalTopHeightPercent,
   rightWidthPercent: verticalBottomHeightPercent,
@@ -336,104 +231,113 @@ const {
 
 const isCreatingNewPrompt = ref(false)
 const isSaving = ref(false)
-const saveErrorMessage = ref<string | undefined>()
+const saveError = ref<string | undefined>()
 
-const editablePrompt = ref({
-  id: undefined as number | undefined,
-  name: '',
-  command: '',
-  description: '' as string | undefined,
-  template: '',
+const deleteModal = ref({
+  show: false,
+  promptId: null as number | null,
+  promptName: '',
 })
 
-watch(
-  selectedPrompt,
-  (newSelection) => {
-    if (isCreatingNewPrompt.value) return
-
-    if (newSelection) {
-      editablePrompt.value = {
-        id: newSelection.id,
-        name: newSelection.name,
-        command: newSelection.command ?? '',
-        description: newSelection.description ?? '',
-        template: newSelection.template,
-      }
-    } else {
-      resetEditablePrompt(true)
+const editablePrompt = computed(() => {
+  if (isCreatingNewPrompt.value) {
+    return {
+      id: undefined,
+      name: '',
+      command: '',
+      description: '',
+      template: '',
     }
-  },
-  { immediate: true }
-)
+  }
 
-const isFormValid = computed(() => {
-  return (
-    editablePrompt.value.name.trim() &&
-    editablePrompt.value.command.trim() &&
-    editablePrompt.value.template.trim()
-  )
-})
-
-const saveErrorType = computed<'error' | 'warning'>(() => {
-  if (!saveErrorMessage.value) return 'error'
-
-  return saveErrorMessage.value.startsWith('Invalid input:') ? 'warning' : 'error'
-})
-
-function resetEditablePrompt(forceClear = false) {
-  isCreatingNewPrompt.value = false
-  saveErrorMessage.value = undefined
-  if (selectedPrompt.value && !forceClear) {
-    editablePrompt.value = {
+  if (selectedPrompt.value) {
+    return {
       id: selectedPrompt.value.id,
       name: selectedPrompt.value.name,
-      command: selectedPrompt.value.command ?? '', // ← normalize
+      command: selectedPrompt.value.command ?? '',
       description: selectedPrompt.value.description ?? '',
       template: selectedPrompt.value.template,
     }
-  } else {
-    editablePrompt.value = { id: undefined, name: '', command: '', description: '', template: '' }
   }
+
+  return undefined
+})
+
+const alertBanners = computed(() => {
+  const banners = []
+
+  if (error.value) {
+    banners.push({
+      id: 'fetch-error',
+      message: error.value,
+      type: 'error' as const,
+      isDismissible: true,
+      onClose: () => {
+        clearError()
+      },
+    })
+  }
+
+  if (saveError.value) {
+    const isValidation = saveError.value.startsWith('Invalid input:')
+    const alertType = isValidation ? ('warning' as const) : ('error' as const)
+
+    banners.push({
+      id: 'save-error',
+      message: saveError.value,
+      type: alertType,
+      isDismissible: true,
+      onClose: () => {
+        saveError.value = undefined
+      },
+    })
+  }
+
+  return banners
+})
+
+function handleSelectPrompt(promptId: number) {
+  selectedPromptId.value = promptId
+  isCreatingNewPrompt.value = false
+  saveError.value = undefined
 }
 
 function handleCreateNewPrompt() {
   isCreatingNewPrompt.value = true
   selectedPromptId.value = undefined
-  saveErrorMessage.value = undefined
-  editablePrompt.value = { id: undefined, name: '', command: '', description: '', template: '' }
+  saveError.value = undefined
 }
 
-const debouncedClearError = useDebounceFn(() => {
-  saveErrorMessage.value = undefined
+const debouncedClearSaveError = useDebounceFn(() => {
+  saveError.value = undefined
 }, 3000)
 
 function handleFormChange() {
-  if (saveErrorMessage.value) {
-    debouncedClearError()
-  }
+  if (saveError.value) debouncedClearSaveError()
 }
 
-async function handleSaveChanges() {
-  if (!isFormValid.value) return
-
+async function handleSaveChanges(payload: {
+  id?: number
+  name: string
+  command: string
+  description?: string
+  template: string
+}) {
   isSaving.value = true
-  saveErrorMessage.value = undefined
-
-  const { id, name, command, template, description } = editablePrompt.value
-  const payload = { name, command, template, description: description || undefined }
+  saveError.value = undefined
 
   const result = isCreatingNewPrompt.value
     ? await createPrompt(payload)
-    : await updatePrompt({ id: id!, ...payload })
+    : await updatePrompt({ id: payload.id!, ...payload })
 
   if (result.isErr()) {
     const action = isCreatingNewPrompt.value ? 'create' : 'update'
-    logger.error(`[PromptsView] Failed to ${action} prompt after user clicked Save:`, result.error)
+    logger.error(`Failed to ${action} prompt:`, result.error)
 
     const isValidation = isValidationError(result.error)
     const cleanMessage = result.error.message.replace(/^\[.*?\]\s*/, '')
 
-    saveErrorMessage.value = isValidation
+    saveError.value = isValidation
       ? `Invalid input: ${cleanMessage}`
       : `Server error: ${cleanMessage}. Please try again later or contact support.`
 
@@ -446,35 +350,47 @@ async function handleSaveChanges() {
   isSaving.value = false
 }
 
-async function handleDeletePrompt(id: number) {
-  const shouldDelete = confirm('Are you sure you want to delete this prompt?')
-  if (!shouldDelete) return
+function handleDeletePrompt(promptId: number) {
+  const prompt = prompts.value.find((p) => p.id === promptId)
+  if (!prompt) return
 
-  saveErrorMessage.value = undefined
+  deleteModal.value = {
+    show: true,
+    promptId,
+    promptName: prompt.name,
+  }
+}
 
-  const result = await deletePrompt(id)
+async function confirmDelete() {
+  if (deleteModal.value.promptId === null) return
+
+  saveError.value = undefined
+
+  const result = await deletePrompt(deleteModal.value.promptId)
 
   if (result.isErr()) {
-    logger.error('Failed to delete prompt after user clicked Delete:', result.error)
+    logger.error('Failed to delete prompt:', result.error)
 
     const isValidation = isValidationError(result.error)
     const cleanMessage = result.error.message.replace(/^\[.*?\]\s*/, '')
 
-    saveErrorMessage.value = isValidation
+    saveError.value = isValidation
       ? `Cannot delete: ${cleanMessage}`
       : `Server error: ${cleanMessage}. Please try again later.`
 
+    cancelDelete()
     return
   }
 
   logger.log('Successfully deleted prompt')
+  cancelDelete()
 }
 
-async function handleRetryFetch() {
-  const result = await fetchAllPrompts()
-
-  if (result.isErr()) {
-    logger.error('Retry failed after user clicked Retry button:', result.error)
+function cancelDelete() {
+  deleteModal.value = {
+    show: false,
+    promptId: null,
+    promptName: '',
   }
 }
 </script>

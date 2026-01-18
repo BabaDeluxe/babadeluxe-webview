@@ -29,33 +29,42 @@
           autocomplete="on"
           @submit.prevent="handleAuth"
         >
-          <input
-            v-model="email"
+          <BaseInput
+            :model-value="email"
             type="email"
             placeholder="Email"
-            class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
-            required
-            aria-label="Email Address"
-            autocomplete="email"
+            :disabled="isLoading"
+            :required="true"
+            :error="emailError"
+            @update:model-value="
+              (value) => {
+                email = String(value)
+                emailError = undefined
+              }
+            "
           />
 
-          <input
-            v-model="password"
+          <BaseInput
+            :model-value="password"
             type="password"
             placeholder="Password"
-            class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
-            required
-            aria-label="Password"
-            autocomplete="current-password"
+            :disabled="isLoading"
+            :required="true"
+            :toggleable="true"
+            :error="passwordError"
+            @update:model-value="
+              (value) => {
+                password = String(value)
+                passwordError = undefined
+              }
+            "
           />
-
-          <!-- Forgot Password button (only show during sign-in) -->
           <router-link
+            v-if="!isSignUp"
             to="/reset-password"
             class="w-full flex"
           >
             <BaseButton
-              v-if="!isSignUp"
               class="w-full"
               text="Forgot Password?"
               :disabled="isLoading"
@@ -63,10 +72,10 @@
           </router-link>
 
           <BaseButton
-            type="button"
+            type="submit"
             :text="isSignUp ? 'Sign Up' : 'Sign In'"
             :disabled="isLoading"
-            @click="handleAuth"
+            :loading="isLoading"
           />
           <BaseButton
             type="button"
@@ -76,12 +85,13 @@
           />
         </form>
 
-        <p
+        <BaseAlert
           v-if="error"
-          class="text-error mt-4"
-        >
-          {{ error }}
-        </p>
+          :message="error"
+          type="error"
+          :is-dismissible="true"
+          @close="error = undefined"
+        />
       </div>
     </div>
   </section>
@@ -93,6 +103,8 @@ import { ResultAsync, ok, err, type Result } from 'neverthrow'
 import type { ConsoleLogger } from '@simwai/utils'
 import IconBabaDeluxe from '../components/IconBabaDeluxe.vue'
 import BaseButton from '../components/BaseButton.vue'
+import BaseInput from '../components/BaseInput.vue'
+import BaseAlert from '../components/BaseAlert.vue'
 import type { SupabaseClientType } from '@/main'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 
@@ -103,14 +115,16 @@ const email = ref('')
 const password = ref('')
 const isSignUp = ref(false)
 const error = ref<string | undefined>()
+const emailError = ref<string | undefined>()
+const passwordError = ref<string | undefined>()
 const isLoading = ref(false)
 
 const toggleMode = () => {
   isSignUp.value = !isSignUp.value
   error.value = undefined
+  emailError.value = undefined
+  passwordError.value = undefined
 }
-
-// Performs email/password sign-up via Supabase
 const signUpWithEmail = async (
   emailAddress: string,
   userPassword: string,
@@ -134,8 +148,6 @@ const signUpWithEmail = async (
 
   return ok(undefined)
 }
-
-// Performs email/password sign-in via Supabase
 const signInWithEmail = async (
   emailAddress: string,
   userPassword: string,
@@ -159,13 +171,13 @@ const signInWithEmail = async (
 
   return ok(undefined)
 }
-
-// Handles email/password authentication (sign-up or sign-in)
 const handleAuth = async (): Promise<void> => {
   if (isLoading.value) return
 
   isLoading.value = true
   error.value = undefined
+  emailError.value = undefined
+  passwordError.value = undefined
 
   const authAction = isSignUp.value ? 'sign up' : 'sign in'
   const result = isSignUp.value
@@ -175,7 +187,6 @@ const handleAuth = async (): Promise<void> => {
   result.match(
     () => {
       logger.log(`User successfully ${authAction === 'sign up' ? 'signed up' : 'signed in'}`)
-      // Navigation happens automatically via Supabase auth state change
     },
     (authError) => {
       logger.error(`Email ${authAction} failed after user clicked button:`, authError)
@@ -186,8 +197,6 @@ const handleAuth = async (): Promise<void> => {
 
   isLoading.value = false
 }
-
-// Initiates GitHub OAuth login
 const loginWithGitHub = async (
   supabaseClient: SupabaseClientType
 ): Promise<Result<void, Error>> => {
@@ -208,8 +217,6 @@ const loginWithGitHub = async (
 
   return ok(undefined)
 }
-
-// Handles GitHub OAuth login button click
 const handleGitHubLogin = async (): Promise<void> => {
   if (isLoading.value) return
 
@@ -221,7 +228,6 @@ const handleGitHubLogin = async (): Promise<void> => {
   result.match(
     () => {
       logger.log('GitHub OAuth initiated successfully')
-      // Redirect happens automatically
     },
     (oauthError) => {
       logger.error('GitHub OAuth login failed after user clicked button:', oauthError)
