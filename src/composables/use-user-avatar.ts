@@ -1,4 +1,3 @@
-// composables/use-user-avatar.ts
 import { computed, ref } from 'vue'
 import type { Session } from '@supabase/supabase-js'
 import { ok, Result } from 'neverthrow'
