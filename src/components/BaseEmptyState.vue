@@ -14,9 +14,15 @@
     </h3>
     <p
       v-if="description"
-      class="text-sm"
+      class="text-sm text-center"
     >
       {{ description }}
+    </p>
+    <p
+      v-if="subDescription"
+      class="text-xs mt-2 text-center"
+    >
+      {{ subDescription }}
     </p>
     <slot />
   </div>
@@ -27,6 +33,7 @@ interface BaseEmptyStateProps {
   icon?: string
   title?: string
   description?: string
+  subDescription?: string
   iconSize?: 'small' | 'medium' | 'large'
 }
 
@@ -34,6 +41,7 @@ const props = withDefaults(defineProps<BaseEmptyStateProps>(), {
   icon: undefined,
   title: undefined,
   description: undefined,
+  subDescription: undefined,
   iconSize: 'large',
 })
 

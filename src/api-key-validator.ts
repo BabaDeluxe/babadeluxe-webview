@@ -22,7 +22,7 @@ type SupportedProvider = (typeof supportedProviders)[number]
 const validationTimeoutMs = 10000
 const defaultSuccessStatusCode = 200
 
-export type ValidationSuccess = {
+type ValidationSuccess = {
   readonly provider: string
   readonly statusCode: number
 }

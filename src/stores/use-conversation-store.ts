@@ -42,6 +42,7 @@ export const useConversationStore = defineStore('conversation', () => {
   const currentConversationId = useStorage<number>('current-conversation-id', 0)
   const isLoading = ref(false)
   const error = ref<string | undefined>(undefined)
+  const messageCountsByConversation = ref<Map<number, number>>(new Map())
 
   let creationPromise: Promise<Result<number, Error>> | undefined = undefined
 
@@ -53,6 +54,7 @@ export const useConversationStore = defineStore('conversation', () => {
     try {
       initializePromise = (async () => {
         await loadConversations()
+        await loadMessageCounts()
         await initializeCurrentConversation()
         await resumeInterruptedStreams()
       })()
@@ -61,6 +63,21 @@ export const useConversationStore = defineStore('conversation', () => {
     } finally {
       initializePromise = undefined
     }
+  }
+
+  async function loadMessageCounts(): Promise<void> {
+    const result = await appDb.getMessageCountsByConversation()
+
+    if (result.isErr()) {
+      logger.error(`Failed to load message counts: ${result.error.message}`)
+      messageCountsByConversation.value = new Map()
+    } else {
+      messageCountsByConversation.value = result.value
+    }
+  }
+
+  function getMessageCount(conversationId: number): number {
+    return messageCountsByConversation.value.get(conversationId) ?? 0
   }
 
   async function resumeInterruptedStreams(): Promise<void> {
@@ -168,7 +185,7 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   async function loadMessages(): Promise<void> {
-    if (!currentConversationId.value || currentConversationId.value === 0) {
+    if (!currentConversationId.value) {
       messages.value = []
       return
     }
@@ -183,6 +200,7 @@ export const useConversationStore = defineStore('conversation', () => {
     } else {
       messages.value = [...result.value]
       error.value = undefined
+      logger.log('Loaded messages:', JSON.stringify(messages.value))
     }
 
     isLoading.value = false
@@ -234,7 +252,6 @@ export const useConversationStore = defineStore('conversation', () => {
         const addResult = await appDb.conversation.add({
           title,
           isActive: 1,
-          messageCount: 0,
           createdAt: new Date(),
           updatedAt: new Date(),
         } as Conversation)
@@ -376,6 +393,10 @@ export const useConversationStore = defineStore('conversation', () => {
     }
 
     messages.value.push(newMessage)
+
+    const currentCount = messageCountsByConversation.value.get(conversationIdResult.value) ?? 0
+    messageCountsByConversation.value.set(conversationIdResult.value, currentCount + 1)
+
     return ok(newMessage)
   }
 
@@ -481,7 +502,13 @@ export const useConversationStore = defineStore('conversation', () => {
 
     const messageIndex = messages.value.findIndex((message) => message.id === messageId)
     if (messageIndex !== -1) {
+      const deletedMessage = messages.value[messageIndex]
       messages.value.splice(messageIndex, 1)
+
+      const currentCount = messageCountsByConversation.value.get(deletedMessage.conversationId) ?? 0
+      if (currentCount > 0) {
+        messageCountsByConversation.value.set(deletedMessage.conversationId, currentCount - 1)
+      }
     }
 
     const existsResult = await appDb.conversation.get(currentConversationId.value)
@@ -504,7 +531,6 @@ export const useConversationStore = defineStore('conversation', () => {
       const updateResult = await ResultAsync.fromPromise(
         appDb.conversation.update(currentConversationId.value, {
           updatedAt: new Date(),
-          messageCount: messages.value.length,
         }),
         (unknownError) => new ChatError(String(unknownError))
       )
@@ -805,6 +831,7 @@ export const useConversationStore = defineStore('conversation', () => {
     currentConversationId,
     isLoading,
     error,
+    messageCountsByConversation,
 
     // Actions
     initialize,
@@ -813,6 +840,9 @@ export const useConversationStore = defineStore('conversation', () => {
     loadConversations,
     initializeCurrentConversation,
     switchConversation,
+
+    loadMessageCounts,
+    getMessageCount,
 
     createConversation,
     deleteConversation,

@@ -3,7 +3,6 @@ export type Conversation = {
   title: string
   createdAt: Date
   updatedAt?: Date
-  messageCount: number
   isActive: number
 }
 

@@ -5,7 +5,14 @@ export type { Mutable }
 
 export function useConversation() {
   const store = useConversationStore()
-  const { messages, conversations, currentConversationId, isLoading, error } = storeToRefs(store)
+  const {
+    messages,
+    conversations,
+    currentConversationId,
+    isLoading,
+    error,
+    messageCountsByConversation,
+  } = storeToRefs(store)
 
   return {
     // Reactive state
@@ -14,6 +21,7 @@ export function useConversation() {
     currentConversationId,
     isLoading,
     error,
+    messageCountsByConversation,
 
     // Store actions (legacy-compatible surface)
     initialize: store.initialize,
@@ -22,6 +30,9 @@ export function useConversation() {
     loadConversations: store.loadConversations,
     initializeCurrentConversation: store.initializeCurrentConversation,
     switchConversation: store.switchConversation,
+
+    loadMessageCounts: store.loadMessageCounts,
+    getMessageCount: store.getMessageCount,
 
     createConversation: store.createConversation,
     deleteConversation: store.deleteConversation,

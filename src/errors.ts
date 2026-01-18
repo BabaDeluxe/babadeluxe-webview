@@ -19,17 +19,6 @@ export class InvalidResponseError extends BaseError {}
 
 export class SocketConnectionError extends BaseError {}
 
-export class SocketConnectionTimeoutError extends BaseError {
-  constructor(
-    public readonly namespace: string,
-    public readonly timeoutMs: number
-  ) {
-    super(`[${namespace}] Connection timeout after ${timeoutMs}ms`)
-    this.name = 'SocketConnectionTimeoutError'
-    Object.setPrototypeOf(this, SocketConnectionTimeoutError.prototype)
-  }
-}
-
 export type ApiKeyValidationError =
   | InvalidApiKeyError
   | BadRequestError
@@ -46,7 +35,6 @@ export class EnvValidationError extends BaseError {}
 export class AuthTokenError extends BaseError {}
 
 export class ModelsFetchError extends BaseError {}
-export class PostMessageError extends BaseError {}
 
 export class TestEnvValidationError extends BaseError {}
 

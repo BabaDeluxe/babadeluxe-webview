@@ -119,7 +119,7 @@
 import { inject, onMounted, ref, useTemplateRef, watch, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ConsoleLogger } from '@simwai/utils'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ResultAsync } from 'neverthrow'
 import EmptyState from '@/components/BaseEmptyState.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
@@ -139,7 +139,6 @@ import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { defaultModel, streamingCommitIntervalMs } from '@/constants'
 import { createStreamingCommitHandler, finalizeStreamingMessage } from '@/streaming-helpers'
-import router from '@/routes'
 
 type ChatMessageInstance = InstanceType<typeof ChatMessage>
 
@@ -148,6 +147,7 @@ const keyValueStore = inject<KeyValueStore>(KEY_VALUE_STORE_KEY)!
 const supabase = inject<SupabaseClient>(SUPABASE_CLIENT_KEY)!
 
 const route = useRoute()
+const router = useRouter()
 
 const {
   initialize,
@@ -202,7 +202,7 @@ const baseAlerts = computed(() => [
     id: 'conversation-error',
     message: conversationError.value,
     type: 'error' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: () => {
       conversationError.value = undefined
     },
@@ -211,14 +211,14 @@ const baseAlerts = computed(() => [
     id: 'chat-error',
     message: chatError.value,
     type: 'error' as const,
-    dismissible: false,
+    isDismissible: false,
     onClose: () => {},
   },
   {
     id: 'models-error',
     message: modelsError.value,
     type: 'warning' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: () => {
       modelsError.value = undefined
     },
@@ -227,14 +227,14 @@ const baseAlerts = computed(() => [
     id: 'prompts-error',
     message: promptsError.value,
     type: 'warning' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: clearPromptsError,
   },
   {
     id: 'models-reload-warning',
     message: modelsReloadWarning.value,
     type: 'warning' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: () => {
       modelsReloadWarning.value = undefined
     },
@@ -243,7 +243,7 @@ const baseAlerts = computed(() => [
     id: 'persistence-warning',
     message: persistenceWarning.value,
     type: 'warning' as const,
-    dismissible: true,
+    isDismissible: true,
     onClose: () => {
       persistenceWarning.value = undefined
     },
@@ -551,8 +551,7 @@ watch(
       await createConversation('New Conversation')
       await router.replace({ query: {} })
     }
-  },
-  { immediate: true }
+  }
 )
 
 watch(
