@@ -11,7 +11,7 @@
       autocapitalize="off"
       spellcheck="false"
       rows="1"
-      class="w-full bg-panel border border-borderMuted rounded-md px-3 py-2 text-base outline-none text-deepText placeholder-subtleText focus:border-accent transition-colors resize-none overflow-y-auto"
+      class="w-full bg-panel border border-borderMuted rounded-md px-3 py-2 text-base outline-none text-deepText placeholder-subtleText focus:border-accent transition-colors resize-none"
       :style="{ maxHeight: maxHeight, minHeight: '2.5rem' }"
     />
   </div>

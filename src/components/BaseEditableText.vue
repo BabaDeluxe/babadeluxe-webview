@@ -15,14 +15,14 @@
     <div
       v-else
       key="editing"
-      class="min-h-5 md:max-w-60vw w-full overflow-x-hidden"
+      class="min-h-5 w-full min-w-0"
     >
       <textarea
         ref="textareaRef"
         v-model="localValue"
         :disabled="isSaving"
         :placeholder="placeholder"
-        class="w-full bg-transparent resize-none outline-none border-none text-sm font-sans leading-relaxed pr-3 focus:ring-2 focus:ring-accent/20 rounded min-w-60vw w-full text-deepText overflow-hidden"
+        class="w-full bg-transparent resize-none outline-none border-none text-sm font-sans leading-relaxed pr-3 focus:ring-2 focus:ring-accent/20 rounded min-w-60vw w-full text-deepText"
         data-testid="editable-textarea"
         @keydown="handleKeydown"
       />
