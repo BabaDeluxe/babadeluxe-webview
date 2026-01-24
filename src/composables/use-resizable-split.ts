@@ -49,6 +49,7 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
     // Case 2: No value stored (first use) - silently use default
     if (saved === undefined) {
       leftWidth.value = defaultRatio
+      saveRatio(leftWidth.value)
       return
     }
 
@@ -59,11 +60,13 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
         `Invalid split ratio "${saved}" (expected ${minRatio}-${maxRatio}), using default ${defaultRatio}%`
       )
       leftWidth.value = defaultRatio
+      saveRatio(leftWidth.value)
       return
     }
 
     // Case 4: Valid stored value
     leftWidth.value = parsed
+    saveRatio(leftWidth.value)
   }
 
   const saveRatio = async (ratio: number) => {
@@ -73,8 +76,13 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
     }
   }
 
-  const startDragging = () => {
+  const startDragging = (event?: PointerEvent) => {
     isDragging.value = true
+
+    const handleElement = event?.currentTarget
+    if (handleElement instanceof HTMLElement && typeof event?.pointerId === 'number') {
+      handleElement.setPointerCapture(event.pointerId)
+    }
   }
 
   const stopDragging = async () => {
@@ -84,7 +92,7 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
     }
   }
 
-  const onMouseMove = (event: MouseEvent) => {
+  const onPointerMove = (event: PointerEvent) => {
     if (!isDragging.value || !containerRef.value) return
 
     const container = containerRef.value.getBoundingClientRect()
@@ -100,8 +108,9 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
     leftWidth.value = clampedPercentage
   }
 
-  useEventListener(document, 'mousemove', onMouseMove)
-  useEventListener(document, 'mouseup', stopDragging)
+  useEventListener(document, 'pointermove', onPointerMove)
+  useEventListener(document, 'pointerup', stopDragging)
+  useEventListener(document, 'pointercancel', stopDragging)
 
   onMounted(async () => {
     await loadSavedRatio()

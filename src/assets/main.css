@@ -1,4 +1,10 @@
 /* General */
+html,
+body {
+  height: 100%;
+  width: 100%;
+}
+
 * {
   box-sizing: border-box !important;
 }
@@ -60,4 +66,9 @@ ol {
   margin-block-start: 0 !important;
   margin-block-end: 0 !important;
   padding-inline-start: 0 !important;
+}
+
+/* Hide overflow in text areas */
+textarea {
+  overflow: hidden;
 }

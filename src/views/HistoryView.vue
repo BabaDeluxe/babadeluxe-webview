@@ -2,7 +2,6 @@
   <section
     id="history"
     class="relative flex flex-col w-full h-full overflow-hidden bg-slate"
-    :class="{ 'select-none': splitIsDragging || verticalIsDragging }"
   >
     <div class="flex flex-row w-full items-center justify-center gap-2 px-4 pt-4">
       <i class="i-weui:search-outlined text-3xl text-subtleText" />
@@ -44,17 +43,17 @@
 
     <div
       v-else
-      class="flex-1 overflow-hidden px-4 pt-4"
+      class="flex flex-col flex-1 w-full h-full min-h-0 overflow-hidden px-4 pt-4"
     >
       <template v-if="showSelectedMessages">
         <!-- Mobile: Vertical stack -->
         <div
           ref="verticalContainer"
-          class="flex flex-col md:hidden h-full"
+          class="flex flex-col md:hidden h-full min-h-0"
         >
           <!-- Conversations (Top Half) -->
           <div
-            class="flex flex-col gap-2 overflow-y-auto"
+            class="flex flex-col gap-2 overflow-y-auto pr-2"
             :style="{ height: verticalTopHeightPercent }"
           >
             <ConversationList
@@ -70,9 +69,9 @@
 
           <!-- Resizer Handle -->
           <div
-            class="relative flex items-center justify-center cursor-row-resize group flex-shrink-0"
+            class="relative flex items-center justify-center flex-shrink-0 cursor-row-resize group touch-none select-none"
             :class="{ 'bg-accent/10': verticalIsDragging }"
-            @mousedown="verticalStartDragging"
+            @pointerdown="verticalStartDragging"
           >
             <div
               class="h-0.5 w-12 rounded-full transition-all"
@@ -86,7 +85,7 @@
 
           <!-- Messages (Bottom Half) - Mobile -->
           <div
-            class="flex flex-col gap-2 overflow-y-auto border-t border-borderMuted pt-4"
+            class="flex flex-col gap-2 overflow-y-auto border-t border-borderMuted pt-4 pr-2"
             :style="{ height: verticalBottomHeightPercent }"
           >
             <MessageList
@@ -103,11 +102,11 @@
         <!-- Desktop: Split view -->
         <div
           ref="splitContainer"
-          class="hidden md:flex flex-row h-full relative"
+          class="hidden md:flex flex-row h-full min-h-0 relative"
         >
           <!-- Left Pane: Conversations -->
           <div
-            class="flex flex-col gap-2 overflow-y-auto pr-2"
+            class="flex flex-col gap-2 overflow-y-auto pr-4 min-w-0"
             :style="{ width: splitLeftWidthPercent }"
           >
             <ConversationList
@@ -123,9 +122,9 @@
 
           <!-- Resizer Handle -->
           <div
-            class="relative flex items-center justify-center cursor-col-resize group"
+            class="relative flex items-center justify-center cursor-col-resize group touch-none select-none"
             :class="{ 'bg-accent/10': splitIsDragging }"
-            @mousedown="splitStartDragging"
+            @pointerdown="splitStartDragging"
           >
             <div
               class="w-0.5 h-12 rounded-full transition-all"
@@ -139,7 +138,7 @@
 
           <!-- Right Pane: Messages -->
           <div
-            class="flex flex-col gap-2 overflow-y-auto pl-2 border-l border-borderMuted"
+            class="flex flex-col gap-2 overflow-y-auto pl-4 pr-2 border-l border-borderMuted min-w-0"
             :style="{ width: splitRightWidthPercent }"
           >
             <MessageList
@@ -157,7 +156,7 @@
       <!-- Case: No messages selected -->
       <div
         v-else
-        class="flex flex-col gap-2 h-full overflow-y-auto"
+        class="flex flex-col gap-2 h-full min-h-0 overflow-y-auto pr-2"
       >
         <ConversationList
           :conversations="filteredConversations"
