@@ -1,7 +1,7 @@
 <template>
   <section
     id="prompts"
-    class="relative flex flex-col w-full h-full bg-slate"
+    class="relative flex flex-col w-full h-full bg-slate overflow-hidden"
   >
     <!-- Header -->
     <div class="flex flex-row w-full items-center justify-between flex-shrink-0 gap-2 px-4 pt-4">
