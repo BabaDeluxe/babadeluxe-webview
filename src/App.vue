@@ -1,7 +1,11 @@
 <template>
-  <div class="h-100vh w-full bg-slate flex flex-col font-onest text-deepText">
+  <div
+    class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText"
+  >
     <div v-if="session && $route.path !== '/'">
-      <header class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20">
+      <header
+        class="flex items-center justify-between pr-2 bg-panel border-b border-borderMuted/20"
+      >
         <IconBabaDeluxe />
 
         <div class="flex flex-row gap-4 justify-end items-center">
@@ -13,35 +17,61 @@
 
           <RouterLink
             to="/settings"
-            class="px-4 py-2 rounded-lg hover:text-accent transition-colors"
+            class="rounded-lg hover:text-accent transition-colors"
           >
             <BaseButton
-              :class="'bg-none text-deepText text-2xl'"
+              :class="'bg-none text-deepText text-xl'"
               icon="i-weui:setting-outlined"
             />
           </RouterLink>
         </div>
       </header>
 
-      <div class="flex flex-row gap-4 justify-start items-center bg-panel">
-        <nav class="flex space-x-2 text-deepText p-2">
+      <div class="flex justify-start items-center bg-panel">
+        <nav class="flex flex-row gap-4 text-deepText p-2">
           <RouterLink
+            v-slot="{ href, navigate, isExactActive }"
             to="/chat"
-            class="px-4 py-2 rounded-lg hover:text-accent hover:bg-codeBg transition-colors"
+            custom
           >
-            Chat
+            <a
+              :href="href"
+              class="px-2 py-1 rounded-lg transition-colors"
+              :class="isExactActive ? 'text-accent bg-codeBg' : 'hover:text-accent hover:bg-codeBg'"
+              @click="navigate"
+            >
+              Chat
+            </a>
           </RouterLink>
+
           <RouterLink
+            v-slot="{ href, navigate, isExactActive }"
             to="/history"
-            class="px-4 py-2 rounded-lg hover:text-accent hover:bg-codeBg transition-colors"
+            custom
           >
-            History
+            <a
+              :href="href"
+              class="px-2 py-1 rounded-lg transition-colors"
+              :class="isExactActive ? 'text-accent bg-codeBg' : 'hover:text-accent hover:bg-codeBg'"
+              @click="navigate"
+            >
+              History
+            </a>
           </RouterLink>
+
           <RouterLink
+            v-slot="{ href, navigate, isExactActive }"
             to="/prompts"
-            class="px-4 py-2 rounded-lg hover:text-accent hover:bg-codeBg transition-colors"
+            custom
           >
-            Prompts
+            <a
+              :href="href"
+              class="px-2 py-1 rounded-lg transition-colors"
+              :class="isExactActive ? 'text-accent bg-codeBg' : 'hover:text-accent hover:bg-codeBg'"
+              @click="navigate"
+            >
+              Prompts
+            </a>
           </RouterLink>
         </nav>
       </div>
@@ -49,11 +79,16 @@
 
     <Suspense>
       <template #default>
-        <RouterView class="flex flex-col" />
+        <RouterView class="flex flex-col flex-1" />
       </template>
+
       <template #fallback>
-        <div class="flex flex-col items-center justify-center bg-slate text-lg text-deepText">
-          Loading...
+        <div class="flex flex-1 items-center justify-center bg-slate">
+          <BaseSpinner
+            size="large"
+            message="Loading..."
+            text-class="text-deepText"
+          />
         </div>
       </template>
     </Suspense>
@@ -66,6 +101,7 @@ import { inject, onMounted, ref } from 'vue'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import type { ConsoleLogger } from '@simwai/utils'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
+import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import { type SupabaseClientType } from '@/main'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
