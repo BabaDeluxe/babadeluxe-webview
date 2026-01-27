@@ -1,5 +1,5 @@
-// main.ts
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import { err, ok, type Result } from 'neverthrow'
 import { createClient } from '@supabase/supabase-js'
 import { ConsoleLogger } from '@simwai/utils'
@@ -24,16 +24,13 @@ import {
   SUPABASE_CLIENT_KEY,
 } from '@/injection-keys'
 import { initializeModels } from '@/composables/use-models-socket'
-import { AuthTokenError, EnvValidationError } from '@/errors'
+import { AuthTokenError } from '@/errors'
 import { SocketManager } from '@/socket-manager'
-import { createPinia } from 'pinia'
 
 const logger = new ConsoleLogger({ isTimeEnabled: false })
 
 const envValidationResult = validateEnvConfig()
-if (envValidationResult instanceof EnvValidationError) {
-  process.exit(1)
-}
+if (envValidationResult.isErr()) throw envValidationResult.error
 
 // @ts-ignore
 const envConfig: EnvConfigType = import.meta.env
@@ -66,7 +63,6 @@ app.provide(KEY_VALUE_STORE_KEY, keyValueStore)
 const router = createAppRouter(supabase)
 
 app.use(router)
-await router.isReady()
 
 const getAuthToken = async (): Promise<Result<string, AuthTokenError>> => {
   const {
@@ -90,17 +86,18 @@ const authTokenResult = await getAuthToken()
 if (authTokenResult.isErr()) {
   logger.warn('Auth failed:', authTokenResult.error.message)
 
-  await router.push('/login')
+  router.push('/login')
+
   app.mount('#app')
 } else {
   const authToken = authTokenResult.value
 
   const socketManager = new SocketManager(logger, VITE_SOCKET_URL, authToken)
+
   const socketManagerInitResult = await socketManager.init()
 
   if (socketManagerInitResult.isErr()) {
     logger.error('Socket initialization failed:', socketManagerInitResult.error)
-    process.exit(1)
   }
 
   logger.log('All socket namespaces connected')
@@ -110,6 +107,7 @@ if (authTokenResult.isErr()) {
   app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
 
   app.mount('#app')
+
   window.addEventListener('beforeunload', () => {
     socketManager.disconnect()
   })
