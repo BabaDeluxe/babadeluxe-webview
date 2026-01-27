@@ -3,6 +3,7 @@
     <BaseDropdown
       :model-value="prompt"
       icon="i-bi:chat-left"
+      placement="top"
       :items="promptOptions"
       @update:model-value="emit('update:prompt', $event)"
     />
@@ -11,6 +12,7 @@
       icon="i-simple-icons:openai"
       :groups="modelGroups"
       :disabled="isLoadingModels"
+      placement="top"
       :data-testid="modelSelectorTestId"
       @update:model-value="emit('update:model', $event)"
     />

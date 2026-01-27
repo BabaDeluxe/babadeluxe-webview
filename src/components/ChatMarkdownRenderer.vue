@@ -1,5 +1,5 @@
 <template>
-  <div class="markdown-content min-h-5 pr-6 md:max-w-60vw overflow-x-hidden">
+  <div class="markdown-content min-h-5 pr-6 overflow-x-hidden">
     <VueMarkdown
       v-if="committedContent"
       :key="committedKey"
@@ -119,19 +119,23 @@ defineExpose({
 }
 
 .markdown-content :deep(ul) {
-  @apply list-none flex flex-col gap-4 m-0;
+  @apply list-none;
 }
 
 .markdown-content :deep(ol) {
-  @apply list-none flex flex-col gap-4 m-0;
+  @apply list-none;
   counter-reset: list-counter;
 }
 
 .markdown-content :deep(ul > li),
 .markdown-content :deep(ol > li) {
-  @apply text-sm leading-normal flex items-start;
-  gap: 0.5rem;
+  @apply text-sm leading-normal;
   color: inherit;
+}
+
+.markdown-content :deep(ul > li + li),
+.markdown-content :deep(ol > li + li) {
+  @apply mt-4;
 }
 
 .markdown-content :deep(ol > li) {
@@ -139,12 +143,12 @@ defineExpose({
 }
 
 .markdown-content :deep(ul > li::before) {
-  content: '•';
+  content: '• ';
   color: inherit;
 }
 
-.markdown-content :deep(ol > li::before) {
-  content: counter(list-counter) '.';
+.markdown-content :deep(ol > li)::before {
+  content: counter(list-counter) '. ';
   color: inherit;
 }
 

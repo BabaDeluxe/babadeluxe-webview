@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col gap-0">
     <BaseTextField
-      ref="textInputRef"
+      ref="baseTextFieldRef"
       :value="modelValue"
       :placeholder="placeholder"
       :data-testid="testId"
@@ -38,10 +38,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useTemplateRef } from 'vue'
+import { computed, inject, useTemplateRef } from 'vue'
+import type { ConsoleLogger } from '@simwai/utils'
 import BaseTextField from '@/components/BaseTextField.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
+import { LOGGER_KEY } from '@/injection-keys.js'
 
 interface ChatInputProps {
   modelValue: string
@@ -80,11 +82,31 @@ const emit = defineEmits<{
   (event: 'abort'): void
 }>()
 
+const logger: ConsoleLogger = inject(LOGGER_KEY)!
+
 const canSubmit = computed(() => props.modelValue.trim().length > 0 && !props.disabled)
 
-const textInputRef = useTemplateRef<HTMLElement>('textInputRef')
+const baseTextFieldRef = useTemplateRef<unknown>('baseTextFieldRef')
 
-defineExpose({
-  textInputRef,
-})
+function focus(): void {
+  const instance = baseTextFieldRef.value as { focus?: () => void; $el?: unknown } | undefined
+
+  if (instance?.focus) {
+    instance.focus()
+    return
+  }
+
+  const rootElement = instance?.$el
+  if (rootElement instanceof HTMLElement) {
+    const inputElement = rootElement.querySelector('input,textarea')
+    if (inputElement instanceof HTMLElement) {
+      inputElement.focus()
+      return
+    }
+  }
+
+  logger.warn('ChatInput.focus(): BaseTextField does not expose a focusable element')
+}
+
+defineExpose({ focus })
 </script>
