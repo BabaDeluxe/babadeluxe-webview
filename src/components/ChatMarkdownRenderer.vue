@@ -15,7 +15,7 @@
       {{ streamingBuffer }}
       <span
         v-if="cursor"
-        class="cursor"
+        class="animate-pulse"
         >▎</span
       >
     </span>
@@ -93,24 +93,35 @@ defineExpose({
   @apply whitespace-pre-wrap break-words text-sm leading-relaxed color-inherit;
 }
 
-.cursor {
-  @apply animate-pulse;
+/* Base typography + base text color (scoped, safe) */
+.markdown-content {
+  @apply min-h-5 pr-6 overflow-x-hidden text-sm leading-relaxed text-body-text;
 }
 
+/* Headings (anchored deep selectors) */
 .markdown-content :deep(h1) {
-  @apply text-xl font-semibold text-deepText;
+  @apply text-xl font-semibold text-heading-text;
+  color: #dcd8ff;
 }
 
 .markdown-content :deep(h2) {
-  @apply text-lg font-semibold text-deepText;
+  @apply text-lg font-semibold text-heading-text;
+  color: #dcd8ff;
 }
 
 .markdown-content :deep(h3) {
-  @apply text-base font-semibold text-deepText;
+  @apply text-base font-semibold text-heading-text;
+  color: #dcd8ff;
 }
 
+/* Paragraphs */
 .markdown-content :deep(p) {
-  @apply text-sm leading-normal color-inherit;
+  @apply text-sm leading-normal m-0;
+}
+
+.markdown-content :deep(strong) {
+  @apply font-semibold text-heading-text;
+  color: #dcd8ff;
 }
 
 .markdown-content :deep(p:has(+ ul)),
@@ -118,24 +129,19 @@ defineExpose({
   @apply leading-tight;
 }
 
-.markdown-content :deep(ul) {
-  @apply list-none;
-}
-
+/* Lists */
+.markdown-content :deep(ul),
 .markdown-content :deep(ol) {
   @apply list-none;
-  counter-reset: list-counter;
+  margin-block-end: 0;
+  margin-block-start: 0;
+  margin-inline-start: 0;
+  margin-inline-end: 0;
 }
 
 .markdown-content :deep(ul > li),
 .markdown-content :deep(ol > li) {
-  @apply text-sm leading-normal;
-  color: inherit;
-}
-
-.markdown-content :deep(ul > li + li),
-.markdown-content :deep(ol > li + li) {
-  @apply mt-4;
+  @apply text-sm leading-normal color-inherit;
 }
 
 .markdown-content :deep(ol > li) {
@@ -152,34 +158,27 @@ defineExpose({
   color: inherit;
 }
 
+/* Quotes */
 .markdown-content :deep(blockquote) {
   @apply border-l-4 border-accent bg-panel pl-4 py-2 my-3 italic;
 }
 
+/* Inline code + code blocks */
 .markdown-content :deep(code) {
-  @apply bg-codeBg text-accent px-1 py-0.5 rounded text-sm font-mono break-words;
+  @apply bg-codeBg px-1 py-0.5 rounded text-sm font-mono break-words text-bodyText;
 }
 
 .markdown-content :deep(pre) {
-  @apply bg-codeBg border border-borderMuted rounded-lg p-4 my-3 font-mono text-sm max-w-full overflow-x-auto whitespace-pre;
+  @apply bg-codeBg border border-borderMuted rounded-lg p-4 font-mono text-sm max-w-full overflow-x-auto whitespace-pre;
 }
 
-@media (max-width: 767px) {
-  .markdown-content :deep(pre) {
-    @apply whitespace-pre-wrap break-all overflow-x-hidden;
-  }
-}
-
-.markdown-content :deep(pre code) {
-  @apply text-subtleText block max-w-full;
-  background: transparent !important;
-}
-
+/* Links */
 .markdown-content :deep(a) {
-  @apply text-accent hover:text-accentHover underline transition-colors break-words;
+  @apply text-accent underline transition-colors break-words;
 }
 
-.markdown-content :deep(strong) {
-  @apply font-semibold text-deepText;
+/* NOTE: hover color name should likely be kebab-case if it's camelCase in theme (see question below). */
+.markdown-content :deep(a:hover) {
+  @apply text-accentHover;
 }
 </style>
