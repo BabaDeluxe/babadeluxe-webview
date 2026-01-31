@@ -21,54 +21,20 @@
       </slot>
     </div>
 
-    <div
-      v-if="isOpen"
-      class="bg-panel border border-borderMuted rounded shadow-lg z-50 min-w-[200px]"
-      :class="menuPositionClass"
-    >
-      <!-- Flat items (backward compatible) -->
-      <template v-if="!props.groups">
-        <div
-          v-for="option in flatItems"
-          :key="option.value"
-          class="px-4 py-2 hover:bg-slate cursor-pointer text-sm text-deepText transition-colors flex items-center gap-2"
-          :class="{ 'bg-slate': option.value === props.modelValue }"
-          @click="selectOption(option.value)"
-        >
-          <i
-            v-if="option.icon"
-            :class="option.icon"
-            class="text-xs"
-          />
-          <span>{{ option.label }}</span>
-        </div>
-      </template>
-
-      <!-- Empty state when groups exist but are empty -->
-      <template v-else-if="props.groups.length === 0">
-        <div class="px-4 py-3 text-sm text-subtleText text-center">
-          No models available. Configure API keys in settings.
-        </div>
-      </template>
-
-      <!-- Grouped items -->
-      <template v-else>
-        <div
-          v-for="(group, index) in props.groups"
-          :key="group.label"
-          :data-testid="`dropdown-item-${index}`"
-        >
+    <Teleport to="body">
+      <div
+        v-if="isOpen"
+        ref="menuRef"
+        data-dropdown-layer="true"
+        class="bg-panel border border-borderMuted rounded shadow-lg z-50 min-w-[200px] max-h-[400px] overflow-y-auto fixed"
+        :style="menuPositionStyle"
+      >
+        <!-- Flat items (backward compatible) -->
+        <template v-if="!props.groups">
           <div
-            v-if="index > 0"
-            class="border-t border-borderMuted"
-          />
-          <div class="px-4 py-2 text-xs text-subtleText font-semibold bg-slate">
-            {{ group.label }}
-          </div>
-          <div
-            v-for="option in group.items"
+            v-for="option in flatItems"
             :key="option.value"
-            class="px-6 py-2 hover:bg-slate cursor-pointer text-sm text-deepText transition-colors flex items-center gap-2"
+            class="px-4 py-2 hover:bg-slate cursor-pointer text-sm text-deepText transition-colors flex items-center gap-2"
             :class="{ 'bg-slate': option.value === props.modelValue }"
             @click="selectOption(option.value)"
           >
@@ -77,20 +43,59 @@
               :class="option.icon"
               class="text-xs"
             />
-            <div class="flex flex-col">
-              <span>{{ option.label }}</span>
-              <span class="text-xs text-subtleText">{{ option.value.split(':')[0] }}</span>
+            <span>{{ option.label }}</span>
+          </div>
+        </template>
+
+        <!-- Empty state when groups exist but are empty -->
+        <template v-else-if="props.groups.length === 0">
+          <div class="px-4 py-3 text-sm text-subtleText text-center">
+            No models available. Configure API keys in settings.
+          </div>
+        </template>
+
+        <!-- Grouped items -->
+        <template v-else>
+          <div
+            v-for="(group, index) in props.groups"
+            :key="group.label"
+            :data-testid="`dropdown-item-${index}`"
+          >
+            <div
+              v-if="index > 0"
+              class="border-t border-borderMuted"
+            />
+            <div class="px-4 py-2 text-xs text-subtleText font-semibold bg-slate">
+              {{ group.label }}
+            </div>
+            <div
+              v-for="option in group.items"
+              :key="option.value"
+              class="px-6 py-2 hover:bg-slate cursor-pointer text-sm text-deepText transition-colors flex items-center gap-2"
+              :class="{ 'bg-slate': option.value === props.modelValue }"
+              @click="selectOption(option.value)"
+            >
+              <i
+                v-if="option.icon"
+                :class="option.icon"
+                class="text-xs"
+              />
+              <div class="flex flex-col">
+                <span>{{ option.label }}</span>
+                <span class="text-xs text-subtleText">{{ option.value.split(':')[0] }}</span>
+              </div>
             </div>
           </div>
-        </div>
-      </template>
-    </div>
+        </template>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useDropdown } from '@/composables/use-dropdown'
+import { useTeleportedMenuPosition } from '@/composables/use-teleported-menu-position.js'
 
 export interface DropdownItem {
   value: string
@@ -110,7 +115,7 @@ interface DropdownProps {
   options?: string[]
   items?: DropdownItem[]
   groups?: DropdownGroup[]
-  placement?: 'bottom' | 'right'
+  placement?: 'bottom' | 'right' | 'top'
   triggerClass?: string
   fullWidth?: boolean
 }
@@ -130,7 +135,25 @@ interface DropdownEmits {
 
 const emit = defineEmits<DropdownEmits>()
 
-const { isOpen, containerRef: dropdownContainerRef, toggle, close } = useDropdown()
+const menuRef = ref<HTMLElement | undefined>(undefined)
+
+const {
+  isOpen,
+  containerRef: dropdownContainerRef,
+  toggle,
+  close,
+} = useDropdown({
+  ignore: [menuRef],
+})
+
+const placementRef = computed(() => props.placement)
+
+const { menuPositionStyle } = useTeleportedMenuPosition({
+  triggerRef: dropdownContainerRef,
+  menuRef,
+  isOpen,
+  placement: placementRef,
+})
 
 const flatItems = computed<DropdownItem[]>(
   () =>
@@ -138,12 +161,12 @@ const flatItems = computed<DropdownItem[]>(
       value: item.value,
       label: item.label,
       icon: item.icon,
-      disabled: item.disabled ?? false, // ensure boolean
+      disabled: item.disabled ?? false,
     })) ??
     (props.options ?? []).map((value) => ({
       value,
       label: value,
-      disabled: false, // flat options are enabled by default
+      disabled: false,
     }))
 )
 
@@ -157,12 +180,10 @@ const selectedLabel = computed(() => {
   return flatItems.value.find((item) => item.value === props.modelValue)?.label ?? props.modelValue
 })
 
-const menuPositionClass = computed(() =>
-  props.placement === 'right' ? 'left-full top-0 ml-1' : 'left-0 mt-1'
-)
-
 function selectOption(value: string) {
   emit('update:modelValue', value)
   close()
 }
+
+defineExpose({ close })
 </script>
