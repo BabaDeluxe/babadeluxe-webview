@@ -21,6 +21,11 @@ textarea {
   border-style: solid;
 }
 
+/* Make all spans min-width:0 for better responsive behaviour */
+span {
+  min-width: 0;
+}
+
 /* Custom scrollbar */
 * {
   scrollbar-width: thin;
@@ -57,15 +62,6 @@ textarea {
 
 *::-webkit-scrollbar-corner {
   background: theme('colors.slate');
-}
-
-/* Remove free space around ol */
-ol {
-  display: flex !important;
-  flex-direction: column !important;
-  margin-block-start: 0 !important;
-  margin-block-end: 0 !important;
-  padding-inline-start: 0 !important;
 }
 
 /* Hide overflow in text areas */
