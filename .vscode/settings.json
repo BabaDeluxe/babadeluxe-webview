@@ -56,6 +56,9 @@
   "eslint.enable": true,
   "eslint.format.enable": false,
   "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
   "files.eol": "\n",
   "files.encoding": "utf8",
   "files.exclude": {
