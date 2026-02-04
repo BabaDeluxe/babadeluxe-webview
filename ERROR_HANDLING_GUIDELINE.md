@@ -2,67 +2,156 @@
 
 This document guides you on how to handle errors, create custom error types, and log effectively within our existing application.
 
-## 1. Where to Log: The Golden Rule
+## ⛔ ABSOLUTE PROHIBITIONS
 
-This is the most important rule. Where you log depends on the _type_ of error.
+**Read these first. These rules have ZERO exceptions.**
 
-### ✅ **Composables log Infrastructure Failures**
+### 1. NEVER Use `new Error()`
 
-Log low-level errors inside the composable, because the view can't fix them. The view only needs to know _that_ it failed so it can show a message.
+The generic `Error` class is **banned**. Every error must be a domain error.
 
-```typescript
-// ✅ In a composable (e.g., use-models-socket.ts)
-export async function initializeModels(): Promise<Result<void, ModelsFetchError>> {
-  const waitResult = await socket.waitForConnection()
-
-  if (waitResult.isErr()) {
-    // This is an infrastructure error. The view can't fix a broken socket.
-    logger.error('Failed to connect to socket:', waitResult.error) // ✅ Log it here.
-    return err(new ModelsFetchError('Connection failed', waitResult.error))
-  }
-  // ...
-}
-```
-
-**Log in composables if it's a:**
-
-- Socket connection failure
-- Network timeout
-- Server unavailability
-- File parsing error
-
-### ✅ **Views log Business Logic Failures**
-
-Log in the view when the error relates to a user action, because the view has the full context.
+❌ **FORBIDDEN:**
 
 ```typescript
-// ✅ In a view component (e.g., SettingsView.vue)
-async function handleSaveApiKey() {
-  const result = await reloadModels()
-
-  if (result.isErr()) {
-    // This is a business logic failure. We have the user context.
-    logger.error('Failed to reload models after API key validation:', result.error) // ✅ Log it here.
-    modelsReloadWarning.value = 'Models could not be updated. Please reload the page.'
-  }
-}
+throw new Error('Something failed')
+return err(new Error('Invalid input'))
+const result = await ResultAsync.fromPromise(api.call(), (e) => new Error('API failed'))
 ```
 
-**Log in views if it's related to:**
+✅ **REQUIRED:**
 
-- A user clicking a button ("after API key save")
-- Form validation failures
-- Business rule violations
+```typescript
+return err(new NetworkError('Something failed'))
+return err(new ValidationError('Invalid input'))
+const result = await ResultAsync.fromPromise(api.call(), (e) => new NetworkError('API failed', e))
+```
+
+**If you see `new Error()` in code, reject it immediately.**
 
 ---
 
-## 2. How to Create Custom Errors
+### 2. NEVER Use `as Error`
 
-All custom errors **must** extend the `BaseError` class to get automatic namespacing and error chaining.
+`BaseError` accepts `unknown` for the `cause` parameter. **You never need to cast.**
 
-### Step 1: Define Your `BaseError`
+❌ **FORBIDDEN:**
 
-This class should already exist. If not, create it.
+```typescript
+(e) => new NetworkError('Failed', e as Error)
+(e) => new DbError('Failed', e as unknown as Error)
+```
+
+✅ **REQUIRED:**
+
+```typescript
+(e) => new NetworkError('Failed', e)
+(e) => new DbError('Failed', e)
+```
+
+**BaseError handles the type uncertainty internally. Your code stays clean.**
+
+---
+
+### 3. NEVER Return `ResultAsync`
+
+Functions must return `Promise<Result<T, E>>`, not `ResultAsync<T, E>`.
+
+❌ **FORBIDDEN:**
+
+```typescript
+async function fetchData(): ResultAsync<Data, NetworkError> { ... }
+```
+
+✅ **REQUIRED:**
+
+```typescript
+async function fetchData(): Promise<Result<Data, NetworkError>> { ... }
+```
+
+---
+
+### 4. NEVER Use Chaining Methods
+
+Do **not** use these `neverthrow` methods. They hide control flow and make debugging harder.
+
+❌ **FORBIDDEN:**
+
+- `result.map()`
+- `result.mapErr()`
+- `result.andThen()`
+- `result.orElse()`
+
+✅ **REQUIRED:**
+
+```typescript
+// Use explicit if checks
+const validateResult = validate(input)
+if (validateResult.isErr()) {
+  return err(validateResult.error)
+}
+
+const fetchResult = await fetchData(validateResult.value)
+if (fetchResult.isErr()) {
+  return err(fetchResult.error)
+}
+
+return ok(transform(fetchResult.value))
+```
+
+---
+
+## 1. Where to Log: The Boundary Principle
+
+**Default Rule:** Propagate errors up to views (the boundary) and log **once** there with full context.
+
+### ✅ Views Log (Default Case)
+
+Views are boundaries—they have:
+
+- User context (which button, which screen, which user)
+- Business operation context (saving settings, deleting conversation)
+- Correlation IDs (session, request tracking)
+
+Log **once** in the view with enriched context that tells the complete story.
+
+```typescript
+// ✅ View logs with full context
+async function handleDeleteConversation(id: string) {
+  const result = await deleteConversation(id)
+
+  if (result.isErr()) {
+    logger.error('Conversation deletion failed', {
+      conversationId: id,
+      userId: currentUser.value?.id,
+      operation: 'handleDeleteConversation',
+      error: result.error.message,
+      cause: result.error.cause,
+    })
+    showAlert('Failed to delete conversation')
+    return
+  }
+
+  logger.info('Conversation deleted', { conversationId: id })
+}
+```
+
+### ⚠️ Composables Log (Exception Cases Only)
+
+Composables should **NOT** log by default. They return `Result<T, E>` so the caller can decide.
+
+**Only log in composables if:**
+
+1. **Fire-and-forget operations:** No caller will log (e.g., cross-tab sync, background cleanup)
+2. **Long-running background tasks:** WebSocket reconnects, polling loops, event listeners
+3. **App-critical initialization:** Database setup, config loading at startup that blocks the entire app
+
+**Rule of Thumb:** If your composable **returns a `Result<T, E>`**, the caller will handle it—**don't log**. If it returns `void` or is fire-and-forget, **log it**.
+
+---
+
+## 2. BaseError Implementation
+
+All custom errors **must** extend `BaseError`. Here's the required implementation:
 
 ```typescript
 // src/base-error.ts
@@ -71,45 +160,438 @@ export class BaseError extends Error {
 
   constructor(
     message: string,
-    public readonly cause?: Error,
-    private readonly _namespaceOverride?: string
+    public override readonly cause?: unknown,
+    public readonly namespaceOverride?: string
   ) {
-    const namespace = _namespaceOverride || new.target.name.replace(/Error$/, '')
+    const namespace = namespaceOverride ?? new.target.name.replace(/Error$/, '')
     super(`[${namespace}] ${message}`)
     this.name = new.target.name
     this.namespace = namespace
-    Object.setPrototypeOf(this, new.target.prototype) // For ES5 compatibility
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+
+  public override toString(): string {
+    let output = this.stack ?? `${this.name}: ${this.message}`
+
+    if (this.cause !== undefined) {
+      const causeString = this.formatCause(this.cause)
+      output += `\n\nCaused by:\n${causeString}`
+    }
+
+    return output
+  }
+
+  private formatCause(cause: unknown): string {
+    if (cause instanceof Error) {
+      return cause.stack ?? `${cause.name}: ${cause.message}`
+    }
+
+    if (typeof cause === 'string') {
+      return cause
+    }
+
+    if (typeof cause === 'object' && cause !== null) {
+      try {
+        return JSON.stringify(cause, null, 2)
+      } catch {
+        return '[Unserializable Object]'
+      }
+    }
+
+    return typeof cause === 'symbol' ? cause.toString() : String(cause)
   }
 }
 ```
 
-### Step 2: Create a New Error (Zero Boilerplate)
+**Key features:**
 
-Simply extend `BaseError`. The namespace is derived from the class name automatically.
-
-```typescript
-// src/errors/domain-errors.ts
-import { BaseError } from './base-error'
-
-export class ModelsFetchError extends BaseError {}
-export class ValidationError extends BaseError {}
-```
-
-### Step 3: Throw Your New Error
-
-```typescript
-// Throw it with a message and optional cause
-const result = await ResultAsync.fromPromise(
-  api.getStuff(),
-  (error) => new ModelsFetchError('API call failed', error as Error)
-)
-```
-
-**Resulting Error Message:** `[ModelsFetch] API call failed`
+- Accepts `unknown` for `cause` (no casting needed)
+- Auto-generates namespace from class name
+- Preserves full error chain with intelligent formatting:
+  - Errors: Shows full stack trace
+  - Objects: Pretty-printed JSON
+  - Strings/primitives: Direct display
+- Better than native `Error.toString()` which ignores the `cause` entirely
 
 ---
 
-## 3. How to Use `neverthrow`
+## 3. When to Create Custom Error Classes
+
+### The Problem: Error Class Bloat
+
+Creating a new error class for every function creates maintenance hell.
+
+❌ **Bad: One error per function**
+
+```typescript
+export class SessionParseError extends BaseError {}
+export class InvalidApiKeyError extends BaseError {}
+export class ModelsFetchError extends BaseError {}
+export class SubscriptionError extends BaseError {}
+// ... 20 more nearly identical classes
+```
+
+**Problems:**
+
+- 30+ error classes that are just empty wrappers
+- No clear signal when something is "special"
+- Harder to handle errors (need to import 20 types)
+- Message already describes what failed
+
+---
+
+### The Solution: Domain Errors + Special Cases
+
+**Guideline:** Use **5-7 broad domain errors** by default. Only create custom errors when you need **special fields or behavior**.
+
+#### ✅ Core Domain Errors (Always Keep These)
+
+```typescript
+// src/errors.ts
+export class DbError extends BaseError {}
+export class NetworkError extends BaseError {}
+export class ValidationError extends BaseError {}
+export class ChatError extends BaseError {}
+export class SocketError extends BaseError {}
+```
+
+**Usage:**
+
+```typescript
+// ✅ Good: Descriptive message, reusable error type
+if (!session) {
+  return err(new DbError('Session parse failed'))
+}
+
+const result = await ResultAsync.fromPromise(
+  api.validateKey(key),
+  (e) => new NetworkError('API key validation failed', e)
+)
+
+if (!isValidFormat(modelId)) {
+  return err(new ValidationError(`Invalid model format: ${modelId}`))
+}
+```
+
+---
+
+#### ✅ Special Errors (Only When You Need Custom Fields or Logic)
+
+Create a custom error class **only if:**
+
+1. **It has custom fields** (e.g., `retryAfterMs`, `modelId`)
+2. **It requires special handling logic** (e.g., retry logic for rate limits)
+3. **Type discrimination is critical** (e.g., `instanceof RateLimitError`)
+
+```typescript
+// ✅ Good: Custom field for retry logic
+export class RateLimitError extends BaseError {
+  constructor(
+    message: string,
+    public readonly retryAfterMs?: number,
+    cause?: unknown
+  ) {
+    super(message, cause)
+  }
+}
+
+// ✅ Good: Custom field for debugging
+export class InvalidModelFormatError extends BaseError {
+  constructor(
+    public readonly modelId: string,
+    cause?: unknown
+  ) {
+    super(`Invalid model format: ${modelId}. Expected 'provider:model'`, cause)
+  }
+}
+
+// ✅ Good: Custom field for error context
+export class MessageNotFoundError extends BaseError {
+  constructor(
+    public readonly messageId: string | number,
+    cause?: unknown
+  ) {
+    super(`Message ${messageId} not found`, cause)
+  }
+}
+```
+
+---
+
+#### ❌ Delete These Redundant Errors
+
+Replace these with domain errors + descriptive messages:
+
+| Delete This               | Replace With                                       |
+| ------------------------- | -------------------------------------------------- |
+| `SessionParseError`       | `DbError('Session parse failed')`                  |
+| `InvalidApiKeyError`      | `ValidationError('Invalid API key')`               |
+| `ModelsFetchError`        | `NetworkError('Models fetch failed')`              |
+| `SocketConnectionError`   | `SocketError('Connection failed')`                 |
+| `VsCodeAuthTimeoutError`  | `NetworkError('VS Code auth timeout')`             |
+| `SupabaseSetSessionError` | `NetworkError('Supabase session failed')`          |
+| `EnvValidationError`      | `ValidationError('Environment validation failed')` |
+
+**Before (Bloated):**
+
+```typescript
+// 3 nearly identical error classes
+export class InvalidApiKeyError extends BaseError {}
+export class UnsupportedProviderError extends BaseError {}
+export class ValidationTimeoutError extends BaseError {}
+
+// Usage:
+if (!isValid(key)) return err(new InvalidApiKeyError('Invalid key'))
+if (!supported) return err(new UnsupportedProviderError('Bad provider'))
+```
+
+**After (Lean):**
+
+```typescript
+// 1 error class, descriptive messages
+export class ValidationError extends BaseError {}
+
+// Usage:
+if (!isValid(key)) return err(new ValidationError('Invalid API key format'))
+if (!supported) return err(new ValidationError(`Unsupported provider: ${provider}`))
+```
+
+---
+
+### Decision Tree: Should I Create a New Error Class?
+
+```
+┌─────────────────────────────────────┐
+│ Do I need a custom field or logic?  │
+└──────────────┬──────────────────────┘
+               │
+       ┌───────┴───────┐
+       │ YES           │ NO
+       │               │
+       ▼               ▼
+  Create custom    Use domain error
+  error class      + descriptive message
+       │               │
+       │               ▼
+       │         DbError('...')
+       │         NetworkError('...')
+       │         ValidationError('...')
+       │         ChatError('...')
+       │         SocketError('...')
+       │
+       ▼
+  export class RateLimitError extends BaseError {
+    constructor(
+      message: string,
+      public readonly retryAfterMs?: number,
+      cause?: unknown
+    ) {
+      super(message, cause)
+    }
+  }
+```
+
+---
+
+## 4. Error Mappers: When and How to Use Them
+
+### What Are Error Mappers?
+
+Error mappers convert thrown errors (from `Promise` rejections) into your custom error types.
+
+```typescript
+ResultAsync.fromPromise(
+  riskyOperation(),
+  (unknownError) => new NetworkError('Operation failed', unknownError)
+  //              ↑ This is the error mapper
+)
+```
+
+---
+
+### ✅ When to Use Error Mappers
+
+**Use error mappers to:**
+
+1. **Wrap third-party errors** (fetch, axios, database drivers)
+2. **Add context** to generic errors
+3. **Preserve the error chain** with the `cause` parameter
+
+```typescript
+// ✅ Good: Wrap fetch error with context
+const result = await ResultAsync.fromPromise(
+  fetch('/api/models'),
+  (e) => new NetworkError('Failed to fetch models from API', e)
+)
+
+// ✅ Good: Wrap database error with operation context
+const dbResult = await ResultAsync.fromPromise(
+  db.conversations.get(id),
+  (e) => new DbError(`Failed to retrieve conversation ${id}`, e)
+)
+```
+
+---
+
+### ❌ When NOT to Use Error Mappers
+
+**Don't use error mappers for:**
+
+1. **Validation logic** (use `if` checks and return `err(...)`)
+2. **Business logic errors** (these aren't exceptions)
+3. **Over-wrapping** (don't wrap `NetworkError` in another `NetworkError`)
+
+```typescript
+// ❌ Bad: Using mapper for validation
+const result = await ResultAsync.fromPromise(
+  Promise.resolve(input),
+  (e) => new ValidationError('Invalid input')
+)
+
+// ✅ Good: Direct validation
+if (!isValid(input)) {
+  return err(new ValidationError('Invalid input format'))
+}
+
+// ❌ Bad: Over-wrapping (NetworkError wraps NetworkError)
+const apiResult = await fetchFromApi() // Returns Result<T, NetworkError>
+if (apiResult.isErr()) {
+  return err(new NetworkError('API failed', apiResult.error)) // Redundant
+}
+
+// ✅ Good: Just propagate the existing error
+if (apiResult.isErr()) {
+  return err(apiResult.error)
+}
+```
+
+---
+
+### Error Mapper Patterns
+
+#### Pattern 1: Simple Wrap (Most Common)
+
+```typescript
+const result = await ResultAsync.fromPromise(
+  asyncOperation(),
+  (e) => new NetworkError('Context message', e)
+)
+```
+
+#### Pattern 2: Type Discrimination
+
+```typescript
+const result = await ResultAsync.fromPromise(apiCall(), (e) => {
+  if (e instanceof TimeoutError) {
+    return new NetworkError('Request timed out', e)
+  }
+  if (e instanceof AuthError) {
+    return new ValidationError('Unauthorized', e)
+  }
+  return new NetworkError('Unknown error', e)
+})
+```
+
+#### Pattern 3: Preserve Custom Errors (Pass-Through)
+
+```typescript
+// If the error is already a domain error, don't rewrap
+const mapError = (e: unknown) => {
+  if (e instanceof NetworkError || e instanceof DbError) {
+    return e // ✅ Already wrapped
+  }
+  return new NetworkError('Unexpected error', e)
+}
+
+const result = await ResultAsync.fromPromise(operation(), mapError)
+```
+
+---
+
+### ⚠️ Anti-Pattern: Error Mapper Factories
+
+Avoid creating "error mapper factory functions" unless you have 5+ identical mappers.
+
+```typescript
+// ❌ Overengineered: Only used once
+const createNetworkErrorMapper = (context: string) => (e: unknown) => new NetworkError(context, e)
+
+const result = await ResultAsync.fromPromise(
+  api.call(),
+  createNetworkErrorMapper('API call failed')
+)
+
+// ✅ Simple: Inline mapper
+const result = await ResultAsync.fromPromise(
+  api.call(),
+  (e) => new NetworkError('API call failed', e)
+)
+```
+
+**Exception:** If you have 5+ identical patterns, extract a helper:
+
+```typescript
+// ✅ OK: Used in 10 places
+function wrapNetworkError(context: string) {
+  return (e: unknown) => new NetworkError(context, e)
+}
+```
+
+---
+
+## 5. Union Types for Error Composition
+
+Use TypeScript union types to declare all possible errors a function can return.
+
+### ✅ Good: Explicit Error Union
+
+```typescript
+// Caller knows exactly what can fail
+async function sendMessage(
+  messageId: number,
+  modelId: string
+): Promise<Result<void, NetworkError | ValidationError | RateLimitError>> {
+  if (!isValidModel(modelId)) {
+    return err(new ValidationError(`Invalid model: ${modelId}`))
+  }
+
+  const socketResult = await socket.waitForConnection()
+  if (socketResult.isErr()) {
+    return err(new NetworkError('Socket unavailable', socketResult.error))
+  }
+
+  // ... API call that might rate limit
+}
+
+// View can handle specific errors
+const result = await sendMessage(id, model)
+if (result.isErr()) {
+  if (result.error instanceof RateLimitError) {
+    showAlert('Rate limited. Retry in 60s.')
+  } else if (result.error instanceof ValidationError) {
+    showAlert('Invalid model selected.')
+  } else {
+    showAlert('Network error. Check connection.')
+  }
+}
+```
+
+### ❌ Bad: Vague Error Type
+
+```typescript
+// Caller has no idea what errors are possible
+async function sendMessage(): Promise<Result<void, BaseError>> { ... }
+
+// View can't handle errors specifically
+const result = await sendMessage()
+if (result.isErr()) {
+  showAlert('Something went wrong') // Useless message
+}
+```
+
+---
+
+## 6. How to Use `neverthrow`
 
 Follow these patterns to ensure code is predictable, type-safe, and easy to debug.
 
@@ -124,17 +606,6 @@ Follow these patterns to ensure code is predictable, type-safe, and easy to debu
 | `.value` / `.error`         | Access the inner value/error (after checking).         |
 | `.match()`                  | Useful for clean branching in views.                   |
 | `._unsafeUnwrap()`          | Use sparingly, only when 100% certain of the state.    |
-
-### ❌ Forbidden `neverthrow` APIs
-
-Do **not** use chaining methods. They hide control flow and make debugging harder.
-
-- **NO** `result.map()`
-- **NO** `result.mapErr()`
-- **NO** `result.andThen()`
-- **NO** `result.orElse()`
-
-Also, functions must **never** return the `ResultAsync` type. Always return a `Promise<Result<...>>`.
 
 ### The Fail-Fast Pattern (The Right Way)
 
@@ -162,7 +633,7 @@ return validate(input).andThen(fetchData).map(transform)
 
 ---
 
-## 4. How to Handle Critical vs. Non-Critical Errors
+## 7. How to Handle Critical vs. Non-Critical Errors
 
 ### Critical Errors → Fail the Whole Operation
 
@@ -185,7 +656,9 @@ If the app can still function, log a warning and return `ok(undefined)`.
 const postResult = Result.fromThrowable(() => channel.postMessage({ type: 'reload' }))()
 
 if (postResult.isErr()) {
-  logger.warn('Failed to notify other tabs:', postResult.error) // ⚠️ NON-CRITICAL: Just warn.
+  logger.warn('Failed to notify other tabs', {
+    error: postResult.error.message,
+  }) // ⚠️ NON-CRITICAL: Just warn.
 }
 
 return ok(undefined) // ✅ Success, because the main task succeeded.
@@ -193,53 +666,87 @@ return ok(undefined) // ✅ Success, because the main task succeeded.
 
 ---
 
-## 5. Quick Reference & Examples
+## 8. Refactoring Guide: From Bloat to Lean
 
-### Putting It All Together
+### Step 1: Identify Redundant Errors
 
-Here is a full, practical example applying all the rules.
+Run this check on your `errors.ts`:
 
 ```typescript
-// 1. A composable handles a critical, failable operation.
-// It logs its own infrastructure errors.
-export async function fetchModels(): Promise<Result<Model[], ModelsFetchError>> {
-  const result = await ResultAsync.fromPromise(
-    api.getModels(),
-    (error) => new ModelsFetchError('Failed to fetch', error as Error)
-  )
+// If the error class is just this:
+export class MySpecialError extends BaseError {}
 
-  if (result.isErr()) {
-    logger.error('Models fetch infrastructure failed:', result.error)
-    return err(result.error)
-  }
+// And it's only used like this:
+return err(new MySpecialError('Some message'))
 
-  return ok(result.value)
-}
-
-// 2. A view uses the composable and handles the result.
-// It logs the business context and gives user feedback.
-async function handleSaveAndReload() {
-  // ... save something first ...
-
-  const result = await fetchModels()
-
-  if (result.isErr()) {
-    logger.error('Failed to reload models after saving settings:', result.error) // Business context log
-    baseAlert.value =
-      'Your settings were saved, but we failed to refresh the models. Please reload.' // User feedback
-    return // Stop the operation
-  }
-
-  // Happy path
-  logger.log('Models reloaded successfully.')
-  // ... update UI with result.value ...
-}
+// → Delete it, use domain error instead
+return err(new NetworkError('Some message'))
 ```
 
-### Final Checklist
+### Step 2: Replace Usage Sites
 
-- [ ] Is the error logged in the right place (Composable vs. View)?
-- [ ] Does my new error extend `BaseError`?
+**Before:**
+
+```typescript
+import { ModelsFetchError } from '@/errors'
+
+const result = await ResultAsync.fromPromise(
+  api.getModels(),
+  (e) => new ModelsFetchError('Fetch failed', e)
+)
+```
+
+**After:**
+
+```typescript
+import { NetworkError } from '@/errors'
+
+const result = await ResultAsync.fromPromise(
+  api.getModels(),
+  (e) => new NetworkError('Failed to fetch models', e)
+)
+```
+
+### Step 3: Update Type Annotations
+
+**Before:**
+
+```typescript
+type ApiKeyValidationError =
+  | InvalidApiKeyError
+  | BadRequestError
+  | NetworkValidationError
+  | ServerValidationError
+  | UnsupportedProviderError
+```
+
+**After:**
+
+```typescript
+type ApiKeyValidationError = NetworkError | ValidationError
+```
+
+### Step 4: Delete the Error Classes
+
+Remove the now-unused error classes from `src/errors.ts`.
+
+---
+
+## 9. Final Checklist
+
+Before committing your error handling code, verify:
+
+- [ ] Is the error logged **once** at the boundary (view)?
+- [ ] Does the composable **only log if it's fire-and-forget or background**?
+- [ ] Does the log entry include **business context + infrastructure cause**?
+- [ ] Does my custom error extend `BaseError` with a `cause`?
+- [ ] Am I using **domain errors** (DbError, NetworkError, etc.) instead of creating a new class?
+- [ ] If I created a custom error, does it have **custom fields or special logic**?
+- [ ] Am I using error mappers **only for third-party exceptions**, not validation?
 - [ ] Am I using `if (result.isErr())` instead of `.map()` or `.andThen()`?
-- [ ] Is my function returning `Promise<Result<...>>`?
+- [ ] Is my function returning `Promise<Result<T, E>>`?
+- [ ] Does my error union type clearly document all failure modes?
 - [ ] Am I showing a user-friendly message for critical errors?
+- [ ] Is the error message self-documenting (no abbreviations, clear intent)?
+- [ ] **Am I using domain errors (NEVER `new Error()`)?**
+- [ ] **Am I avoiding `as Error` casts (BaseError accepts `unknown`)?**
