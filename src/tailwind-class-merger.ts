@@ -1,5 +1,3 @@
-// utils/tailwind-class-merger.ts
-
 interface ConflictGroups {
   [key: string]: string[]
 }
