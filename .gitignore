@@ -6,6 +6,8 @@ out/
 vscode-test/
 coverage/
 
+shared-docs/
+
 *.log
 
 .DS_Store

@@ -2,7 +2,7 @@
   "unocss.autocomplete.strict": false,
   "search.quickOpen.includeHistory": true,
   "typescript.suggest.autoImports": true,
-  "typescript.preferences.importModuleSpecifierEnding": "js",
+  "typescript.preferences.importModuleSpecifierEnding": "index",
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "typescript.suggest.paths": true,
   "javascript.suggest.paths": true,
