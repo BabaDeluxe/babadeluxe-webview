@@ -4,7 +4,7 @@
     class="px-4 pb-4"
   >
     <div
-      class="bg-panel border rounded-md p-3 flex items-center justify-between"
+      class="bg-panel border rounded-lg p-3 flex items-center justify-between"
       :class="borderAndIconClass"
     >
       <div
