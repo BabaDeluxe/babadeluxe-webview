@@ -16,7 +16,7 @@ export function createAppRouter(supabase: SupabaseClient): Router {
       {
         path: '/reset-password',
         name: 'reset-password',
-        component: async () => import('./views/ResetPassword.vue'),
+        component: async () => import('./views/ResetPasswordView.vue'),
         meta: { layout: 'blank' },
       },
       {

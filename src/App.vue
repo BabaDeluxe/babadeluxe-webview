@@ -4,74 +4,93 @@
   >
     <div v-if="session && $route.path !== '/'">
       <header
-        class="flex items-center justify-between pr-2 bg-panel border-b border-borderMuted/20"
+        class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20"
+        data-testid="app-header"
       >
         <IconBabaDeluxe />
 
-        <div class="flex flex-row gap-4 justify-end items-center">
+        <div class="flex flex-row gap-2 justify-end items-center">
           <BaseButton
+            variant="primary"
+            data-testid="nav-new-chat-button"
             text="New Chat"
             icon="i-weui:pencil-outlined"
             @click="handleNewChat"
           />
 
-          <RouterLink
-            to="/settings"
-            class="rounded-lg hover:text-accent transition-colors"
-          >
-            <BaseButton
-              :class="'bg-none text-deepText text-xl'"
-              icon="i-weui:setting-outlined"
-            />
-          </RouterLink>
+          <BaseButton
+            variant="icon"
+            class="bg-transparent text-subtleText hover:text-deepText hover:bg-borderMuted/20 text-xl w-9 h-9 p-0"
+            icon="i-weui:setting-outlined"
+            data-testid="nav-settings-button"
+            @click="router.push('/settings')"
+          />
         </div>
       </header>
 
       <div class="flex justify-start items-center bg-panel">
-        <nav class="flex flex-row gap-4 text-deepText p-2">
+        <nav
+          class="flex flex-row gap-2 text-deepText p-2"
+          data-testid="app-nav"
+        >
           <RouterLink
-            v-slot="{ href, navigate, isExactActive }"
+            v-slot="{ navigate, isExactActive }"
             to="/chat"
             custom
           >
-            <a
-              :href="href"
-              class="px-2 py-1 rounded-lg transition-colors"
-              :class="isExactActive ? 'text-accent bg-codeBg' : 'hover:text-accent hover:bg-codeBg'"
+            <BaseButton
+              variant="ghost"
+              class="px-3 py-1.5 rounded-lg transition-colors cursor-pointer select-none text-sm font-medium"
+              :class="
+                isExactActive
+                  ? 'text-accent bg-codeBg'
+                  : 'text-subtleText hover:text-accent hover:bg-codeBg'
+              "
+              data-testid="nav-chat-link"
               @click="navigate"
             >
               Chat
-            </a>
+            </BaseButton>
           </RouterLink>
 
           <RouterLink
-            v-slot="{ href, navigate, isExactActive }"
+            v-slot="{ navigate, isExactActive }"
             to="/history"
             custom
           >
-            <a
-              :href="href"
-              class="px-2 py-1 rounded-lg transition-colors"
-              :class="isExactActive ? 'text-accent bg-codeBg' : 'hover:text-accent hover:bg-codeBg'"
+            <BaseButton
+              variant="ghost"
+              class="px-3 py-1.5 rounded-lg transition-colors cursor-pointer select-none text-sm font-medium"
+              :class="
+                isExactActive
+                  ? 'text-accent bg-codeBg'
+                  : 'text-subtleText hover:text-accent hover:bg-codeBg'
+              "
+              data-testid="nav-history-link"
               @click="navigate"
             >
               History
-            </a>
+            </BaseButton>
           </RouterLink>
 
           <RouterLink
-            v-slot="{ href, navigate, isExactActive }"
+            v-slot="{ navigate, isExactActive }"
             to="/prompts"
             custom
           >
-            <a
-              :href="href"
-              class="px-2 py-1 rounded-lg transition-colors"
-              :class="isExactActive ? 'text-accent bg-codeBg' : 'hover:text-accent hover:bg-codeBg'"
+            <BaseButton
+              variant="ghost"
+              class="px-3 py-1.5 rounded-lg transition-colors cursor-pointer select-none text-sm font-medium"
+              :class="
+                isExactActive
+                  ? 'text-accent bg-codeBg'
+                  : 'text-subtleText hover:text-accent hover:bg-codeBg'
+              "
+              data-testid="nav-prompts-link"
               @click="navigate"
             >
               Prompts
-            </a>
+            </BaseButton>
           </RouterLink>
         </nav>
       </div>
@@ -79,17 +98,23 @@
 
     <Suspense>
       <template #default>
-        <RouterView class="flex flex-col flex-1" />
-      </template>
-
-      <template #fallback>
-        <div class="flex flex-1 items-center justify-center bg-slate">
-          <BaseSpinner
-            size="large"
-            message="Loading..."
-            text-class="text-deepText"
-          />
-        </div>
+        <Suspense suspensible>
+          <div class="flex-1 min-h-0 flex flex-col bg-slate overflow-hidden">
+            <RouterView v-slot="{ Component }">
+              <Transition
+                name="view-transition"
+                mode="out-in"
+              >
+                <KeepAlive :include="['ChatView', 'HistoryView', 'PromptsView']">
+                  <component
+                    :is="Component"
+                    class="flex-1 min-h-0 flex flex-col"
+                  />
+                </KeepAlive>
+              </Transition>
+            </RouterView>
+          </div>
+        </Suspense>
       </template>
     </Suspense>
   </div>
@@ -97,26 +122,48 @@
 
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { inject, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { useEventListener } from '@vueuse/core'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
-import type { ConsoleLogger } from '@simwai/utils'
+import type { AbstractLogger } from '@/logger'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
-import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import { type SupabaseClientType } from '@/main'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { useConversationStore } from '@/stores/use-conversation-store'
+import { safeInject } from '@/safe-inject'
 
-const logger: ConsoleLogger = inject(LOGGER_KEY)!
-const supabase: SupabaseClientType = inject(SUPABASE_CLIENT_KEY)!
+const logger: AbstractLogger = safeInject(LOGGER_KEY)
+const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
 
-const session = ref()
+const session = ref<Session | null>(null)
 const router = useRouter()
+const conversationStore = useConversationStore()
 
 const redirectToChat = () => {
   if (session.value && router.currentRoute.value.path === '/') {
     router.push('/chat')
   }
 }
+
+const handleExtensionMessage = (event: MessageEvent) => {
+  const message = event.data
+
+  if (message?.type !== 'navigate-to' || !message.payload?.view) return
+
+  const targetView = message.payload.view
+  logger.log('Received navigation request from extension:', targetView)
+
+  const targetRoute = router.getRoutes().find((route) => route.name === targetView)
+  if (targetRoute) {
+    logger.log('Navigating to:', targetRoute)
+    router.push(targetRoute)
+  } else {
+    logger.warn('Unknown view requested:', targetView)
+  }
+}
+
+useEventListener(window, 'message', handleExtensionMessage)
 
 onMounted(async () => {
   const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
@@ -133,22 +180,48 @@ onMounted(async () => {
     }
   }
 
-  supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     handleAuthStateChange(event, session)
   })
 
-  const supabaseSession = await supabase.auth.getSession()
-  const sessionData = supabaseSession.data.session
-  if (!sessionData) {
-    logger.warn('Invalid login session data received in App.vue')
+  const { data, error } = await supabase.auth.getSession()
+
+  if (error) {
+    logger.error('Failed to retrieve auth session, clearing stale data', { error })
+    await supabase.auth.signOut()
     return
   }
 
-  session.value = sessionData
+  if (!data.session) {
+    logger.warn('No active session found in App.vue mount')
+    return
+  }
+
+  session.value = data.session
   redirectToChat()
 })
 
 const handleNewChat = async () => {
+  await conversationStore.markAllStreamingCompleteInCurrentConversation()
   await router.push({ path: '/chat', query: { newConversation: 'true' } })
 }
 </script>
+
+<style scoped>
+.view-transition-enter-active,
+.view-transition-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.view-transition-enter-from {
+  opacity: 0;
+  transform: translateX(8px);
+}
+
+.view-transition-leave-to {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+</style>
