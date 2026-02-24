@@ -1,8 +1,6 @@
+import { logger } from '@/logger'
 import { chromium, type FullConfig } from '@playwright/test'
-import { ConsoleLogger } from '@simwai/utils'
 import { type Result, ResultAsync, err, ok } from 'neverthrow'
-
-const logger = new ConsoleLogger({ isTimeEnabled: false })
 
 type SetupError = {
   readonly type: 'backend_health' | 'server_ready'

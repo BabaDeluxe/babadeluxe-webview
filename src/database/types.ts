@@ -12,13 +12,25 @@ export type KeyValuePair = {
   updatedAt: Date
 }
 
+export type ContextReference =
+  | Readonly<{
+      type: 'file'
+      filePath: string
+    }>
+  | Readonly<{
+      type: 'snippet'
+      snippetText: string
+      filePath?: string
+    }>
+
 export type Message = {
-  id: number
-  conversationId: number
-  role: 'user' | 'assistant'
-  content: string
+  readonly id: number
+  readonly conversationId: number
+  readonly role: 'user' | 'assistant'
   timestamp: Date
+  content: string
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
+  contextReferences?: ContextReference[]
 }

@@ -3,33 +3,33 @@ import { useDebounceFn } from '@vueuse/core'
 import { type Result } from 'neverthrow'
 import { type SearchService } from '@/search-service'
 import type { SearchResult } from '@/search-types'
-import type { SearchError } from '@/errors'
+import type { NetworkError } from '@/errors'
 
 export function useSearch(searchService: SearchService) {
   const searchResults = ref<SearchResult[]>([])
   const isSearching = ref(false)
-  const searchError = ref<string | undefined>(undefined)
+  const networkError = ref<string | undefined>(undefined)
 
   const performSearch = useDebounceFn(async (query: string) => {
     if (!query.trim()) {
       searchResults.value = []
-      searchError.value = undefined
+      networkError.value = undefined
       return
     }
 
     isSearching.value = true
-    searchError.value = undefined
+    networkError.value = undefined
 
-    const result: Result<SearchResult[], SearchError> = await searchService.search(query, 10)
+    const result: Result<SearchResult[], NetworkError> = await searchService.search(query, 10)
 
     result.match(
       (results) => {
         searchResults.value = results
-        searchError.value = undefined
+        networkError.value = undefined
       },
-      (error: SearchError) => {
+      (error: NetworkError) => {
         searchResults.value = []
-        searchError.value = error.message
+        networkError.value = error.message
       }
     )
 
@@ -39,7 +39,7 @@ export function useSearch(searchService: SearchService) {
   return {
     searchResults,
     isSearching,
-    searchError,
+    networkError,
     performSearch,
   }
 }

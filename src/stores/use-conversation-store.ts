@@ -1,28 +1,34 @@
 import { defineStore } from 'pinia'
-import { ref, inject } from 'vue'
+import { ref } from 'vue'
 import { useStorage } from '@vueuse/core'
 import { ResultAsync, type Result, err, ok } from 'neverthrow'
-import type { ConsoleLogger } from '@simwai/utils'
-import type { Message, Conversation } from '@/database/types'
-import type { AppDb } from '@/database/app-db'
+import type { Message, Conversation, ContextReference } from '@/database/types'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
 import { useChatSocket } from '@/composables/use-chat-socket'
 import {
   MessageNotFoundError,
   InvalidModelFormatError,
   MessageCreationError,
-  NoUserMessageError,
   ChatError,
+  DbError,
+  type CreateOrResetAssistantError,
+  MessageUpdateError,
+  ValidationError,
 } from '@/errors'
-
-export type Mutable<T> = {
-  -readonly [P in keyof T]: T[P]
-}
+import { safeInject } from '@/safe-inject'
+import { localStorageKeys } from '@/constants'
+import { getVsCodeApi } from '@/vs-code/api'
+import { type FileContextResponse, type IncomingMessage } from '@/vs-code/types'
+import { isResponseWithRequestId } from '@/vs-code/context-type-guards'
 
 type SendOptions = {
   provider: string
   model: string
+
   systemPrompt: string | undefined
+  contextReferences?: ContextReference[]
+  contextItems?: Array<{ filePath: string; content: string }>
+
   existingAssistantId?: number
   onChunk?: (messageId: number, chunk: string) => void
   onComplete?: (messageId: number) => void
@@ -31,21 +37,178 @@ type SendOptions = {
 
 type MessageMetadata = { model?: string; systemPrompt?: string }
 
+type ResolvedContextItem = {
+  filePath: string
+  content: string
+}
+
+type PendingFileContextRequest = {
+  resolve: (value: Result<ResolvedContextItem[], ValidationError>) => void
+}
+
+const pendingFileContextRequests = new Map<string, PendingFileContextRequest>()
+let isFileContextListenerAttached = false
+
+function buildInjectedText(
+  systemPrompt?: string,
+  contextItems?: Array<{ filePath: string; content: string }>
+): string {
+  const parts: string[] = []
+
+  const sp = systemPrompt?.trim()
+  if (sp) {
+    parts.push(`SYSTEM:\n${sp}`)
+  }
+
+  const cleanedItems = (contextItems ?? []).filter(
+    (item) => item.filePath?.trim().length && item.content?.trim().length
+  )
+
+  if (cleanedItems.length) {
+    const ctxParts: string[] = []
+    for (const item of cleanedItems) {
+      ctxParts.push(`FILE: ${item.filePath}\n${item.content}`)
+    }
+    const ctx = ctxParts.join('\n\n')
+    parts.push(`CONTEXT:\n${ctx}`)
+  }
+
+  if (!parts.length) return ''
+  return `\n\n---\n${parts.join('\n\n')}\n---\n`
+}
+
+function generateFileContextRequestId(): string {
+  return `fileContext:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`
+}
+
+function ensureFileContextListenerAttached(): void {
+  if (isFileContextListenerAttached) return
+
+  window.addEventListener('message', (event: MessageEvent<IncomingMessage>) => {
+    const message = event.data
+    if (!isResponseWithRequestId(message)) return
+    if (message.type !== 'fileContext:response') return
+
+    const pending = pendingFileContextRequests.get(message.requestId)
+    if (!pending) return
+
+    pendingFileContextRequests.delete(message.requestId)
+
+    const response = message as FileContextResponse
+
+    if (response.error) {
+      pending.resolve(err(new ValidationError(`Failed to resolve file context: ${response.error}`)))
+      return
+    }
+
+    const rawItems = response.items ?? []
+    const items: ResolvedContextItem[] = rawItems
+      .filter((item) => item.filePath && item.snippet)
+      .map((item) => ({
+        filePath: item.filePath as string,
+        content: item.snippet as string,
+      }))
+
+    pending.resolve(ok(items))
+  })
+
+  isFileContextListenerAttached = true
+}
+
+async function resolveContextItems(
+  contextReferences: ContextReference[]
+): Promise<Result<Array<{ filePath: string; content: string }>, ValidationError>> {
+  if (contextReferences.length === 0) return ok([])
+
+  ensureFileContextListenerAttached()
+
+  const apiResult = getVsCodeApi()
+  if (apiResult.isErr()) {
+    return err(new ValidationError('VS Code API not available', apiResult.error))
+  }
+
+  const filePaths = Array.from(
+    new Set(
+      contextReferences
+        .map((ref) => ref.filePath?.trim())
+        .filter((p): p is string => !!p && p.length > 0)
+    )
+  )
+
+  if (filePaths.length === 0) {
+    return err(new ValidationError('No valid file paths in context references'))
+  }
+
+  const requestId = generateFileContextRequestId()
+
+  const promise = new Promise<Result<ResolvedContextItem[], ValidationError>>((resolve) => {
+    pendingFileContextRequests.set(requestId, { resolve })
+
+    apiResult.value.postMessage({
+      type: 'fileContext:resolve',
+      requestId,
+      filePaths,
+    })
+  })
+
+  return promise
+}
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
+}
+
+function computeContextUsageForSend(
+  historyMessages: Message[],
+  systemPrompt: string | undefined,
+  contextItems: Array<{ filePath: string; content: string }> | undefined,
+  modelContextWindow: number
+): number {
+  if (!modelContextWindow || modelContextWindow <= 0) {
+    return 0
+  }
+
+  const messagesToSend: Array<{ role: Message['role']; content: string }> = []
+  for (const message of historyMessages) {
+    messagesToSend.push({
+      role: message.role,
+      content: message.content,
+    })
+  }
+
+  const injected = buildInjectedText(systemPrompt, contextItems ?? [])
+  const last = messagesToSend[messagesToSend.length - 1]
+  if (last && last.role === 'user' && injected) {
+    last.content = `${last.content}${injected}`
+  }
+
+  const safeBudget = Math.max(1, Math.floor(modelContextWindow * 0.95))
+
+  let totalTokens = 0
+  for (const msg of messagesToSend) {
+    totalTokens += estimateTokens(msg.content)
+  }
+
+  const usagePercent = totalTokens / safeBudget
+  return usagePercent > 1 ? 1 : usagePercent
+}
+
 export const useConversationStore = defineStore('conversation', () => {
-  const logger: ConsoleLogger = inject(LOGGER_KEY)!
-  const appDb: AppDb = inject(APP_DB_KEY)!
+  const logger = safeInject(LOGGER_KEY)
+  const appDb = safeInject(APP_DB_KEY)
 
   const { sendMessage: sendChatSocket, resumeStreamingMessage } = useChatSocket()
 
   const messages = ref<Message[]>([])
   const conversations = ref<Conversation[]>([])
-  const currentConversationId = useStorage<number>('current-conversation-id', 0)
-  const isLoading = ref(false)
+  const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
+  const isLoadingMessages = ref(false)
+  const isLoadingConversations = ref(false)
   const error = ref<string | undefined>(undefined)
   const messageCountsByConversation = ref<Map<number, number>>(new Map())
+  const lastContextUsage = ref(0)
+  const selectedModelContextWindow = ref<number | undefined>(undefined)
 
-  let creationPromise: Promise<Result<number, Error>> | undefined = undefined
-
+  let creationPromise: Promise<Result<number, DbError | ChatError>> | undefined = undefined
   let initializePromise: Promise<void> | undefined
 
   async function initialize(): Promise<void> {
@@ -53,9 +216,31 @@ export const useConversationStore = defineStore('conversation', () => {
 
     try {
       initializePromise = (async () => {
-        await loadConversations()
-        await loadMessageCounts()
-        await initializeCurrentConversation()
+        const loadConversationsResult = await loadConversations()
+        if (loadConversationsResult.isErr()) {
+          logger.error('Failed to load conversations during initialization', {
+            error: loadConversationsResult.error,
+          })
+          throw loadConversationsResult.error
+        }
+
+        const loadMessageCountsResult = await loadMessageCounts()
+        if (loadMessageCountsResult.isErr()) {
+          logger.error('Failed to load message counts during initialization', {
+            error: loadMessageCountsResult.error,
+          })
+          throw loadMessageCountsResult.error
+        }
+
+        const initConversationResult = await initializeCurrentConversation()
+        if (initConversationResult.isErr()) {
+          logger.error('Failed to initialize current conversation', {
+            conversationId: currentConversationId.value,
+            error: initConversationResult.error,
+          })
+          throw initConversationResult.error
+        }
+
         await resumeInterruptedStreams()
       })()
 
@@ -65,26 +250,74 @@ export const useConversationStore = defineStore('conversation', () => {
     }
   }
 
-  async function loadMessageCounts(): Promise<void> {
+  async function loadMessageCounts(): Promise<Result<void, DbError>> {
     const result = await appDb.getMessageCountsByConversation()
 
     if (result.isErr()) {
-      logger.error(`Failed to load message counts: ${result.error.message}`)
       messageCountsByConversation.value = new Map()
-    } else {
-      messageCountsByConversation.value = result.value
+      return err(result.error)
     }
+
+    messageCountsByConversation.value = result.value
+    return ok(undefined)
   }
 
   function getMessageCount(conversationId: number): number {
-    return messageCountsByConversation.value.get(conversationId) ?? 0
+    const current = messageCountsByConversation.value.get(conversationId)
+    return current ?? 0
+  }
+
+  async function markMessageStreamingComplete(messageId: number): Promise<void> {
+    const updateResult = await appDb.message.update(messageId, { isStreaming: false })
+    if (updateResult.isErr()) {
+      logger.error('Failed to mark message streaming complete', {
+        messageId,
+        error: updateResult.error,
+      })
+      return
+    }
+
+    const refreshResult = await refreshMessageById(messageId)
+    if (refreshResult.isErr()) {
+      logger.error('Failed to refresh message after streaming complete', {
+        messageId,
+        error: refreshResult.error,
+      })
+    }
+  }
+
+  async function markAllStreamingCompleteInCurrentConversation(): Promise<void> {
+    if (!currentConversationId.value) return
+
+    const streamingMessages = messages.value.filter(
+      (message) => message.conversationId === currentConversationId.value && message.isStreaming
+    )
+
+    for (const message of streamingMessages) {
+      const updateResult = await appDb.message.update(message.id, { isStreaming: false })
+      if (updateResult.isErr()) {
+        logger.error('Failed to mark message streaming complete when switching conversation', {
+          messageId: message.id,
+          error: updateResult.error,
+        })
+        continue
+      }
+
+      const index = messages.value.findIndex((m) => m.id === message.id)
+      if (index !== -1) {
+        const current = messages.value[index]
+        current.isStreaming = false
+      }
+    }
   }
 
   async function resumeInterruptedStreams(): Promise<void> {
     const streamingMessagesResult = await appDb.getStreamingMessages()
 
     if (streamingMessagesResult.isErr()) {
-      logger.error(`Failed to get streaming messages: ${streamingMessagesResult.error.message}`)
+      logger.error('Failed to get streaming messages during recovery', {
+        error: streamingMessagesResult.error,
+      })
       return
     }
 
@@ -131,123 +364,126 @@ export const useConversationStore = defineStore('conversation', () => {
           }
           messages.value.splice(messageIndex, 1, updated)
 
-          void appDb.message.update(streamingMessage.id, {
-            isStreaming: false,
-            content: fullContent,
-          })
+          void markMessageStreamingComplete(streamingMessage.id)
         },
       })
 
       setTimeout(async () => {
         if (didReceiveChunk) return
 
-        logger.log(`Message ${streamingMessage.id} appears complete, cleaning up`)
-        const updateResult = await appDb.message.update(streamingMessage.id, { isStreaming: false })
-        if (updateResult.isErr()) {
-          logger.error(`Failed to mark message as complete: ${updateResult.error.message}`)
-        }
-
-        const updatedResult = await appDb.message.get(streamingMessage.id)
-        if (updatedResult.isErr()) {
-          logger.error(`Failed to get updated message: ${updatedResult.error.message}`)
-          return
-        }
-
-        const updatedMessage = updatedResult.value
-        if (!updatedMessage) return
-
-        const messageIndex = messages.value.findIndex(
-          (message) => message.id === streamingMessage.id
-        )
-        if (messageIndex !== -1) {
-          messages.value.splice(messageIndex, 1, { ...updatedMessage })
-        }
+        logger.log('Message appears complete, cleaning up', {
+          messageId: streamingMessage.id,
+        })
+        await markMessageStreamingComplete(streamingMessage.id)
       }, 1000)
     }
 
     logger.log('Stream recovery complete')
   }
 
-  async function refreshMessageById(messageId: number): Promise<Result<void, Error>> {
+  async function refreshMessageById(messageId: number): Promise<Result<void, DbError | ChatError>> {
     const result = await appDb.message.get(messageId)
     if (result.isErr()) return err(result.error)
 
-    const updated = result.value
-    if (!updated) return err(new MessageNotFoundError(messageId.toString()))
+    const updatedDb = result.value
+    if (!updatedDb) return err(new MessageNotFoundError(messageId.toString()))
 
-    const messageIndex = messages.value.findIndex((m) => m.id === messageId)
+    const messageIndex = messages.value.findIndex((message) => message.id === messageId)
     if (messageIndex === -1) {
       return err(new ChatError(`Message ${messageId} not found locally`))
     }
 
-    messages.value.splice(messageIndex, 1, { ...updated })
+    // Map DbMessage back to domain Message
+    const updated: Message = {
+      id: updatedDb.id!,
+      conversationId: updatedDb.conversationId,
+      role: updatedDb.role,
+      timestamp: updatedDb.timestamp,
+      content: updatedDb.content,
+      isStreaming: updatedDb.isStreaming,
+      model: updatedDb.model,
+      systemPrompt: updatedDb.systemPrompt,
+      contextReferences: decodeContextReferences(updatedDb.contextReferences),
+    }
+
+    messages.value.splice(messageIndex, 1, updated)
     return ok(undefined)
   }
 
-  async function loadMessages(): Promise<void> {
+  async function loadMessages(): Promise<Result<void, DbError>> {
     if (!currentConversationId.value) {
       messages.value = []
-      return
+      return ok(undefined)
     }
 
-    isLoading.value = true
+    isLoadingMessages.value = true
     const result = await appDb.getMessageByConversation(currentConversationId.value)
 
     if (result.isErr()) {
       error.value = 'Failed to load messages'
-      logger.error(`Failed to load messages: ${result.error.message}`)
       messages.value = []
-    } else {
-      messages.value = [...result.value]
-      error.value = undefined
-      logger.log('Loaded messages:', JSON.stringify(messages.value))
+      isLoadingMessages.value = false
+      return err(result.error)
     }
 
-    isLoading.value = false
+    messages.value = [...result.value]
+    error.value = undefined
+    isLoadingMessages.value = false
+    return ok(undefined)
   }
 
-  async function loadConversations(): Promise<void> {
+  async function loadConversations(): Promise<Result<void, DbError>> {
+    isLoadingConversations.value = true
     const result = await appDb.getAllConversations()
 
     if (result.isErr()) {
       error.value = 'Failed to load conversations'
-      logger.error(`Failed to load conversations: ${result.error.message}`)
-    } else {
-      conversations.value = [...result.value]
-      error.value = undefined
+      isLoadingConversations.value = false
+      return err(result.error)
     }
+
+    conversations.value = [...result.value]
+    error.value = undefined
+    isLoadingConversations.value = false
+    return ok(undefined)
   }
 
-  async function initializeCurrentConversation(): Promise<void> {
+  async function initializeCurrentConversation(): Promise<Result<void, DbError>> {
     if (currentConversationId.value !== 0) {
       const existsResult = await appDb.conversation.get(currentConversationId.value)
 
       if (existsResult.isErr()) {
-        logger.error(`Failed to check conversation existence: ${existsResult.error.message}`)
         currentConversationId.value = 0
+        return err(existsResult.error)
       } else if (existsResult.value === undefined) {
-        logger.warn(`Stored conversation ${currentConversationId.value} no longer exists`)
         currentConversationId.value = 0
       }
     }
 
     if (currentConversationId.value === 0 && conversations.value.length > 0) {
-      const highestId = Math.max(...conversations.value.map((conversation) => conversation.id))
+      let highestId = conversations.value[0]?.id ?? 0
+      for (const conversation of conversations.value) {
+        if (conversation.id > highestId) highestId = conversation.id
+      }
       currentConversationId.value = highestId
     }
 
     if (currentConversationId.value !== 0) {
-      await loadMessages()
+      const loadResult = await loadMessages()
+      if (loadResult.isErr()) {
+        return err(loadResult.error)
+      }
     }
+
+    return ok(undefined)
   }
 
-  async function createConversation(title: string): Promise<Result<number, Error>> {
+  async function createConversation(title: string): Promise<Result<number, DbError | ChatError>> {
     if (creationPromise !== undefined) {
-      logger.log('Conversation creation already in progress, reusing existing promise')
       return creationPromise
     }
 
-    creationPromise = (async (): Promise<Result<number, Error>> => {
+    creationPromise = (async (): Promise<Result<number, DbError | ChatError>> => {
       try {
         const addResult = await appDb.conversation.add({
           title,
@@ -258,34 +494,39 @@ export const useConversationStore = defineStore('conversation', () => {
 
         if (addResult.isErr()) {
           error.value = 'Failed to create conversation'
-          logger.error(`Failed to create conversation: ${addResult.error.message}`)
           return err(addResult.error)
         }
 
         const newId = Number(addResult.value)
 
-        // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
         const loadError = await loadConversations()
-        if (loadError !== undefined) {
-          logger.error('loadConversations failed after successful DB write, rolling back')
-
+        if (loadError.isErr()) {
           const deleteResult = await appDb.conversation.delete(newId)
           if (deleteResult.isErr()) {
-            logger.error(`Rollback failed for conversation ${newId}: ${deleteResult.error.message}`)
+            logger.error('Rollback failed after conversation creation', {
+              conversationId: newId,
+              error: deleteResult.error,
+            })
           }
 
-          return err(new ChatError('Failed to load conversations after creation'))
+          return err(new ChatError('Failed to load conversations after creation', loadError.error))
         }
 
-        const conversationExists = conversations.value.some(
-          (conversation) => conversation.id === newId
-        )
-        if (!conversationExists) {
-          logger.error(`New conversation ${newId} not in loaded list, rolling back`)
+        let conversationExists = false
+        for (const conversation of conversations.value) {
+          if (conversation.id === newId) {
+            conversationExists = true
+            break
+          }
+        }
 
+        if (!conversationExists) {
           const deleteResult = await appDb.conversation.delete(newId)
           if (deleteResult.isErr()) {
-            logger.error(`Rollback failed for conversation ${newId}: ${deleteResult.error.message}`)
+            logger.error('Rollback failed after conversation creation', {
+              conversationId: newId,
+              error: deleteResult.error,
+            })
           }
 
           return err(new ChatError('Created conversation missing from loaded list'))
@@ -294,7 +535,6 @@ export const useConversationStore = defineStore('conversation', () => {
         currentConversationId.value = newId
         messages.value = []
 
-        logger.log(`Created conversation ${newId}: "${title}"`)
         return ok(newId)
       } finally {
         creationPromise = undefined
@@ -310,38 +550,49 @@ export const useConversationStore = defineStore('conversation', () => {
     await loadMessages()
   }
 
-  async function handleConversationSwitch(): Promise<Result<void, ChatError>> {
-    await loadConversations()
+  async function handleConversationSwitch(): Promise<Result<void, DbError | ChatError>> {
+    const loadResult = await loadConversations()
+    if (loadResult.isErr()) {
+      return err(loadResult.error)
+    }
 
     if (conversations.value.length > 0) {
-      const highestId = Math.max(...conversations.value.map((conversation) => conversation.id))
+      let highestId = conversations.value[0]?.id ?? 0
+      for (const conversation of conversations.value) {
+        if (conversation.id > highestId) highestId = conversation.id
+      }
       currentConversationId.value = highestId
-      await loadMessages()
-      return ok()
+
+      const messagesResult = await loadMessages()
+      if (messagesResult.isErr()) {
+        return err(messagesResult.error)
+      }
+      return ok(undefined)
     }
 
     const newId = await createConversation('New Conversation')
-    if (newId.isErr()) return err(new ChatError('Failed to switch conversation'))
+    if (newId.isErr()) return err(new ChatError('Failed to switch conversation', newId.error))
 
     currentConversationId.value = newId.value
     messages.value = []
 
-    return ok()
+    return ok(undefined)
   }
 
   async function updateUserMessage(
     messageId: number,
     newContent: string
-  ): Promise<Result<void, Error>> {
-    const message = messages.value.find((m) => m.id === messageId)
+  ): Promise<Result<void, MessageNotFoundError | ChatError | DbError>> {
+    const message = messages.value.find((messageItem) => messageItem.id === messageId)
     if (!message) return err(new MessageNotFoundError(messageId.toString()))
-    if (message.role !== 'user')
+    if (message.role !== 'user') {
       return err(new ChatError('updateUserMessage can only update user messages'))
+    }
 
     return updateMessageContent(messageId, newContent)
   }
 
-  const requireConversationId = (): Result<number, Error> => {
+  const requireConversationId = (): Result<number, ChatError> => {
     if (!currentConversationId.value || currentConversationId.value === 0) {
       return err(new ChatError('No active conversation'))
     }
@@ -351,13 +602,14 @@ export const useConversationStore = defineStore('conversation', () => {
   async function updateMessageContent(
     messageId: number,
     content: string
-  ): Promise<Result<void, Error>> {
+  ): Promise<Result<void, DbError>> {
     const updateResult = await appDb.updateMessage(messageId, content)
     if (updateResult.isErr()) return err(updateResult.error)
 
     const messageIndex = messages.value.findIndex((message) => message.id === messageId)
     if (messageIndex !== -1) {
-      ;(messages.value[messageIndex] as Mutable<Message>).content = content
+      const mutable = messages.value[messageIndex]
+      mutable.content = content
     }
 
     return ok(undefined)
@@ -365,8 +617,9 @@ export const useConversationStore = defineStore('conversation', () => {
 
   async function createUserMessage(
     content: string,
-    metadata?: MessageMetadata
-  ): Promise<Result<Message, Error>> {
+    metadata?: MessageMetadata,
+    contextReferences?: ContextReference[]
+  ): Promise<Result<Message, ChatError | DbError>> {
     const conversationIdResult = requireConversationId()
     if (conversationIdResult.isErr()) return err(conversationIdResult.error)
 
@@ -377,6 +630,7 @@ export const useConversationStore = defineStore('conversation', () => {
       isStreaming: false,
       model: metadata?.model,
       systemPrompt: metadata?.systemPrompt,
+      contextReferences,
     })
 
     if (createResult.isErr()) return err(createResult.error)
@@ -390,6 +644,7 @@ export const useConversationStore = defineStore('conversation', () => {
       isStreaming: false,
       model: metadata?.model,
       systemPrompt: metadata?.systemPrompt,
+      contextReferences,
     }
 
     messages.value.push(newMessage)
@@ -402,102 +657,139 @@ export const useConversationStore = defineStore('conversation', () => {
 
   async function createOrResetAssistantStreamingMessage(
     existingAssistantId: number | undefined,
-    metadata?: MessageMetadata
-  ): Promise<Result<Message, Error>> {
+    metadata: MessageMetadata | undefined,
+    contextReferences: ContextReference[] | undefined
+  ): Promise<Result<Message, CreateOrResetAssistantError>> {
     const conversationIdResult = requireConversationId()
     if (conversationIdResult.isErr()) return err(conversationIdResult.error)
 
     if (existingAssistantId !== undefined) {
-      const updateResult = await appDb.message.update(existingAssistantId, {
-        content: '',
-        isStreaming: true,
-        model: metadata?.model,
-        systemPrompt: metadata?.systemPrompt,
-      })
-
-      if (updateResult.isErr()) return err(updateResult.error)
-
-      const messageIndex = messages.value.findIndex((message) => message.id === existingAssistantId)
-      if (messageIndex === -1) {
-        return err(new ChatError(`Assistant message ${existingAssistantId} not found locally`))
-      }
-
-      const oldMessage = messages.value[messageIndex]
-      const updated: Message = {
-        ...oldMessage,
-        content: '',
-        isStreaming: true,
-        model: metadata?.model ?? oldMessage.model,
-        systemPrompt: metadata?.systemPrompt ?? oldMessage.systemPrompt,
-        timestamp: oldMessage.timestamp,
-      }
-
-      messages.value.splice(messageIndex, 1, updated)
-      return ok(updated)
+      return resetExistingAssistantStreamingMessage(
+        existingAssistantId,
+        metadata,
+        contextReferences
+      )
     }
 
+    return createNewAssistantStreamingMessage(
+      conversationIdResult.value,
+      metadata,
+      contextReferences
+    )
+  }
+
+  function encodeContextReferences(refs: ContextReference[] | undefined): string | undefined {
+    if (!refs) return undefined
+
+    // Drop Vue reactivity + enforce plain JSON shape
+    const plain = refs.map((ref) =>
+      ref.type === 'file'
+        ? { type: 'file' as const, filePath: ref.filePath }
+        : ref.filePath
+          ? { type: 'snippet' as const, snippetText: ref.snippetText, filePath: ref.filePath }
+          : { type: 'snippet' as const, snippetText: ref.snippetText }
+    )
+
+    return JSON.stringify(plain)
+  }
+
+  function decodeContextReferences(raw: string | undefined): ContextReference[] | undefined {
+    if (!raw) return undefined
+
+    try {
+      const parsed = JSON.parse(raw) as Array<
+        | { type: 'file'; filePath: string }
+        | { type: 'snippet'; snippetText: string; filePath?: string }
+      >
+
+      return parsed.map((ref) =>
+        ref.type === 'file'
+          ? { type: 'file' as const, filePath: ref.filePath }
+          : ref.filePath
+            ? { type: 'snippet' as const, snippetText: ref.snippetText, filePath: ref.filePath }
+            : { type: 'snippet' as const, snippetText: ref.snippetText }
+      )
+    } catch {
+      return undefined
+    }
+  }
+
+  async function resetExistingAssistantStreamingMessage(
+    assistantMessageId: number,
+    metadata: MessageMetadata | undefined,
+    contextReferences: ContextReference[] | undefined
+  ): Promise<Result<Message, MessageNotFoundError | MessageUpdateError>> {
+    const updateResult = await appDb.message.update(assistantMessageId, {
+      content: '',
+      isStreaming: true,
+      model: metadata?.model,
+      systemPrompt: metadata?.systemPrompt,
+      contextReferences: encodeContextReferences(contextReferences),
+    })
+    if (updateResult.isErr()) {
+      return err(new MessageUpdateError(assistantMessageId, updateResult.error))
+    }
+
+    const messageIndex = messages.value.findIndex((message) => message.id === assistantMessageId)
+    if (messageIndex === -1) {
+      return err(new MessageNotFoundError(assistantMessageId.toString()))
+    }
+
+    const oldMessage = messages.value[messageIndex]
+    const updated: Message = {
+      ...oldMessage,
+      content: '',
+      isStreaming: true,
+      model: metadata?.model ?? oldMessage.model,
+      systemPrompt: metadata?.systemPrompt ?? oldMessage.systemPrompt,
+      contextReferences,
+      timestamp: oldMessage.timestamp,
+    }
+
+    messages.value.splice(messageIndex, 1, updated)
+    return ok(updated)
+  }
+
+  async function createNewAssistantStreamingMessage(
+    conversationId: number,
+    metadata: MessageMetadata | undefined,
+    contextReferences: ContextReference[] | undefined
+  ): Promise<Result<Message, MessageCreationError>> {
     const createResult = await appDb.createMessage({
-      conversationId: conversationIdResult.value,
+      conversationId,
       role: 'assistant',
       content: '',
       isStreaming: true,
       model: metadata?.model,
       systemPrompt: metadata?.systemPrompt,
+      contextReferences,
     })
 
-    if (createResult.isErr()) return err(createResult.error)
+    if (createResult.isErr()) {
+      return err(new MessageCreationError('assistant', createResult.error))
+    }
 
     const newMessage: Message = {
       id: createResult.value,
-      conversationId: conversationIdResult.value,
+      conversationId,
       role: 'assistant',
       content: '',
       timestamp: new Date(),
       isStreaming: true,
       model: metadata?.model,
       systemPrompt: metadata?.systemPrompt,
+      contextReferences,
     }
 
     messages.value.push(newMessage)
     return ok(newMessage)
   }
 
-  // const addOrUpdateMessage = async (
-  //   content: string,
-  //   role: 'user' | 'assistant',
-  //   existingId?: number,
-  //   metadata?: { model?: string; systemPrompt?: string }
-  // ): Promise<Message | boolean> => {
-  //   if (existingId !== undefined) {
-  //     if (role === 'assistant' && content === '') {
-  //       const assistantResult = await createOrResetAssistantStreamingMessage(existingId, metadata)
-  //       return assistantResult.isOk() ? assistantResult.value : false
-  //     }
-
-  //     const updateResult = await updateMessageContent(existingId, content)
-  //     return updateResult.isOk()
-  //   }
-
-  //   if (role === 'assistant' && content === '') {
-  //     const assistantResult = await createOrResetAssistantStreamingMessage(undefined, metadata)
-  //     return assistantResult.isOk() ? assistantResult.value : false
-  //   }
-
-  //   if (role === 'user') {
-  //     const userResult = await createUserMessage(content, metadata)
-  //     return userResult.isOk() ? userResult.value : false
-  //   }
-
-  //   // keep your “rare non-streaming assistant create” branch if you truly need it
-  //   return false
-  // }
-
-  async function deleteMessage(messageId: number): Promise<boolean> {
+  async function deleteMessage(messageId: number): Promise<Result<void, DbError | ChatError>> {
     const result = await appDb.deleteMessage(messageId)
     if (result.isErr()) {
       error.value = 'Failed to delete message'
-      logger.error(`Failed to delete message: ${result.error.message}`)
-      return false
+      return err(result.error)
     }
 
     const messageIndex = messages.value.findIndex((message) => message.id === messageId)
@@ -513,208 +805,230 @@ export const useConversationStore = defineStore('conversation', () => {
 
     const existsResult = await appDb.conversation.get(currentConversationId.value)
     if (existsResult.isErr()) {
-      logger.error(`Failed to check conversation existence: ${existsResult.error.message}`)
-      return false
+      return err(existsResult.error)
     }
 
     if (existsResult.value === undefined) {
-      logger.log(`Conversation ${currentConversationId.value} was cascade-deleted`)
-
       const handleConversationSwitchResult = await handleConversationSwitch()
       if (handleConversationSwitchResult.isErr()) {
         error.value = 'Failed to switch conversation'
-        logger.error(
-          `Failed to switch conversation ${handleConversationSwitchResult.error.message}`
-        )
+        return err(handleConversationSwitchResult.error)
       }
     } else {
       const updateResult = await ResultAsync.fromPromise(
         appDb.conversation.update(currentConversationId.value, {
           updatedAt: new Date(),
         }),
-        (unknownError) => new ChatError(String(unknownError))
+        (unknownError) => {
+          if (unknownError instanceof Error) {
+            return new DbError(unknownError.message, unknownError)
+          }
+          return new DbError('Failed to update conversation timestamp', unknownError)
+        }
       )
 
       if (updateResult.isErr()) {
-        logger.error(`Failed to update conversation message count: ${updateResult.error.message}`)
+        return err(updateResult.error)
       }
     }
 
     error.value = undefined
-    return true
+    return ok(undefined)
   }
 
-  async function updateConversationTitle(conversationId: number, title: string): Promise<boolean> {
+  async function updateConversationTitle(
+    conversationId: number,
+    title: string
+  ): Promise<Result<void, DbError>> {
     const result = await ResultAsync.fromPromise(
       appDb.conversation.update(conversationId, {
         title,
         updatedAt: new Date(),
       }),
-      (unknownError) => new ChatError(String(unknownError))
+      (unknownError) => {
+        if (unknownError instanceof Error) {
+          return new DbError(unknownError.message, unknownError)
+        }
+        return new DbError('Failed to update conversation title', unknownError)
+      }
     )
 
     if (result.isErr()) {
       error.value = 'Failed to update conversation title'
-      logger.error(`Failed to update conversation title: ${result.error.message}`)
-      return false
+      return err(result.error)
     }
 
-    const conversation = conversations.value.find((c) => c.id === conversationId)
+    const conversation = conversations.value.find((conv) => conv.id === conversationId)
     if (conversation) {
       conversation.title = title
       conversation.updatedAt = new Date()
     }
 
     error.value = undefined
-    return true
+    return ok(undefined)
   }
 
-  async function deleteConversation(conversationId: number): Promise<boolean> {
+  async function deleteConversation(
+    conversationId: number
+  ): Promise<Result<void, DbError | ChatError>> {
     const result = await appDb.deleteConversationWithMessage(conversationId)
 
     if (result.isErr()) {
       error.value = 'Failed to delete conversation'
-      logger.error(`Failed to delete conversation ${result.error.message}`)
-      return false
+      return err(result.error)
     }
 
     if (conversationId === currentConversationId.value) {
       const handleConversationSwitchResult = await handleConversationSwitch()
       if (handleConversationSwitchResult.isErr()) {
         error.value = 'Failed to switch conversation'
-        logger.error(
-          `Failed to switch conversation ${handleConversationSwitchResult.error.message}`
-        )
+        return err(handleConversationSwitchResult.error)
       }
 
-      return true
+      return ok(undefined)
     }
 
-    await loadConversations()
+    const loadResult = await loadConversations()
+    if (loadResult.isErr()) {
+      return err(loadResult.error)
+    }
 
     error.value = undefined
-    return true
+    return ok(undefined)
   }
 
   function generateConversationTitle(firstMessage: string): string {
-    const title = firstMessage.trim().slice(0, 50)
-    return title.length < firstMessage.trim().length ? `${title}...` : title
+    const trimmed = firstMessage.trim()
+    const title = trimmed.slice(0, 50)
+    return title.length < trimmed.length ? `${title}...` : title
   }
 
   const debouncedAutoSave = async (messageId: number, content: string): Promise<void> => {
     const updateResult = await appDb.updateMessage(messageId, content)
     if (updateResult.isErr()) {
-      logger.error(`Failed to auto-save message ${messageId}:`, updateResult.error.message)
+      logger.error('Failed to auto-save message', {
+        messageId,
+        error: updateResult.error,
+      })
     }
   }
 
   async function sendWithHistory(
     historyMessages: Message[],
     options: SendOptions
-  ): Promise<Result<number, Error>> {
-    const { provider, model, systemPrompt, existingAssistantId, onChunk, onComplete, onError } =
-      options
-
-    const assistantResult = await createOrResetAssistantStreamingMessage(existingAssistantId, {
-      model: `${provider}:${model}`,
+  ): Promise<
+    Result<number, ChatError | DbError | MessageCreationError | CreateOrResetAssistantError>
+  > {
+    const {
+      provider,
+      model,
       systemPrompt,
-    })
+      contextItems,
+      contextReferences,
+      existingAssistantId,
+      onChunk,
+      onComplete,
+      onError,
+    } = options
 
-    if (assistantResult.isErr()) {
-      const creationError = new MessageCreationError('assistant', assistantResult.error)
-      logger.error(creationError.message)
-      return err(creationError)
-    }
+    const assistantResult = await createOrResetAssistantStreamingMessage(
+      existingAssistantId,
+      {
+        model: `${provider}:${model}`,
+        systemPrompt,
+      },
+      contextReferences
+    )
+
+    if (assistantResult.isErr()) return err(assistantResult.error)
 
     const messageId = assistantResult.value.id
+    if (selectedModelContextWindow.value !== undefined) {
+      lastContextUsage.value = computeContextUsageForSend(
+        historyMessages,
+        systemPrompt,
+        contextItems,
+        selectedModelContextWindow.value
+      )
+    } else {
+      lastContextUsage.value = 0
+    }
 
-    const messagesToSend = historyMessages.map((message) => ({
-      role: message.role,
-      content: message.content,
-    }))
+    const messagesToSend: Array<{ role: Message['role']; content: string }> = []
+    for (const message of historyMessages) {
+      messagesToSend.push({
+        role: message.role,
+        content: message.content,
+      })
+    }
+
+    const injected = buildInjectedText(systemPrompt, contextItems ?? [])
+
+    const last = messagesToSend[messagesToSend.length - 1]
+    if (last && last.role === 'user' && injected) {
+      last.content = `${last.content}${injected}`
+    }
 
     let fullContentFromServer: string | undefined
 
-    const streamResult = await sendChatSocket(
-      messageId,
-      provider,
-      model,
-      messagesToSend,
-      systemPrompt,
-      {
-        onChunk: (chunk: string) => {
-          const messageIndex = messages.value.findIndex((m) => m.id === messageId)
-          if (messageIndex !== -1) {
-            const current = messages.value[messageIndex]
-            const updated: Message = {
-              ...current,
-              content: current.content + chunk,
-            }
-            messages.value.splice(messageIndex, 1, updated)
-          }
-
-          onChunk?.(messageId, chunk)
-        },
-        onComplete: (fullContent: string) => {
-          fullContentFromServer = fullContent
-
-          const messageIndex = messages.value.findIndex((m) => m.id === messageId)
-          if (messageIndex === -1) return
-
+    const streamResult = await sendChatSocket(messageId, provider, model, messagesToSend, {
+      onChunk: (chunk: string) => {
+        const messageIndex = messages.value.findIndex((message) => message.id === messageId)
+        if (messageIndex !== -1) {
           const current = messages.value[messageIndex]
           const updated: Message = {
             ...current,
-            content: fullContent, // authoritative
+            content: current.content + chunk,
           }
           messages.value.splice(messageIndex, 1, updated)
-        },
-        onError: (errorMessage: string) => {
-          onError?.(new ChatError(errorMessage))
-        },
-      }
-    )
+        }
+
+        onChunk?.(messageId, chunk)
+      },
+      onComplete: (fullContent: string) => {
+        fullContentFromServer = fullContent
+
+        const messageIndex = messages.value.findIndex((message) => message.id === messageId)
+        if (messageIndex === -1) return
+
+        const current = messages.value[messageIndex]
+        const updated: Message = {
+          ...current,
+          content: fullContent,
+        }
+        messages.value.splice(messageIndex, 1, updated)
+      },
+      onError: (errorMessage: string) => {
+        onError?.(new ChatError(errorMessage))
+      },
+    })
 
     if (streamResult.isErr()) {
-      logger.error('Stream failed:', streamResult.error.message)
       onError?.(streamResult.error)
-
-      // If this was a *new* assistant message, delete it (existing behavior).
       if (existingAssistantId === undefined) {
         await deleteMessage(messageId)
         return err(streamResult.error)
       }
 
-      // If this was a *reused* assistant message, keep partial content but stop streaming.
-      const markCompleteResult = await appDb.message.update(messageId, { isStreaming: false })
-      if (markCompleteResult.isErr()) {
-        logger.error(
-          `Failed to mark message ${messageId} as complete: ${markCompleteResult.error.message}`
-        )
-        return err(streamResult.error)
-      }
+      await markMessageStreamingComplete(messageId)
 
-      const refreshResult = await refreshMessageById(messageId)
-      if (refreshResult.isErr()) {
-        logger.error(`Failed to refresh message ${messageId}: ${refreshResult.error.message}`)
-        return err(streamResult.error)
-      }
+      const idx = messages.value.findIndex((m) => m.id === messageId)
+      if (idx !== -1) messages.value[idx].isStreaming = false
 
       return err(streamResult.error)
     }
 
-    // Success: persist the real final content (do not trust chunk accumulation)
     if (fullContentFromServer === undefined) {
+      const idx = messages.value.findIndex((m) => m.id === messageId)
+      if (idx !== -1) messages.value[idx].isStreaming = false
+
       return err(new ChatError(`Missing fullContent for completed message ${messageId}`))
     }
 
     const finalizeResult = await finalizeAssistantMessage(messageId, fullContentFromServer)
     if (finalizeResult.isErr()) return err(finalizeResult.error)
 
-    const markCompleteResult = await appDb.message.update(messageId, { isStreaming: false })
-    if (markCompleteResult.isErr()) return err(markCompleteResult.error)
-
-    const refreshResult = await refreshMessageById(messageId)
-    if (refreshResult.isErr()) return err(refreshResult.error)
+    await markMessageStreamingComplete(messageId)
 
     onComplete?.(messageId)
     return ok(messageId)
@@ -723,33 +1037,63 @@ export const useConversationStore = defineStore('conversation', () => {
   async function sendMessage(
     newUserMessage: string,
     options: SendOptions
-  ): Promise<Result<number, Error>> {
-    const userResult = await createUserMessage(newUserMessage)
+  ): Promise<
+    Result<number, ChatError | DbError | MessageCreationError | CreateOrResetAssistantError>
+  > {
+    const userResult = await createUserMessage(newUserMessage, undefined, options.contextReferences)
     if (userResult.isErr()) {
       const creationError = new MessageCreationError('user', userResult.error)
-      logger.error(creationError.message)
       return err(creationError)
     }
 
     const historyMessages = messages.value.filter((message) => message.id !== 0)
-
-    const result = await sendWithHistory(historyMessages, options)
-    return result
+    return await sendWithHistory(historyMessages, {
+      ...options,
+    })
   }
 
   async function resendFromMessage(
     messageId: number,
     options: SendOptions
-  ): Promise<Result<number, Error>> {
+  ): Promise<
+    Result<
+      number,
+      | MessageNotFoundError
+      | ChatError
+      | DbError
+      | MessageCreationError
+      | CreateOrResetAssistantError
+      | ValidationError
+    >
+  > {
     const messageIndex = messages.value.findIndex((message) => message.id === messageId)
     if (messageIndex === -1) {
       const errorResult = new MessageNotFoundError(messageId.toString())
-      logger.error(errorResult.message)
       return err(errorResult)
     }
 
+    const userMessage = messages.value[messageIndex]
+
+    let freshContextItems: Array<{ filePath: string; content: string }> | undefined
+    if (userMessage.contextReferences && userMessage.contextReferences.length > 0) {
+      const resolveResult = await resolveContextItems(userMessage.contextReferences)
+      if (resolveResult.isErr()) {
+        logger.error('Failed to resolve context on resend', {
+          messageId,
+          error: resolveResult.error,
+        })
+        return err(resolveResult.error)
+      }
+
+      freshContextItems = resolveResult.value
+    }
+
     const historyMessages = messages.value.slice(0, messageIndex + 1)
-    const result = await sendWithHistory(historyMessages, options)
+    const result = await sendWithHistory(historyMessages, {
+      ...options,
+      contextItems: freshContextItems,
+      contextReferences: userMessage.contextReferences,
+    })
 
     const assistantMessageIdToRefresh =
       options.existingAssistantId ?? (result.isOk() ? result.value : undefined)
@@ -757,9 +1101,10 @@ export const useConversationStore = defineStore('conversation', () => {
     if (assistantMessageIdToRefresh !== undefined) {
       const refreshResult = await refreshMessageById(assistantMessageIdToRefresh)
       if (refreshResult.isErr()) {
-        logger.error(
-          `Failed to refresh message ${assistantMessageIdToRefresh}: ${refreshResult.error.message}`
-        )
+        logger.error('Failed to refresh message after resend', {
+          messageId: assistantMessageIdToRefresh,
+          error: refreshResult.error,
+        })
       }
     }
 
@@ -770,34 +1115,35 @@ export const useConversationStore = defineStore('conversation', () => {
     assistantMessageId: number,
     newModelId: string,
     options: Omit<SendOptions, 'provider' | 'model'>
-  ): Promise<Result<number, Error>> {
-    const messageIndex = messages.value.findIndex((message) => message.id === assistantMessageId)
-    if (messageIndex === -1) {
+  ): Promise<
+    Result<
+      number,
+      | MessageNotFoundError
+      | InvalidModelFormatError
+      | ChatError
+      | DbError
+      | MessageCreationError
+      | CreateOrResetAssistantError
+    >
+  > {
+    const assistantMessageIndex = messages.value.findIndex(
+      (message) => message.id === assistantMessageId
+    )
+    if (assistantMessageIndex === -1) {
       const errorResult = new MessageNotFoundError(assistantMessageId.toString())
-      logger.error(errorResult.message)
       return err(errorResult)
     }
 
-    const userMessageIndex = messageIndex - 1
-
-    if (userMessageIndex < 0) {
-      const errorResult = new NoUserMessageError(assistantMessageId.toString())
-      logger.error(errorResult.message)
-      return err(errorResult)
-    }
-
-    const historyMessages = messages.value.slice(0, userMessageIndex + 1)
+    const historyMessages = messages.value.slice(0, assistantMessageIndex)
 
     if (!newModelId.includes(':')) {
       const errorResult = new InvalidModelFormatError(newModelId)
-      logger.error(errorResult.message)
       return err(errorResult)
     }
 
     const [provider, model] = newModelId.split(':')
     if (!provider || !model) {
       const errorResult = new InvalidModelFormatError(newModelId)
-      logger.error(errorResult.message)
       return err(errorResult)
     }
 
@@ -809,9 +1155,11 @@ export const useConversationStore = defineStore('conversation', () => {
     })
 
     const refreshResult = await refreshMessageById(assistantMessageId)
-
     if (refreshResult.isErr()) {
-      logger.error(`Failed to refresh assistant message: ${refreshResult.error.message}`)
+      logger.error('Failed to refresh assistant message after rewrite', {
+        messageId: assistantMessageId,
+        error: refreshResult.error,
+      })
     }
 
     return result
@@ -820,20 +1168,21 @@ export const useConversationStore = defineStore('conversation', () => {
   async function finalizeAssistantMessage(
     messageId: number,
     finalContent: string
-  ): Promise<Result<void, Error>> {
+  ): Promise<Result<void, DbError>> {
     return updateMessageContent(messageId, finalContent)
   }
 
   return {
-    // State
     messages,
     conversations,
     currentConversationId,
-    isLoading,
+    isLoadingMessages,
+    isLoadingConversations,
     error,
     messageCountsByConversation,
+    lastContextUsage,
+    selectedModelContextWindow,
 
-    // Actions
     initialize,
     refreshMessageById,
     loadMessages,
@@ -858,7 +1207,8 @@ export const useConversationStore = defineStore('conversation', () => {
     sendMessage,
     resendFromMessage,
     rewriteWithModel,
-
     finalizeAssistantMessage,
+
+    markAllStreamingCompleteInCurrentConversation,
   }
 })

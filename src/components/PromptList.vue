@@ -3,7 +3,8 @@
     <div
       v-for="prompt in prompts"
       :key="prompt.id"
-      class="flex items-center justify-between p-3 border border-borderMuted rounded-md hover:bg-panel cursor-pointer transition-colors"
+      data-testid="prompt-item"
+      class="flex items-center justify-between p-3 border border-borderMuted rounded-lg hover:bg-panel cursor-pointer transition-colors"
       :class="{ 'bg-accent/10 border-accent': prompt.id === selectedPromptId }"
       @click="emit('select', prompt.id)"
     >
@@ -18,14 +19,17 @@
         >
           System
         </span>
-        <button
+        <BaseButton
           v-if="!prompt.isSystem"
+          variant="icon"
+          data-testid="prompt-delete-button"
+          aria-label="Delete prompt"
           class="text-subtleText hover:text-error p-1 transition-colors"
           title="Delete prompt"
           @click.stop="emit('delete', prompt.id)"
         >
           <i class="i-weui:delete-outlined" />
-        </button>
+        </BaseButton>
       </div>
     </div>
 
@@ -39,6 +43,7 @@
 
 <script setup lang="ts">
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
+import BaseButton from '@/components/BaseButton.vue'
 
 interface Prompt {
   id: number
@@ -48,7 +53,7 @@ interface Prompt {
 }
 
 interface PromptListProps {
-  prompts: Prompt[]
+  prompts: readonly Prompt[]
   selectedPromptId?: number
   emptyDescription: string
 }

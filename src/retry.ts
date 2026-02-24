@@ -1,4 +1,4 @@
-import { err, ok, type Result } from 'neverthrow'
+import { err, type Result } from 'neverthrow'
 import { RateLimitError } from '@/errors'
 
 type RetryConfig = {
@@ -24,14 +24,23 @@ export async function retryWithBackoff<T, E>(
   const { maxRetries, initialDelayMilliseconds, backoffMultiplier, maxDelayMilliseconds, logger } =
     { ...defaultRetryConfig, ...config }
 
+  let lastRateLimitError: RateLimitError | undefined
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const result = await operation()
 
-    if (result.isOk()) return ok(result.value)
-    if (!(result.error instanceof RateLimitError)) return err(result.error)
+    if (result.isOk()) return result
+
+    if (!(result.error instanceof RateLimitError)) {
+      return err(result.error)
+    }
+
+    lastRateLimitError = result.error
 
     const isLastAttempt = attempt === maxRetries - 1
-    if (isLastAttempt) return err(result.error)
+    if (isLastAttempt) {
+      return err(lastRateLimitError)
+    }
 
     const exponentialDelayMilliseconds =
       initialDelayMilliseconds * Math.pow(backoffMultiplier, attempt)
@@ -42,11 +51,13 @@ export async function retryWithBackoff<T, E>(
     )
 
     logger?.warn(
-      `Rate limit hit for ${context}. Retrying in ${Math.round(delayMilliseconds)}ms (attempt ${attempt + 1}/${maxRetries})`
+      `Rate limit hit for ${context}. Retrying in ${Math.round(
+        delayMilliseconds
+      )}ms (attempt ${attempt + 1}/${maxRetries})`
     )
 
     await new Promise((resolve) => setTimeout(resolve, delayMilliseconds))
   }
 
-  return err(new RateLimitError('Max retries exceeded'))
+  return err(lastRateLimitError ?? new RateLimitError('Max retries exceeded'))
 }

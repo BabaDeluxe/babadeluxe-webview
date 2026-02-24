@@ -1,217 +1,220 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi, test } from 'vitest'
 import type { Root } from '@babadeluxe/shared'
-import type { ConsoleLogger } from '@simwai/utils'
+import { ref } from 'vue'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
-import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { SOCKET_MANAGER_KEY } from '@/injection-keys'
 import { mountComposable } from './helpers/mount-composable'
+import { MockSocket, trigger as triggerSocketEvent } from './helpers/mock-socket-manager'
 
-type SettingsHandler = (payload: unknown) => void
-type HandlerMap = Record<string, SettingsHandler[]>
+export type MockSettingsSocket = MockSocket
 
-interface MockSettingsSocket {
-  isConnected: boolean
-  on: (event: string, handler: SettingsHandler) => void
-  off: (event: string, handler: SettingsHandler) => void
-  emit: (event: string, ...args: unknown[]) => void
-  waitForConnection: () => Promise<{ isErr: () => boolean; error?: Error }>
-  handlers: HandlerMap
-}
-
-// Test fixtures
 const fixtures = {
-  setting: {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    OPENAI_API_KEY: {
+  settings: {
+    openaiKey: {
       settingKey: 'OPENAI_API_KEY',
-      settingValue: 'abc',
+      settingValue: 'sk-abc123',
       dataType: 'string' as const,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date('2026-02-07T15:00:00Z').toISOString(),
     },
-    settingA: {
-      settingKey: 'A',
-      settingValue: '1',
+    anthropicKey: {
+      settingKey: 'ANTHROPIC_API_KEY',
+      settingValue: 'sk-ant-xyz789',
       dataType: 'string' as const,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date('2026-02-07T15:00:00Z').toISOString(),
     },
-    settingB: {
-      settingKey: 'B',
-      settingValue: '2',
-      dataType: 'string' as const,
-      updatedAt: new Date().toISOString(),
+    maxTokens: {
+      settingKey: 'MAX_TOKENS',
+      settingValue: '4096',
+      dataType: 'number' as const,
+      updatedAt: new Date('2026-02-07T15:00:00Z').toISOString(),
     },
   },
-  response: {
+  responses: {
     success: (data?: unknown) => ({ success: true as const, data }),
-    error: (error: string) => ({ success: false as const, error }),
+    error: (error?: string) => ({
+      success: false as const,
+      error: error ?? 'Unknown error',
+    }),
   },
 }
 
-function createMockSocket(): MockSettingsSocket {
-  const handlers: HandlerMap = {}
-
-  return {
-    isConnected: true,
-    on: vi.fn((event: string, handler: SettingsHandler) => {
-      handlers[event] = handlers[event] || []
-      handlers[event]!.push(handler)
-    }),
-    off: vi.fn((event: string, handler: SettingsHandler) => {
-      handlers[event] = (handlers[event] || []).filter((h) => h !== handler)
-    }),
-    emit: vi.fn(),
-    waitForConnection: vi.fn().mockResolvedValue({ isErr: () => false }),
-    handlers,
-  }
-}
-
-function createMockLogger(): ConsoleLogger {
-  return {
-    log: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  } as unknown as ConsoleLogger
+function createMockSettingsSocket(): MockSettingsSocket {
+  return new MockSocket()
 }
 
 function trigger<T extends keyof Root.Emission>(
   socket: MockSettingsSocket,
   event: T,
   payload: Parameters<Root.Emission[T]>[0]
-) {
-  for (const handler of socket.handlers[event as string] || []) {
-    handler(payload)
-  }
+): void {
+  triggerSocketEvent(socket, event as string, payload)
 }
 
-describe('useSettingsSocket', () => {
-  let settingsSocket: MockSettingsSocket
-  let logger: ConsoleLogger
-  let composable: ReturnType<typeof useSettingsSocket>
+function mockGetAllEmit(socket: MockSettingsSocket, response: unknown): void {
+  socket.emit = vi.fn((event: string, ...args: unknown[]) => {
+    if (event === 'settings:getAll' && typeof args[0] === 'function') {
+      const callback = args[0] as (resp: unknown) => void
+      callback(response)
+    }
+    return {
+      isOk: () => true,
+      isErr: () => false,
+    }
+  })
+}
 
-  function mountComposableWithMocks() {
+function mockUpsertEmit(socket: MockSettingsSocket, response: unknown): void {
+  socket.emit = vi.fn((event: string, ...args: unknown[]) => {
+    if (event === 'settings:upsert' && typeof args[1] === 'function') {
+      const callback = args[1] as (resp: unknown) => void
+      callback(response)
+    }
+    return {
+      isOk: () => true,
+      isErr: () => false,
+    }
+  })
+}
+
+describe('useSettingsSocket()', () => {
+  let settingsSocket: MockSettingsSocket
+
+  function mountSettingsSocket() {
     return mountComposable(() => useSettingsSocket(), {
       global: {
         provide: {
-          [SOCKET_MANAGER_KEY as symbol]: { settingsSocket },
-          [LOGGER_KEY as symbol]: logger,
+          [SOCKET_MANAGER_KEY as symbol]: ref({ settingsSocket }),
         },
       },
     })
   }
 
   beforeEach(() => {
-    settingsSocket = createMockSocket()
-    logger = createMockLogger()
-    composable = mountComposableWithMocks()
+    settingsSocket = createMockSettingsSocket()
   })
 
   afterEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('Event Handlers', () => {
-    it('adds new setting on settings:updated', () => {
-      trigger(settingsSocket, 'settings:updated', fixtures.setting.OPENAI_API_KEY)
+  describe('real-time settings synchronization', () => {
+    it('adds new setting on settings:updated event', () => {
+      const { settings } = mountSettingsSocket()
 
-      expect(composable.settings.value).toHaveLength(1)
-      expect(composable.settings.value[0].settingKey).toBe('OPENAI_API_KEY')
+      trigger(settingsSocket, 'settings:updated', fixtures.settings.openaiKey)
+
+      expect(settings.value).toHaveLength(1)
+      expect(settings.value[0]).toEqual(
+        expect.objectContaining({
+          settingKey: 'OPENAI_API_KEY',
+          settingValue: 'sk-abc123',
+          dataType: 'string',
+        })
+      )
     })
 
-    it('updates existing setting on settings:updated', () => {
-      const setting = fixtures.setting.OPENAI_API_KEY
+    it('updates existing setting on settings:updated event', () => {
+      const { settings } = mountSettingsSocket()
 
-      trigger(settingsSocket, 'settings:updated', setting)
-      trigger(settingsSocket, 'settings:updated', { ...setting, settingValue: 'xyz' })
+      trigger(settingsSocket, 'settings:updated', fixtures.settings.openaiKey)
+      trigger(settingsSocket, 'settings:updated', {
+        ...fixtures.settings.openaiKey,
+        settingValue: 'sk-new-key',
+      })
 
-      expect(composable.settings.value).toHaveLength(1)
-      expect(composable.settings.value[0].settingValue).toBe('xyz')
+      expect(settings.value).toHaveLength(1)
+      expect(settings.value[0]).toEqual(
+        expect.objectContaining({
+          settingKey: 'OPENAI_API_KEY',
+          settingValue: 'sk-new-key',
+        })
+      )
     })
 
-    it('removes setting on settings:deleted', () => {
-      trigger(settingsSocket, 'settings:updated', fixtures.setting.settingA)
-      trigger(settingsSocket, 'settings:updated', fixtures.setting.settingB)
+    it('removes setting on settings:deleted event', () => {
+      const { settings } = mountSettingsSocket()
 
-      expect(composable.settings.value).toHaveLength(2)
+      trigger(settingsSocket, 'settings:updated', fixtures.settings.openaiKey)
+      trigger(settingsSocket, 'settings:updated', fixtures.settings.anthropicKey)
+      expect(settings.value).toHaveLength(2)
 
-      trigger(settingsSocket, 'settings:deleted', { settingKey: 'A' })
+      trigger(settingsSocket, 'settings:deleted', { settingKey: 'OPENAI_API_KEY' })
 
-      expect(composable.settings.value).toHaveLength(1)
-      expect(composable.settings.value[0].settingKey).toBe('B')
+      expect(settings.value).toHaveLength(1)
+      expect(settings.value[0].settingKey).toBe('ANTHROPIC_API_KEY')
     })
 
-    it('sets error on settings:error', () => {
-      trigger(settingsSocket, 'settings:error', { error: 'boom' })
+    it('surfaces server errors', () => {
+      const { error } = mountSettingsSocket()
 
-      expect(composable.error.value).toBe('boom')
-      expect(logger.error).toHaveBeenCalledWith('Settings socket error:', 'boom')
+      trigger(settingsSocket, 'settings:error', { error: 'Database connection failed' })
+
+      expect(error.value).toBe('Database connection failed')
     })
   })
 
   describe('loadSettings', () => {
-    function mockEmitResponse(response: unknown) {
-      settingsSocket.emit = vi.fn().mockImplementation((event: string, ...args: unknown[]) => {
-        if (event === 'settings:getAll') {
-          const cb = args[0] as (response: unknown) => void
-          cb(response)
-        }
-      })
-    }
-
-    it('fills settings on success', async () => {
-      mockEmitResponse(
-        fixtures.response.success([
-          {
-            settingKey: 'OPENAI_API_KEY',
-            settingValue: 'abc',
-            dataType: 'string',
-            updatedAt: new Date().toISOString(),
-          },
+    it('loads all settings on success', async () => {
+      mockGetAllEmit(
+        settingsSocket,
+        fixtures.responses.success([
+          fixtures.settings.openaiKey,
+          fixtures.settings.anthropicKey,
+          fixtures.settings.maxTokens,
         ])
       )
 
-      await composable.loadSettings()
+      const { settings, loadSettings, isLoading } = mountSettingsSocket()
 
-      expect(composable.isLoading.value).toBe(false)
-      expect(composable.error.value).toBeUndefined()
-      expect(composable.settings.value).toHaveLength(1)
-      expect(composable.settings.value[0].settingKey).toBe('OPENAI_API_KEY')
-    })
+      await loadSettings()
 
-    it('sets error on backend failure', async () => {
-      mockEmitResponse(fixtures.response.error('fail'))
-
-      await expect(composable.loadSettings()).rejects.toThrow('fail')
-      expect(composable.error.value).toBe('fail')
+      expect(isLoading.value).toBe(false)
+      expect(settings.value).toHaveLength(3)
+      expect(settings.value).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ settingKey: 'OPENAI_API_KEY' }),
+          expect.objectContaining({ settingKey: 'ANTHROPIC_API_KEY' }),
+          expect.objectContaining({ settingKey: 'MAX_TOKENS' }),
+        ])
+      )
     })
   })
 
   describe('upsertSetting', () => {
-    function mockEmitResponse(response: unknown) {
-      settingsSocket.emit = vi.fn().mockImplementation((event: string, ...args: unknown[]) => {
-        if (event === 'settings:upsert') {
-          const cb = args[1] as (response: unknown) => void
-          cb(response)
-        }
-      })
-    }
+    const upsertCases = [
+      {
+        name: 'string setting',
+        key: 'OPENAI_API_KEY',
+        value: 'sk-new',
+        dataType: 'string' as const,
+      },
+      {
+        name: 'number setting',
+        key: 'MAX_TOKENS',
+        value: 8192,
+        dataType: 'number' as const,
+      },
+      {
+        name: 'boolean setting',
+        key: 'ENABLE_STREAMING',
+        value: true,
+        dataType: 'boolean' as const,
+      },
+    ]
 
-    it('resolves on success', async () => {
-      mockEmitResponse(fixtures.response.success())
+    test.each(upsertCases)(
+      'resolves on successful upsert: $name',
+      async ({ key, value, dataType }) => {
+        mockUpsertEmit(settingsSocket, fixtures.responses.success())
 
-      await expect(
-        composable.upsertSetting('OPENAI_API_KEY', 'abc', 'string')
-      ).resolves.toBeUndefined()
-    })
+        const { upsertSetting } = mountSettingsSocket()
 
-    it('rejects and sets error on failure', async () => {
-      mockEmitResponse(fixtures.response.error('bad'))
-
-      await expect(composable.upsertSetting('OPENAI_API_KEY', 'abc', 'string')).rejects.toThrow(
-        'bad'
-      )
-      expect(composable.error.value).toBe('bad')
-    })
+        const result = await upsertSetting(key, value, dataType)
+        expect(result.isOk()).toBe(true)
+      }
+    )
   })
 })

@@ -3,7 +3,7 @@
     <img
       alt="BabaDeluxe Icon"
       class="logo w-12 h-12"
-      src="@/assets/babadeluxe-ai-coder-icon.svg"
+      src="@/assets/icons/babadeluxe-ai-coder-icon.svg"
     />
   </div>
 </template>

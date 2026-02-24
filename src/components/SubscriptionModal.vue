@@ -2,22 +2,23 @@
   <Teleport to="body">
     <div
       v-if="isVisible"
-      class="absolute top-0 left-0 pt-4 overflow-y-auto w-full h-full bg-slate/80 flex items-center justify-center z-50 animate-in fade-in"
+      class="absolute top-0 left-0 pt-4 overflow-y-auto w-full h-full bg-slate/80 flex items-center justify-center z-50 animate-fade-in animate-duration-200 animate-ease-out"
       aria-modal="true"
       role="dialog"
       aria-labelledby="upsell-title"
     >
       <div
-        class="bg-panel border border-borderMuted rounded-lg shadow-2xl p-8 max-w-4xl w-full mx-4 flex flex-col gap-6"
+        class="bg-panel border border-borderMuted rounded-lg shadow-2xl p-8 max-w-4xl w-full flex flex-col gap-6"
       >
         <!-- X Button -->
-        <button
+        <BaseButton
+          variant="icon"
           class="absolute top-4 right-4 text-subtleText hover:text-deepText transition-colors"
           aria-label="Close modal"
           @click="handleClose"
         >
           <i class="i-bi:x-lg text-xl" />
-        </button>
+        </BaseButton>
 
         <!-- Header -->
         <header class="text-center">
@@ -51,28 +52,10 @@
             <div class="mb-6">
               <span class="text-4xl font-bold text-deepText">€0</span>
             </div>
-            <!-- <ul class="space-y-2 text-subtleText text-sm mb-6">
-              <li class="flex items-center gap-2">
-                <i class="i-bi:check-circle text-accent/70" />
-                <span>History with fuzzy search</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <i class="i-bi:check-circle text-accent/70" />
-                <span>Manage your custom prompts</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <i class="i-bi:check-circle text-accent/70" />
-                <span>Includes BabaSensei™ prompt</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <i class="i-bi:exclamation-circle text-warning" />
-                <span>10 free messages per day</span>
-              </li>
-            </ul> -->
             <BaseButton
               variant="secondary"
               class="mt-auto w-full"
-              :disabled="true"
+              :is-disabled="true"
             >
               Your Current Plan
             </BaseButton>
@@ -112,8 +95,9 @@
               </li>
             </ul>
             <BaseButton
+              variant="primary"
               class="mt-auto w-full"
-              :disabled="isUpgrading"
+              :is-disabled="isUpgrading"
               @click="handleUpgrade"
             >
               {{ isUpgrading ? 'Redirecting...' : 'Upgrade to Pro' }}

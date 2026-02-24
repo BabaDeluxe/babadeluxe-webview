@@ -13,8 +13,8 @@
         v-for="message in messages"
         :key="message.id"
         :data-message-id="message.id"
-        :show-rewrite="showRewrite"
         v-bind="message"
+        :is-rewrite-enabled="props.isRewriteEnabled"
         @delete="emit('delete', $event)"
         @update="(id, content) => emit('update', id, content)"
       />
@@ -38,10 +38,10 @@ interface MessageListProps {
   messages: Message[]
   conversationTitle: string
   isLoading: boolean
-  showRewrite: boolean
+  isRewriteEnabled: boolean
 }
 
-defineProps<MessageListProps>()
+const props = defineProps<MessageListProps>()
 
 const emit = defineEmits<{
   delete: [messageId: number]

@@ -1,36 +1,42 @@
 <template>
-  <div class="flex flex-col gap-0">
+  <div
+    class="flex flex-col w-full border border-borderMuted rounded-lg bg-panel overflow-hidden max-h-24"
+  >
     <BaseTextField
       ref="baseTextFieldRef"
+      class="bg-transparent border-0 rounded-none"
       :value="modelValue"
       :placeholder="placeholder"
       :data-testid="testId"
-      :disabled="disabled"
+      :is-disabled="isDisabled"
       @update:value="emit('update:modelValue', $event)"
       @keydown.enter.exact.prevent="emit('submit')"
     />
-    <div
-      class="flex justify-end items-center border border-borderMuted rounded bg-panel overflow-hidden sm:w-full"
-    >
+
+    <div class="flex justify-end items-end items-center gap-0">
       <slot name="controls" />
+
       <BaseButton
         v-if="!isSubmitting"
+        variant="ghost"
+        class="bg-transparent"
         :icon="submitIcon"
         :data-testid="submitButtonTestId"
-        :class="submitButtonClass"
-        :disabled="!canSubmit"
-        :loading="isLoading"
-        @click="emit('submit')"
+        :is-disabled="!canSubmit"
+        :is-loading="isLoading"
+        @click="onSubmit"
       >
         <template #loading>
           <BaseSpinner size="small" />
         </template>
       </BaseButton>
+
       <BaseButton
         v-else
+        variant="ghost"
+        class="bg-transparent"
         :icon="abortIcon"
         :data-testid="abortButtonTestId"
-        :class="abortButtonClass"
         @click="emit('abort')"
       />
     </div>
@@ -38,16 +44,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, useTemplateRef } from 'vue'
-import type { ConsoleLogger } from '@simwai/utils'
+import { computed, useTemplateRef } from 'vue'
+import type { AbstractLogger } from '@/logger'
 import BaseTextField from '@/components/BaseTextField.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
-import { LOGGER_KEY } from '@/injection-keys.js'
+import { LOGGER_KEY } from '@/injection-keys'
+import { safeInject } from '@/safe-inject'
 
 interface ChatInputProps {
   modelValue: string
-  disabled?: boolean
+  isDisabled?: boolean
   isLoading?: boolean
   isSubmitting?: boolean
   placeholder?: string
@@ -56,12 +63,10 @@ interface ChatInputProps {
   abortButtonTestId?: string
   submitIcon?: string
   abortIcon?: string
-  submitButtonClass?: string
-  abortButtonClass?: string
 }
 
 const props = withDefaults(defineProps<ChatInputProps>(), {
-  disabled: false,
+  isDisabled: false,
   isLoading: false,
   isSubmitting: false,
   placeholder: 'Type a message...',
@@ -70,10 +75,6 @@ const props = withDefaults(defineProps<ChatInputProps>(), {
   abortButtonTestId: 'abort-button',
   submitIcon: 'i-bi:play-circle',
   abortIcon: 'i-bi:stop-circle',
-  submitButtonClass:
-    'bg-transparent text-accent hover:bg-transparent hover:text-accent/80 rounded-none border-0 shrink-0',
-  abortButtonClass:
-    'bg-transparent text-error hover:bg-transparent hover:text-error/80 rounded-none border-0 shrink-0',
 })
 
 const emit = defineEmits<{
@@ -82,14 +83,14 @@ const emit = defineEmits<{
   (event: 'abort'): void
 }>()
 
-const logger: ConsoleLogger = inject(LOGGER_KEY)!
+const logger: AbstractLogger = safeInject(LOGGER_KEY)
 
-const canSubmit = computed(() => props.modelValue.trim().length > 0 && !props.disabled)
+const canSubmit = computed(() => props.modelValue.trim().length > 0 && !props.isDisabled)
 
-const baseTextFieldRef = useTemplateRef<unknown>('baseTextFieldRef')
+const baseTextFieldRef = useTemplateRef('baseTextFieldRef')
 
 function focus(): void {
-  const instance = baseTextFieldRef.value as { focus?: () => void; $el?: unknown } | undefined
+  const instance = baseTextFieldRef.value
 
   if (instance?.focus) {
     instance.focus()
@@ -106,6 +107,11 @@ function focus(): void {
   }
 
   logger.warn('ChatInput.focus(): BaseTextField does not expose a focusable element')
+}
+
+function onSubmit() {
+  if (!canSubmit.value || props.isDisabled || props.isLoading) return
+  emit('submit')
 }
 
 defineExpose({ focus })

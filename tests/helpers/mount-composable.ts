@@ -1,7 +1,12 @@
 import { defineComponent, h } from 'vue'
-import { mount } from '@vue/test-utils'
+import { type ComponentMountingOptions, mount } from '@vue/test-utils'
+import { LOGGER_KEY } from '@/injection-keys'
+import { mockLogger } from './mock-logger'
 
-export function mountComposable<T>(useFn: () => T, options?: unknown): T {
+export function mountComposable<T>(
+  useFn: () => T,
+  options?: ComponentMountingOptions<Record<string, unknown>>
+): T {
   let composableReturn: T
 
   const component = defineComponent({
@@ -11,7 +16,17 @@ export function mountComposable<T>(useFn: () => T, options?: unknown): T {
     },
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mount(component, options as any)
+  const mergedOptions: ComponentMountingOptions<Record<string, unknown>> = {
+    ...options,
+    global: {
+      ...options?.global,
+      provide: {
+        ...options?.global?.provide,
+        [LOGGER_KEY as symbol]: mockLogger,
+      },
+    },
+  }
+
+  mount(component, mergedOptions)
   return composableReturn!
 }

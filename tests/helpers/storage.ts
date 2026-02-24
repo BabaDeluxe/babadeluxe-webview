@@ -1,5 +1,3 @@
-// POJO storage with CUPID-ish small surfa
-
 const _sharedDataMap = new Map<string, unknown>()
 
 export const storage = {

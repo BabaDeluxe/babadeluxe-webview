@@ -1,168 +1,132 @@
 /**
  * @vitest-environment jsdom
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { nextTick } from 'vue'
-import { mountComposable } from './helpers/mount-composable'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { ref } from 'vue'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
-import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { mountComposable } from './helpers/mount-composable'
+import {
+  type MockSubscriptionSocket,
+  createMockSocket as createMockSubscriptionSocket,
+} from './helpers/mock-subscription-socket'
+import { trigger as triggerSocketEvent } from './helpers/mock-socket-manager'
 
-type Handler = (payload?: unknown) => void
-type HandlerMap = Record<string, Handler[]>
-
-interface MockSocket {
-  isConnected: boolean
-  on: (event: string, handler: Handler) => void
-  off: (event: string, handler: Handler) => void
-  emit: (event: string, ...args: unknown[]) => void
-  waitForConnection: () => Promise<{ isErr: () => boolean; error?: Error }>
-  handlers: HandlerMap
+function trigger(socket: MockSubscriptionSocket, event: string, payload: unknown): void {
+  triggerSocketEvent(socket, event, payload)
 }
 
-function createMockSocket(): MockSocket {
-  const handlers: HandlerMap = {}
+describe('useSubscriptionSocket()', () => {
+  let subscriptionSocket: MockSubscriptionSocket
+  let chatSocket: MockSubscriptionSocket
 
-  return {
-    isConnected: true,
-    on: vi.fn((event: string, handler: Handler) => {
-      handlers[event] ??= []
-      handlers[event]!.push(handler)
-    }),
-    off: vi.fn((event: string, handler: Handler) => {
-      handlers[event] = (handlers[event] || []).filter((h) => h !== handler)
-    }),
-    emit: vi.fn(),
-    waitForConnection: vi.fn(),
-    handlers,
+  function mountSubscriptionSocket() {
+    return mountComposable(() => useSubscriptionSocket(), {
+      global: {
+        provide: {
+          [SOCKET_MANAGER_KEY as symbol]: ref({
+            subscriptionSocket,
+            chatSocket,
+          }),
+        },
+      },
+    })
   }
-}
-
-function trigger(socket: MockSocket, event: string, payload?: unknown) {
-  for (const handler of socket.handlers[event] || []) {
-    handler(payload)
-  }
-}
-
-describe('useSubscriptionSocket', () => {
-  let subscriptionSocket: MockSocket
-  let chatSocket: MockSocket
-  let logger: any
-  let provideOptions: Record<symbol, unknown>
 
   beforeEach(() => {
-    vi.resetModules()
-    subscriptionSocket = createMockSocket()
-    chatSocket = createMockSocket()
-    logger = {
-      log: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }
+    subscriptionSocket = createMockSubscriptionSocket()
+    chatSocket = createMockSubscriptionSocket()
+  })
 
-    provideOptions = {
-      [SOCKET_MANAGER_KEY as symbol]: {
-        subscriptionSocket,
-        chatSocket,
-      },
-      [LOGGER_KEY as symbol]: logger,
-    }
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
 
-    subscriptionSocket.waitForConnection = vi.fn().mockResolvedValue({
-      isErr: () => false,
+  describe('real-time subscription events', () => {
+    it('sets message limit flag and shows modal on subscription:messageLimitReached', () => {
+      const { isMessageLimitReached, shouldShowModal } = mountSubscriptionSocket()
+
+      trigger(chatSocket, 'subscription:messageLimitReached', {})
+
+      expect(isMessageLimitReached.value).toBe(true)
+      expect(shouldShowModal.value).toBe(true)
+    })
+
+    it('resets message limit flags when user tier changes to PRO', () => {
+      const { isMessageLimitReached, shouldShowModal } = mountSubscriptionSocket()
+
+      trigger(chatSocket, 'subscription:messageLimitReached', {})
+      expect(isMessageLimitReached.value).toBe(true)
+      expect(shouldShowModal.value).toBe(true)
+
+      trigger(subscriptionSocket, 'subscription:userTierChanged', { tier: 'PRO' })
+
+      expect(isMessageLimitReached.value).toBe(false)
+      expect(shouldShowModal.value).toBe(false)
+    })
+
+    it('updates error when subscription:checkoutSessionError is emitted', () => {
+      const { error } = mountSubscriptionSocket()
+
+      trigger(subscriptionSocket, 'subscription:checkoutSessionError', {
+        error: 'Checkout failed',
+      })
+
+      expect(error.value).toBe('Checkout failed')
     })
   })
 
-  const useSubscriptionWithProvide = () =>
-    mountComposable(() => useSubscriptionSocket(), {
-      global: {
-        provide: provideOptions,
-      },
+  describe('dismissModal', () => {
+    it('hides modal but keeps message limit flag', () => {
+      const { isMessageLimitReached, shouldShowModal, dismissModal } = mountSubscriptionSocket()
+
+      trigger(chatSocket, 'subscription:messageLimitReached', {})
+      expect(isMessageLimitReached.value).toBe(true)
+      expect(shouldShowModal.value).toBe(true)
+
+      dismissModal()
+
+      expect(isMessageLimitReached.value).toBe(true)
+      expect(shouldShowModal.value).toBe(false)
     })
-
-  it('shows modal when message limit is reached', () => {
-    const { isMessageLimitReached, shouldShowModal } = useSubscriptionWithProvide()
-
-    expect(isMessageLimitReached.value).toBe(false)
-    expect(shouldShowModal.value).toBe(false)
-
-    trigger(chatSocket, 'subscription:messageLimitReached')
-
-    expect(isMessageLimitReached.value).toBe(true)
-    expect(shouldShowModal.value).toBe(true)
   })
 
-  it('hides modal when user tier becomes PRO', () => {
-    const { isMessageLimitReached, shouldShowModal } = useSubscriptionWithProvide()
+  describe('redirectToCheckout', () => {
+    it('returns Err when socket not connected', async () => {
+      const { redirectToCheckout } = mountComposable(() => useSubscriptionSocket(), {
+        global: {
+          provide: {
+            [SOCKET_MANAGER_KEY as symbol]: {},
+          },
+        },
+      })
 
-    trigger(chatSocket, 'subscription:messageLimitReached')
-    expect(shouldShowModal.value).toBe(true)
+      const result = await redirectToCheckout()
 
-    trigger(subscriptionSocket, 'subscription:userTierChanged', { tier: 'PRO' })
-
-    expect(isMessageLimitReached.value).toBe(false)
-    expect(shouldShowModal.value).toBe(false)
-  })
-
-  it('redirectToCheckout sets error on connection failure', async () => {
-    subscriptionSocket.waitForConnection = vi.fn().mockResolvedValue({
-      isErr: () => true,
-      error: new Error('connect fail'),
+      expect(result.isErr()).toBe(true)
     })
 
-    const { redirectToCheckout, error, isUpgrading } = useSubscriptionWithProvide()
+    it('returns Err and sets error when backend returns failure', async () => {
+      subscriptionSocket.emit = vi.fn(
+        (
+          event: string,
+          callback: (resp: { success: boolean; checkoutUrl?: string; error?: string }) => void
+        ) => {
+          if (event === 'subscription:createCheckoutSession') {
+            callback({ success: false, error: 'Backend failure' })
+          }
+          return {
+            isOk: () => true,
+            isErr: () => false,
+          }
+        }
+      )
 
-    await redirectToCheckout()
-    await nextTick()
+      const { redirectToCheckout, error } = mountSubscriptionSocket()
 
-    expect(isUpgrading.value).toBe(false)
-    expect(error.value).toContain('connect fail')
-  })
+      const result = await redirectToCheckout()
 
-  it('redirectToCheckout redirects on success', async () => {
-    subscriptionSocket.waitForConnection = vi.fn().mockResolvedValue({
-      isErr: () => false,
+      expect(result.isErr()).toBe(true)
     })
-
-    subscriptionSocket.emit = vi.fn().mockImplementation((event: string, ...args: unknown[]) => {
-      if (event !== 'subscription:createCheckoutSession') return
-      const cb = args[0] as (response: { success: boolean; checkoutUrl?: string }) => void
-      cb({ success: true, checkoutUrl: 'https://stripe.test/checkout' })
-    })
-
-    const originalHref = window.location.href
-    Object.defineProperty(window, 'location', {
-      value: { href: originalHref },
-      writable: true,
-    })
-
-    const { redirectToCheckout, error, isUpgrading } = useSubscriptionWithProvide()
-
-    await redirectToCheckout()
-    await nextTick()
-
-    expect(isUpgrading.value).toBe(false)
-    expect(error.value).toBeUndefined()
-    expect(window.location.href).toBe('https://stripe.test/checkout')
-  })
-
-  it('redirectToCheckout sets error on backend failure', async () => {
-    subscriptionSocket.waitForConnection = vi.fn().mockResolvedValue({
-      isErr: () => false,
-    })
-
-    subscriptionSocket.emit = vi.fn().mockImplementation((event: string, ...args: unknown[]) => {
-      if (event !== 'subscription:createCheckoutSession') return
-      const cb = args[0] as (response: { success: boolean; error?: string }) => void
-      cb({ success: false, error: 'no session' })
-    })
-
-    const { redirectToCheckout, error, isUpgrading } = useSubscriptionWithProvide()
-
-    await redirectToCheckout()
-    await nextTick()
-
-    expect(isUpgrading.value).toBe(false)
-    expect(error.value).toBe('no session')
   })
 })

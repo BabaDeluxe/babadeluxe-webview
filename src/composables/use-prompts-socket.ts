@@ -1,14 +1,15 @@
-import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch, readonly } from 'vue'
 import { ResultAsync, err, ok, type Result } from 'neverthrow'
-import type { ConsoleLogger } from '@simwai/utils'
 import type { SocketManager } from '@/socket-manager'
-import { SOCKET_MANAGER_KEY, LOGGER_KEY } from '@/injection-keys'
 import type { Root } from '@babadeluxe/shared/generated-socket-types'
-import { PromptError } from '@/errors'
+import { NetworkError, ValidationError, SocketError } from '@/errors'
+import { socketTimeoutMs } from '@/constants'
+import { logger } from '@/logger'
+import { useSocketManager } from '@/composables/use-socket-manager'
+import { retryWithBackoff } from '@/retry'
 
-// Extract types from zod-sockets with prefixed event names
 type GetPromptsResponse = Parameters<Parameters<Root.Actions['prompts:getPrompts']>[0]>[0]
-type PromptItem = GetPromptsResponse['data'][0]
+export type Prompt = GetPromptsResponse['data'][0]
 
 type CreatePromptPayload = Parameters<Root.Actions['prompts:createPrompt']>[0]
 type CreatePromptResponse = Parameters<Parameters<Root.Actions['prompts:createPrompt']>[1]>[0]
@@ -23,41 +24,41 @@ type PromptCreatedPayload = Parameters<Root.Emission['prompts:promptCreated']>[0
 type PromptUpdatedPayload = Parameters<Root.Emission['prompts:promptUpdated']>[0]
 type PromptDeletedPayload = Parameters<Root.Emission['prompts:promptDeleted']>[0]
 
-const mapToPromptError = (error: unknown) =>
-  error instanceof PromptError ? error : new PromptError(String(error))
+type PromptOperationError = NetworkError | ValidationError | SocketError
 
-/**
- * Infers if an error is a validation error based on message content.
- * Validation errors typically contain keywords related to input/format issues.
- */
-function isValidationError(error: PromptError): boolean {
-  const message = error.message.toLowerCase()
-
-  const validationKeywords = [
-    'validation',
-    'invalid',
-    'required',
-    'must be',
-    'should be',
-    'cannot be empty',
-    'cannot exceed',
-    'too long',
-    'too short',
-    'already exists',
-    'duplicate',
-  ]
-
-  return validationKeywords.some((keyword) => message.includes(keyword))
+function mapPromptError(context: string) {
+  return (unknownError: unknown): PromptOperationError => {
+    if (
+      unknownError instanceof NetworkError ||
+      unknownError instanceof ValidationError ||
+      unknownError instanceof SocketError
+    ) {
+      return unknownError
+    }
+    if (unknownError instanceof Error) {
+      return new NetworkError(unknownError.message, unknownError)
+    }
+    return new NetworkError(context, unknownError)
+  }
 }
+
+function isValidationError(error: PromptOperationError): boolean {
+  return error instanceof ValidationError
+}
+
 function emitGetPrompts(socket: SocketManager['promptsSocket']) {
   return new Promise<GetPromptsResponse>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      reject(new PromptError('Request for getPrompts timed out'))
-    }, 15000)
-    socket.emit('prompts:getPrompts', (response) => {
+      reject(new NetworkError('Failed to fetch prompts: timeout'))
+    }, socketTimeoutMs.prompts)
+
+    socket.emit('prompts:getPrompts', (response: GetPromptsResponse) => {
       clearTimeout(timeoutId)
-      if (response.success) resolve(response)
-      else reject(new PromptError(response.error || 'Backend error on getPrompts'))
+      if (response.success) {
+        resolve(response)
+      } else {
+        reject(new NetworkError(response.error || 'Failed to fetch prompts'))
+      }
     })
   })
 }
@@ -65,12 +66,16 @@ function emitGetPrompts(socket: SocketManager['promptsSocket']) {
 function emitCreatePrompt(socket: SocketManager['promptsSocket'], payload: CreatePromptPayload) {
   return new Promise<CreatePromptResponse>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      reject(new PromptError('Request for createPrompt timed out'))
-    }, 15000)
-    socket.emit('prompts:createPrompt', payload, (response) => {
+      reject(new NetworkError('Failed to create prompt: timeout'))
+    }, socketTimeoutMs.prompts)
+
+    socket.emit('prompts:createPrompt', payload, (response: CreatePromptResponse) => {
       clearTimeout(timeoutId)
-      if (response.success) resolve(response)
-      else reject(new PromptError(response.error || 'Backend error on createPrompt'))
+      if (response.success) {
+        resolve(response)
+      } else {
+        reject(new NetworkError(response.error || 'Failed to create prompt'))
+      }
     })
   })
 }
@@ -78,12 +83,16 @@ function emitCreatePrompt(socket: SocketManager['promptsSocket'], payload: Creat
 function emitUpdatePrompt(socket: SocketManager['promptsSocket'], payload: UpdatePromptPayload) {
   return new Promise<UpdatePromptResponse>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      reject(new PromptError('Request for updatePrompt timed out'))
-    }, 15000)
-    socket.emit('prompts:updatePrompt', payload, (response) => {
+      reject(new NetworkError('Failed to update prompt: timeout'))
+    }, socketTimeoutMs.prompts)
+
+    socket.emit('prompts:updatePrompt', payload, (response: UpdatePromptResponse) => {
       clearTimeout(timeoutId)
-      if (response.success) resolve(response)
-      else reject(new PromptError(response.error || 'Backend error on updatePrompt'))
+      if (response.success) {
+        resolve(response)
+      } else {
+        reject(new NetworkError(response.error || 'Failed to update prompt'))
+      }
     })
   })
 }
@@ -91,47 +100,59 @@ function emitUpdatePrompt(socket: SocketManager['promptsSocket'], payload: Updat
 function emitDeletePrompt(socket: SocketManager['promptsSocket'], payload: DeletePromptPayload) {
   return new Promise<DeletePromptResponse>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      reject(new PromptError('Request for deletePrompt timed out'))
-    }, 15000)
-    socket.emit('prompts:deletePrompt', payload, (response) => {
+      reject(new NetworkError('Failed to delete prompt: timeout'))
+    }, socketTimeoutMs.prompts)
+
+    socket.emit('prompts:deletePrompt', payload, (response: DeletePromptResponse) => {
       clearTimeout(timeoutId)
-      if (response.success) resolve(response)
-      else reject(new PromptError(response.error || 'Backend error on deletePrompt'))
+      if (response.success) {
+        resolve(response)
+      } else {
+        reject(new NetworkError(response.error || 'Failed to delete prompt'))
+      }
     })
   })
 }
 
 export function usePromptsSocket() {
-  const socketManager = inject(SOCKET_MANAGER_KEY)!
-  const { promptsSocket } = socketManager
-  const logger = inject<ConsoleLogger>(LOGGER_KEY)!
+  const { socketManagerRef } = useSocketManager()
 
-  const prompts = ref<PromptItem[]>([])
+  const prompts = ref<Prompt[]>([])
   const isLoading = ref(false)
   const error = ref<string | undefined>()
   const selectedPromptId = ref<number | undefined>()
 
+  const promptsSocketRef = computed(() => socketManagerRef.value?.promptsSocket)
+
   const selectedPrompt = computed(() =>
     prompts.value.find((prompt) => prompt.id === selectedPromptId.value)
   )
+
   const isSelectedPromptEditable = computed(() => {
     const isPromptSelected = Boolean(selectedPrompt.value)
     const isSystemPrompt = selectedPrompt.value?.isSystem === true
     return isPromptSelected && !isSystemPrompt
   })
+
   const onPromptCreated = (newPrompt: PromptCreatedPayload) => {
     const isPromptAlreadyInList = prompts.value.some((prompt) => prompt.id === newPrompt.id)
-    if (!isPromptAlreadyInList) {
-      prompts.value.push(newPrompt)
-    }
+    if (isPromptAlreadyInList) return
+
+    prompts.value.push(newPrompt)
   }
 
   const onPromptUpdated = (updatedPrompt: PromptUpdatedPayload) => {
     const promptIndex = prompts.value.findIndex((prompt) => prompt.id === updatedPrompt.id)
     const doesPromptExist = promptIndex !== -1
-    if (doesPromptExist) {
-      prompts.value[promptIndex] = { ...prompts.value[promptIndex], ...updatedPrompt }
+    if (!doesPromptExist) {
+      logger.debug('Prompt update received for unknown prompt, refetching list', {
+        promptId: updatedPrompt.id,
+      })
+      void fetchAllPrompts()
+      return
     }
+
+    prompts.value[promptIndex] = { ...prompts.value[promptIndex], ...updatedPrompt }
   }
 
   const onPromptDeleted = (deletedPrompt: PromptDeletedPayload) => {
@@ -145,14 +166,24 @@ export function usePromptsSocket() {
   const clearError = () => {
     error.value = undefined
   }
-  const fetchAllPrompts = async (): Promise<Result<void, PromptError>> => {
+
+  const fetchAllPromptsOnce = async (): Promise<Result<void, PromptOperationError>> => {
+    const socket = promptsSocketRef.value
+    if (!socket) {
+      const socketError = new SocketError('Prompts socket not connected')
+      error.value = socketError.message
+      return err(socketError)
+    }
+
     isLoading.value = true
     error.value = undefined
 
-    const result = await ResultAsync.fromPromise(emitGetPrompts(promptsSocket), mapToPromptError)
+    const result = await ResultAsync.fromPromise(
+      emitGetPrompts(socket),
+      mapPromptError('Failed to fetch prompts')
+    )
 
     if (result.isErr()) {
-      logger.error('Failed to fetch prompts:', result.error)
       error.value = result.error.message
       isLoading.value = false
       return err(result.error)
@@ -166,74 +197,102 @@ export function usePromptsSocket() {
     }
 
     isLoading.value = false
-    return ok()
+    return ok(undefined)
+  }
+
+  const fetchAllPrompts = async (): Promise<Result<void, PromptOperationError>> => {
+    // Single retry layer, only for initial/explicit loads
+    const result = await retryWithBackoff(() => fetchAllPromptsOnce(), 'prompts:fetchAll', {
+      maxRetries: 2,
+    })
+
+    return result
   }
 
   const createPrompt = async (
     promptData: CreatePromptPayload
-  ): Promise<Result<CreatePromptResponse, PromptError>> => {
-    const result = await ResultAsync.fromPromise(
-      emitCreatePrompt(promptsSocket, promptData),
-      mapToPromptError
-    )
-
-    if (result.isErr()) {
-      logger.error('Failed to create prompt:', result.error)
-      return err(result.error)
+  ): Promise<Result<CreatePromptResponse, PromptOperationError>> => {
+    const socket = promptsSocketRef.value
+    if (!socket) {
+      return err(new SocketError('Prompts socket not connected'))
     }
 
+    const result = await ResultAsync.fromPromise(
+      emitCreatePrompt(socket, promptData),
+      mapPromptError('Failed to create prompt')
+    )
+
+    if (result.isErr()) return err(result.error)
     return ok(result.value)
   }
 
   const updatePrompt = async (
     updatePayload: UpdatePromptPayload
-  ): Promise<Result<UpdatePromptResponse, PromptError>> => {
-    const result = await ResultAsync.fromPromise(
-      emitUpdatePrompt(promptsSocket, updatePayload),
-      mapToPromptError
-    )
-
-    if (result.isErr()) {
-      logger.error('Failed to update prompt:', result.error)
-      return err(result.error)
+  ): Promise<Result<UpdatePromptResponse, PromptOperationError>> => {
+    const socket = promptsSocketRef.value
+    if (!socket) {
+      return err(new SocketError('Prompts socket not connected'))
     }
 
+    const result = await ResultAsync.fromPromise(
+      emitUpdatePrompt(socket, updatePayload),
+      mapPromptError('Failed to update prompt')
+    )
+
+    if (result.isErr()) return err(result.error)
     return ok(result.value)
   }
 
-  const deletePrompt = async (id: number): Promise<Result<DeletePromptResponse, PromptError>> => {
-    const result = await ResultAsync.fromPromise(
-      emitDeletePrompt(promptsSocket, { id }),
-      mapToPromptError
-    )
-
-    if (result.isErr()) {
-      logger.error('Failed to delete prompt:', result.error)
-      return err(result.error)
+  const deletePrompt = async (
+    id: number
+  ): Promise<Result<DeletePromptResponse, PromptOperationError>> => {
+    const socket = promptsSocketRef.value
+    if (!socket) {
+      return err(new SocketError('Prompts socket not connected'))
     }
 
+    const result = await ResultAsync.fromPromise(
+      emitDeletePrompt(socket, { id }),
+      mapPromptError('Failed to delete prompt')
+    )
+
+    if (result.isErr()) return err(result.error)
     return ok(result.value)
   }
-  onMounted(() => {
-    promptsSocket.on('prompts:promptCreated', onPromptCreated)
-    promptsSocket.on('prompts:promptUpdated', onPromptUpdated)
-    promptsSocket.on('prompts:promptDeleted', onPromptDeleted)
-    void fetchAllPrompts()
-  })
+
+  watch(
+    promptsSocketRef,
+    (newSocket, oldSocket) => {
+      if (oldSocket) {
+        oldSocket.off('prompts:promptCreated', onPromptCreated)
+        oldSocket.off('prompts:promptUpdated', onPromptUpdated)
+        oldSocket.off('prompts:promptDeleted', onPromptDeleted)
+      }
+      if (newSocket) {
+        newSocket.on('prompts:promptCreated', onPromptCreated)
+        newSocket.on('prompts:promptUpdated', onPromptUpdated)
+        newSocket.on('prompts:promptDeleted', onPromptDeleted)
+        void fetchAllPrompts()
+      }
+    },
+    { immediate: true }
+  )
 
   onUnmounted(() => {
-    promptsSocket.off('prompts:promptCreated', onPromptCreated)
-    promptsSocket.off('prompts:promptUpdated', onPromptUpdated)
-    promptsSocket.off('prompts:promptDeleted', onPromptDeleted)
+    if (!promptsSocketRef.value) return
+
+    promptsSocketRef.value.off('prompts:promptCreated', onPromptCreated)
+    promptsSocketRef.value.off('prompts:promptUpdated', onPromptUpdated)
+    promptsSocketRef.value.off('prompts:promptDeleted', onPromptDeleted)
   })
 
   return {
-    prompts: computed(() => prompts.value),
+    prompts: readonly(prompts),
     selectedPrompt,
     isSelectedPromptEditable,
     selectedPromptId,
-    isLoading: computed(() => isLoading.value),
-    error: computed(() => error.value),
+    isLoading: readonly(isLoading),
+    error: readonly(error),
     fetchAllPrompts,
     clearError,
     createPrompt,

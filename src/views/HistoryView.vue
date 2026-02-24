@@ -1,7 +1,8 @@
 <template>
   <section
     id="history"
-    class="relative flex flex-col w-full h-full overflow-hidden bg-slate"
+    data-testid="history-view-container"
+    class="relative flex flex-col flex-1 min-h-0 w-full overflow-hidden bg-slate"
   >
     <div class="flex flex-row w-full items-center justify-center gap-2 px-4 pt-4">
       <i class="i-weui:search-outlined text-3xl text-subtleText" />
@@ -22,6 +23,7 @@
     <SearchResultsDropdown
       v-if="searchQuery"
       ref="dropdownRef"
+      data-testid="history-search-dropdown"
       :results="searchResults"
       :is-loading="isSearching"
       :highlighted-index="highlightedIndex"
@@ -32,7 +34,8 @@
     />
 
     <div
-      v-if="isLoading"
+      v-if="isLoadingConversations"
+      data-testid="history-loading-state"
       class="flex-1 flex justify-center items-center"
     >
       <div class="flex items-center gap-2 text-subtleText">
@@ -43,13 +46,20 @@
 
     <div
       v-else
-      class="flex flex-col flex-1 w-full h-full min-h-0 overflow-hidden px-4 pt-4"
+      class="flex flex-col flex-1 min-h-0 w-full overflow-hidden px-4 pt-4"
     >
-      <template v-if="showSelectedMessages">
+      <template v-if="isLoadingMessages">
+        <div class="flex items-center gap-2 text-subtleText">
+          <BaseSpinner size="medium" />
+          <span>Loading messages...</span>
+        </div>
+      </template>
+
+      <template v-if="areSelectedMessagesShown && !isLoadingMessages">
         <!-- Mobile: Vertical stack -->
         <div
           ref="verticalContainer"
-          class="flex flex-col md:hidden h-full min-h-0"
+          class="flex flex-col flex-1 min-h-0 md:hidden"
         >
           <!-- Conversations (Top Half) -->
           <div
@@ -61,6 +71,7 @@
               :current-conversation-id="currentConversationId ?? -1"
               :empty-description="searchQuery ? 'No conversations found' : 'No conversations yet'"
               :get-message-count="getMessageCount"
+              test-id-prefix="history"
               @select="onSwitchConversation"
               @rename="handleRenameConversation"
               @delete="onDeleteConversation"
@@ -92,9 +103,9 @@
               :messages="selectedConversationMessages"
               :conversation-title="currentConversationTitle"
               :is-loading="messagesLoading"
-              :show-rewrite="true"
+              :is-rewrite-enabled="true"
               @delete="handleDeleteMessage"
-              @update="handleUpdateMessage"
+              @update="handleEditMessage"
             />
           </div>
         </div>
@@ -102,7 +113,7 @@
         <!-- Desktop: Split view -->
         <div
           ref="splitContainer"
-          class="hidden md:flex flex-row h-full min-h-0 relative"
+          class="hidden md:flex flex-row flex-1 min-h-0 relative"
         >
           <!-- Left Pane: Conversations -->
           <div
@@ -114,6 +125,7 @@
               :current-conversation-id="currentConversationId ?? -1"
               :empty-description="searchQuery ? 'No conversations found' : 'No conversations yet'"
               :get-message-count="getMessageCount"
+              test-id-prefix="history"
               @select="onSwitchConversation"
               @rename="handleRenameConversation"
               @delete="onDeleteConversation"
@@ -145,9 +157,9 @@
               :messages="selectedConversationMessages"
               :conversation-title="currentConversationTitle"
               :is-loading="messagesLoading"
-              :show-rewrite="true"
+              :is-rewrite-enabled="true"
               @delete="handleDeleteMessage"
-              @update="handleUpdateMessage"
+              @update="handleEditMessage"
             />
           </div>
         </div>
@@ -156,7 +168,7 @@
       <!-- Case: No messages selected -->
       <div
         v-else
-        class="flex flex-col gap-2 h-full min-h-0 overflow-y-auto pr-2"
+        class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto pr-2"
       >
         <ConversationList
           :conversations="filteredConversations"
@@ -167,6 +179,7 @@
               : 'No conversations yet. Use the \'New Chat\' button above to start a conversation'
           "
           :get-message-count="getMessageCount"
+          test-id-prefix="history"
           @select="onSwitchConversation"
           @rename="handleRenameConversation"
           @delete="onDeleteConversation"
@@ -183,8 +196,9 @@
 
     <!-- Rename Dialog -->
     <BaseModal
-      v-model:show="renameDialog.show"
+      v-model:is-shown="renameDialog['is-shown']"
       title="Rename Conversation"
+      data-test-id="history-rename-modal"
       confirm-text="Rename"
       :confirm-disabled="!renameDialog.title.trim()"
       @confirm="confirmRename"
@@ -201,9 +215,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, inject, nextTick } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
+import { ResultAsync } from 'neverthrow'
+import { storeToRefs } from 'pinia'
 import { type Conversation } from '@/database/types'
-import { type ConsoleLogger } from '@simwai/utils'
 import { onClickOutside } from '@vueuse/core'
 import ConversationList from '@/components/ConversationList.vue'
 import MessageList from '@/components/MessageList.vue'
@@ -211,33 +226,48 @@ import BaseModal from '@/components/BaseModal.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseAlert from '@/components/BaseAlert.vue'
 import SearchResultsDropdown from '@/components/SearchResultsDropdown.vue'
-import { useConversation } from '@/composables/use-conversation'
+import BaseTextField from '@/components/BaseTextField.vue'
+import { useConversationStore } from '@/stores/use-conversation-store'
 import { type SearchService } from '@/search-service'
 import { type SearchResult, isMessageResult, isConversationResult } from '@/search-types'
-import BaseTextField from '@/components/BaseTextField.vue'
-import { KEY_VALUE_STORE_KEY, LOGGER_KEY, SEARCH_SERVICE_KEY } from '@/injection-keys'
+import {
+  KEY_VALUE_STORE_KEY,
+  LOGGER_KEY,
+  SEARCH_SERVICE_KEY,
+  SUPABASE_CLIENT_KEY,
+} from '@/injection-keys'
 import { useSearch } from '@/composables/use-search'
 import { type KeyValueStore } from '@/database/key-value-store'
 import { useResizableSplit } from '@/composables/use-resizable-split'
+import { safeInject } from '@/safe-inject'
+import { AuthError } from '@/errors'
+import type { AbstractLogger } from '@/logger'
 
-const logger: ConsoleLogger = inject(LOGGER_KEY)!
-const searchService: SearchService = inject(SEARCH_SERVICE_KEY)!
-const keyValueStore: KeyValueStore = inject(KEY_VALUE_STORE_KEY)!
+defineOptions({ name: 'HistoryView' })
 
+const logger: AbstractLogger = safeInject(LOGGER_KEY)
+const searchService: SearchService = safeInject(SEARCH_SERVICE_KEY)
+const keyValueStore: KeyValueStore = safeInject(KEY_VALUE_STORE_KEY)
+const supabase = safeInject(SUPABASE_CLIENT_KEY)
+
+const conversationStore = useConversationStore()
 const {
-  initialize,
   messages,
   conversations,
   currentConversationId,
-  getMessageCount,
-  isLoading,
+  isLoadingMessages,
+  isLoadingConversations,
   error,
+} = storeToRefs(conversationStore)
+const {
+  initialize,
+  getMessageCount,
   deleteConversation,
   switchConversation,
   deleteMessage,
   updateUserMessage,
   updateConversationTitle,
-} = useConversation()
+} = conversationStore
 
 const { searchResults, isSearching, performSearch } = useSearch(searchService)
 
@@ -274,15 +304,38 @@ const searchQuery = ref('')
 const messagesLoading = ref(false)
 const highlightedIndex = ref(-1)
 const dropdownRef = ref<HTMLElement>()
+const currentUserId = ref<string>()
 
 const renameDialog = ref({
-  show: false,
+  'is-shown': false,
   conversation: null as Conversation | null,
   title: '',
 })
 
+const fetchUserId = async (): Promise<void> => {
+  const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
+    if (unknownError instanceof Error) {
+      return new AuthError(unknownError.message, unknownError)
+    }
+    return new AuthError('Failed to fetch user', unknownError)
+  })
+
+  getUserResult.match(
+    (response) => {
+      if (response.data.user?.id) {
+        currentUserId.value = response.data.user.id
+      }
+    },
+    (fetchError) => {
+      logger.error('Failed to fetch user details for history view', {
+        error: fetchError,
+      })
+    }
+  )
+}
+
 onMounted(async () => {
-  await initialize()
+  await Promise.all([initialize(), fetchUserId()])
 })
 
 onClickOutside(dropdownRef, () => {
@@ -297,21 +350,19 @@ const filteredConversations = computed(() => {
     return conversations.value
   }
 
-  return conversations.value.filter((conv: { title: string }) =>
+  return conversations.value.filter((conv) =>
     conv.title.toLowerCase().includes(searchQuery.value.toLowerCase())
   )
 })
 
-const selectedConversationMessages = computed(() => {
-  return messages.value
-})
+const selectedConversationMessages = computed(() => messages.value)
 
 const currentConversationTitle = computed(() => {
   const conversation = conversations.value.find((c) => c.id === currentConversationId.value)
   return conversation?.title || 'Unknown Conversation'
 })
 
-const showSelectedMessages = computed(() => {
+const areSelectedMessagesShown = computed(() => {
   return (
     currentConversationId.value &&
     currentConversationId.value > 0 &&
@@ -321,7 +372,7 @@ const showSelectedMessages = computed(() => {
 
 const truncateText = (text: string, maxLength = 150) => {
   if (text.length <= maxLength) return text
-  return text.slice(0, maxLength) + '...'
+  return `${text.slice(0, maxLength)}...`
 }
 
 const handleSearch = () => {
@@ -329,14 +380,9 @@ const handleSearch = () => {
 }
 
 const switchToConversation = async (conversationId: number) => {
-  try {
-    messagesLoading.value = true
-    await switchConversation(conversationId)
-  } catch (error) {
-    logger.error('Failed to switch conversation:', error as Error)
-  } finally {
-    messagesLoading.value = false
-  }
+  messagesLoading.value = true
+  await switchConversation(conversationId)
+  messagesLoading.value = false
 }
 
 const handleDeleteConversation = async (conversationId: number) => {
@@ -344,19 +390,21 @@ const handleDeleteConversation = async (conversationId: number) => {
     return
   }
 
-  try {
-    const success = await deleteConversation(conversationId)
-    if (!success) {
-      logger.error('Failed to delete conversation')
-    }
-  } catch (error) {
-    logger.error('Error deleting conversation:', error as Error)
+  const result = await deleteConversation(conversationId)
+
+  if (result.isErr()) {
+    logger.error('Failed to delete conversation', {
+      conversationId,
+      userId: currentUserId.value,
+      error: result.error,
+    })
+    error.value = 'Failed to delete conversation'
   }
 }
 
 const handleRenameConversation = (conversation: Conversation) => {
   renameDialog.value = {
-    show: true,
+    'is-shown': true,
     conversation,
     title: conversation.title,
   }
@@ -367,24 +415,27 @@ const confirmRename = async () => {
     return
   }
 
-  try {
-    const success = await updateConversationTitle(
-      renameDialog.value.conversation.id,
-      renameDialog.value.title.trim()
-    )
-    if (!success) {
-      logger.error('Failed to rename conversation')
-    }
-  } catch (error) {
-    logger.error('Error renaming conversation:', error as Error)
-  } finally {
-    cancelRename()
+  const conversationId = renameDialog.value.conversation.id
+  const newTitle = renameDialog.value.title.trim()
+
+  const result = await updateConversationTitle(conversationId, newTitle)
+
+  if (result.isErr()) {
+    logger.error('Failed to rename conversation', {
+      conversationId,
+      userId: currentUserId.value,
+      newTitle,
+      error: result.error,
+    })
+    error.value = 'Failed to rename conversation'
   }
+
+  cancelRename()
 }
 
 const cancelRename = () => {
   renameDialog.value = {
-    show: false,
+    'is-shown': false,
     conversation: null,
     title: '',
   }
@@ -395,19 +446,31 @@ const handleDeleteMessage = async (messageId: number) => {
     return
   }
 
-  try {
-    const success = await deleteMessage(messageId)
-    if (!success) {
-      logger.error('Failed to delete message')
-    }
-  } catch (error) {
-    logger.error('Error deleting message:', error as Error)
+  const result = await deleteMessage(messageId)
+
+  if (result.isErr()) {
+    logger.error('Failed to delete message', {
+      conversationId: currentConversationId.value,
+      userId: currentUserId.value,
+      messageId,
+      error: result.error,
+    })
+    error.value = 'Failed to delete message'
   }
 }
 
-const handleUpdateMessage = async (messageId: number, content: string) => {
+const handleEditMessage = async (messageId: number, content: string) => {
   const result = await updateUserMessage(messageId, content)
-  if (result.isErr()) logger.error('Failed to update message:', result.error)
+
+  if (result.isErr()) {
+    logger.error('Failed to update message', {
+      conversationId: currentConversationId.value,
+      userId: currentUserId.value,
+      messageId,
+      error: result.error,
+    })
+    error.value = 'Failed to update message'
+  }
 }
 
 const clearSearch = () => {
@@ -446,14 +509,14 @@ const navigateToMessage = async (messageId: number | string, conversationId: num
   await nextTick()
   await nextTick()
 
-  const messageElement = document.querySelector(`[data-message-id="${mid}"]`) as HTMLElement
-  if (messageElement) {
-    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    messageElement.style.backgroundColor = 'rgba(var(--accent-rgb), 0.2)'
-    setTimeout(() => {
-      messageElement.style.backgroundColor = ''
-    }, 2000)
-  }
+  const messageElement = document.querySelector(`[data-message-id="${mid}"]`) as HTMLElement | null
+  if (!messageElement) return
+
+  messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  messageElement.style.backgroundColor = 'rgba(var(--accent-rgb), 0.2)'
+  setTimeout(() => {
+    messageElement.style.backgroundColor = ''
+  }, 2000)
 }
 
 const getSearchResultSubtitle = (result: SearchResult) => {
@@ -461,7 +524,6 @@ const getSearchResultSubtitle = (result: SearchResult) => {
   if (isMessageResult(result)) {
     const found = conversations.value.find((c) => c.id === result.conversationId)
     const title = found?.title || 'Unknown'
-
     return `Message in "${title}"`
   }
 

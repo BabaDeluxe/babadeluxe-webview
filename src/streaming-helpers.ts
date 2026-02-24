@@ -1,6 +1,5 @@
 import type { Ref } from 'vue'
 import type { Message } from '@/database/types'
-import type { Mutable } from '@/composables/use-conversation'
 
 interface StreamingMessageComponent {
   markdownRef?: {
@@ -16,7 +15,7 @@ export function createStreamingCommitHandler(
   let lastCommitTime = Date.now()
 
   return (messageId: number) => {
-    const message = messages.value.find((m) => m.id === messageId) as Mutable<Message> | undefined
+    const message = messages.value.find((message) => message.id === messageId)
     if (!message) return
 
     if (!message.isStreaming) message.isStreaming = true
@@ -25,7 +24,7 @@ export function createStreamingCommitHandler(
     if (!(now - lastCommitTime > commitIntervalMs)) return
 
     const componentInstance = messageComponents.value.get(messageId)
-    if (componentInstance?.markdownRef && componentInstance.markdownRef !== null) {
+    if (componentInstance?.markdownRef) {
       componentInstance.markdownRef.commitContent()
     }
     lastCommitTime = now
@@ -35,10 +34,11 @@ export function createStreamingCommitHandler(
 export function finalizeStreamingMessage(
   messageId: number,
   messageComponents: Ref<Map<number, StreamingMessageComponent>>
-): void {
+): Ref<Map<number, StreamingMessageComponent>> {
   const componentInstance = messageComponents.value.get(messageId)
   if (componentInstance?.markdownRef) {
     componentInstance.markdownRef.commitContent()
   }
   messageComponents.value.delete(messageId)
+  return messageComponents
 }

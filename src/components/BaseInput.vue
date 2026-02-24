@@ -8,10 +8,10 @@
     >
       {{ label }}
       <span
-        v-if="required"
-        class="text-error"
+        v-if="!isRequired"
+        class="text-xs text-subtleText/70"
       >
-        *
+        (optional)
       </span>
     </label>
 
@@ -24,9 +24,9 @@
         :type="computedType"
         :value="modelValue"
         :placeholder="placeholder"
-        :disabled="disabled"
+        :disabled="isDisabled"
         :maxlength="maxlength"
-        :aria-required="required"
+        :aria-required="isRequired"
         :aria-invalid="validationState === 'invalid'"
         :aria-describedby="errorId"
         :data-testid="testId"
@@ -38,16 +38,16 @@
       />
 
       <!-- Password Toggle Button -->
-      <button
-        v-if="type === 'password' && toggleable"
+      <BaseButton
+        v-if="type === 'password' && isToggleable"
+        variant="ghost"
         type="button"
         :aria-label="showPassword ? 'Hide password' : 'Show password'"
-        class="px-3 py-2 bg-panel hover:bg-slate border border-borderMuted rounded-md transition-colors text-deepText flex-shrink-0"
         tabindex="-1"
         @click="togglePassword"
       >
         {{ showPassword ? '🙈' : '👁️' }}
-      </button>
+      </BaseButton>
 
       <!-- Validation Status Indicator -->
       <span
@@ -88,6 +88,7 @@
 
 <script setup lang="ts">
 import { ref, computed, useId } from 'vue'
+import BaseButton from '@/components/BaseButton.vue'
 
 type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid'
 
@@ -98,11 +99,11 @@ interface BaseInputProps {
   placeholder?: string
   error?: string
   helperText?: string
-  disabled?: boolean
-  required?: boolean
+  isDisabled?: boolean
+  isRequired?: boolean
   maxlength?: number
   validationState?: ValidationState
-  toggleable?: boolean // Show password toggle for password fields
+  isToggleable?: boolean // Show password toggle for password fields
   testId?: string
 }
 
@@ -136,7 +137,7 @@ const showPassword = ref(false)
 const inputRef = ref<HTMLInputElement>()
 
 const computedType = computed(() => {
-  if (props.type === 'password' && props.toggleable) {
+  if (props.type === 'password' && props.isToggleable) {
     return showPassword.value ? 'text' : 'password'
   }
   return props.type
@@ -144,7 +145,7 @@ const computedType = computed(() => {
 
 const inputClasses = computed(() => {
   const base =
-    'w-full px-3 py-2 rounded-md bg-panel text-deepText placeholder-subtleText focus:outline-none transition-colors'
+    'w-full px-3 py-2 rounded-lg bg-panel text-deepText placeholder-subtleText focus:outline-none transition-colors'
 
   let borderClasses = ''
   if (props.validationState === 'invalid' || props.error) {
@@ -155,7 +156,7 @@ const inputClasses = computed(() => {
     borderClasses = 'border border-borderMuted focus:border-accent'
   }
 
-  const disabledClass = props.disabled ? 'opacity-50 cursor-not-allowed' : ''
+  const disabledClass = props.isDisabled ? 'opacity-50 cursor-not-allowed' : ''
 
   return `${base} ${borderClasses} ${disabledClass}`
 })

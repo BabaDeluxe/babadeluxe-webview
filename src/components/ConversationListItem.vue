@@ -1,7 +1,8 @@
 <template>
   <div
-    class="flex items-center justify-between p-3 border border-borderMuted rounded-md hover:bg-panel cursor-pointer transition-colors"
+    class="flex items-center justify-between p-3 border border-borderMuted rounded-lg hover:bg-panel cursor-pointer transition-colors"
     :class="{ 'bg-accent/10 border-accent': isSelected }"
+    :data-testid="rootTestId"
     @click="handleClick"
   >
     <div class="flex-1">
@@ -14,20 +15,22 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
-      <button
-        class="text-subtleText hover:text-accent p-1 transition-colors"
-        title="Rename conversation"
+      <BaseButton
+        variant="icon"
+        :data-testid="renameTestId"
+        class="text-subtleText hover:text-accent"
         @click.stop="handleRename"
       >
         <i class="i-weui:pencil-outlined" />
-      </button>
-      <button
-        class="text-subtleText hover:text-error p-1 transition-colors"
-        title="Delete conversation"
+      </BaseButton>
+      <BaseButton
+        variant="icon"
+        :data-testid="deleteTestId"
+        class="text-subtleText hover:text-error"
         @click.stop="handleDelete"
       >
         <i class="i-weui:delete-outlined" />
-      </button>
+      </BaseButton>
     </div>
   </div>
 </template>
@@ -36,11 +39,13 @@
 import { computed } from 'vue'
 import { type Conversation } from '@/database/types'
 import { useDateFormatter } from '@/composables/use-date-formatter'
+import BaseButton from '@/components/BaseButton.vue'
 
 interface ConversationListItemProps {
   conversation: Conversation
   messageCount: number
   isSelected?: boolean
+  testIdPrefix?: string
 }
 
 interface ConversationListItemEmits {
@@ -51,6 +56,7 @@ interface ConversationListItemEmits {
 
 const props = withDefaults(defineProps<ConversationListItemProps>(), {
   isSelected: false,
+  testIdPrefix: '',
 })
 
 const emit = defineEmits<ConversationListItemEmits>()
@@ -58,6 +64,23 @@ const emit = defineEmits<ConversationListItemEmits>()
 const { formatRelativeDate } = useDateFormatter()
 
 const formattedDate = computed(() => formatRelativeDate(props.conversation.updatedAt))
+
+const idSuffix = computed(() => props.conversation.id ?? 'unknown')
+
+const rootTestId = computed(() => {
+  if (!props.testIdPrefix) return undefined
+  return `${props.testIdPrefix}-conversation-${idSuffix.value}`
+})
+
+const renameTestId = computed(() => {
+  if (!props.testIdPrefix) return undefined
+  return `${props.testIdPrefix}-conversation-${idSuffix.value}-rename`
+})
+
+const deleteTestId = computed(() => {
+  if (!props.testIdPrefix) return undefined
+  return `${props.testIdPrefix}-conversation-${idSuffix.value}-delete`
+})
 
 const handleClick = () => {
   emit('click', props.conversation)

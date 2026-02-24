@@ -13,6 +13,13 @@ type UserSettingWire = Omit<UserSettingWithValidation, 'updatedAt'> & {
 type SettingKey = keyof typeof settingSchemas
 
 /**
+ * Type guard to ensure a string is a valid SettingKey.
+ */
+function isSettingKey(key: string): key is SettingKey {
+  return key in settingSchemas
+}
+
+/**
  * Transform wire format back to runtime type (ISO string → Date)
  */
 export function fromWire(setting: UserSettingWire): UserSettingWithValidation {
@@ -26,9 +33,14 @@ export function fromWire(setting: UserSettingWire): UserSettingWithValidation {
  * Get all setting keys in a specific category.
  */
 export function getSettingsByCategory(category: string): SettingKey[] {
-  return Object.entries(settingMetadata)
-    .filter(([, meta]) => meta.category === category)
-    .map(([key]) => key as SettingKey)
+  const keys: SettingKey[] = []
+
+  for (const [key, meta] of Object.entries(settingMetadata)) {
+    if (meta.category !== category || !isSettingKey(key)) continue
+    keys.push(key)
+  }
+
+  return keys
 }
 
 /**
@@ -39,8 +51,6 @@ export function getApiProviders() {
     const meta = settingMetadata[key]
     const schema = settingSchemas[key]
     let name = key.replace('apiKey', '')
-
-    // Fix casing for specific providers
     if (name === 'Openai') name = 'OpenAI'
 
     return {

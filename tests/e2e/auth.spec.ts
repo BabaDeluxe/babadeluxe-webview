@@ -1,30 +1,31 @@
 import { expect } from '@playwright/test'
-import { test } from '../helpers/fixtures'
+import { test } from './helpers/fixtures'
 
 test.describe('Auth E2E', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+    await page.waitForTimeout(3000)
+  })
+
   test('user can sign in and reach chat page', async ({ page, testUser }) => {
     const { email, password } = testUser
-
-    await page.goto('/')
 
     await page.fill('input[aria-label="Email Address"]', email)
     await page.fill('input[aria-label="Password"]', password)
     await page.click('button:has-text("Sign In")')
 
-    await page.waitForURL('**/chat')
-    await expect(page.locator('nav >> text=Chat')).toBeVisible()
+    // Wait for chat UI that only renders when session is set
+    await expect(page.getByTestId('chat-view-container')).toBeVisible({ timeout: 15000 })
   })
 
   test('invalid password shows error', async ({ page, testUser }) => {
     const { email } = testUser
 
-    await page.goto('/')
-
     await page.fill('input[aria-label="Email Address"]', email)
     await page.fill('input[aria-label="Password"]', 'wrongpassword')
     await page.click('button:has-text("Sign In")')
 
-    await expect(page.locator('#login .text-error')).toBeVisible()
+    await expect(page.getByTestId('login-error-alert')).toBeVisible({ timeout: 10000 })
   })
 
   // test('user can sign out', async ({ page, testUser }) => {
@@ -49,10 +50,9 @@ test.describe('Auth E2E', () => {
   // })
 
   test('user can request password reset', async ({ page, testUser }) => {
-    await page.goto('/')
-
     await page.getByRole('button', { name: 'Forgot Password?' }).click()
     await page.waitForURL('**/reset-password')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('textbox', { name: 'Email Address' }).fill(testUser.email)
     await page.getByLabel('Send Reset Link').click()

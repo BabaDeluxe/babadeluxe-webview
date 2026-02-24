@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-row flex-wrap grow-0 shrink-1 w-fit">
+  <div class="flex flex-row">
     <BaseDropdown
       :model-value="prompt"
       icon="i-bi:chat-left"
@@ -11,7 +11,7 @@
       :model-value="model"
       icon="i-simple-icons:openai"
       :groups="modelGroups"
-      :disabled="isLoadingModels"
+      :is-disabled="isLoadingModels"
       placement="top"
       :data-testid="modelSelectorTestId"
       @update:model-value="emit('update:model', $event)"

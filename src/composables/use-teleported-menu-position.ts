@@ -29,8 +29,7 @@ export function useTeleportedMenuPosition(
   const menuPositionStyle = ref<CSSProperties>({})
 
   function clamp(value: number, min: number, max: number): number {
-    if (!Number.isFinite(value)) return min
-    if (max < min) return min
+    if (!Number.isFinite(value) || max < min) return min
     return Math.min(Math.max(value, min), max)
   }
 

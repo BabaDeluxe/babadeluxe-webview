@@ -89,13 +89,14 @@ app.mount('#app')
   const apiKeyValidator = new ApiKeyValidator(logger, socketManager.validationSocket)
   app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
 
-  if (router.currentRoute.value.path === '/' || router.currentRoute.value.path === '/login') {
-    await router.replace('/chat')
-  }
-
   window.addEventListener('beforeunload', () => {
     socketManager.disconnect()
   })
+
+  // await router.isReady()
+  // if (router.currentRoute.value.path === '/' || router.currentRoute.value.path === '/login') {
+  //   await router.replace('/chat')
+  // }
 
   await initializeModels(socketManager)
 })()

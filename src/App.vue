@@ -1,6 +1,6 @@
 <template>
   <div
-    class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText"
+    class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText overflow-x-hidden"
   >
     <div v-if="session && $route.path !== '/'">
       <header
@@ -20,8 +20,8 @@
 
           <BaseButton
             variant="icon"
-            class="bg-transparent text-subtleText hover:text-deepText hover:bg-borderMuted/20 text-xl w-9 h-9 p-0"
             icon="i-weui:setting-outlined"
+            class="border-none"
             data-testid="nav-settings-button"
             @click="router.push('/settings')"
           />
@@ -34,18 +34,12 @@
           data-testid="app-nav"
         >
           <RouterLink
-            v-slot="{ navigate, isExactActive }"
+            v-slot="{ navigate }"
             to="/chat"
             custom
           >
             <BaseButton
-              variant="ghost"
-              class="px-3 py-1.5 rounded-lg transition-colors cursor-pointer select-none text-sm font-medium"
-              :class="
-                isExactActive
-                  ? 'text-accent bg-codeBg'
-                  : 'text-subtleText hover:text-accent hover:bg-codeBg'
-              "
+              variant="menu"
               data-testid="nav-chat-link"
               @click="navigate"
             >
@@ -54,18 +48,12 @@
           </RouterLink>
 
           <RouterLink
-            v-slot="{ navigate, isExactActive }"
+            v-slot="{ navigate }"
             to="/history"
             custom
           >
             <BaseButton
-              variant="ghost"
-              class="px-3 py-1.5 rounded-lg transition-colors cursor-pointer select-none text-sm font-medium"
-              :class="
-                isExactActive
-                  ? 'text-accent bg-codeBg'
-                  : 'text-subtleText hover:text-accent hover:bg-codeBg'
-              "
+              variant="menu"
               data-testid="nav-history-link"
               @click="navigate"
             >
@@ -74,18 +62,12 @@
           </RouterLink>
 
           <RouterLink
-            v-slot="{ navigate, isExactActive }"
+            v-slot="{ navigate }"
             to="/prompts"
             custom
           >
             <BaseButton
-              variant="ghost"
-              class="px-3 py-1.5 rounded-lg transition-colors cursor-pointer select-none text-sm font-medium"
-              :class="
-                isExactActive
-                  ? 'text-accent bg-codeBg'
-                  : 'text-subtleText hover:text-accent hover:bg-codeBg'
-              "
+              variant="menu"
               data-testid="nav-prompts-link"
               @click="navigate"
             >
@@ -101,14 +83,11 @@
         <Suspense suspensible>
           <div class="flex-1 min-h-0 flex flex-col bg-slate overflow-hidden">
             <RouterView v-slot="{ Component }">
-              <Transition
-                name="view-transition"
-                mode="out-in"
-              >
+              <Transition mode="out-in">
                 <KeepAlive :include="['ChatView', 'HistoryView', 'PromptsView']">
                   <component
                     :is="Component"
-                    class="flex-1 min-h-0 flex flex-col"
+                    class="flex-1 min-h-0 flex flex-col animate-fade-in animate-duration-150 animate-ease-out"
                   />
                 </KeepAlive>
               </Transition>
@@ -122,7 +101,7 @@
 
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, onErrorCaptured } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import type { AbstractLogger } from '@/logger'
@@ -139,13 +118,6 @@ const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
 const session = ref<Session | null>(null)
 const router = useRouter()
 const conversationStore = useConversationStore()
-
-const redirectToChat = () => {
-  if (session.value && router.currentRoute.value.path === '/') {
-    router.push('/chat')
-  }
-}
-
 const handleExtensionMessage = (event: MessageEvent) => {
   const message = event.data
 
@@ -165,11 +137,16 @@ const handleExtensionMessage = (event: MessageEvent) => {
 
 useEventListener(window, 'message', handleExtensionMessage)
 
+const handleNewChat = async () => {
+  await conversationStore.markAllStreamingCompleteInCurrentConversation()
+  await router.push({ path: '/chat', query: { newConversation: 'true' } })
+}
+
 onMounted(async () => {
   const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
     if (event === 'SIGNED_IN' && supabaseSession) {
       session.value = supabaseSession
-      redirectToChat()
+      // No redirect here – LoginView / router guard already decide destination
     } else if (event === 'SIGNED_OUT') {
       session.value = null
       router.push('/')
@@ -198,30 +175,15 @@ onMounted(async () => {
   }
 
   session.value = data.session
-  redirectToChat()
 })
 
-const handleNewChat = async () => {
-  await conversationStore.markAllStreamingCompleteInCurrentConversation()
-  await router.push({ path: '/chat', query: { newConversation: 'true' } })
-}
+onErrorCaptured((err, instance, info) => {
+  logger.error('Something crashed', {
+    vueInfo: info,
+    componentName: instance?.$options?.name,
+    error: err,
+  })
+
+  return false
+})
 </script>
-
-<style scoped>
-.view-transition-enter-active,
-.view-transition-leave-active {
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-}
-
-.view-transition-enter-from {
-  opacity: 0;
-  transform: translateX(8px);
-}
-
-.view-transition-leave-to {
-  opacity: 0;
-  transform: translateX(-8px);
-}
-</style>

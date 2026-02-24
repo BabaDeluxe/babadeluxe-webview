@@ -8,6 +8,7 @@
       :conversation="conversation"
       :message-count="getMessageCount(conversation.id)"
       :is-selected="conversation.id === currentConversationId"
+      :test-id-prefix="testIdPrefix"
       @click="emit('select', conversation)"
       @rename="emit('rename', conversation)"
       @delete="emit('delete', conversation)"
@@ -31,6 +32,7 @@ interface ConversationListProps {
   currentConversationId: number
   emptyDescription: string
   getMessageCount: (conversationId: number) => number
+  testIdPrefix?: string
 }
 
 defineProps<ConversationListProps>()

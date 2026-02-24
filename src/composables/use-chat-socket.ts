@@ -1,12 +1,13 @@
-import { inject, computed, reactive, getCurrentScope, onScopeDispose } from 'vue'
-import { err, ok, ResultAsync, type Result } from 'neverthrow'
-import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { computed, reactive, getCurrentScope, onScopeDispose, watch } from 'vue'
+import { err, ResultAsync, type Result } from 'neverthrow'
+import { LOGGER_KEY } from '@/injection-keys'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { ChatError, NetworkError, RateLimitError } from '@/errors'
 import type { SocketManager } from '@/socket-manager'
-
-const sendTimeoutMilliseconds = 60_000
-const abortTimeoutMilliseconds = 5_000
+import { safeInject } from '@/safe-inject'
+import { socketTimeoutMs } from '@/constants'
+import { useSocketManager } from '@/composables/use-socket-manager'
+import { retryWithBackoff } from '@/retry'
 
 type ChunkHandler = (chunk: string) => void
 type CompleteHandler = (fullContent: string) => void
@@ -44,15 +45,14 @@ function deleteMessageState(messageId: number): void {
   messageStateById.delete(messageId)
 }
 
-function ensureChatSocketListeners(chatSocket: SocketManager): void {
+function ensureChatSocketListeners(chatSocket: SocketManager['chatSocket']): void {
   let handlers = handlersBySocket.get(chatSocket)
 
   if (!handlers) {
     const onChunk = (payload: MessageChunkPayload) => {
       const state = messageStateById.get(payload.messageId)
-      if (!state || !Number.isFinite(payload.sequence)) return
-
-      if (payload.sequence <= state.lastSequence) return
+      if (!state || !Number.isFinite(payload.sequence) || payload.sequence <= state.lastSequence)
+        return
 
       setMessageState(payload.messageId, {
         ...state,
@@ -85,8 +85,6 @@ function ensureChatSocketListeners(chatSocket: SocketManager): void {
         isStreaming: false,
         error: payload.error,
       })
-
-      deleteMessageState(payload.messageId)
     }
 
     const onDeleted = (payload: MessageDeletedPayload) => {
@@ -128,12 +126,23 @@ export function registerStreamingHandlers(
   })
 }
 
-export function useChatSocket() {
-  const socketManager = inject(SOCKET_MANAGER_KEY)!
-  const logger = inject(LOGGER_KEY)!
-  const chatSocket = socketManager.chatSocket as SocketManager
+export function resetChatSocketStateForTests(): void {
+  messageStateById.clear()
+}
 
-  ensureChatSocketListeners(chatSocket)
+export function useChatSocket() {
+  const { socketManagerRef } = useSocketManager()
+  const logger = safeInject(LOGGER_KEY)
+
+  const chatSocketRef = computed(() => socketManagerRef.value?.chatSocket)
+
+  watch(
+    chatSocketRef,
+    (newSocket) => {
+      if (newSocket) ensureChatSocketListeners(newSocket)
+    },
+    { immediate: true }
+  )
 
   const { createTimeout, cancelTimeout } = useTrackedTimeouts()
 
@@ -155,18 +164,57 @@ export function useChatSocket() {
     return undefined
   })
 
+  function createStreamCompletion(params: {
+    messageId: number
+    timeoutId: ReturnType<typeof createTimeout>
+    cancelTimeout: (id: ReturnType<typeof createTimeout>) => void
+  }) {
+    const { messageId, timeoutId, cancelTimeout } = params
+    let isDone = false
+    let completionError: NetworkError | ChatError | RateLimitError | undefined
+
+    const cleanup = () => {
+      if (isDone) return
+      isDone = true
+      cancelTimeout(timeoutId)
+      deleteMessageState(messageId)
+    }
+
+    const finishOk = () => {
+      if (isDone) return
+      cleanup()
+    }
+
+    const finishError = (error: NetworkError | ChatError | RateLimitError): void => {
+      if (isDone) return
+      completionError = error
+      cleanup()
+    }
+
+    return {
+      finishOk,
+      finishError,
+      isDone: () => isDone,
+      getError: () => completionError,
+    }
+  }
+
   const sendMessageOnce = async (
     messageId: number,
     provider: string,
     modelId: string,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    systemPrompt: string | undefined,
     handlers: {
       onChunk: (chunk: string) => void
       onComplete: (fullContent: string) => void
       onError?: (errorMessage: string) => void
     }
   ): Promise<Result<void, NetworkError | ChatError | RateLimitError>> => {
+    const chatSocket = chatSocketRef.value
+    if (!chatSocket) {
+      return err(new NetworkError('Chat socket not initialized'))
+    }
+
     const connectionResult = await chatSocket.waitForConnection()
     if (connectionResult.isErr()) {
       logger.error('Failed to connect to chat socket:', connectionResult.error)
@@ -175,75 +223,71 @@ export function useChatSocket() {
 
     ensureChatSocketListeners(chatSocket)
 
-    return ResultAsync.fromPromise(
+    const sendTimeoutMilliseconds = socketTimeoutMs.chatSend
+
+    const result = await ResultAsync.fromPromise(
       new Promise<void>((resolve, reject) => {
-        let isDone = false
+        const timeoutId = createTimeout(() => {
+          logger.error(`Timeout waiting for stream completion for message ${messageId}`)
+          const error = new NetworkError('Server timeout')
+          reject(error)
+        }, sendTimeoutMilliseconds)
 
-        const finishOk = () => {
-          if (isDone) return
-          isDone = true
-          cancelTimeout(timeoutId)
-          resolve()
-        }
-
-        const finishError = (errorToReturn: NetworkError | ChatError | RateLimitError) => {
-          if (isDone) return
-          isDone = true
-          cancelTimeout(timeoutId)
-          reject(errorToReturn)
-        }
+        const completion = createStreamCompletion({
+          messageId,
+          timeoutId,
+          cancelTimeout,
+        })
 
         registerStreamingHandlers(messageId, {
           onChunk: handlers.onChunk,
           onComplete: (fullContent) => {
             handlers.onComplete(fullContent)
-            finishOk()
+            completion.finishOk()
+            resolve()
           },
           onError: (errorMessage) => {
             handlers.onError?.(errorMessage)
-            finishError(new ChatError(errorMessage))
+            const error = new ChatError(errorMessage)
+            completion.finishError(error)
+            reject(error)
           },
         })
 
         const scope = getCurrentScope()
         if (scope) {
           onScopeDispose(() => {
-            deleteMessageState(messageId)
+            if (!completion.isDone()) {
+              deleteMessageState(messageId)
+            }
           })
         }
 
-        const timeoutId = createTimeout(() => {
-          logger.error(`Timeout waiting for stream completion for message ${messageId}`)
-          deleteMessageState(messageId)
-          finishError(new NetworkError('Server timeout'))
-        }, sendTimeoutMilliseconds)
-
         const emitResult = chatSocket.emit(
           'chat:sendMessage',
-          { messageId, provider, modelId, messages, systemPrompt },
+          { messageId, provider, modelId, messages },
           (response: { success: boolean; error?: string }) => {
-            if (response.success) return
-
-            deleteMessageState(messageId)
+            if (completion.isDone() || response.success) return
 
             const errorMessage = response.error ?? 'Unknown error'
-            if (errorMessage.includes('Rate limit')) {
-              finishError(new RateLimitError(errorMessage))
-              return
-            }
+            const isRateLimit = errorMessage.toLowerCase().includes('rate limit')
 
-            finishError(new ChatError(errorMessage))
+            const error = isRateLimit
+              ? new RateLimitError(errorMessage)
+              : new ChatError(errorMessage)
+
+            completion.finishError(error)
+            reject(error)
           }
         )
 
-        if (emitResult.isErr()) {
-          deleteMessageState(messageId)
-          finishError(new NetworkError('Socket emit failed', emitResult.error))
-        }
+        if (!emitResult.isErr()) return
+
+        const error = new NetworkError('Socket emit failed', emitResult.error)
+        completion.finishError(error)
+        reject(error)
       }),
       (unknownError) => {
-        deleteMessageState(messageId)
-
         if (
           unknownError instanceof NetworkError ||
           unknownError instanceof ChatError ||
@@ -258,6 +302,8 @@ export function useChatSocket() {
         )
       }
     )
+
+    return result
   }
 
   const sendMessage = async (
@@ -265,71 +311,42 @@ export function useChatSocket() {
     provider: string,
     modelId: string,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    systemPrompt: string | undefined,
     handlers: {
       onChunk: (chunk: string) => void
       onComplete: (fullContent: string) => void
       onError?: (errorMessage: string) => void
     }
   ): Promise<Result<void, NetworkError | ChatError | RateLimitError>> => {
-    const maxRetries = 5
-    const initialDelayMilliseconds = 1000
-    const backoffMultiplier = 2
-    const maxDelayMilliseconds = 16_000
-
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const result = await sendMessageOnce(
-        messageId,
-        provider,
-        modelId,
-        messages,
-        systemPrompt,
-        handlers
-      )
-
-      if (result.isOk()) return ok(undefined)
-      if (!(result.error instanceof RateLimitError)) return err(result.error)
-
-      const isLastAttempt = attempt === maxRetries - 1
-      if (isLastAttempt) return err(result.error)
-
-      const exponentialDelayMilliseconds =
-        initialDelayMilliseconds * Math.pow(backoffMultiplier, attempt)
-      const jitterMilliseconds = Math.random() * 0.3 * exponentialDelayMilliseconds
-      const delayMilliseconds = Math.min(
-        exponentialDelayMilliseconds + jitterMilliseconds,
-        maxDelayMilliseconds
-      )
-
-      logger.warn(
-        `Rate limit hit for message ${messageId}. Retrying in ${Math.round(delayMilliseconds)}ms (attempt ${attempt + 1}/${maxRetries})`
-      )
-
-      await new Promise((resolve) => setTimeout(resolve, delayMilliseconds))
-    }
-
-    return err(new RateLimitError('Max retries exceeded'))
+    return retryWithBackoff(
+      () => sendMessageOnce(messageId, provider, modelId, messages, handlers),
+      `message ${messageId}`,
+      { logger }
+    )
   }
 
   const abortMessage = async (
     messageId: number
   ): Promise<Result<void, NetworkError | ChatError>> => {
-    const connectionResult = await chatSocket.waitForConnection()
+    const socket = chatSocketRef.value
+    if (!socket) {
+      return err(new NetworkError('Chat socket not initialized'))
+    }
+
+    const connectionResult = await socket.waitForConnection()
     if (connectionResult.isErr()) {
-      logger.error('Failed to connect to chat socket for abort:', connectionResult.error)
       return err(new NetworkError('Socket connection failed', connectionResult.error))
     }
 
-    ensureChatSocketListeners(chatSocket)
+    ensureChatSocketListeners(socket)
     deleteMessageState(messageId)
 
-    return ResultAsync.fromPromise(
+    return await ResultAsync.fromPromise(
       new Promise<void>((resolve, reject) => {
         const timeoutId = createTimeout(() => {
           reject(new NetworkError('Abort timeout'))
-        }, abortTimeoutMilliseconds)
+        }, socketTimeoutMs.chatAbort)
 
-        const emitResult = chatSocket.emit(
+        const emitResult = socket.emit(
           'chat:abortMessage',
           { messageId, deleteMessage: false },
           (response: { success: boolean; error?: string }) => {
@@ -373,7 +390,7 @@ export function useChatSocket() {
     streamingMessageIds,
     sendMessage,
     abortMessage,
-    isConnected: computed(() => chatSocket.isConnected),
+    isConnected: computed(() => chatSocketRef.value?.isConnected ?? false),
     resumeStreamingMessage,
   }
 }

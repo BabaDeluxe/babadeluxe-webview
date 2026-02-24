@@ -1,26 +1,28 @@
-import { ref, computed, inject, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import { type Result, err, ok, ResultAsync } from 'neverthrow'
-import type { ConsoleLogger } from '@simwai/utils'
-import { BaseError } from '@babadeluxe/shared/utils'
+import type { AbstractLogger } from '@/logger'
 import type { SocketManager } from '@/socket-manager'
-import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
-import { ModelsFetchError } from '@/errors'
+import { LOGGER_KEY } from '@/injection-keys'
+import { NetworkError } from '@/errors'
+import { safeInject } from '@/safe-inject'
+import { socketTimeoutMs } from '@/constants'
+import { useSocketManager } from '@/composables/use-socket-manager'
+import { retryWithBackoff } from '@/retry' // NEW
 
-export class ModelsReloadError extends BaseError {}
-
-const providers = ['openai', 'anthropic', 'gemini'] as const
+const providers = ['openai', 'anthropic', 'gemini', 'ollama', 'deepseek'] as const
 type Provider = (typeof providers)[number]
 
-export interface Item {
+export interface ModelItem {
   value: string
   label: string
   icon?: string
-  disabled: boolean
+  isDisabled: boolean
+  contextWindow?: number
 }
 
-export interface ItemGroup {
+export interface ModelItemGroup {
   label: string
-  items: Item[]
+  items: ModelItem[]
 }
 
 const modelsLoadedCount = ref(0)
@@ -36,7 +38,6 @@ const baseExcludePatterns = [
   'robot',
 ] as const
 
-// Generic function that preserves literal types
 const createExcludePatterns = <T extends readonly string[]>(additional: T) =>
   [...baseExcludePatterns, ...additional] as const
 
@@ -50,15 +51,20 @@ const excludePatterns = {
     'dall',
     'davinci',
     'babbage',
+    'codex',
   ] as const),
   anthropic: createExcludePatterns([] as const),
-  gemini: createExcludePatterns(['vision', 'robotics', 'veo', 'aqa'] as const),
+  gemini: createExcludePatterns(['vision', 'robotics', 'veo', 'aqa', 'banana'] as const),
+  ollama: createExcludePatterns([] as const),
+  deepseek: createExcludePatterns([] as const),
 } as const
 
 const excludeSets: Record<Provider, Set<string>> = {
   openai: new Set(excludePatterns.openai),
   anthropic: new Set(excludePatterns.anthropic),
   gemini: new Set(excludePatterns.gemini),
+  ollama: new Set(excludePatterns.ollama),
+  deepseek: new Set(excludePatterns.deepseek),
 }
 
 const shouldExcludeModel = (modelLower: string, excludeSet: Set<string>): boolean => {
@@ -74,23 +80,27 @@ const stripPrefix = (model: string): string => {
   return model.startsWith(modelIdPrefix) ? model.slice(modelIdPrefix.length) : model
 }
 
-const filterModels = (models: string[], excludeSet: Set<string>): string[] => {
-  const result: string[] = []
+const filterModels = (models: RawModel[], excludeSet: Set<string>): RawModel[] => {
+  const result: RawModel[] = []
+
   for (const model of models) {
-    if (!shouldExcludeModel(model.toLowerCase(), excludeSet)) {
-      result.push(stripPrefix(model))
+    const modelIdLower = model.modelId.toLowerCase()
+    if (!shouldExcludeModel(modelIdLower, excludeSet)) {
+      result.push({ ...model, modelId: stripPrefix(model.modelId) })
     }
   }
   return result
 }
 
 const filterModelsByProvider = (
-  rawModels: Record<Provider, string[]>
-): Record<Provider, string[]> => {
-  const filtered: Record<Provider, string[]> = {
+  rawModels: Record<Provider, RawModel[]>
+): Record<Provider, RawModel[]> => {
+  const filtered: Record<Provider, RawModel[]> = {
     openai: [],
     anthropic: [],
     gemini: [],
+    ollama: [],
+    deepseek: [],
   }
 
   for (const provider of providers) {
@@ -104,7 +114,9 @@ const getProviderIcon = (provider: Provider): string => {
   const icons: Record<Provider, string> = {
     openai: 'i-simple-icons:openai',
     anthropic: 'i-simple-icons:anthropic',
-    gemini: 'i-simple-icons:google',
+    gemini: 'i-ri:gemini-line',
+    ollama: 'i-simple-icons:ollama',
+    deepseek: 'i-hugeicons:deepseek',
   }
   return icons[provider]
 }
@@ -114,98 +126,109 @@ const getProviderDisplayName = (provider: Provider): string => {
     openai: 'OpenAI',
     anthropic: 'Anthropic',
     gemini: 'Google Gemini',
+    ollama: 'Ollama',
+    deepseek: 'deepseek',
   }
   return displayNames[provider]
 }
 
-const models = ref<Record<Provider, string[]>>({
+type RawModel = { modelId: string; contextWindow?: number; source?: string }
+
+const models = ref<Record<Provider, RawModel[]>>({
   openai: [],
   anthropic: [],
   gemini: [],
+  ollama: [],
+  deepseek: [],
 })
 
 const isLoadingModels = ref(false)
 const modelsError = ref<string>()
-let fetchPromise: Promise<Result<void, ModelsFetchError>> | undefined
+let fetchPromise: Promise<Result<void, NetworkError>> | undefined
 
 export async function initializeModels(
-  socketManager: SocketManager,
-  logger: ConsoleLogger
-): Promise<Result<void, ModelsFetchError>> {
+  socketManager: SocketManager
+): Promise<Result<void, NetworkError>> {
   if (fetchPromise !== undefined) return await fetchPromise
 
   isLoadingModels.value = true
   modelsError.value = undefined
 
-  const fetchWork = async (): Promise<Result<void, ModelsFetchError>> => {
+  const fetchWork = async (): Promise<Result<void, NetworkError>> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof window !== 'undefined' && (window as any).__TEST_MODELS__) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const testModels = (window as any).__TEST_MODELS__
+      const testModels = (window as any).__TEST_MODELS__ as Record<Provider, RawModel[]>
       models.value = filterModelsByProvider(testModels)
       modelsLoadedCount.value++
-      logger.log('Using test models')
       isLoadingModels.value = false
       return ok()
     }
 
     const modelsSocket = socketManager.modelsSocket
-
     const waitResult = await modelsSocket.waitForConnection()
 
     if (waitResult.isErr()) {
       const error = waitResult.error
       modelsError.value = error.message
-      logger.error('Failed to connect to socket:', error)
       isLoadingModels.value = false
-      return err(new ModelsFetchError(error instanceof Error ? error.message : 'Unknown exception'))
+      return err(new NetworkError(error instanceof Error ? error.message : 'Unknown exception'))
     }
 
     const listResult = await ResultAsync.fromPromise(
-      new Promise<{ openai: string[]; anthropic: string[]; gemini: string[] }>(
-        (resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            reject(new ModelsFetchError('Request timeout after 15s'))
-          }, 15000)
+      new Promise<{
+        openai: RawModel[]
+        anthropic: RawModel[]
+        gemini: RawModel[]
+        ollama: RawModel[]
+        deepseek: RawModel[]
+      }>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new NetworkError('Request timeout after 15s'))
+        }, socketTimeoutMs.models)
 
-          modelsSocket.emit(
-            'models:listAllModels',
-            (response: {
-              success: boolean
-              models?: {
-                openai: Array<{ modelId: string; contextWindow?: number; source?: string }>
-                anthropic: Array<{ modelId: string; contextWindow?: number; source?: string }>
-                gemini: Array<{ modelId: string; contextWindow?: number; source?: string }>
-              }
-              error?: string
-            }) => {
-              clearTimeout(timeoutId)
-
-              if (!response.success) {
-                reject(new ModelsFetchError(response.error || 'Backend returned success: false'))
-                return
-              }
-
-              if (response.models === undefined) {
-                reject(new ModelsFetchError('Backend returned empty models'))
-                return
-              }
-
-              resolve({
-                openai: response.models.openai.map((message) => message.modelId),
-                anthropic: response.models.anthropic.map((message) => message.modelId),
-                gemini: response.models.gemini.map((message) => message.modelId),
-              })
+        modelsSocket.emit(
+          'models:listAllModels',
+          // @ts-expect-error Need new generated types
+          (response: {
+            success: boolean
+            models?: {
+              openai: RawModel[]
+              anthropic: RawModel[]
+              gemini: RawModel[]
+              ollama: RawModel[]
+              deepseek: RawModel[]
             }
-          )
-        }
-      ),
-      (error) => (error instanceof ModelsFetchError ? error : new ModelsFetchError(String(error)))
+            error?: string
+          }) => {
+            clearTimeout(timeoutId)
+
+            if (!response.success) {
+              reject(new NetworkError(response.error || 'Backend returned success: false'))
+              return
+            }
+
+            if (response.models === undefined) {
+              reject(new NetworkError('Backend returned empty models'))
+              return
+            }
+
+            resolve({
+              openai: response.models.openai,
+              anthropic: response.models.anthropic,
+              gemini: response.models.gemini,
+              // TODO Remove ?? [] after implementing the LLM providers in the backend
+              ollama: response.models.ollama ?? [],
+              deepseek: response.models.deepseek ?? [],
+            })
+          }
+        )
+      }),
+      (error) => (error instanceof NetworkError ? error : new NetworkError(String(error)))
     )
 
     if (listResult.isErr()) {
       modelsError.value = listResult.error.message
-      logger.error('Failed to fetch models:', listResult.error.message)
       isLoadingModels.value = false
       return err(listResult.error)
     }
@@ -214,13 +237,15 @@ export async function initializeModels(
     models.value = filterModelsByProvider(rawModels)
     modelsError.value = undefined
     modelsLoadedCount.value++
-    logger.log('Models loaded and filtered')
     isLoadingModels.value = false
 
     return ok()
   }
 
-  fetchPromise = fetchWork()
+  // NEW: retry on transient NetworkError when listing models
+  fetchPromise = retryWithBackoff(fetchWork, 'models:initialize', {
+    maxRetries: 3,
+  })
   const fetchResult = await fetchPromise
   fetchPromise = undefined
 
@@ -228,44 +253,74 @@ export async function initializeModels(
 }
 
 export function useModelsSocket() {
-  const socketManager: SocketManager = inject(SOCKET_MANAGER_KEY)!
-  const logger: ConsoleLogger = inject(LOGGER_KEY)!
-  const modelsSocket = socketManager.modelsSocket
+  const { socketManagerRef } = useSocketManager()
+  const logger: AbstractLogger = safeInject(LOGGER_KEY)
 
   const handleModelsUpdate = async () => {
     logger.log('Reloading models due to server update')
     fetchPromise = undefined
-    const initResult = await initializeModels(socketManager, logger)
-
-    if (initResult.isErr()) {
-      logger.error('Failed to reload models after server update:', initResult.error)
+    if (socketManagerRef.value) {
+      const initResult = await initializeModels(socketManagerRef.value)
+      if (initResult.isErr()) {
+        logger.error('Failed to reload models after server update:', initResult.error)
+      }
     }
   }
 
-  modelsSocket.on('models:updated', handleModelsUpdate)
+  watch(
+    () => socketManagerRef.value?.modelsSocket,
+    (newSocket, oldSocket) => {
+      if (oldSocket) {
+        oldSocket.off('models:updated', handleModelsUpdate)
+      }
+      if (newSocket) {
+        newSocket.on('models:updated', handleModelsUpdate)
+      }
+    },
+    { immediate: true }
+  )
 
   onUnmounted(() => {
-    modelsSocket.off('models:updated', handleModelsUpdate)
+    if (socketManagerRef.value?.modelsSocket) {
+      socketManagerRef.value.modelsSocket.off('models:updated', handleModelsUpdate)
+    }
   })
 
-  const groupedModels = computed<ItemGroup[]>(() => {
-    return providers
-      .map((provider) => ({
-        label: getProviderDisplayName(provider),
-        items: models.value[provider].map((model) => ({
-          value: `${provider}:${model}`,
-          label: model,
+  const groupedModels = computed<ModelItemGroup[]>(() => {
+    const groups: ModelItemGroup[] = []
+
+    for (const provider of providers) {
+      const providerModels = models.value[provider]
+      if (!providerModels || providerModels.length === 0) continue
+
+      const items: ModelItem[] = []
+
+      for (const model of providerModels) {
+        items.push({
+          value: `${provider}:${model.modelId}`,
+          label: model.modelId,
           icon: getProviderIcon(provider),
-          disabled: false,
-        })),
-      }))
-      .filter((group) => group.items.length > 0)
+          isDisabled: false,
+          contextWindow: model.contextWindow,
+        })
+      }
+
+      groups.push({
+        label: getProviderDisplayName(provider),
+        items,
+      })
+    }
+
+    return groups
   })
 
-  const reload = async (): Promise<Result<void, ModelsFetchError>> => {
-    logger.log('Forcing models reload')
+  const reload = async (): Promise<Result<void, NetworkError>> => {
+    if (!socketManagerRef.value) {
+      return err(new NetworkError('Socket not connected'))
+    }
+
     fetchPromise = undefined
-    return await initializeModels(socketManager, logger)
+    return await initializeModels(socketManagerRef.value)
   }
 
   return {

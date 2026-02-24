@@ -28,13 +28,13 @@
 </template>
 
 <script setup lang="ts">
-import { inject } from 'vue'
 import type { EnvConfigType } from '@/env-validator'
 import { ENV_CONFIG_KEY } from '@/injection-keys'
 import IconRobot from '@/components/IconRobot.vue'
 import { useUserAvatar } from '@/composables/use-user-avatar'
+import { safeInject } from '@/safe-inject'
 
-const envConfig: EnvConfigType = inject(ENV_CONFIG_KEY)!
+const envConfig: EnvConfigType = safeInject(ENV_CONFIG_KEY)
 const projectRef = new URL(envConfig.VITE_SUPABASE_URL).hostname.split('.')[0]
 
 defineProps<{

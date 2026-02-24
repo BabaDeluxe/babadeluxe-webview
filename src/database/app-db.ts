@@ -1,19 +1,68 @@
 import { Dexie, type Table } from 'dexie'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
-import type { Conversation, Message } from '@/database/types'
-import type { ConsoleLogger } from '@simwai/utils'
+import type { Conversation, Message, ContextReference } from '@/database/types'
+import type { AbstractLogger } from '@/logger'
 import { DbError } from '@/errors'
 import { DexieError, SafeTable } from '@/database/safe-table'
 
-type NewMessage = Omit<Message, 'id' | 'timestamp'> & { timestamp?: Date }
+// What actually lives in IndexedDB
+type DbMessage = {
+  id?: number
+  conversationId: number
+  role: 'user' | 'assistant'
+  timestamp: Date
+  content: string
+  isStreaming?: boolean
+  model?: string
+  systemPrompt?: string
+  // JSON stringified
+  contextReferences?: string
+}
+
+type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
+
+function encodeContextReferences(refs: ContextReference[] | undefined): string | undefined {
+  if (!refs) return undefined
+
+  const plain = refs.map((ref) =>
+    ref.type === 'file'
+      ? { type: 'file' as const, filePath: ref.filePath }
+      : ref.filePath
+        ? { type: 'snippet' as const, snippetText: ref.snippetText, filePath: ref.filePath }
+        : { type: 'snippet' as const, snippetText: ref.snippetText }
+  )
+
+  return JSON.stringify(plain)
+}
+
+function decodeContextReferences(raw: string | undefined): ContextReference[] | undefined {
+  if (!raw) return undefined
+
+  try {
+    const parsed = JSON.parse(raw) as Array<
+      | { type: 'file'; filePath: string }
+      | { type: 'snippet'; snippetText: string; filePath?: string }
+    >
+
+    return parsed.map((ref) =>
+      ref.type === 'file'
+        ? { type: 'file' as const, filePath: ref.filePath }
+        : ref.filePath
+          ? { type: 'snippet' as const, snippetText: ref.snippetText, filePath: ref.filePath }
+          : { type: 'snippet' as const, snippetText: ref.snippetText }
+    )
+  } catch {
+    return undefined
+  }
+}
 
 export class AppDb extends Dexie {
   conversation!: SafeTable<Conversation, Conversation, number>
-  message!: SafeTable<Message, NewMessage, number>
+  message!: SafeTable<DbMessage, NewDbMessage, number>
   private _conversationTable!: Table<Conversation, number>
-  private _messageTable!: Table<Message, number>
+  private _messageTable!: Table<DbMessage, number>
 
-  constructor(private readonly _logger: ConsoleLogger) {
+  constructor(private readonly _logger: AbstractLogger) {
     super('AppDb')
     this._declareVersions()
     this._bindTables()
@@ -26,10 +75,26 @@ export class AppDb extends Dexie {
   ): Promise<Result<readonly Message[], DbError>> {
     const result = await this.message.where('conversationId').equals(conversationId).sortBy('id')
     if (result.isErr()) {
-      this._logger.error('Failed to get messages by conversation:', result.error)
+      this._logger.error('Failed to get messages by conversation', {
+        conversationId,
+        error: result.error,
+      })
       return err(this._toDomainError(result.error))
     }
-    return ok(result.value)
+
+    const mapped: Message[] = result.value.map((message) => ({
+      id: message.id!,
+      conversationId: message.conversationId,
+      role: message.role,
+      timestamp: message.timestamp,
+      content: message.content,
+      isStreaming: message.isStreaming,
+      model: message.model,
+      systemPrompt: message.systemPrompt,
+      contextReferences: decodeContextReferences(message.contextReferences),
+    }))
+
+    return ok(mapped)
   }
 
   async getMessageCountsByConversation(): Promise<Result<Map<number, number>, DbError>> {
@@ -46,11 +111,11 @@ export class AppDb extends Dexie {
         return countMap
       })(),
       (error) => {
-        this._logger.error(
-          'Failed to get message counts:',
-          error instanceof Error ? error : new Error(String(error))
-        )
-        return this._toDomainError(error)
+        const mappedError = this._toDomainError(error)
+        this._logger.error('Failed to get message counts', {
+          error: mappedError,
+        })
+        return mappedError
       }
     )
 
@@ -60,7 +125,9 @@ export class AppDb extends Dexie {
   async getAllConversations(): Promise<Result<readonly Conversation[], DbError>> {
     const result = await this.conversation.toArray()
     if (result.isErr()) {
-      this._logger.error('Failed to get all conversations:', result.error)
+      this._logger.error('Failed to get all conversations', {
+        error: result.error,
+      })
       return err(this._toDomainError(result.error))
     }
 
@@ -74,11 +141,12 @@ export class AppDb extends Dexie {
         await this._conversationTable.delete(conversationId)
       }),
       (error) => {
-        this._logger.error(
-          'Failed to delete conversation with messages:',
-          error instanceof Error ? error : new Error(String(error))
-        )
-        return this._toDomainError(error)
+        const mappedError = this._toDomainError(error)
+        this._logger.error('Failed to delete conversation with messages', {
+          conversationId,
+          error: mappedError,
+        })
+        return mappedError
       }
     )
 
@@ -86,42 +154,50 @@ export class AppDb extends Dexie {
   }
 
   async createMessage(data: Omit<Message, 'id' | 'timestamp'>): Promise<Result<number, DbError>> {
-    const resolvedContent =
-      typeof data.content === 'string' ? data.content : await Promise.resolve(data.content)
+    const resolvedContent = data.content
 
     const conversationResult = await this.conversation.get(data.conversationId)
     if (conversationResult.isErr()) {
-      this._logger.error('Failed to verify conversation exists:', conversationResult.error)
+      this._logger.error('Failed to verify conversation exists', {
+        conversationId: data.conversationId,
+        error: conversationResult.error,
+      })
       return err(this._toDomainError(conversationResult.error))
     }
     if (conversationResult.value === undefined) {
       const error = new DbError(
         `Cannot create message: Conversation ${data.conversationId} missing`
       )
-      this._logger.error('Conversation not found:', error)
+      this._logger.error('Conversation not found when creating message', {
+        conversationId: data.conversationId,
+        error,
+      })
       return err(error)
     }
 
     const result = await ResultAsync.fromPromise(
       this.transaction('rw', this._conversationTable, this._messageTable, async () => {
-        const messageData: NewMessage = {
+        const messageData: NewDbMessage = {
           conversationId: data.conversationId,
           role: data.role,
           content: resolvedContent,
           isStreaming: data.isStreaming ?? false,
           model: data.model,
           systemPrompt: data.systemPrompt,
+          contextReferences: encodeContextReferences(data.contextReferences),
         }
         const addResult = await this.message.add(messageData)
         if (addResult.isErr()) throw addResult.error
         return addResult.value
       }),
       (error) => {
-        this._logger.error(
-          'Failed to create message:',
-          error instanceof Error ? error : new Error(String(error))
-        )
-        return this._toDomainError(error)
+        const mappedError = this._toDomainError(error)
+        this._logger.error('Failed to create message', {
+          conversationId: data.conversationId,
+          role: data.role,
+          error: mappedError,
+        })
+        return mappedError
       }
     )
 
@@ -133,15 +209,19 @@ export class AppDb extends Dexie {
       this.transaction('rw', this._conversationTable, this._messageTable, async () => {
         const message = await this._messageTable.get(id)
         if (!message) return
+
         await this._messageTable.delete(id)
-        await this._deleteEmptyConversation(message.conversationId)
+
+        const cascadeResult = await this._deleteEmptyConversation(message.conversationId)
+        if (cascadeResult.isErr()) throw cascadeResult.error
       }),
       (error) => {
-        this._logger.error(
-          'Failed to delete message:',
-          error instanceof Error ? error : new Error(String(error))
-        )
-        return this._toDomainError(error)
+        const mappedError = this._toDomainError(error)
+        this._logger.error('Failed to delete message', {
+          messageId: id,
+          error: mappedError,
+        })
+        return mappedError
       }
     )
 
@@ -151,7 +231,28 @@ export class AppDb extends Dexie {
   async updateMessage(id: number, content: string): Promise<Result<number, DbError>> {
     const result = await this.message.update(id, { content, isStreaming: false })
     if (result.isErr()) {
-      this._logger.error('Failed to update message:', result.error)
+      this._logger.error('Failed to update message', {
+        messageId: id,
+        error: result.error,
+      })
+      return err(this._toDomainError(result.error))
+    }
+
+    return ok(result.value)
+  }
+
+  async updateMessageContextReferences(
+    id: number,
+    refs: ContextReference[] | undefined
+  ): Promise<Result<number, DbError>> {
+    const result = await this.message.update(id, {
+      contextReferences: encodeContextReferences(refs),
+    })
+    if (result.isErr()) {
+      this._logger.error('Failed to update message contextReferences', {
+        messageId: id,
+        error: result.error,
+      })
       return err(this._toDomainError(result.error))
     }
 
@@ -161,11 +262,27 @@ export class AppDb extends Dexie {
   async getStreamingMessages(): Promise<Result<Message[], DbError>> {
     const allMessagesResult = await this.message.toArray()
     if (allMessagesResult.isErr()) {
-      this._logger.error('Failed to get streaming messages:', allMessagesResult.error)
+      this._logger.error('Failed to get streaming messages', {
+        error: allMessagesResult.error,
+      })
       return err(this._toDomainError(allMessagesResult.error))
     }
 
-    return ok(allMessagesResult.value.filter((message) => message.isStreaming === true))
+    const mapped: Message[] = allMessagesResult.value
+      .filter((message) => message.isStreaming === true)
+      .map((message) => ({
+        id: message.id!,
+        conversationId: message.conversationId,
+        role: message.role,
+        timestamp: message.timestamp,
+        content: message.content,
+        isStreaming: message.isStreaming,
+        model: message.model,
+        systemPrompt: message.systemPrompt,
+        contextReferences: decodeContextReferences(message.contextReferences),
+      }))
+
+    return ok(mapped)
   }
 
   private _declareVersions(): void {
@@ -181,11 +298,21 @@ export class AppDb extends Dexie {
       conversation: '++id, title, isActive, createdAt, updatedAt',
       message: '++id, conversationId, role, timestamp, model',
     })
+    this.version(4).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt',
+      // schema string stays the same; we just treat contextReferences as string in DbMessage
+      message: '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences',
+    })
+    this.version(5).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt',
+      message:
+        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
+    })
   }
 
   private _bindTables(): void {
     this._conversationTable = this.table<Conversation, number>('conversation')
-    this._messageTable = this.table<Message, number>('message')
+    this._messageTable = this.table<DbMessage, number>('message')
   }
 
   private _setupHooks(): void {
@@ -201,22 +328,37 @@ export class AppDb extends Dexie {
 
     this._conversationTable.hook('updating', () => ({ updatedAt: new Date() }))
 
-    this._messageTable.hook('creating', (_primaryKey: number | undefined, myObject: Message) => {
+    this._messageTable.hook('creating', (_primaryKey: number | undefined, myObject: DbMessage) => {
       if (myObject.timestamp === undefined) myObject.timestamp = new Date()
     })
   }
 
   private _wrapSafeTables(): void {
     this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
-    this.message = new SafeTable<Message, NewMessage, number>(this._messageTable)
+    this.message = new SafeTable<DbMessage, NewDbMessage, number>(this._messageTable)
   }
 
-  private async _deleteEmptyConversation(conversationId: number): Promise<void> {
-    const count = await this._messageTable.where('conversationId').equals(conversationId).count()
-    if (count !== 0) return
+  private async _deleteEmptyConversation(conversationId: number): Promise<Result<void, DbError>> {
+    return ResultAsync.fromPromise(
+      (async () => {
+        const count = await this._messageTable
+          .where('conversationId')
+          .equals(conversationId)
+          .count()
+        if (count !== 0) return
 
-    await this._conversationTable.delete(conversationId)
-    this._logger.log(`Cascade deleted empty conversation ${conversationId}`)
+        await this._conversationTable.delete(conversationId)
+        this._logger.log(`Cascade deleted empty conversation ${conversationId}`)
+      })(),
+      (error) => {
+        const mappedError = this._toDomainError(error)
+        this._logger.error('Failed to cascade delete conversation', {
+          conversationId,
+          error: mappedError,
+        })
+        return mappedError
+      }
+    )
   }
 
   private _toDomainError(error: unknown): DbError {
