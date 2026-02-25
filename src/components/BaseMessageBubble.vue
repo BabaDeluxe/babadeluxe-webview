@@ -1,13 +1,13 @@
 <template>
   <article
-    class="flex flex-col w-full sm:w-auto sm:flex-row flex-1 gap-3 py-2 px-2 items-start rounded-lg h-auto w-full lg:max-w-80vw"
+    class="flex flex-col w-full sm:flex-row flex-1 gap-3 py-2 px-2 items-start rounded-lg h-auto w-full"
     :class="alignmentClass"
   >
     <slot name="avatar" />
 
     <div
       ref="contentWrapperRef"
-      class="flex flex-col flex-1 w-full rounded-lg px-2 py-2 text-sm whitespace-pre-wrap break-words relative transition-all duration-200 overflow-x-auto"
+      class="flex flex-col flex-1 min-w-0 w-full rounded-lg px-2 py-2 text-sm whitespace-pre-wrap break-words relative transition-all duration-200 lg:max-w-80vw"
       :class="bubbleClass"
     >
       <slot />

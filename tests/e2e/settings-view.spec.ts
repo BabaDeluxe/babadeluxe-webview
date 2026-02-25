@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test'
-import { authTest as test } from '../helpers/fixtures'
+import { authTest as test } from './helpers/fixtures'
 
 const seedSettingsData = async (page: Page) => {
   await page.evaluate(() => {

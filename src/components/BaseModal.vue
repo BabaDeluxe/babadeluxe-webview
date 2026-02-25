@@ -1,17 +1,19 @@
 <template>
   <Teleport to="body">
-    <Transition
-      name="modal-fade"
-      @after-leave="handleAfterLeave"
-    >
+    <Transition mode="out-in">
       <div
-        v-if="show"
-        class="fixed inset-0 bg-slate/80 flex items-center justify-center z-50"
+        v-if="isShown"
+        class="fixed inset-0 bg-slate/80 flex items-center justify-center z-50 animate-fade-in animate-duration-200 animate-ease-out"
         @click.self="handleBackdropClick"
       >
         <div
           ref="modalRef"
-          :class="[sizeClasses, 'bg-panel border border-borderMuted rounded-lg p-6 w-full mx-4']"
+          :data-testid="dataTestId"
+          :class="[
+            sizeClasses,
+            'bg-panel border border-borderMuted rounded-lg p-6 w-full',
+            'animate-fade-in animate-duration-200 animate-ease-out',
+          ]"
           role="dialog"
           aria-modal="true"
           :aria-labelledby="titleId"
@@ -32,19 +34,19 @@
 
           <div class="flex justify-end gap-2">
             <slot name="actions">
-              <button
-                class="px-4 py-2 text-subtleText hover:text-deepText transition-colors"
+              <BaseButton
+                variant="secondary"
                 @click="handleCancel"
               >
                 {{ cancelText }}
-              </button>
-              <button
-                class="px-4 py-2 bg-accent text-slate rounded-md hover:bg-accentHover transition-colors"
-                :disabled="confirmDisabled"
+              </BaseButton>
+              <BaseButton
+                variant="primary"
+                :is-disabled="confirmDisabled"
                 @click="handleConfirm"
               >
                 {{ confirmText }}
-              </button>
+              </BaseButton>
             </slot>
           </div>
         </div>
@@ -56,9 +58,10 @@
 <script setup lang="ts">
 import { computed, watch, nextTick, ref } from 'vue'
 import { onKeyStroke } from '@vueuse/core'
+import BaseButton from '@/components/BaseButton.vue'
 
 interface BaseModalProps {
-  show: boolean
+  isShown?: boolean
   title?: string
   confirmText?: string
   cancelText?: string
@@ -66,9 +69,11 @@ interface BaseModalProps {
   closeOnBackdrop?: boolean
   closeOnEscape?: boolean
   size?: 'small' | 'medium' | 'large'
+  dataTestId?: string
 }
 
 const props = withDefaults(defineProps<BaseModalProps>(), {
+  isShown: false,
   title: undefined,
   confirmText: 'Confirm',
   cancelText: 'Cancel',
@@ -76,10 +81,11 @@ const props = withDefaults(defineProps<BaseModalProps>(), {
   closeOnBackdrop: true,
   closeOnEscape: true,
   size: 'medium',
+  dataTestId: undefined,
 })
 
 interface BaseModalEmits {
-  (event: 'update:show', value: boolean): void
+  (event: 'update:is-shown', value: boolean): void
   (event: 'confirm'): void
   (event: 'cancel'): void
 }
@@ -87,6 +93,10 @@ interface BaseModalEmits {
 const emit = defineEmits<BaseModalEmits>()
 
 const modalRef = ref<HTMLElement>()
+
+const isShown = computed(() => props.isShown)
+const dataTestId = computed(() => props.dataTestId)
+
 const titleId = computed(() => `modal-title-${Math.random().toString(36).slice(2, 9)}`)
 
 const sizeClasses = computed(() => {
@@ -98,7 +108,7 @@ const sizeClasses = computed(() => {
 })
 
 const closeModal = () => {
-  emit('update:show', false)
+  emit('update:is-shown', false)
 }
 
 const handleConfirm = () => {
@@ -116,36 +126,20 @@ const handleBackdropClick = () => {
   }
 }
 
-const handleAfterLeave = () => {
-  // Clean up focus when modal is fully closed
-}
-
 onKeyStroke('Escape', (event) => {
-  if (props.show && props.closeOnEscape) {
+  if (isShown.value && props.closeOnEscape) {
     event.preventDefault()
     handleCancel()
   }
 })
 
 watch(
-  () => props.show,
-  async (isShown) => {
-    if (isShown) {
+  () => isShown.value,
+  async (shown) => {
+    if (shown) {
       await nextTick()
       modalRef.value?.focus()
     }
   }
 )
 </script>
-
-<style scoped>
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-</style>

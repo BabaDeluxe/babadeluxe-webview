@@ -1,9 +1,9 @@
 <template>
-  <div class="flex justify-start items-center gap-4">
+  <div class="flex justify-start items-center">
     <img
       alt="BabaDeluxe Icon"
-      class="logo min-w-14 w-18 h-18"
-      src="@/assets/babadeluxe-ai-coder-icon.svg"
+      class="logo w-12 h-12"
+      src="@/assets/icons/babadeluxe-ai-coder-icon.svg"
     />
   </div>
 </template>

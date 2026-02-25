@@ -3,26 +3,43 @@
     id="chat"
     data-testid="chat-view-container"
     :data-models-loaded-count="modelsLoadedCount"
-    class="flex flex-col lg:max-w-80vw mx-auto h-full bg-slate overflow-x-hidden rounded"
+    class="flex flex-col flex-1 min-h-0 lg:max-w-80vw mx-auto w-full bg-slate overflow-x-hidden rounded"
   >
-    <EmptyState
-      v-if="messages.length === 0"
-      :greeting="`Hello ${currentUsername}, what's on your mind today?`"
+    <!-- Preload LLM icons -->
+    <div
+      class="i-simple-icons:openai i-simple-icons:anthropic i-ri:gemini-line i-simple-icons:ollama i-hugeicons:deepseek hidden"
     />
-
     <BaseAlertList :banners="activeBaseAlerts" />
 
-    <div class="flex flex-col w-full h-full">
+    <div class="flex flex-col flex-1 min-h-0 w-full">
+      <!-- Empty state input section -->
       <div
         v-if="messages.length === 0"
         data-testid="empty-state-input-section"
-        class="flex flex-col gap-0 px-4 py-2"
+        class="flex flex-col gap-2 px-4 pt-8"
       >
+        <ContextRootBar
+          v-if="isInVsCode && isContextRootBarVisible"
+          @hide="isContextRootBarVisible = false"
+        />
+
+        <ContextPanel
+          v-if="isInVsCode"
+          :items="contextItems"
+          :has-error="!!contextError"
+          :is-loading="isLoadingContext"
+          :is-root-bar-visible="isContextRootBarVisible"
+          @toggle-root-bar="handleToggleRootBar"
+          @remove-item="handleRemoveContextItem"
+          @clear-all="handleClearAllContext"
+          @toggle-lock="handleToggleLock"
+        />
+
         <ChatInput
-          ref="ChatInputRef"
+          ref="chatInputRef"
           v-model="currentMessage"
-          :disabled="isLoadingConversation || isLoadingMessage"
-          :is-loading="isLoadingConversation || isLoadingMessage"
+          :is-disabled="isLoadingConversations || isLoadingMessages"
+          :is-loading="isLoadingConversations || isLoadingMessages"
           :is-submitting="isChatStreaming"
           placeholder="How can I help you today?"
           test-id="chat-message-input-top"
@@ -40,11 +57,27 @@
               :is-loading-models="isLoadingModels"
             />
           </template>
+
+          <template #footer>
+            <div
+              v-if="contextUsageWarning"
+              class="mt-1 text-xs text-subtleText"
+            >
+              {{ contextUsageWarning }}
+              <div class="mt-1 h-1 w-full bg-borderMuted rounded overflow-hidden">
+                <div
+                  class="h-full bg-accent transition-all"
+                  :style="{ width: `${Math.round(lastContextUsage * 100)}%` }"
+                />
+              </div>
+            </div>
+          </template>
         </ChatInput>
       </div>
 
+      <!-- Loading state -->
       <div
-        v-if="messages.length === 0 && isLoadingConversation"
+        v-if="messages.length === 0 && isLoadingConversations"
         class="flex flex-col flex-1 w-full justify-center p-8"
       >
         <BaseSpinner
@@ -53,40 +86,62 @@
         />
       </div>
 
+      <!-- Empty state -->
       <BaseEmptyState
         v-else-if="messages.length === 0"
         icon="i-bi:chat-left-dots"
-        title="Start a conversation"
+        :title="`Hello ${currentUsername}, what's on your mind today?`"
         description="Ask me anything to begin!"
       />
 
+      <!-- Messages -->
       <div
         v-if="messages.length > 0"
-        class="flex flex-col flex-1 w-full overflow-y-auto"
+        class="flex flex-col flex-1 min-h-0 w-full overflow-y-auto"
       >
-        <div class="flex flex-col flex-1 gap-0">
+        <div class="flex flex-col gap-0">
           <ChatMessage
             v-for="message in messages"
             :key="message.id"
             :ref="(element) => registerMessageComponent(message.id, element as Element)"
             v-bind="message"
+            :is-edit-enabled="message.role === 'user'"
+            :is-rewrite-enabled="message.role === 'assistant'"
             @delete="handleDeleteMessage"
-            @update="handleUpdateMessage"
+            @update="handleEditMessage"
             @rewrite="handleRewriteMessage"
           />
         </div>
       </div>
 
+      <!-- Message list input section -->
       <div
         v-if="messages.length > 0"
         data-testid="message-list-input-section"
-        class="flex flex-col gap-0 pr-2 pl-2 pt-4 pb-4"
+        class="flex flex-col gap-2 pr-4 pl-4 pt-4 pb-4"
       >
+        <ContextRootBar
+          v-if="isInVsCode && isContextRootBarVisible"
+          @hide="isContextRootBarVisible = false"
+        />
+
+        <ContextPanel
+          v-if="isInVsCode"
+          :items="contextItems"
+          :has-error="!!contextError"
+          :is-loading="isLoadingContext"
+          :is-root-bar-visible="isContextRootBarVisible"
+          @toggle-root-bar="handleToggleRootBar"
+          @remove-item="handleRemoveContextItem"
+          @clear-all="handleClearAllContext"
+          @toggle-lock="handleToggleLock"
+        />
+
         <ChatInput
-          ref="ChatInputRef"
+          ref="chatInputRef"
           v-model="currentMessage"
-          :disabled="isLoadingConversation || isLoadingMessage"
-          :is-loading="isLoadingConversation || isLoadingMessage"
+          :is-disabled="isLoadingConversations || isLoadingMessages"
+          :is-loading="isLoadingConversations || isLoadingMessages"
           :is-submitting="isChatStreaming"
           placeholder="How can I help you today?"
           test-id="chat-message-input-bottom"
@@ -104,6 +159,21 @@
               :is-loading-models="isLoadingModels"
             />
           </template>
+
+          <template #footer>
+            <div
+              v-if="contextUsageWarning"
+              class="mt-1 text-xs text-subtleText"
+            >
+              {{ contextUsageWarning }}
+              <div class="mt-1 h-1 w-full bg-borderMuted rounded overflow-hidden">
+                <div
+                  class="h-full bg-accent transition-all"
+                  :style="{ width: `${Math.round(lastContextUsage * 100)}%` }"
+                />
+              </div>
+            </div>
+          </template>
         </ChatInput>
       </div>
     </div>
@@ -116,485 +186,52 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onMounted, ref, useTemplateRef, watch, computed } from 'vue'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ConsoleLogger } from '@simwai/utils'
-import { useRoute, useRouter } from 'vue-router'
-import { ResultAsync } from 'neverthrow'
-import EmptyState from '@/components/BaseEmptyState.vue'
-import BaseEmptyState from '@/components/BaseEmptyState.vue'
-import BaseSpinner from '@/components/BaseSpinner.vue'
 import ChatInput from '@/components/ChatInput.vue'
-import ChatInputControls from '@/components/ChatInputControls.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import BaseAlertList from '@/components/BaseAlertList.vue'
+import BaseEmptyState from '@/components/BaseEmptyState.vue'
+import BaseSpinner from '@/components/BaseSpinner.vue'
+import ContextPanel from '@/components/ContextPanel.vue'
+import ContextRootBar from '@/components/ContextRootBar.vue'
 import SubscriptionModal from '@/components/SubscriptionModal.vue'
-import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
-import type { KeyValueStore } from '@/database/key-value-store'
-import type { Message } from '@/database/types'
-import { useChatSocket } from '@/composables/use-chat-socket'
-import { useConversation, type Mutable } from '@/composables/use-conversation'
-import { useModelsSocket } from '@/composables/use-models-socket'
-import { usePromptsSocket } from '@/composables/use-prompts-socket'
-import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
-import { defaultModel, streamingCommitIntervalMs } from '@/constants'
-import { createStreamingCommitHandler, finalizeStreamingMessage } from '@/streaming-helpers'
+import ChatInputControls from '@/components/ChatInputControls.vue'
+import { useChat } from '@/composables/use-chat'
 
-type ChatMessageInstance = InstanceType<typeof ChatMessage>
-
-const logger = inject<ConsoleLogger>(LOGGER_KEY)!
-const keyValueStore = inject<KeyValueStore>(KEY_VALUE_STORE_KEY)!
-const supabase = inject<SupabaseClient>(SUPABASE_CLIENT_KEY)!
-
-const route = useRoute()
-const router = useRouter()
+defineOptions({ name: 'ChatView' })
 
 const {
-  initialize,
+  chatInputRef,
   messages,
-  currentConversationId,
-  isLoading: isLoadingConversation,
-  error: conversationError,
-  updateUserMessage,
-  deleteMessage,
-  generateConversationTitle,
-  updateConversationTitle,
-  sendMessage: sendConversationMessage,
-  resendFromMessage,
-  rewriteWithModel,
-  createConversation,
-  finalizeAssistantMessage,
-} = useConversation()
-
-const {
-  isStreaming: isChatStreaming,
-  error: chatError,
-  streamingMessageIds,
-  abortMessage: abortChatMessage,
-} = useChatSocket()
-
-const currentStreamingMessageId = computed(() =>
-  streamingMessageIds.value.length > 0 ? streamingMessageIds.value[0] : null
-)
-
-const { groupedModels, isLoadingModels, modelsError, modelsLoadedCount } = useModelsSocket()
-const {
-  prompts,
-  isLoading: isLoadingPrompts,
-  error: promptsError,
-  clearError: clearPromptsError,
-} = usePromptsSocket()
-
-const { shouldShowModal, dismissModal } = useSubscriptionSocket()
-
-const currentPrompt = ref('BabaSeniorDev™')
-const currentModel = ref(defaultModel)
-const currentMessage = ref('')
-const currentUsername = ref('User')
-const chatInputRef = useTemplateRef<InstanceType<typeof ChatInput>>('chatInputRef')
-const messageComponents = ref<Map<number, ChatMessageInstance>>(new Map())
-const modelsReloadWarning = ref<string>()
-const persistenceWarning = ref<string>()
-const isLoadingMessage = ref(false)
-
-const baseAlerts = computed(() => [
-  {
-    id: 'conversation-error',
-    message: conversationError.value,
-    type: 'error' as const,
-    isDismissible: true,
-    onClose: () => {
-      conversationError.value = undefined
-    },
-  },
-  {
-    id: 'chat-error',
-    message: chatError.value,
-    type: 'error' as const,
-    isDismissible: false,
-    onClose: () => {},
-  },
-  {
-    id: 'models-error',
-    message: modelsError.value,
-    type: 'warning' as const,
-    isDismissible: true,
-    onClose: () => {
-      modelsError.value = undefined
-    },
-  },
-  {
-    id: 'prompts-error',
-    message: promptsError.value,
-    type: 'warning' as const,
-    isDismissible: true,
-    onClose: clearPromptsError,
-  },
-  {
-    id: 'models-reload-warning',
-    message: modelsReloadWarning.value,
-    type: 'warning' as const,
-    isDismissible: true,
-    onClose: () => {
-      modelsReloadWarning.value = undefined
-    },
-  },
-  {
-    id: 'persistence-warning',
-    message: persistenceWarning.value,
-    type: 'warning' as const,
-    isDismissible: true,
-    onClose: () => {
-      persistenceWarning.value = undefined
-    },
-  },
-])
-
-const activeBaseAlerts = computed(() =>
-  baseAlerts.value.filter((banner) => banner.message !== undefined)
-)
-
-const promptOptions = computed(() => {
-  if (isLoadingPrompts.value) {
-    return [
-      {
-        label: 'Loading Prompts...',
-        value: '',
-        disabled: true,
-      },
-    ]
-  }
-
-  if (promptsError.value) {
-    return [
-      {
-        label: 'Error loading prompts',
-        value: '',
-        disabled: true,
-      },
-    ]
-  }
-
-  return prompts.value.map((prompt) => ({
-    label: prompt.isSystem ? `${prompt.name} (System)` : prompt.name,
-    value: prompt.command ?? '',
-    disabled: !prompt.command,
-  }))
-})
-
-const registerMessageComponent = (id: number, element: Element | ChatMessageInstance | null) => {
-  if (!element) {
-    messageComponents.value.delete(id)
-    return
-  }
-  if ('$' in (element as Element | ChatMessageInstance))
-    messageComponents.value.set(id, element as ChatMessageInstance)
-}
-
-const fetchUsername = async (): Promise<void> => {
-  const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
-    const errorMessage =
-      unknownError instanceof Error ? unknownError.message : 'Failed to fetch user'
-    return new Error(errorMessage)
-  })
-
-  getUserResult.match(
-    (response) => {
-      const user = response.data.user
-      const githubIdentity = user?.identities?.find((id) => id.provider === 'github')
-
-      if (githubIdentity?.identity_data?.login) {
-        currentUsername.value = githubIdentity.identity_data.login as string
-      } else if (user?.user_metadata?.username) {
-        currentUsername.value = user.user_metadata.username as string
-      }
-    },
-    (fetchError) => {
-      logger.error('Error fetching username:', fetchError.message)
-    }
-  )
-}
-
-const loadPersistedSettings = async (): Promise<void> => {
-  const promptResult = await keyValueStore.get('chat-prompt')
-  if (promptResult.isErr()) return
-  if (promptResult.value !== undefined) currentPrompt.value = promptResult.value
-
-  const modelResult = await keyValueStore.get('chat-model')
-  if (modelResult.isErr()) return
-  if (modelResult.value !== undefined) currentModel.value = modelResult.value
-}
-
-const handleDeleteMessage = async (messageId: number) => {
-  await deleteMessage(messageId)
-}
-
-async function handleUpdateMessage(messageId: number, newContent: string) {
-  const updateResult = await updateUserMessage(messageId, newContent)
-  if (updateResult.isErr()) {
-    logger.error('Failed to update message:', updateResult.error.message)
-    conversationError.value = 'Failed to update message'
-    return
-  }
-
-  const userMessageIndex = messages.value.findIndex((message) => message.id === messageId)
-  if (userMessageIndex === -1 || userMessageIndex >= messages.value.length - 1) {
-    return
-  }
-
-  const nextMessage = messages.value[userMessageIndex + 1]
-  if (nextMessage.role !== 'assistant') return
-
-  let provider: string
-  let model: string
-
-  if (nextMessage.model) {
-    ;[provider, model] = nextMessage.model.split(':')
-    if (!provider || !model) {
-      conversationError.value = 'Invalid model format'
-      return
-    }
-  } else {
-    logger.warn(`Message ${nextMessage.id} missing model, using current selection`)
-    if (!currentModel.value || !currentModel.value.includes(':')) {
-      conversationError.value = 'Please select a valid model'
-      return
-    }
-    ;[provider, model] = currentModel.value.split(':')
-  }
-
-  const selectedPromptObject = prompts.value.find((p) => p.command === currentPrompt.value)
-  const systemPromptText = selectedPromptObject?.template || nextMessage.systemPrompt
-
-  const handleChunk = createStreamingCommitHandler(
-    messages,
-    messageComponents,
-    streamingCommitIntervalMs
-  )
-
-  await resendFromMessage(messageId, {
-    provider,
-    model,
-    systemPrompt: systemPromptText,
-    existingAssistantId: nextMessage.id,
-    onChunk: handleChunk,
-    onError: (errorResult: Error) => {
-      logger.error('Failed to regenerate after edit:', errorResult.message)
-      conversationError.value = errorResult.message
-    },
-  })
-}
-
-async function handleRewriteMessage(assistantMessageId: number, newModelId: string) {
-  const selectedPromptObject = prompts.value.find(
-    (prompt) => prompt.command === currentPrompt.value
-  )
-  const systemPromptText = selectedPromptObject?.template || undefined
-
-  const handleChunk = createStreamingCommitHandler(
-    messages,
-    messageComponents,
-    streamingCommitIntervalMs
-  )
-
-  await rewriteWithModel(assistantMessageId, newModelId, {
-    systemPrompt: systemPromptText,
-    onChunk: handleChunk,
-    onComplete: async (messageId: number) => {
-      const msg = messages.value.find((message) => message.id === messageId) as
-        | Mutable<Message>
-        | undefined
-      if (!msg) return
-
-      finalizeStreamingMessage(messageId, messageComponents)
-      msg.isStreaming = false
-    },
-    onError: (error: Error) => {
-      logger.error('Failed to rewrite message:', error.message)
-      conversationError.value = error.message
-    },
-  })
-}
-
-async function handleSendMessage(): Promise<void> {
-  if (
-    !currentMessage.value.trim() ||
-    isLoadingConversation.value ||
-    isChatStreaming.value ||
-    isLoadingMessage.value
-  )
-    return
-
-  if (currentConversationId.value === 0) {
-    const result = await createConversation('New Conversation')
-
-    if (result.isErr()) {
-      conversationError.value = `Cannot send message: ${result.error.message}`
-      logger.error(`Failed to auto-create conversation: ${result.error.message}`)
-      return
-    }
-
-    logger.log(`Auto-created conversation ${result.value} for first message`)
-  }
-
-  if (!currentModel.value || !currentModel.value.includes(':')) {
-    conversationError.value = 'Please select a valid model first'
-    return
-  }
-
-  const [provider, selectedModel] = currentModel.value.split(':')
-  if (!provider || !selectedModel) {
-    conversationError.value = 'Invalid model format'
-    return
-  }
-
-  const messageContent = currentMessage.value
-  currentMessage.value = ''
-  isLoadingMessage.value = true
-
-  const selectedPromptObject = prompts.value.find(
-    (prompt) => prompt.command === currentPrompt.value
-  )
-  const systemPromptText = selectedPromptObject?.template || undefined
-
-  const handleChunk = createStreamingCommitHandler(
-    messages,
-    messageComponents,
-    streamingCommitIntervalMs
-  )
-
-  const result = await sendConversationMessage(messageContent, {
-    provider,
-    model: selectedModel,
-    systemPrompt: systemPromptText,
-    onChunk: handleChunk,
-    onComplete: async (messageId: number) => {
-      const msg = messages.value.find((message) => message.id === messageId) as
-        | Mutable<Message>
-        | undefined
-      if (!msg) return
-
-      finalizeStreamingMessage(messageId, messageComponents)
-      msg.isStreaming = false
-
-      const finalizeResult = await finalizeAssistantMessage(messageId, msg.content)
-      if (finalizeResult.isErr()) {
-        logger.error('Failed to persist assistant message:', finalizeResult.error.message)
-        conversationError.value = 'Failed to persist assistant message'
-      }
-
-      if (messages.value.length === 2) {
-        const newTitle = generateConversationTitle(messageContent)
-        await updateConversationTitle(currentConversationId.value, newTitle)
-      }
-    },
-    onError: (error: Error) => {
-      logger.error('Failed to stream assistant response:', error.message)
-      conversationError.value = error.message
-    },
-  })
-
-  isLoadingMessage.value = false
-
-  if (result.isErr()) {
-    currentMessage.value = messageContent
-  }
-}
-
-const handleAbortMessage = async (): Promise<void> => {
-  if (!currentStreamingMessageId.value) return
-
-  const messageId = currentStreamingMessageId.value
-  const result = await abortChatMessage(messageId)
-
-  await result.match(
-    async () => {
-      chatInputRef.value?.textInputRef?.focus()
-      logger.log('Message aborted successfully after user clicked stop button')
-    },
-    (abortError) => {
-      logger.error('Failed to abort message after user clicked stop button:', abortError.message)
-    }
-  )
-}
-
-const handleModalClose = () => {
-  dismissModal()
-  logger.log('User dismissed upgrade modal')
-}
-
-onMounted(async () => {
-  const initResult = await ResultAsync.fromPromise(
-    (async () => {
-      await initialize()
-      await Promise.all([fetchUsername(), loadPersistedSettings()])
-    })(),
-    (unknownError) =>
-      new Error(unknownError instanceof Error ? unknownError.message : 'Initialization failed')
-  )
-
-  initResult.match(
-    () => {
-      logger.log('Chat initialized successfully')
-    },
-    (initError) => {
-      logger.error('Failed to initialize chat on page load:', initError.message)
-      conversationError.value = 'Failed to initialize chat. Please refresh the page.'
-    }
-  )
-})
-
-watch(
-  () => route.query.newConversation,
-  async (isNew) => {
-    if (isNew === 'true') {
-      await createConversation('New Conversation')
-      await router.replace({ query: {} })
-    }
-  }
-)
-
-watch(
+  isLoadingConversations,
+  isLoadingMessages,
+  isChatStreaming,
+  isInVsCode,
+  contextItems,
+  contextError,
+  isLoadingContext,
+  isContextRootBarVisible,
+  currentMessage,
+  currentPrompt,
+  currentModel,
+  currentUsername,
+  promptOptions,
   groupedModels,
-  (newModelGroups) => {
-    if (!newModelGroups || newModelGroups.length === 0) return
-    for (const modelGroup of newModelGroups) {
-      if (modelGroup.items.length <= 0) continue
-
-      const preferredModel =
-        modelGroup.items.find((model) => model.label.toLowerCase().includes('flash-2.0')) ||
-        modelGroup.items.find((model) => model.label.toLowerCase().includes('flash')) ||
-        modelGroup.items[0]
-      if (preferredModel) {
-        currentModel.value = preferredModel.value
-        return
-      }
-    }
-  },
-  { deep: true }
-)
-
-watch(currentPrompt, async (newValue) => {
-  const result = await keyValueStore.set('chat-prompt', newValue)
-
-  if (result.isErr()) {
-    logger.error(
-      'Failed to persist prompt selection after user changed dropdown:',
-      result.error.message
-    )
-    persistenceWarning.value = 'Failed to save your prompt selection. It may reset after refresh.'
-  }
-})
-
-watch(currentModel, async (newValue) => {
-  const result = await keyValueStore.set('chat-model', newValue)
-
-  if (result.isErr()) {
-    logger.error(
-      'Failed to persist model selection after user changed dropdown:',
-      result.error.message
-    )
-    persistenceWarning.value = 'Failed to save your model selection. It may reset after refresh.'
-  }
-})
+  isLoadingModels,
+  modelsLoadedCount,
+  contextUsageWarning,
+  lastContextUsage,
+  activeBaseAlerts,
+  shouldShowModal,
+  registerMessageComponent,
+  handleSendMessage,
+  handleAbortMessage,
+  handleDeleteMessage,
+  handleEditMessage,
+  handleRewriteMessage,
+  handleRemoveContextItem,
+  handleClearAllContext,
+  handleToggleLock,
+  handleModalClose,
+  handleToggleRootBar,
+} = useChat()
 </script>

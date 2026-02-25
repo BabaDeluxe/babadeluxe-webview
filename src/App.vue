@@ -1,47 +1,81 @@
 <template>
-  <div class="h-100vh w-full bg-slate flex flex-col font-onest text-deepText">
+  <div
+    class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText overflow-x-hidden"
+  >
     <div v-if="session && $route.path !== '/'">
-      <header class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20">
+      <header
+        class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20"
+        data-testid="app-header"
+      >
         <IconBabaDeluxe />
 
-        <div class="flex flex-row gap-4 justify-end items-center">
+        <div class="flex flex-row gap-2 justify-end items-center">
           <BaseButton
-            text="New Chat"
+            data-testid="nav-new-chat-button"
+            variant="primary"
             icon="i-weui:pencil-outlined"
+            text="New Chat"
             @click="handleNewChat"
           />
 
-          <RouterLink
-            to="/settings"
-            class="px-4 py-2 rounded-lg hover:text-accent transition-colors"
-          >
-            <BaseButton
-              :class="'bg-none text-deepText text-2xl'"
-              icon="i-weui:setting-outlined"
-            />
-          </RouterLink>
+          <BaseButton
+            data-testid="nav-settings-button"
+            variant="ghost"
+            icon="i-weui:setting-outlined"
+            class="zoom-1.2"
+            @click="router.push('/settings')"
+          />
         </div>
       </header>
 
-      <div class="flex flex-row gap-4 justify-start items-center bg-panel">
-        <nav class="flex space-x-2 text-deepText p-2">
+      <div class="flex justify-start items-center bg-panel">
+        <nav
+          class="flex flex-row gap-2 text-deepText p-2"
+          data-testid="app-nav"
+        >
           <RouterLink
+            v-slot="{ navigate, isExactActive }"
             to="/chat"
-            class="px-4 py-2 rounded-lg hover:text-accent hover:bg-codeBg transition-colors"
+            custom
           >
-            Chat
+            <BaseButton
+              variant="menu"
+              data-testid="nav-chat-link"
+              :is-selected="isExactActive"
+              @click="navigate"
+            >
+              Chat
+            </BaseButton>
           </RouterLink>
+
           <RouterLink
+            v-slot="{ navigate, isExactActive }"
             to="/history"
-            class="px-4 py-2 rounded-lg hover:text-accent hover:bg-codeBg transition-colors"
+            custom
           >
-            History
+            <BaseButton
+              variant="menu"
+              data-testid="nav-history-link"
+              :is-selected="isExactActive"
+              @click="navigate"
+            >
+              History
+            </BaseButton>
           </RouterLink>
+
           <RouterLink
+            v-slot="{ navigate, isExactActive }"
             to="/prompts"
-            class="px-4 py-2 rounded-lg hover:text-accent hover:bg-codeBg transition-colors"
+            custom
           >
-            Prompts
+            <BaseButton
+              variant="menu"
+              data-testid="nav-prompts-link"
+              :is-selected="isExactActive"
+              @click="navigate"
+            >
+              Prompts
+            </BaseButton>
           </RouterLink>
         </nav>
       </div>
@@ -49,44 +83,77 @@
 
     <Suspense>
       <template #default>
-        <RouterView class="flex flex-col" />
-      </template>
-      <template #fallback>
-        <div class="flex flex-col items-center justify-center bg-slate text-lg text-deepText">
-          Loading...
-        </div>
+        <Suspense suspensible>
+          <div class="flex-1 min-h-0 flex flex-col bg-slate overflow-hidden">
+            <RouterView v-slot="{ Component }">
+              <Transition mode="out-in">
+                <KeepAlive :include="['ChatView', 'HistoryView', 'PromptsView']">
+                  <component
+                    :is="Component"
+                    class="flex-1 min-h-0 flex flex-col animate-fade-in animate-duration-150 animate-ease-out"
+                  />
+                </KeepAlive>
+              </Transition>
+            </RouterView>
+          </div>
+        </Suspense>
       </template>
     </Suspense>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useStorage } from '@vueuse/core'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { inject, onMounted, ref } from 'vue'
+import { onMounted, ref, onErrorCaptured } from 'vue'
+import { useEventListener } from '@vueuse/core'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
-import type { ConsoleLogger } from '@simwai/utils'
+import type { AbstractLogger } from '@/logger'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import { type SupabaseClientType } from '@/main'
+import { localStorageKeys } from '@/constants'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { useConversationStore } from '@/stores/use-conversation-store'
+import { safeInject } from '@/safe-inject'
 
-const logger: ConsoleLogger = inject(LOGGER_KEY)!
-const supabase: SupabaseClientType = inject(SUPABASE_CLIENT_KEY)!
+const logger: AbstractLogger = safeInject(LOGGER_KEY)
+const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
 
-const session = ref()
+const session = ref<Session | null>(null)
 const router = useRouter()
+const conversationStore = useConversationStore()
+const handleExtensionMessage = (event: MessageEvent) => {
+  const message = event.data
 
-const redirectToChat = () => {
-  if (session.value && router.currentRoute.value.path === '/') {
-    router.push('/chat')
+  if (message?.type !== 'navigate-to' || !message.payload?.view) return
+
+  const targetView = message.payload.view
+  logger.log('Received navigation request from extension:', targetView)
+
+  const targetRoute = router.getRoutes().find((route) => route.name === targetView)
+  if (targetRoute) {
+    logger.log('Navigating to:', targetRoute)
+    router.push(targetRoute)
+  } else {
+    logger.warn('Unknown view requested:', targetView)
   }
+}
+
+useEventListener(window, 'message', handleExtensionMessage)
+
+const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
+
+const handleNewChat = async () => {
+  await conversationStore.markAllStreamingCompleteInCurrentConversation(currentConversationId)
+  await router.push({ path: '/chat', query: { newConversation: 'true' } })
 }
 
 onMounted(async () => {
   const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
     if (event === 'SIGNED_IN' && supabaseSession) {
       session.value = supabaseSession
-      redirectToChat()
+      // No redirect here – LoginView / router guard already decide destination
     } else if (event === 'SIGNED_OUT') {
       session.value = null
       router.push('/')
@@ -97,22 +164,33 @@ onMounted(async () => {
     }
   }
 
-  supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     handleAuthStateChange(event, session)
   })
 
-  const supabaseSession = await supabase.auth.getSession()
-  const sessionData = supabaseSession.data.session
-  if (!sessionData) {
-    logger.warn('Invalid login session data received in App.vue')
+  const { data, error } = await supabase.auth.getSession()
+
+  if (error) {
+    logger.error('Failed to retrieve auth session, clearing stale data', { error })
+    await supabase.auth.signOut()
     return
   }
 
-  session.value = sessionData
-  redirectToChat()
+  if (!data.session) {
+    logger.warn('No active session found in App.vue mount')
+    return
+  }
+
+  session.value = data.session
 })
 
-const handleNewChat = async () => {
-  await router.push({ path: '/chat', query: { newConversation: 'true' } })
-}
+onErrorCaptured((err, instance, info) => {
+  logger.error('Something crashed', {
+    vueInfo: info,
+    componentName: instance?.$options?.name,
+    error: err,
+  })
+
+  return false
+})
 </script>

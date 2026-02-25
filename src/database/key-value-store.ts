@@ -1,7 +1,7 @@
 import type { Table } from 'dexie'
 import { ok, err, type Result } from 'neverthrow'
 import type { KeyValuePair } from '@/database/types'
-import type { ConsoleLogger } from '@simwai/utils'
+import type { AbstractLogger } from '@/logger'
 import type { KeyValueDb } from '@/database/key-value-db'
 import { SafeTable, type DexieError } from '@/database/safe-table'
 import { BaseError } from '@babadeluxe/shared'
@@ -14,7 +14,7 @@ export class KeyValueStore {
 
   constructor(
     private readonly _keyValueDb: KeyValueDb,
-    private readonly _logger: ConsoleLogger
+    private readonly _logger: AbstractLogger
   ) {
     this._table = this._keyValueDb.keyValue
     this._safe = new SafeTable(this._table)
@@ -25,7 +25,10 @@ export class KeyValueStore {
 
     if (result.isErr()) {
       const mapped = this._toStoreError(result.error, `Failed to get key "${key}" from Dexie`)
-      this._logger.error(mapped)
+      this._logger.error('Failed to get key from key-value store', {
+        key,
+        error: mapped,
+      })
       return err(mapped)
     }
 
@@ -37,7 +40,10 @@ export class KeyValueStore {
 
     if (result.isErr()) {
       const mapped = this._toStoreError(result.error, `Failed to set key "${key}" in Dexie`)
-      this._logger.error(mapped)
+      this._logger.error('Failed to set key in key-value store', {
+        key,
+        error: mapped,
+      })
       return err(mapped)
     }
 
@@ -49,7 +55,10 @@ export class KeyValueStore {
 
     if (result.isErr()) {
       const mapped = this._toStoreError(result.error, `Failed to remove key "${key}" from Dexie`)
-      this._logger.error(mapped)
+      this._logger.error('Failed to remove key from key-value store', {
+        key,
+        error: mapped,
+      })
       return err(mapped)
     }
 
@@ -64,7 +73,10 @@ export class KeyValueStore {
         result.error,
         `Failed to check existence of key "${key}" in Dexie`
       )
-      this._logger.error(mapped)
+      this._logger.error('Failed to check key existence in key-value store', {
+        key,
+        error: mapped,
+      })
       return err(mapped)
     }
 
@@ -76,7 +88,9 @@ export class KeyValueStore {
 
     if (result.isErr()) {
       const mapped = this._toStoreError(result.error, 'Failed to clear Dexie')
-      this._logger.error(mapped)
+      this._logger.error('Failed to clear key-value store', {
+        error: mapped,
+      })
       return err(mapped)
     }
 

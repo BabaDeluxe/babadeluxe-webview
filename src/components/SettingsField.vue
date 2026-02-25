@@ -58,7 +58,7 @@ const emit = defineEmits<{
 }>()
 
 const inputClasses =
-  'w-full px-3 py-2 border border-borderMuted rounded-md bg-panel text-deepText focus:border-accent outline-none'
+  'w-full px-3 py-2 border border-borderMuted rounded-lg bg-panel text-deepText focus:border-accent outline-none'
 
 const stringValue = computed(() => {
   if (props.setting.dataType !== 'string') return ''

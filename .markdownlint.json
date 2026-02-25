@@ -8,9 +8,6 @@
   "code-fence-style": {
     "style": "backtick"
   },
-  "emphasis-style": {
-    "style": "asterisk"
-  },
   "extended-ascii": {
     "ascii-only": true
   },

@@ -2,7 +2,7 @@
   "unocss.autocomplete.strict": false,
   "search.quickOpen.includeHistory": true,
   "typescript.suggest.autoImports": true,
-  "typescript.preferences.importModuleSpecifierEnding": "js",
+  "typescript.preferences.importModuleSpecifierEnding": "index",
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "typescript.suggest.paths": true,
   "javascript.suggest.paths": true,
@@ -56,6 +56,9 @@
   "eslint.enable": true,
   "eslint.format.enable": false,
   "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
   "files.eol": "\n",
   "files.encoding": "utf8",
   "files.exclude": {
@@ -75,6 +78,6 @@
   ],
   "git.enableSmartCommit": false,
   "git.suggestSmartCommit": false,
-  "typescript.tsserver.experimental.enableProjectDiagnostics": true,
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
   "typescript.tsdk": "node_modules\\typescript\\lib"
 }

@@ -1,8 +1,7 @@
-// main.ts
-import { createApp } from 'vue'
-import { err, ok, type Result } from 'neverthrow'
+import { type Ref, createApp, ref } from 'vue'
+import { createPinia } from 'pinia'
 import { createClient } from '@supabase/supabase-js'
-import { ConsoleLogger } from '@simwai/utils'
+import { createColorino, themePalettes } from 'colorino'
 import 'virtual:uno.css'
 import '@/assets/main.css'
 import App from '@/App.vue'
@@ -24,16 +23,12 @@ import {
   SUPABASE_CLIENT_KEY,
 } from '@/injection-keys'
 import { initializeModels } from '@/composables/use-models-socket'
-import { AuthTokenError, EnvValidationError } from '@/errors'
 import { SocketManager } from '@/socket-manager'
-import { createPinia } from 'pinia'
 
-const logger = new ConsoleLogger({ isTimeEnabled: false })
+const logger = createColorino(themePalettes['catppuccin-mocha'])
 
 const envValidationResult = validateEnvConfig()
-if (envValidationResult instanceof EnvValidationError) {
-  process.exit(1)
-}
+if (envValidationResult.isErr()) throw envValidationResult.error
 
 // @ts-ignore
 const envConfig: EnvConfigType = import.meta.env
@@ -51,7 +46,6 @@ app.provide(LOGGER_KEY, logger)
 
 const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 export type SupabaseClientType = typeof supabase
-
 app.provide(SUPABASE_CLIENT_KEY, supabase)
 
 const appDb = new AppDb(logger)
@@ -64,55 +58,45 @@ const keyValueStore = new KeyValueStore(keyValueDb, logger)
 app.provide(KEY_VALUE_STORE_KEY, keyValueStore)
 
 const router = createAppRouter(supabase)
-
 app.use(router)
-await router.isReady()
+const socketManagerRef: Ref<SocketManager | undefined> = ref(undefined)
+app.provide(SOCKET_MANAGER_KEY, socketManagerRef)
 
-const getAuthToken = async (): Promise<Result<string, AuthTokenError>> => {
+app.mount('#app')
+;(async () => {
   const {
     data: { session },
-    error,
   } = await supabase.auth.getSession()
 
-  if (error) {
-    return err(new AuthTokenError(`Authentication failed: ${error.message}`))
-  }
-
   if (!session?.access_token) {
-    return err(new AuthTokenError('Not authenticated (no valid access token found)'))
+    logger.warn('No active session found. Router will handle redirect to /.')
+    return
   }
 
-  return ok(session.access_token)
-}
+  logger.log('Auth valid. Initializing SocketManager...')
+  const socketManager = new SocketManager(logger, VITE_SOCKET_URL, session.access_token)
 
-const authTokenResult = await getAuthToken()
-
-if (authTokenResult.isErr()) {
-  logger.warn('Auth failed:', authTokenResult.error.message)
-
-  await router.push('/login')
-  app.mount('#app')
-} else {
-  const authToken = authTokenResult.value
-
-  const socketManager = new SocketManager(logger, VITE_SOCKET_URL, authToken)
-  const socketManagerInitResult = await socketManager.init()
-
-  if (socketManagerInitResult.isErr()) {
-    logger.error('Socket initialization failed:', socketManagerInitResult.error)
-    process.exit(1)
+  const initResult = await socketManager.init()
+  if (initResult.isErr()) {
+    logger.error('Socket initialization failed during app boot', {
+      socketUrl: VITE_SOCKET_URL,
+      error: initResult.error,
+    })
+    return
   }
 
-  logger.log('All socket namespaces connected')
-  app.provide(SOCKET_MANAGER_KEY, socketManager)
-
+  socketManagerRef.value = socketManager
   const apiKeyValidator = new ApiKeyValidator(logger, socketManager.validationSocket)
   app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
 
-  app.mount('#app')
   window.addEventListener('beforeunload', () => {
     socketManager.disconnect()
   })
 
-  await initializeModels(socketManager, logger)
-}
+  // await router.isReady()
+  // if (router.currentRoute.value.path === '/' || router.currentRoute.value.path === '/login') {
+  //   await router.replace('/chat')
+  // }
+
+  await initializeModels(socketManager)
+})()

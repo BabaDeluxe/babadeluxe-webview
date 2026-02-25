@@ -1,8 +1,6 @@
-import { ref, computed, onMounted, inject, useTemplateRef } from 'vue'
+import { ref, computed, onMounted, useTemplateRef } from 'vue'
 import { useEventListener } from '@vueuse/core'
-import type { ConsoleLogger } from '@simwai/utils'
 import type { KeyValueStore } from '@/database/key-value-store'
-import { LOGGER_KEY } from '@/injection-keys'
 
 type UseResizableSplitOptions = {
   keyValueStore: KeyValueStore
@@ -15,8 +13,6 @@ type UseResizableSplitOptions = {
 }
 
 export const useResizableSplit = (_options: UseResizableSplitOptions) => {
-  const _logger: ConsoleLogger = inject(LOGGER_KEY)!
-
   const {
     keyValueStore,
     storageKey,
@@ -37,44 +33,45 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
   const loadSavedRatio = async () => {
     const result = await keyValueStore.get(storageKey)
 
-    // Case 1: Database error
+    // Case 1: Database error - use default
     if (result.isErr()) {
-      _logger.error('Failed to load split ratio from storage:', result.error)
       leftWidth.value = defaultRatio
       return
     }
 
     const saved = result.value
 
-    // Case 2: No value stored (first use) - silently use default
+    // Case 2: No value stored - use default
     if (saved === undefined) {
       leftWidth.value = defaultRatio
+      saveRatio(leftWidth.value)
       return
     }
 
     // Case 3: Validate stored value
     const parsed = Number(saved)
     if (Number.isNaN(parsed) || parsed < minRatio || parsed > maxRatio) {
-      _logger.warn(
-        `Invalid split ratio "${saved}" (expected ${minRatio}-${maxRatio}), using default ${defaultRatio}%`
-      )
       leftWidth.value = defaultRatio
+      saveRatio(leftWidth.value)
       return
     }
 
     // Case 4: Valid stored value
     leftWidth.value = parsed
+    saveRatio(leftWidth.value)
   }
 
   const saveRatio = async (ratio: number) => {
-    const result = await keyValueStore.set(storageKey, String(ratio))
-    if (result.isErr()) {
-      _logger.error('Failed to save split ratio:', result.error)
-    }
+    await keyValueStore.set(storageKey, String(ratio))
   }
 
-  const startDragging = () => {
+  const startDragging = (event?: PointerEvent) => {
     isDragging.value = true
+
+    const handleElement = event?.currentTarget
+    if (handleElement instanceof HTMLElement && typeof event?.pointerId === 'number') {
+      handleElement.setPointerCapture(event.pointerId)
+    }
   }
 
   const stopDragging = async () => {
@@ -84,7 +81,7 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
     }
   }
 
-  const onMouseMove = (event: MouseEvent) => {
+  const onPointerMove = (event: PointerEvent) => {
     if (!isDragging.value || !containerRef.value) return
 
     const container = containerRef.value.getBoundingClientRect()
@@ -100,8 +97,9 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
     leftWidth.value = clampedPercentage
   }
 
-  useEventListener(document, 'mousemove', onMouseMove)
-  useEventListener(document, 'mouseup', stopDragging)
+  useEventListener(document, 'pointermove', onPointerMove)
+  useEventListener(document, 'pointerup', stopDragging)
+  useEventListener(document, 'pointercancel', stopDragging)
 
   onMounted(async () => {
     await loadSavedRatio()

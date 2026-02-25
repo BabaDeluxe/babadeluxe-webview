@@ -7,7 +7,10 @@ import {
   deleteTestUserSdk,
   deleteTestUserRaw,
   type TestUser,
-} from './supabase-test'
+} from '../../helpers/supabase-test'
+import { IndexedDbManager } from './indexeddb-manager'
+import { loginViaUi } from 'tests/e2e/helpers/login-via-ui'
+import { gotoOptions } from 'tests/e2e/helpers/test-data'
 
 type WorkerOptions = {
   variant: 'raw' | 'sdk'
@@ -20,9 +23,9 @@ type WorkerFixtures = {
 
 type TestFixtures = {
   testUser: TestUser
+  db: IndexedDbManager
 }
 
-// Base test with user creation (no auto-auth)
 export const test = base.extend<TestFixtures, WorkerOptions & Pick<WorkerFixtures, 'workerUser'>>({
   variant: ['raw', { option: true, scope: 'worker' }],
 
@@ -46,9 +49,12 @@ export const test = base.extend<TestFixtures, WorkerOptions & Pick<WorkerFixture
   testUser: async ({ workerUser }, use) => {
     await use(workerUser)
   },
+
+  db: async ({ page }, use) => {
+    await use(new IndexedDbManager(page, gotoOptions))
+  },
 })
 
-// Authenticated test that auto-loads storage state
 export const authTest = test.extend<TestFixtures, WorkerFixtures>({
   workerStorageState: [
     async ({ browser, workerUser }, use, workerInfo) => {
@@ -60,16 +66,12 @@ export const authTest = test.extend<TestFixtures, WorkerFixtures>({
         fs.mkdirSync(authDir, { recursive: true })
       }
 
-      const baseURL =
-        (workerInfo.project.use as { baseURL?: string }).baseURL ?? 'http://127.0.0.1:5100'
-
-      const context = await browser.newContext({ baseURL })
+      const baseUrl = workerInfo.project.use.baseURL
+      const context = await browser.newContext({ baseURL: baseUrl })
       const page = await context.newPage()
 
-      await page.goto('/')
-      await page.fill('input[aria-label="Email Address"]', workerUser.email)
-      await page.fill('input[aria-label="Password"]', workerUser.password)
-      await page.click('button:has-text("Sign In")')
+      await loginViaUi(page, workerUser)
+      await page.goto('/chat')
       await page.waitForURL('**/chat', { timeout: 10000 })
 
       await context.storageState({ path: authFile })

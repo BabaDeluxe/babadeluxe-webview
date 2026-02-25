@@ -1,8 +1,7 @@
-// composables/use-user-avatar.ts
 import { computed, ref } from 'vue'
 import type { Session } from '@supabase/supabase-js'
 import { ok, Result } from 'neverthrow'
-import { SessionParseError } from '@/errors'
+import { DbError } from '@/errors'
 
 interface AvatarCache {
   url: string | undefined
@@ -12,9 +11,7 @@ interface AvatarCache {
 const cache = ref<AvatarCache | undefined>(undefined)
 const cacheTtlMs = 5 * 60 * 1000
 
-function parseSessionFromStorage(
-  projectRef: string
-): Result<Session | undefined, SessionParseError> {
+function parseSessionFromStorage(projectRef: string): Result<Session | undefined, DbError> {
   const storageKey = `sb-${projectRef}-auth-token`
   const item = localStorage.getItem(storageKey)
 
@@ -22,7 +19,7 @@ function parseSessionFromStorage(
 
   return Result.fromThrowable(
     () => JSON.parse(item) as Session,
-    (error) => new SessionParseError('Failed to parse session from localStorage', error as Error)
+    (error) => new DbError('Failed to parse session from localStorage', error as Error)
   )()
 }
 
@@ -41,7 +38,6 @@ export function useUserAvatar(projectRef: string) {
     const sessionResult = parseSessionFromStorage(projectRef)
 
     if (sessionResult.isErr()) {
-      console.warn('Avatar fetch failed, using placeholder', String(sessionResult.error))
       return undefined
     }
 

@@ -1,4 +1,3 @@
-<!-- TODO This shouldn't be a view. It is rather a component. -->
 <template>
   <section id="password-reset">
     <div
@@ -20,13 +19,14 @@
             v-model="email"
             type="email"
             placeholder="Email"
-            class="bg-codeBg border border-borderMuted rounded py-2 px-3 text-deepText focus:outline-none focus:border-accent"
+            class="bg-codeBg border border-borderMuted rounded-lgpy-2 px-3 text-deepText focus:outline-none focus:border-accent"
             required
             aria-label="Email Address"
             autocomplete="email"
           />
 
           <BaseButton
+            variant="primary"
             aria-label="Send Reset Link"
             type="submit"
             text="Send Reset Link"
@@ -34,6 +34,7 @@
           />
 
           <BaseButton
+            variant="secondary"
             aria-label="Back to Login"
             type="button"
             text="Back to Login"
@@ -62,16 +63,18 @@
 </template>
 
 <script setup lang="ts">
-import { inject, onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { ConsoleLogger } from '@simwai/utils'
+import type { AbstractLogger } from '@/logger'
 import { ok, err, type Result } from 'neverthrow'
 import BaseButton from '../components/BaseButton.vue'
 import type { SupabaseClientType } from '@/main'
 import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
+import { safeInject } from '@/safe-inject'
+import { AuthError, ValidationError } from '@/errors'
 
-const supabase: SupabaseClientType = inject(SUPABASE_CLIENT_KEY)!
-const logger: ConsoleLogger = inject(LOGGER_KEY)!
+const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
+const logger: AbstractLogger = safeInject(LOGGER_KEY)
 const router = useRouter()
 
 const email = ref('')
@@ -89,9 +92,9 @@ const sendPasswordResetEmail = async (
   emailAddress: string,
   supabaseClient: SupabaseClientType,
   origin: string
-): Promise<Result<void, string>> => {
+): Promise<Result<void, AuthError | ValidationError>> => {
   if (!emailAddress.trim()) {
-    return err('Please enter your email address')
+    return err(new ValidationError('Please enter your email address'))
   }
 
   const { error: resetError } = await supabaseClient.auth.resetPasswordForEmail(emailAddress, {
@@ -99,7 +102,7 @@ const sendPasswordResetEmail = async (
   })
 
   if (resetError) {
-    return err(resetError.message)
+    return err(new AuthError(resetError.message))
   }
 
   return ok(undefined)
@@ -119,9 +122,12 @@ const handleSendResetEmail = async () => {
     () => {
       success.value = true
     },
-    (errorMessage) => {
-      error.value = errorMessage
-      logger.error('Reset email failed:', errorMessage)
+    (resetError) => {
+      error.value = resetError.message
+      logger.error('Password reset email failed', {
+        email: email.value,
+        error: resetError,
+      })
     }
   )
 

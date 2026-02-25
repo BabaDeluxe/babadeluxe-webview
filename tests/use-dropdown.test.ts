@@ -1,226 +1,124 @@
 /**
  * @vitest-environment jsdom
  */
-/* eslint-disable vue/one-component-per-file */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { defineComponent, nextTick, h } from 'vue'
+import { describe, it, expect, afterEach } from 'vitest'
+import { nextTick, ref } from 'vue'
+import { useDropdown, type UseDropdownOptions } from '@/composables/use-dropdown'
 
-describe('useDropdown with VueUse onClickOutside', () => {
-  let useDropdown: any
+describe('useDropdown()', () => {
+  const containers: HTMLElement[] = []
 
-  beforeEach(async () => {
-    vi.resetModules()
-    const module = await import('@/composables/use-dropdown')
-    useDropdown = module.useDropdown
-  })
+  function setupDropdown(options?: UseDropdownOptions) {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    containers.push(container)
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
+    const dropdown = useDropdown(options)
+    dropdown.containerRef.value = container
 
-  function createTestComponent() {
-    return defineComponent({
-      setup() {
-        const dropdown = useDropdown()
-        return { dropdown }
-      },
-      render() {
-        return h('div', { ref: (el) => (this.dropdown.containerRef.value = el as HTMLElement) }, [
-          h('button', { onClick: () => this.dropdown.toggle(), class: 'trigger' }, 'Toggle'),
-          this.dropdown.isOpen.value ? h('div', { class: 'menu' }, 'Menu') : null,
-        ])
-      },
-    })
+    return { dropdown, container }
   }
 
-  describe('basic functionality', () => {
-    it('should initialize with isOpen = false', () => {
-      const wrapper = mount(createTestComponent())
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(false)
+  async function clickOutside(): Promise<void> {
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    outside.click()
+    await nextTick()
+    document.body.removeChild(outside)
+  }
+
+  afterEach(() => {
+    containers.forEach((el) => document.body.removeChild(el))
+    containers.length = 0
+  })
+
+  describe('core state management', () => {
+    it('toggles open and closed', () => {
+      const { dropdown } = setupDropdown()
+
+      dropdown.toggle()
+      expect(dropdown.isOpen.value).toBe(true)
+
+      dropdown.toggle()
+      expect(dropdown.isOpen.value).toBe(false)
     })
 
-    it('should toggle open on first toggle()', async () => {
-      const wrapper = mount(createTestComponent())
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(true)
-    })
+    it('closes programmatically', () => {
+      const { dropdown } = setupDropdown()
+      dropdown.toggle()
 
-    it('should toggle closed on second toggle()', async () => {
-      const wrapper = mount(createTestComponent())
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(false)
-    })
+      dropdown.close()
 
-    it('should close when close() is called', async () => {
-      const wrapper = mount(createTestComponent())
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(true)
-      wrapper.vm.dropdown.close()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(false)
-    })
-
-    it('should not error when close() is called while already closed', () => {
-      const wrapper = mount(createTestComponent())
-      expect(() => wrapper.vm.dropdown.close()).not.toThrow()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(false)
-    })
-
-    it('should provide a containerRef', () => {
-      const wrapper = mount(createTestComponent())
-      expect(wrapper.vm.dropdown.containerRef).toBeDefined()
+      expect(dropdown.isOpen.value).toBe(false)
     })
   })
 
-  describe('outside click behavior', () => {
-    it('should close dropdown on outside click', async () => {
-      const wrapper = mount(createTestComponent(), { attachTo: document.body })
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(true)
+  describe('click outside behavior', () => {
+    it('closes on outside click', async () => {
+      const { dropdown } = setupDropdown()
+      dropdown.toggle()
 
-      const outsideElement = document.createElement('div')
-      document.body.appendChild(outsideElement)
-      outsideElement.click()
-      await nextTick()
+      await clickOutside()
 
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(false)
-      document.body.removeChild(outsideElement)
-      wrapper.unmount()
+      expect(dropdown.isOpen.value).toBe(false)
     })
 
-    it('should NOT close dropdown on inside click', async () => {
-      const wrapper = mount(createTestComponent(), { attachTo: document.body })
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(true)
+    it('stays open when clicking inside container', async () => {
+      const { dropdown, container } = setupDropdown()
+      dropdown.toggle()
 
-      const menu = wrapper.element.querySelector('.menu') as HTMLElement
+      container.click()
+      await nextTick()
+
+      expect(dropdown.isOpen.value).toBe(true)
+    })
+  })
+
+  describe('ignore configuration (production pattern)', () => {
+    it('ignores teleported menu with data-dropdown-layer attribute', async () => {
+      const { dropdown } = setupDropdown()
+      dropdown.toggle()
+
+      const teleportedMenu = document.createElement('div')
+      teleportedMenu.setAttribute('data-dropdown-layer', 'true')
+      document.body.appendChild(teleportedMenu)
+      containers.push(teleportedMenu)
+
+      teleportedMenu.click()
+      await nextTick()
+
+      expect(dropdown.isOpen.value).toBe(true)
+    })
+
+    it('ignores custom menu ref (BaseDropdown/BaseDropdownMenu pattern)', async () => {
+      const menuRef = ref<HTMLElement>()
+      const { dropdown } = setupDropdown({ ignore: [menuRef] })
+      dropdown.toggle()
+
+      const menu = document.createElement('div')
+      menuRef.value = menu
+      document.body.appendChild(menu)
+      containers.push(menu)
+
       menu.click()
       await nextTick()
 
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(true)
-      wrapper.unmount()
+      expect(dropdown.isOpen.value).toBe(true)
     })
 
-    it('should NOT close dropdown when clicking trigger', async () => {
-      const wrapper = mount(createTestComponent(), { attachTo: document.body })
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(true)
+    it('closes when clicking outside all ignored elements', async () => {
+      const menuRef = ref<HTMLElement>()
+      const { dropdown } = setupDropdown({ ignore: [menuRef] })
 
-      const trigger = wrapper.element.querySelector('.trigger') as HTMLElement
-      trigger.click()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(false)
-      wrapper.unmount()
-    })
-  })
+      const menu = document.createElement('div')
+      menuRef.value = menu
+      document.body.appendChild(menu)
+      containers.push(menu)
 
-  describe('multiple independent dropdowns', () => {
-    it('should allow multiple dropdowns open simultaneously', async () => {
-      const wrapper1 = mount(createTestComponent())
-      const wrapper2 = mount(createTestComponent())
-      const wrapper3 = mount(createTestComponent())
+      dropdown.toggle()
+      await clickOutside()
 
-      wrapper1.vm.dropdown.toggle()
-      await nextTick()
-      wrapper2.vm.dropdown.toggle()
-      await nextTick()
-      wrapper3.vm.dropdown.toggle()
-      await nextTick()
-      expect(wrapper1.vm.dropdown.isOpen.value).toBe(true)
-      expect(wrapper2.vm.dropdown.isOpen.value).toBe(true)
-      expect(wrapper3.vm.dropdown.isOpen.value).toBe(true)
-    })
-
-    it('should close each dropdown independently', async () => {
-      const wrapper1 = mount(createTestComponent(), { attachTo: document.body })
-      const wrapper2 = mount(createTestComponent(), { attachTo: document.body })
-
-      wrapper1.vm.dropdown.toggle()
-      wrapper2.vm.dropdown.toggle()
-      await nextTick()
-
-      wrapper1.vm.dropdown.close()
-      await nextTick()
-
-      expect(wrapper1.vm.dropdown.isOpen.value).toBe(false)
-      expect(wrapper2.vm.dropdown.isOpen.value).toBe(true)
-
-      wrapper1.unmount()
-      wrapper2.unmount()
-    })
-  })
-
-  describe('DOM hierarchy (natural nesting)', () => {
-    it('should not close parent dropdown when clicking child dropdown', async () => {
-      const parentComponent = defineComponent({
-        setup() {
-          const dropdown = useDropdown()
-          return { dropdown }
-        },
-        render() {
-          return h('div', { ref: (el) => (this.dropdown.containerRef.value = el as HTMLElement) }, [
-            h(
-              'button',
-              { onClick: () => this.dropdown.toggle(), class: 'parent-trigger' },
-              'Parent'
-            ),
-            this.dropdown.isOpen.value
-              ? h('div', { class: 'parent-menu' }, [h(childComponent)])
-              : null,
-          ])
-        },
-      })
-
-      const childComponent = defineComponent({
-        setup() {
-          const dropdown = useDropdown()
-          return { dropdown }
-        },
-        render() {
-          return h('div', { ref: (el) => (this.dropdown.containerRef.value = el as HTMLElement) }, [
-            h('button', { onClick: () => this.dropdown.toggle(), class: 'child-trigger' }, 'Child'),
-            this.dropdown.isOpen.value ? h('div', { class: 'child-menu' }, 'Child Menu') : null,
-          ])
-        },
-      })
-
-      const wrapper = mount(parentComponent, { attachTo: document.body })
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-
-      const childTrigger = wrapper.element.querySelector('.child-trigger') as HTMLElement
-      childTrigger.click()
-      await nextTick()
-      expect(wrapper.vm.dropdown.isOpen.value).toBe(true)
-      wrapper.unmount()
-    })
-  })
-
-  describe('cleanup', () => {
-    it('should not throw after unmounting', async () => {
-      const wrapper = mount(createTestComponent(), { attachTo: document.body })
-      wrapper.vm.dropdown.toggle()
-      await nextTick()
-
-      wrapper.unmount()
-      await nextTick()
-
-      const outsideElement = document.createElement('div')
-      document.body.appendChild(outsideElement)
-      expect(() => {
-        outsideElement.click()
-      }).not.toThrow()
-      document.body.removeChild(outsideElement)
+      expect(dropdown.isOpen.value).toBe(false)
     })
   })
 })

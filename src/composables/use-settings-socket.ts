@@ -1,14 +1,24 @@
-import { ref, onBeforeUnmount, inject, readonly } from 'vue'
-import type { ConsoleLogger } from '@simwai/utils'
+import { ref, onBeforeUnmount, readonly, computed, watch } from 'vue'
 import { type Root, type UserSettingWithValidation, getSettingDefinition } from '@babadeluxe/shared'
-import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 import { fromWire } from '@/settings-utils'
+import { socketTimeoutMs } from '@/constants'
+import { ResultAsync, err, ok, type Result } from 'neverthrow'
+import type { SocketConnectionError } from '@/errors'
+import { NetworkError, SocketError } from '@/errors'
+import { useSocketManager } from '@/composables/use-socket-manager'
+
+type SettingsGetAllResponse = Parameters<Parameters<Root.Actions['settings:getAll']>[0]>[0]
+
+type SettingsUpsertPayload = Parameters<Root.Actions['settings:upsert']>[0]
+type SettingsUpsertResponse = Parameters<Parameters<Root.Actions['settings:upsert']>[1]>[0]
+
+type SettingsDeletePayload = Parameters<Root.Actions['settings:delete']>[0]
+type SettingsDeleteResponse = Parameters<Parameters<Root.Actions['settings:delete']>[1]>[0]
 
 export function useSettingsSocket() {
-  const socketManager = inject(SOCKET_MANAGER_KEY)!
-  const logger: ConsoleLogger = inject(LOGGER_KEY)!
+  const { socketManagerRef } = useSocketManager()
 
-  const settingsSocket = socketManager.settingsSocket
+  const settingsSocketRef = computed(() => socketManagerRef.value?.settingsSocket)
 
   const settings = ref<UserSettingWithValidation[]>([])
   const isLoading = ref(false)
@@ -43,87 +53,202 @@ export function useSettingsSocket() {
 
   const onError: Root.Emission['settings:error'] = (payload) => {
     error.value = payload.error
-    logger.error('Settings socket error:', payload.error)
   }
 
-  // Register handlers
-  settingsSocket.on('settings:updated', onUpdated)
-  settingsSocket.on('settings:deleted', onDeleted)
-  settingsSocket.on('settings:error', onError)
+  watch(
+    settingsSocketRef,
+    (newSocket, oldSocket) => {
+      if (oldSocket) {
+        oldSocket.off('settings:updated', onUpdated)
+        oldSocket.off('settings:deleted', onDeleted)
+        oldSocket.off('settings:error', onError)
+      }
+      if (!newSocket) return
 
-  // Cleanup
+      newSocket.on('settings:updated', onUpdated)
+      newSocket.on('settings:deleted', onDeleted)
+      newSocket.on('settings:error', onError)
+    },
+    { immediate: true }
+  )
+
   onBeforeUnmount(() => {
-    settingsSocket.off('settings:updated', onUpdated)
-    settingsSocket.off('settings:deleted', onDeleted)
-    settingsSocket.off('settings:error', onError)
+    if (!settingsSocketRef.value) return
+
+    settingsSocketRef.value.off('settings:updated', onUpdated)
+    settingsSocketRef.value.off('settings:deleted', onDeleted)
+    settingsSocketRef.value.off('settings:error', onError)
   })
 
-  const loadSettings = async (): Promise<void> => {
-    const waitResult = await settingsSocket.waitForConnection()
-    if (waitResult.isErr()) {
-      throw waitResult.error
+  const loadSettings = async (): Promise<Result<void, SocketConnectionError>> => {
+    const socket = settingsSocketRef.value
+    if (!socket) {
+      const socketError = new SocketError('Settings socket not connected')
+      error.value = socketError.message
+      return err(socketError)
     }
 
-    return new Promise((resolve, reject) => {
-      isLoading.value = true
-      error.value = undefined
+    const waitResult = await socket.waitForConnection()
+    if (waitResult.isErr()) {
+      const rootError = waitResult.error
+      const mappedError =
+        rootError instanceof NetworkError
+          ? rootError
+          : new NetworkError('Settings socket connection failed', rootError)
+      error.value = mappedError.message
+      return err(mappedError)
+    }
 
-      const timeoutId = setTimeout(() => {
-        logger.error('Acknowledgment timeout on settings socket')
-        reject(new Error('Server acknowledgment timeout'))
-      }, 5000)
+    const result = await ResultAsync.fromPromise(
+      new Promise<void>((resolve, reject) => {
+        isLoading.value = true
+        error.value = undefined
 
-      settingsSocket.emit('settings:getAll', (response) => {
-        clearTimeout(timeoutId)
-        isLoading.value = false
+        const timeoutId = setTimeout(() => {
+          reject(new NetworkError('Failed to load settings: timeout'))
+        }, socketTimeoutMs.settings)
 
-        if (response.success) {
-          settings.value = response.data.map(fromWire)
-          resolve()
-        } else {
-          error.value = response.error
-          reject(new Error(response.error ?? 'Unknown error'))
-        }
-      })
-    })
+        socket.emit('settings:getAll', (response: SettingsGetAllResponse) => {
+          clearTimeout(timeoutId)
+          isLoading.value = false
+
+          if (response.success) {
+            settings.value = response.data.map(fromWire)
+            resolve()
+            return
+          }
+
+          const errorMessage = response.error ?? 'Failed to load settings'
+          const networkError = new NetworkError(errorMessage)
+          error.value = networkError.message
+          reject(networkError)
+        })
+      }),
+      (unknownError): NetworkError =>
+        unknownError instanceof NetworkError
+          ? unknownError
+          : new NetworkError('Failed to load settings', unknownError)
+    )
+
+    if (result.isErr()) {
+      return err(result.error)
+    }
+
+    return ok(undefined)
   }
 
   const upsertSetting = async (
     settingKey: string,
     settingValue: unknown,
     dataType: 'string' | 'number' | 'boolean'
-  ): Promise<void> => {
-    const waitResult = await settingsSocket.waitForConnection()
-    if (waitResult.isErr()) throw waitResult.error
-
-    return new Promise((resolve, reject) => {
-      settingsSocket.emit('settings:upsert', { settingKey, settingValue, dataType }, (response) => {
-        if (response.success) {
-          resolve()
-        } else {
-          error.value = response.error
-          reject(new Error(response.error ?? 'Unknown error'))
-        }
-      })
-    })
-  }
-
-  const deleteSetting = async (settingKey: string): Promise<void> => {
-    const waitResult = await settingsSocket.waitForConnection()
-    if (waitResult.isErr()) {
-      throw waitResult.error
+  ): Promise<Result<void, SocketConnectionError>> => {
+    const socket = settingsSocketRef.value
+    if (!socket) {
+      const socketError = new SocketError('Settings socket not connected')
+      error.value = socketError.message
+      return err(socketError)
     }
 
-    return new Promise((resolve, reject) => {
-      settingsSocket.emit('settings:delete', { settingKey }, (response) => {
-        if (response.success) {
-          resolve()
-        } else {
-          error.value = response.error
-          reject(new Error(response.error ?? 'Unknown error'))
-        }
-      })
-    })
+    const waitResult = await socket.waitForConnection()
+    if (waitResult.isErr()) {
+      const rootError = waitResult.error
+      const mappedError =
+        rootError instanceof NetworkError
+          ? rootError
+          : new NetworkError('Settings socket connection failed', rootError)
+      error.value = mappedError.message
+      return err(mappedError)
+    }
+
+    const payload: SettingsUpsertPayload = { settingKey, settingValue, dataType }
+
+    const result = await ResultAsync.fromPromise(
+      new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new NetworkError('Failed to update setting: timeout'))
+        }, socketTimeoutMs.settings)
+
+        socket.emit('settings:upsert', payload, (response: SettingsUpsertResponse) => {
+          clearTimeout(timeoutId)
+
+          if (response.success) {
+            resolve()
+            return
+          }
+
+          const errorMessage = response.error ?? 'Failed to update setting'
+          const networkError = new NetworkError(errorMessage)
+          error.value = networkError.message
+          reject(networkError)
+        })
+      }),
+      (unknownError): NetworkError =>
+        unknownError instanceof NetworkError
+          ? unknownError
+          : new NetworkError('Failed to update setting', unknownError)
+    )
+
+    if (result.isErr()) {
+      return err(result.error)
+    }
+
+    return ok(undefined)
+  }
+
+  const deleteSetting = async (
+    settingKey: string
+  ): Promise<Result<void, SocketConnectionError>> => {
+    const socket = settingsSocketRef.value
+    if (!socket) {
+      const socketError = new SocketError('Settings socket not connected')
+      error.value = socketError.message
+      return err(socketError)
+    }
+
+    const waitResult = await socket.waitForConnection()
+    if (waitResult.isErr()) {
+      const rootError = waitResult.error
+      const mappedError =
+        rootError instanceof NetworkError
+          ? rootError
+          : new NetworkError('Settings socket connection failed', rootError)
+      error.value = mappedError.message
+      return err(mappedError)
+    }
+
+    const payload: SettingsDeletePayload = { settingKey }
+
+    const result = await ResultAsync.fromPromise(
+      new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new NetworkError('Failed to delete setting: timeout'))
+        }, socketTimeoutMs.settings)
+
+        socket.emit('settings:delete', payload, (response: SettingsDeleteResponse) => {
+          clearTimeout(timeoutId)
+
+          if (response.success) {
+            resolve()
+            return
+          }
+
+          const errorMessage = response.error ?? 'Failed to delete setting'
+          const networkError = new NetworkError(errorMessage)
+          error.value = networkError.message
+          reject(networkError)
+        })
+      }),
+      (unknownError): NetworkError =>
+        unknownError instanceof NetworkError
+          ? unknownError
+          : new NetworkError('Failed to delete setting', unknownError)
+    )
+
+    if (result.isErr()) {
+      return err(result.error)
+    }
+
+    return ok(undefined)
   }
 
   return {
@@ -133,6 +258,6 @@ export function useSettingsSocket() {
     loadSettings,
     upsertSetting,
     deleteSetting,
-    isConnected: settingsSocket.isConnected,
+    isConnected: computed(() => settingsSocketRef.value?.isConnected ?? false),
   }
 }

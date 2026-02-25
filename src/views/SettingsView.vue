@@ -2,14 +2,26 @@
   <section
     id="settings"
     data-testid="settings-container"
-    class="flex-1 flex flex-col gap-6 p-4"
+    class="flex-1 flex flex-col gap-6 p-4 sm:p-6 max-w-4xl mx-auto w-full"
   >
-    <!-- Unified Alert Banners -->
     <BaseAlertList :banners="alertBanners" />
 
-    <!-- Loading State -->
     <div
-      v-if="isLoadingSettings"
+      v-if="hasComponentError"
+      data-testid="component-error"
+      class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
+    >
+      <p class="text-error text-lg">Something went wrong with the settings view.</p>
+      <BaseButton
+        variant="secondary"
+        @click="handleReload"
+      >
+        Reload Page
+      </BaseButton>
+    </div>
+
+    <div
+      v-else-if="isLoadingSettings"
       data-testid="loading-state"
       class="flex-1 flex items-center justify-center"
     >
@@ -19,18 +31,17 @@
       />
     </div>
 
-    <!-- Main Content -->
     <template v-else>
-      <!-- General Settings Section -->
       <section
         v-if="generalSettings.length > 0"
         data-testid="general-settings-section"
+        class="flex flex-col gap-4"
       >
-        <h2 class="text-xl font-semibold mb-4 text-deepText">General Settings</h2>
+        <h2 class="text-xl font-onest font-semibold text-deepText">General Settings</h2>
         <div
           v-for="setting in generalSettings"
           :key="setting.settingKey"
-          class="mb-4"
+          class="flex flex-col gap-1"
         >
           <SettingsField
             :setting="setting"
@@ -42,30 +53,32 @@
             v-if="fieldStates[setting.settingKey]?.error"
             role="alert"
             :aria-label="`Error for ${setting.settingKey}`"
-            class="text-error text-xs mt-1"
+            class="text-error text-xs"
           >
             {{ fieldStates[setting.settingKey]?.error }}
           </div>
         </div>
       </section>
 
-      <!-- API Providers Section -->
-      <section data-testid="api-providers-section">
-        <h3 class="text-lg font-semibold mb-3 text-deepText">API Keys</h3>
+      <section
+        data-testid="api-providers-section"
+        class="flex flex-col gap-4"
+      >
+        <h3 class="text-lg font-onest font-semibold text-deepText">API Keys</h3>
         <div
           v-for="provider in apiProviders"
           :key="provider.key"
-          class="mb-4"
+          class="flex flex-col gap-1"
         >
           <BaseInput
             v-model="fieldStates[provider.key].value"
             type="password"
             :label="provider.name"
             :placeholder="`Enter ${provider.name} API key...`"
-            :required="provider.required"
+            :is-required="provider.required"
             :validation-state="fieldStates[provider.key].status"
             :error="fieldStates[provider.key].error"
-            :toggleable="true"
+            :is-toggleable="true"
             :data-testid="`api-${provider.key}`"
             @update:model-value="handleApiKeyInput(provider.key, $event)"
           />
@@ -76,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, inject, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onErrorCaptured, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { ResultAsync } from 'neverthrow'
 import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
@@ -87,10 +100,16 @@ import SettingsField from '@/components/SettingsField.vue'
 import BaseAlertList from '@/components/BaseAlertList.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseInput from '@/components/BaseInput.vue'
-import { API_KEY_VALIDATOR_KEY, LOGGER_KEY } from '@/injection-keys'
-import type { ConsoleLogger } from '@simwai/utils'
-import type { ApiKeyValidator } from '@/api-key-validator'
-import { InvalidApiKeyError, LlmRateLimitedError } from '@/errors'
+import BaseButton from '@/components/BaseButton.vue'
+import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import {
+  ValidationError,
+  RateLimitError,
+  AuthError,
+  InitializationError,
+  NetworkError,
+} from '@/errors'
+import { safeInject } from '@/safe-inject'
 
 type FieldStatus = 'idle' | 'validating' | 'valid' | 'invalid'
 
@@ -100,8 +119,9 @@ type FieldState = {
   error?: string
 }
 
-const logger: ConsoleLogger = inject(LOGGER_KEY)!
-const validator: ApiKeyValidator = inject(API_KEY_VALIDATOR_KEY)!
+const logger = safeInject(LOGGER_KEY)
+const validator = safeInject(API_KEY_VALIDATOR_KEY)
+const supabase = safeInject(SUPABASE_CLIENT_KEY)
 
 const { settings, upsertSetting, loadSettings } = useSettingsSocket()
 const { reloadModels } = useModelsSocket()
@@ -123,6 +143,24 @@ const isLoadingSettings = ref(true)
 const loadError = ref<string | undefined>()
 const isDebounceStopped = ref(false)
 const modelsReloadWarning = ref<string | undefined>()
+const currentUserId = ref<string>()
+
+const hasComponentError = ref(false)
+const handleReload = () => {
+  window.location.reload()
+}
+
+onErrorCaptured((err, instance, info) => {
+  logger.error('Settings component crashed', {
+    vueInfo: info,
+    componentName: instance?.$options?.name,
+    userId: currentUserId.value,
+    error: err,
+  })
+
+  hasComponentError.value = true
+  return false
+})
 
 const generalSettings = computed(() =>
   settings.value.filter((setting) => !setting.settingKey.startsWith('apiKey'))
@@ -205,16 +243,26 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
   const providerName = provider.replace('apiKey', '').toLowerCase()
   const result = await validator.validate(providerName, apiKey)
 
-  if (result.isErr()) {
-    const error = result.error
-    logger.error(`Validation failed for ${provider}:`, error)
+  if (!result || result.isErr()) {
+    const error = result?.error
 
-    if (error instanceof InvalidApiKeyError) {
-      updateFieldStatus(provider, 'invalid', 'The provided API key is not valid.')
-    } else if (error instanceof LlmRateLimitedError) {
-      updateFieldStatus(provider, 'invalid', 'Rate limited. Please wait a moment.')
+    if (error) {
+      logger.error('API key validation failed', {
+        userId: currentUserId.value,
+        provider,
+        error,
+      })
+      if (error instanceof ValidationError) {
+        updateFieldStatus(provider, 'invalid', 'The provided API key is not valid.')
+      } else if (error instanceof RateLimitError) {
+        updateFieldStatus(provider, 'invalid', 'Rate limited. Please wait a moment.')
+      } else if (error instanceof NetworkError) {
+        updateFieldStatus(provider, 'invalid', 'Network error. Check connection and retry.')
+      } else {
+        updateFieldStatus(provider, 'invalid', 'Validation failed. Please try again.')
+      }
     } else {
-      updateFieldStatus(provider, 'invalid', error.message)
+      updateFieldStatus(provider, 'invalid', 'Validation failed')
     }
     return
   }
@@ -224,7 +272,11 @@ const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
 
   const reloadModelsResult = await reloadModels()
   if (reloadModelsResult.isErr()) {
-    logger.error('Failed to reload models after API key validation:', reloadModelsResult.error)
+    logger.error('Failed to reload models after API key validation', {
+      userId: currentUserId.value,
+      provider,
+      error: reloadModelsResult.error,
+    })
     modelsReloadWarning.value =
       'API key saved, but models could not be updated. Please reload the page.'
   }
@@ -267,12 +319,37 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
   await upsertSetting(fieldName, value, setting.dataType)
 }
 
-onMounted(async () => {
-  const result = await ResultAsync.fromPromise(
-    loadSettings(),
-    (unknownError) =>
-      new Error(unknownError instanceof Error ? unknownError.message : 'Failed to load settings')
+const fetchUserId = async (): Promise<void> => {
+  const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
+    if (unknownError instanceof Error) {
+      return new AuthError(unknownError.message, unknownError)
+    }
+    return new AuthError('Failed to fetch user', unknownError)
+  })
+
+  getUserResult.match(
+    (response) => {
+      if (response.data.user?.id) {
+        currentUserId.value = response.data.user.id
+      }
+    },
+    (fetchError) => {
+      logger.error('Failed to fetch user details for settings view', {
+        error: fetchError,
+      })
+    }
   )
+}
+
+onMounted(async () => {
+  await fetchUserId()
+
+  const result = await ResultAsync.fromPromise(loadSettings(), (unknownError) => {
+    if (unknownError instanceof Error) {
+      return new InitializationError(unknownError.message, unknownError)
+    }
+    return new InitializationError('Failed to load settings', unknownError)
+  })
 
   result.match(
     () => {
@@ -280,8 +357,11 @@ onMounted(async () => {
       isLoadingSettings.value = false
     },
     (loadErr) => {
-      logger.error('Failed to load settings on initial page load:', loadErr)
-      loadError.value = loadErr.message
+      logger.error('Failed to load settings', {
+        userId: currentUserId.value,
+        error: loadErr,
+      })
+      loadError.value = 'Settings could not be loaded. Please refresh the page.'
       isLoadingSettings.value = false
     }
   )

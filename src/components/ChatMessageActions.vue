@@ -4,71 +4,104 @@
     menu-test-id="message-menu-dropdown"
   >
     <template #default="{ close }">
-      <!-- USER MESSAGES: Edit + Rewrite + Delete -->
-      <template v-if="role === 'user'">
-        <button
-          class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 first:rounded-t-lg"
-          data-testid="message-edit-button"
-          @click="handleEdit(close)"
-        >
-          <i class="i-weui:pencil-outlined text-base" />
-          <span>Edit Message</span>
-        </button>
+      <!-- Copy -->
+      <BaseButton
+        v-if="isClipboardSupported"
+        data-testid="message-copy-button"
+        variant="ghost"
+        :icon="hasCopied ? 'i-bi:check2' : 'i-weui:copy-outlined'"
+        class="w-full text-subtleText"
+        type="button"
+        @click="handleCopy(close)"
+      >
+        <span>{{ hasCopied ? 'Copied' : 'Copy' }}</span>
+      </BaseButton>
 
-        <!-- Rewrite for USER messages (conditionally shown) -->
-        <template v-if="showRewrite">
-          <div class="border-t border-borderMuted my-1" />
+      <div
+        v-if="isEditable || isRewritable || isDeletable"
+        class="border-t border-borderMuted my-1"
+      />
 
-          <BaseDropdown
-            :model-value="selectedModel"
-            icon="i-fluent:arrow-repeat"
-            :groups="modelGroups"
-            :disabled="isLoadingModels"
-            placement="right"
-            data-testid="message-rewrite-selector"
-            full-width
-            trigger-class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-deepText transition-colors flex items-center gap-2.5 justify-between cursor-pointer"
-            @update:model-value="(modelId) => handleRewrite(modelId, close)"
-          >
-            <div class="flex items-center gap-2.5">
-              <i class="i-fluent:arrow-repeat text-base" />
-              <span v-if="isLoadingModels">Loading models...</span>
-              <span v-else-if="modelsError">Error loading models</span>
-              <span v-else>Rewrite with...</span>
-            </div>
-            <i class="i-weui:arrow-outlined rotate-90 text-xs opacity-50" />
-          </BaseDropdown>
-        </template>
+      <!-- Edit -->
+      <BaseButton
+        v-if="isEditable"
+        data-testid="message-edit-button"
+        variant="ghost"
+        icon="i-weui:pencil-outlined"
+        class="w-full text-subtleText"
+        type="button"
+        @click="handleEdit(close)"
+      >
+        Edit Message
+      </BaseButton>
 
-        <div class="border-t border-borderMuted my-1" />
-      </template>
+      <div
+        v-if="isEditable && isRewritable"
+        class="border-t border-borderMuted my-1"
+      />
 
-      <!-- Delete button for both roles -->
-      <button
-        class="w-full px-3 py-2.5 text-left text-sm hover:bg-codeBg text-subtleText hover:text-error transition-colors flex items-center gap-2.5 last:rounded-b-lg"
+      <!-- Rewrite -->
+      <BaseDropdown
+        v-if="isRewritable"
+        data-testid="message-rewrite-selector"
+        variant="icon"
+        icon=""
+        :model-value="selectedModel"
+        :groups="modelGroups"
+        :is-disabled="isLoadingModels"
+        placement="right"
+        @update:model-value="(modelId) => handleRewrite(modelId, close)"
+      >
+        <div class="w-full flex justify-between items-center px-2 gap-2">
+          <i class="i-bi:arrow-repeat"></i>
+          <span v-if="isLoadingModels">Loading models...</span>
+          <span v-else-if="modelsError">Error loading models</span>
+          <span v-else>Rewrite with...</span>
+          <i class="i-weui:arrow-outlined rotate-90 opacity-50" />
+        </div>
+      </BaseDropdown>
+
+      <div
+        v-if="(isEditable || isRewritable) && isDeletable"
+        class="border-t border-borderMuted my-1"
+      />
+
+      <!-- Delete -->
+      <BaseButton
+        v-if="isDeletable"
         data-testid="message-delete-button"
+        variant="ghost"
+        icon="i-weui:delete-outlined"
+        class="w-full text-error"
+        type="button"
         @click="handleDelete(close)"
       >
-        <i class="i-weui:delete-outlined text-base" />
-        <span>Delete Message</span>
-      </button>
+        Delete Message
+      </BaseButton>
     </template>
   </BaseDropdownMenu>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useClipboard } from '@vueuse/core'
 import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import BaseDropdown, { type DropdownGroup } from '@/components/BaseDropdown.vue'
+import BaseButton from '@/components/BaseButton.vue'
 import { useModelsSocket } from '@/composables/use-models-socket'
 
 interface ChatMessageActionsProps {
   role: 'user' | 'assistant'
-  showRewrite?: boolean
+  messageContent: string
+  isEditEnabled?: boolean
+  isRewriteEnabled?: boolean
+  isDeleteEnabled?: boolean
 }
 
-withDefaults(defineProps<ChatMessageActionsProps>(), {
-  showRewrite: true,
+const props = withDefaults(defineProps<ChatMessageActionsProps>(), {
+  isEditEnabled: true,
+  isRewriteEnabled: true,
+  isDeleteEnabled: true,
 })
 
 const emit = defineEmits<{
@@ -81,6 +114,17 @@ const { groupedModels: rawGroupedModels, isLoadingModels, modelsError } = useMod
 
 const selectedModel = ref('')
 
+const {
+  copy,
+  copied: hasCopied,
+  isSupported,
+} = useClipboard({
+  copiedDuring: 1200,
+  legacy: true,
+})
+
+const isClipboardSupported = computed(() => isSupported.value)
+
 const modelGroups = computed<DropdownGroup[]>(() =>
   rawGroupedModels.value.map((group) => ({
     label: group.label,
@@ -88,24 +132,46 @@ const modelGroups = computed<DropdownGroup[]>(() =>
       value: item.value,
       label: item.label,
       icon: item.icon,
-      disabled: item.disabled ?? false,
+      isDisabled: item.isDisabled ?? false,
     })),
   }))
 )
 
-function handleEdit(close: () => void) {
+const isEditable = computed(() => props.isEditEnabled && props.role === 'user')
+const isRewritable = computed(() => props.isRewriteEnabled && props.role === 'assistant')
+const isDeletable = computed(() => props.isDeleteEnabled)
+
+async function handleCopy(close: () => void): Promise<void> {
+  if (!isClipboardSupported.value) return
+
+  const textToCopy = props.messageContent.trim()
+  if (!textToCopy) return
+
+  await copy(textToCopy)
+
+  // always close after copy resolves to avoid timing flakiness
   close()
+}
+
+async function handleEdit(close: () => void): Promise<void> {
   emit('edit')
+  // let the click/active animation settle before unmounting the menu
+  await Promise.resolve()
+  close()
 }
 
-function handleDelete(close: () => void) {
-  close()
+async function handleDelete(close: () => void): Promise<void> {
   emit('delete')
+  await Promise.resolve()
+  close()
 }
 
-function handleRewrite(modelId: string, close: () => void) {
-  close()
+function handleRewrite(modelId: string, close: () => void): void {
   emit('rewrite', modelId)
   selectedModel.value = ''
+  // defer close so dropdown’s own state settles
+  requestAnimationFrame(() => {
+    close()
+  })
 }
 </script>

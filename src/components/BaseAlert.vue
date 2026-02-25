@@ -4,7 +4,7 @@
     class="px-4 pb-4"
   >
     <div
-      class="bg-panel border rounded-md p-3 flex items-center justify-between"
+      class="bg-panel border rounded-lg p-3 flex items-center justify-between"
       :class="borderAndIconClass"
     >
       <div
@@ -16,15 +16,18 @@
       </div>
       <BaseButton
         v-if="isDismissible"
+        variant="icon"
         icon="i-weui:close-outlined"
-        :class="`bg-transparent hover:bg-transparent rounded-none border-0 ${textColorClass}`"
-        @click="emit('close')"
+        :class="textColorClass"
+        data-testid="alert-close-button"
+        @click="handleClose"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted, onBeforeUnmount, watch, ref } from 'vue'
 import BaseButton from '@/components/BaseButton.vue'
 
 type ErrorType = 'error' | 'warning'
@@ -33,6 +36,7 @@ interface Props {
   message?: string
   type?: ErrorType
   isDismissible?: boolean
+  autoDismissMs?: number
 }
 
 interface Emits {
@@ -43,9 +47,48 @@ const props = withDefaults(defineProps<Props>(), {
   message: undefined,
   type: 'error',
   isDismissible: true,
+  autoDismissMs: 5000,
 })
 
 const emit = defineEmits<Emits>()
+
+const timeoutId = ref<number | undefined>()
+
+const clearAutoDismiss = () => {
+  if (timeoutId.value !== undefined) {
+    clearTimeout(timeoutId.value)
+    timeoutId.value = undefined
+  }
+}
+
+const scheduleAutoDismiss = () => {
+  clearAutoDismiss()
+  if (!props.message || !props.autoDismissMs || props.autoDismissMs <= 0) return
+  timeoutId.value = window.setTimeout(() => {
+    emit('close')
+    timeoutId.value = undefined
+  }, props.autoDismissMs)
+}
+
+const handleClose = () => {
+  clearAutoDismiss()
+  emit('close')
+}
+
+onMounted(() => {
+  scheduleAutoDismiss()
+})
+
+onBeforeUnmount(() => {
+  clearAutoDismiss()
+})
+
+watch(
+  () => props.message,
+  () => {
+    scheduleAutoDismiss()
+  }
+)
 
 const borderAndIconClass = {
   error: 'border-error',

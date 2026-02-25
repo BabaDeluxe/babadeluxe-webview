@@ -2,7 +2,7 @@
   <div
     ref="dropdownRef"
     aria-label="Search results dropdown"
-    class="absolute top-14 left-3 right-4 bg-panel border border-borderMuted rounded-md shadow-lg z-50 max-h-64 overflow-y-auto"
+    class="absolute top-14 left-3 right-4 bg-panel border border-borderMuted rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto"
   >
     <div
       v-if="isLoading"

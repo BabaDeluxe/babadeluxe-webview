@@ -1,16 +1,16 @@
-import { ref, onBeforeUnmount, inject, readonly, computed } from 'vue'
-import type { ConsoleLogger } from '@simwai/utils'
+import { ref, onBeforeUnmount, readonly, computed, watch } from 'vue'
 import type { SocketManager } from '@/socket-manager'
-import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
-import { ResultAsync } from 'neverthrow'
-import { SubscriptionError } from '@/errors'
+import { err, ok, ResultAsync, type Result } from 'neverthrow'
+import type { SocketConnectionError } from '@/errors'
+import { NetworkError, SocketError } from '@/errors'
+import { socketTimeoutMs } from '@/constants'
+import { useSocketManager } from '@/composables/use-socket-manager'
 
 export function useSubscriptionSocket() {
-  const socketManager: SocketManager = inject(SOCKET_MANAGER_KEY)!
-  const logger: ConsoleLogger = inject(LOGGER_KEY)!
+  const { socketManagerRef } = useSocketManager()
 
-  const subscriptionSocket = socketManager.subscriptionSocket
-  const chatSocket = socketManager.chatSocket
+  const subscriptionSocketRef = computed(() => socketManagerRef.value?.subscriptionSocket)
+  const chatSocketRef = computed(() => socketManagerRef.value?.chatSocket)
 
   const isUpgrading = ref(false)
   const error = ref<string | undefined>()
@@ -18,18 +18,53 @@ export function useSubscriptionSocket() {
   const isDismissed = ref(false)
 
   const onMessageLimitReached = () => {
-    logger.warn('Message limit reached. Showing upsell modal.')
     isMessageLimitReached.value = true
     isDismissed.value = false
   }
 
   const onUserTierChanged = (payload: { tier: string }) => {
-    logger.log(`User tier changed to: ${payload.tier}`)
     if (payload.tier === 'PRO') {
       isMessageLimitReached.value = false
       isDismissed.value = false
     }
   }
+
+  const onCheckoutSessionError = (payload: { error: string }) => {
+    error.value = payload.error
+  }
+
+  const attachListeners = (
+    subSocket: SocketManager['subscriptionSocket'],
+    chatSocket: SocketManager['chatSocket']
+  ) => {
+    subSocket.on('subscription:userTierChanged', onUserTierChanged)
+    subSocket.on('subscription:checkoutSessionError', onCheckoutSessionError)
+    chatSocket.on('subscription:messageLimitReached', onMessageLimitReached)
+  }
+
+  const detachListeners = (
+    subSocket: SocketManager['subscriptionSocket'],
+    chatSocket: SocketManager['chatSocket']
+  ) => {
+    subSocket.off('subscription:userTierChanged', onUserTierChanged)
+    subSocket.off('subscription:checkoutSessionError', onCheckoutSessionError)
+    chatSocket.off('subscription:messageLimitReached', onMessageLimitReached)
+  }
+
+  watch(
+    [subscriptionSocketRef, chatSocketRef],
+    ([newSub, newChat], [oldSub, oldChat]) => {
+      if (oldSub && oldChat) detachListeners(oldSub, oldChat)
+      if (newSub && newChat) attachListeners(newSub, newChat)
+    },
+    { immediate: true }
+  )
+
+  onBeforeUnmount(() => {
+    if (subscriptionSocketRef.value && chatSocketRef.value) {
+      detachListeners(subscriptionSocketRef.value, chatSocketRef.value)
+    }
+  })
 
   const dismissModal = () => {
     isDismissed.value = true
@@ -40,71 +75,66 @@ export function useSubscriptionSocket() {
     return result
   })
 
-  const onCheckoutSessionError = (payload: { error: string }) => {
-    logger.error('Checkout session error:', payload.error)
-    error.value = payload.error
-  }
-  chatSocket.on('subscription:messageLimitReached', onMessageLimitReached)
-  subscriptionSocket.on('subscription:userTierChanged', onUserTierChanged)
-  subscriptionSocket.on('subscription:checkoutSessionError', onCheckoutSessionError)
+  const redirectToCheckout = async (): Promise<Result<void, SocketConnectionError>> => {
+    const socket = subscriptionSocketRef.value
+    if (!socket) {
+      const socketError = new SocketError('Subscription socket not connected')
+      error.value = socketError.message
+      return err(socketError)
+    }
 
-  onBeforeUnmount(() => {
-    chatSocket.off('subscription:messageLimitReached', onMessageLimitReached)
-    subscriptionSocket.off('subscription:userTierChanged', onUserTierChanged)
-    subscriptionSocket.off('subscription:checkoutSessionError', onCheckoutSessionError)
-  })
-
-  const redirectToCheckout = async (): Promise<void> => {
     isUpgrading.value = true
     error.value = undefined
 
-    const waitResult = await subscriptionSocket.waitForConnection()
+    const waitResult = await socket.waitForConnection()
+
+    isUpgrading.value = false
     if (waitResult.isErr()) {
-      isUpgrading.value = false
-      error.value = waitResult.error.message
-      logger.error('Subscription socket connection failed:', waitResult.error)
-      return
+      const rootError = waitResult.error
+      const mappedError =
+        rootError instanceof NetworkError || rootError instanceof SocketError
+          ? rootError
+          : new NetworkError('Subscription socket connection failed', rootError)
+      error.value = mappedError.message
+      return err(mappedError)
     }
 
     const checkoutResult = await ResultAsync.fromPromise(
       new Promise<{ success: boolean; checkoutUrl?: string; error?: string }>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
-          reject(new SubscriptionError('Server acknowledgment timeout'))
-        }, 10000)
+          reject(new NetworkError('Server acknowledgment timeout'))
+        }, socketTimeoutMs.subscription)
 
-        subscriptionSocket.emit(
+        socket.emit(
           'subscription:createCheckoutSession',
-          (
-            response:
-              | { success: boolean; checkoutUrl?: string; error?: string }
-              | PromiseLike<{ success: boolean; checkoutUrl?: string; error?: string }>
-          ) => {
+          (response: { success: boolean; checkoutUrl?: string; error?: string }) => {
             clearTimeout(timeoutId)
             resolve(response)
           }
         )
       }),
-      (unknownError: unknown) => new SubscriptionError(String(unknownError))
+      (unknownError: unknown): NetworkError =>
+        unknownError instanceof NetworkError
+          ? unknownError
+          : new NetworkError('Failed to create checkout session', unknownError)
     )
 
-    checkoutResult.match(
-      (response) => {
-        isUpgrading.value = false
+    if (checkoutResult.isErr()) {
+      error.value = checkoutResult.error.message
+      return err(checkoutResult.error)
+    }
 
-        if (response.success && response.checkoutUrl) {
-          logger.log('Redirecting to Stripe checkout...')
-          window.location.href = response.checkoutUrl
-        } else {
-          error.value = response.error ?? 'Failed to create checkout session'
-          logger.error('Subscription socket error:', error.value)
-        }
-      },
-      (checkoutError) => {
-        isUpgrading.value = false
-        error.value = checkoutError.message
-        logger.error('Subscription socket error:', checkoutError)
-      }
-    )
+    const response = checkoutResult.value
+
+    if (response.success && response.checkoutUrl) {
+      window.location.href = response.checkoutUrl
+      return ok(undefined)
+    }
+
+    const errorMessage = response.error ?? 'Failed to create checkout session'
+    const networkError = new NetworkError(errorMessage)
+    error.value = networkError.message
+    return err(networkError)
   }
 
   return {
@@ -112,7 +142,7 @@ export function useSubscriptionSocket() {
     error: readonly(error),
     isMessageLimitReached: readonly(isMessageLimitReached),
     redirectToCheckout,
-    isConnected: subscriptionSocket.isConnected,
+    isConnected: computed(() => subscriptionSocketRef.value?.isConnected ?? false),
     shouldShowModal: readonly(shouldShowModal),
     dismissModal,
   }

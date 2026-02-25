@@ -1,11 +1,9 @@
 <template>
-  <Transition
-    name="fade"
-    mode="out-in"
-  >
+  <Transition mode="out-in">
     <div
       v-if="!isEditing"
       key="content"
+      class="animate-fade-in animate-duration-150 animate-ease-out"
     >
       <slot name="content">
         {{ content }}
@@ -15,14 +13,15 @@
     <div
       v-else
       key="editing"
-      class="min-h-5 md:max-w-60vw w-full overflow-x-hidden"
+      class="min-h-5 w-full min-w-0 animate-fade-in animate-duration-150 animate-ease-out"
     >
-      <textarea
+      <BaseTextArea
         ref="textareaRef"
-        v-model="localValue"
-        :disabled="isSaving"
+        v-model:value="localValue"
+        variant="message"
         :placeholder="placeholder"
-        class="w-full bg-transparent resize-none outline-none border-none text-sm font-sans leading-relaxed pr-3 focus:ring-2 focus:ring-accent/20 rounded min-w-60vw w-full text-deepText overflow-hidden"
+        :disabled="isSaving"
+        class="leading-relaxed"
         data-testid="editable-textarea"
         @keydown="handleKeydown"
       />
@@ -31,12 +30,13 @@
 
   <div
     v-if="isEditing"
-    class="absolute right-0 top-0 flex flex-row flex-row gap-1 flex-0 justify-end items-start"
+    class="absolute right-0 top-0 flex flex-row gap-1 justify-end items-start animate-fade-in animate-duration-150 animate-ease-out"
   >
-    <button
-      class="flex flex-col flex-0 items-center justify-center w-7 h-7 rounded-md hover:bg-accent/20 text-accent transition-all duration-200 active:scale-95"
-      :class="{ 'opacity-50 cursor-not-allowed': isSaving }"
-      :disabled="isSaving"
+    <BaseButton
+      variant="icon"
+      class="bg-panel border border-borderMuted hover:bg-borderMuted/80"
+      :class="savingClass"
+      :is-disabled="isSaving"
       :title="saveHint"
       data-testid="editable-save-button"
       @click="handleSave"
@@ -49,23 +49,25 @@
         v-else
         class="i-svg-spinners:ring-resize text-lg"
       />
-    </button>
-    <button
-      class="flex flex-col flex-0 items-center justify-center w-7 h-7 rounded-md hover:bg-borderMuted/20 text-subtleText hover:text-deepText transition-all duration-200 active:scale-95"
-      :class="{ 'opacity-50 cursor-not-allowed': isSaving }"
-      :disabled="isSaving"
+    </BaseButton>
+
+    <BaseButton
+      variant="icon"
+      icon="i-bi:x-lg"
+      class="bg-panel border border-borderMuted hover:bg-borderMuted/80"
+      :class="savingClass"
+      :is-disabled="isSaving"
       :title="cancelHint"
       data-testid="editable-cancel-button"
       @click="handleCancel"
-    >
-      <i class="i-weui:close-outlined text-lg" />
-    </button>
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { watch, nextTick, useTemplateRef } from 'vue'
-import { useTextareaAutosize } from '@vueuse/core'
+import { watch, nextTick, useTemplateRef, computed, ref } from 'vue'
+import BaseButton from '@/components/BaseButton.vue'
+import BaseTextArea from '@/components/BaseTextField.vue'
 
 interface BaseEditableTextProps {
   content: string
@@ -87,8 +89,10 @@ const emit = defineEmits<{
   (event: 'cancel'): void
 }>()
 
-const textareaRef = useTemplateRef<HTMLTextAreaElement>('textareaRef')
-const { input: localValue } = useTextareaAutosize({ element: textareaRef })
+const textareaRef = useTemplateRef<InstanceType<typeof BaseTextArea>>('textareaRef')
+const localValue = ref('')
+
+const savingClass = computed(() => (props.isSaving ? 'opacity-50 cursor-not-allowed' : ''))
 
 watch(
   () => props.isEditing,
@@ -100,14 +104,15 @@ watch(
       return
     }
     localValue.value = ''
-  }
+  },
+  { immediate: true }
 )
 
 function handleSave() {
   if (props.isSaving) return
 
   const trimmedValue = localValue.value.trim()
-  if (trimmedValue.length === 0 || trimmedValue === props.content) {
+  if (trimmedValue.length === 0) {
     emit('cancel')
     return
   }
@@ -135,20 +140,3 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 </script>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 150ms ease-in-out;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.fade-enter-to,
-.fade-leave-from {
-  opacity: 1;
-}
-</style>

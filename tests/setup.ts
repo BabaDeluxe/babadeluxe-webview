@@ -2,6 +2,7 @@ import { beforeAll } from 'vitest'
 import { validateEnvConfig } from '../src/env-validator'
 import { validateTest } from './helpers/test-env-validator'
 
+// Validate env before running tests
 beforeAll(() => {
   const envValidationResult = validateEnvConfig()
   if (envValidationResult.isErr()) {

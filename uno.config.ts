@@ -1,3 +1,4 @@
+import type { Postprocessor, Rule } from 'unocss'
 import {
   defineConfig,
   presetWind4,
@@ -5,24 +6,55 @@ import {
   presetIcons,
   transformerDirectives,
 } from 'unocss'
+import type { IconifyJSON } from '@iconify/types'
+
+const createPxToRemPostprocessor = (baseFontSize = 16): Postprocessor => {
+  const pxRegex = /(-?[\d.]+)px/g
+
+  return (util) => {
+    for (const entry of util.entries) {
+      const value = entry[1]
+      if (typeof value !== 'string' || !pxRegex.test(value)) continue
+
+      pxRegex.lastIndex = 0
+
+      entry[1] = value.replace(pxRegex, (_, pxValue: string) => {
+        const numericPx = Number(pxValue)
+        if (!Number.isFinite(numericPx)) return _
+        const remValue = numericPx / baseFontSize
+        return `${remValue}rem`
+      })
+    }
+  }
+}
+
+const cssZoomRules: Rule[] = [
+  // zoom-1.5 => zoom: 1.5
+  [
+    /^zoom-(\d+(?:\.\d+)?)$/,
+    ([, v]) => ({
+      zoom: v,
+    }),
+  ],
+]
 
 export default defineConfig({
-  safelist: ['animate-in', 'fade-in', 'slide-in-from-top-2', 'zoom-in-95', 'animate-pulse'],
-  shortcuts: {
-    'animate-in': 'animate-duration-200 animate-ease-out',
-  },
+  postprocess: [createPxToRemPostprocessor(16)],
   theme: {
     colors: {
       slate: '#161925',
       panel: '#1A1E2D',
       accent: '#B67EE6',
-      accentHover: '#8854C0',
+      accentButton: '#8854C0',
+      accentHover: '#A36FDB',
       deepText: '#ECEAFF',
       subtleText: '#B3B3E6',
       codeBg: '#131422',
       borderMuted: '#55437B',
       error: '#E74C5C',
       warning: '#F59E0B',
+      headingText: '#dcd8ff',
+      bodyText: '#f6f4ff',
     },
     fontFamily: {
       onest: 'Onest, sans-serif',
@@ -35,6 +67,7 @@ export default defineConfig({
       breakpoint: {
         ...theme.breakpoint,
         xs: '400px',
+        mobile: '500px',
       },
     }
   },
@@ -51,69 +84,32 @@ export default defineConfig({
       },
     }),
     presetIcons({
-      collections: {
-        'simple-icons': {
-          openai:
-            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M22.282 9.821a6 6 0 0 0-.516-4.91a6.05 6.05 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a6 6 0 0 0-3.998 2.9a6.05 6.05 0 0 0 .743 7.097a5.98 5.98 0 0 0 .51 4.911a6.05 6.05 0 0 0 6.515 2.9A6 6 0 0 0 13.26 24a6.06 6.06 0 0 0 5.772-4.206a6 6 0 0 0 3.997-2.9a6.06 6.06 0 0 0-.747-7.073M13.26 22.43a4.48 4.48 0 0 1-2.876-1.04l.141-.081l4.779-2.758a.8.8 0 0 0 .392-.681v-6.737l2.02 1.168a.07.07 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494M3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085l4.783 2.759a.77.77 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646M2.34 7.896a4.5 4.5 0 0 1 2.366-1.973V11.6a.77.77 0 0 0 .388.677l5.815 3.354l-2.02 1.168a.08.08 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.08.08 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667m2.01-3.023l-.141-.085l-4.774-2.782a.78.78 0 0 0-.785 0L9.409 9.23V6.897a.07.07 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.8.8 0 0 0-.393.681zm1.097-2.365l2.602-1.5l2.607 1.5v2.999l-2.597 1.5l-2.607-1.5Z"/></svg>',
-          anthropic:
-            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M17.304 3.541h-3.672l6.696 16.918H24Zm-10.608 0L0 20.459h3.744l1.37-3.553h7.005l1.369 3.553h3.744L10.536 3.541Zm-.371 10.223L8.616 7.82l2.291 5.945Z"/></svg>',
-          google:
-            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68q.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58a12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68q-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96q2.19.93 3.81 2.55t2.55 3.81"/></svg>',
-          github:
-            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12c0 5.303 3.438 9.8 8.205 11.385c.6.113.82-.258.82-.577c0-.285-.01-1.04-.015-2.04c-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729c1.205.084 1.838 1.236 1.838 1.236c1.07 1.835 2.809 1.305 3.495.998c.108-.776.417-1.305.76-1.605c-2.665-.3-5.466-1.332-5.466-5.93c0-1.31.465-2.38 1.235-3.22c-.135-.303-.54-1.523.105-3.176c0 0 1.005-.322 3.3 1.23c.96-.267 1.98-.399 3-.405c1.02.006 2.04.138 3 .405c2.28-1.552 3.285-1.23 3.285-1.23c.645 1.653.24 2.873.12 3.176c.765.84 1.23 1.91 1.23 3.22c0 4.61-2.805 5.625-5.475 5.92c.42.36.81 1.096.81 2.22c0 1.606-.015 2.896-.015 3.286c0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" /></svg>',
-        },
-        bi: {
-          'plus-circle':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" /><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4" /></g></svg>',
-          'play-circle':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" /><path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445" /></g></svg>',
-          'stop-circle':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" /><path d="M5 6.5A1.5 1.5 0 0 1 6.5 5h3A1.5 1.5 0 0 1 11 6.5v3A1.5 1.5 0 0 1 9.5 11h-3A1.5 1.5 0 0 1 5 9.5z" /></g></svg>',
-          'chat-left':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2z" /></svg>',
-          'chat-right':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h9.586a2 2 0 0 1 1.414.586l2 2V2a1 1 0 0 0-1-1zm12-1a2 2 0 0 1 2 2v12.793a.5.5 0 0 1-.854.353l-2.853-2.853a1 1 0 0 0-.707-.293H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2z" /></svg>',
-          'chat-left-dots':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2z" /><path d="M5 6a1 1 0 1 1-2 0a1 1 0 0 1 2 0m4 0a1 1 0 1 1-2 0a1 1 0 0 1 2 0m4 0a1 1 0 1 1-2 0a1 1 0 0 1 2 0" /></g></svg>',
-          'chat-right-dots':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M2 1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h9.586a2 2 0 0 1 1.414.586l2 2V2a1 1 0 0 0-1-1zm12-1a2 2 0 0 1 2 2v12.793a.5.5 0 0 1-.854.353l-2.853-2.853a1 1 0 0 0-.707-.293H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2z" /><path d="M5 6a1 1 0 1 1-2 0a1 1 0 0 1 2 0m4 0a1 1 0 1 1-2 0a1 1 0 0 1 2 0m4 0a1 1 0 1 1-2 0a1 1 0 0 1 2 0" /></g></svg>',
-          'chat-text':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M2.678 11.894a1 1 0 0 1 .287.801a11 11 0 0 1-.398 2c1.395-.323 2.247-.697 2.634-.893a1 1 0 0 1 .71-.074A8 8 0 0 0 8 14c3.996 0 7-2.807 7-6s-3.004-6-7-6s-7 2.808-7 6c0 1.468.617 2.83 1.678 3.894m-.493 3.905a22 22 0 0 1-.713.129c-.2.032-.352-.176-.273-.362a10 10 0 0 0 .244-.637l.003-.01c.248-.72.45-1.548.524-2.319C.743 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7s-3.582 7-8 7a9 9 0 0 1-2.347-.306c-.52.263-1.639.742-3.468 1.105" /><path d="M4 5.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8m0 2.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5" /></g></svg>',
-          'x-lg':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z" /></svg>',
-          'check-circle':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" /><path d="m10.97 4.97l-.02.022l-3.473 4.425l-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05" /></g></svg>',
-          'exclamation-circle':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16" /><path d="M7.002 11a1 1 0 1 1 2 0a1 1 0 0 1-2 0M7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0z" /></g></svg>',
-          robot:
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M6 12.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5M3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.6 26.6 0 0 0 4.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.93.93 0 0 1-.765.935c-.845.147-2.34.346-4.235.346s-3.39-.2-4.235-.346A.93.93 0 0 1 3 9.219zm4.542-.827a.25.25 0 0 0-.217.068l-.92.9a25 25 0 0 1-1.871-.183a.25.25 0 0 0-.068.495c.55.076 1.232.149 2.02.193a.25.25 0 0 0 .189-.071l.754-.736l.847 1.71a.25.25 0 0 0 .404.062l.932-.97a25 25 0 0 0 1.922-.188a.25.25 0 0 0-.068-.495c-.538.074-1.207.145-1.98.189a.25.25 0 0 0-.166.076l-.754.785l-.842-1.7a.25.25 0 0 0-.182-.135" /><path d="M8.5 1.866a1 1 0 1 0-1 0V3h-2A4.5 4.5 0 0 0 1 7.5V8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v-.5A4.5 4.5 0 0 0 10.5 3h-2zM14 7.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5A3.5 3.5 0 0 1 5.5 4h5A3.5 3.5 0 0 1 14 7.5" /></g></svg>',
-          'person-circle':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g fill="currentColor"><path d="M11 6a3 3 0 1 1-6 0a3 3 0 0 1 6 0" /><path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1" /></g></svg>',
-        },
-        fluent: {
-          'wifi-off':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M3.28 2.22a.75.75 0 1 0-1.06 1.06l3.364 3.365a12 12 0 0 0-2.033 1.634c-.49.489-.964 1.069-1.394 1.69a.75.75 0 1 0 1.233.854c.381-.55.8-1.062 1.222-1.484a10.5 10.5 0 0 1 2.062-1.604l1.592 1.592a8 8 0 0 0-1.923 1.424c-.61.61-1.109 1.3-1.492 2.056a.75.75 0 0 0 1.339.677a6.5 6.5 0 0 1 1.214-1.673a6.6 6.6 0 0 1 1.984-1.362l1.93 1.93a5.07 5.07 0 0 0-2.876 1.44a5.1 5.1 0 0 0-1.061 1.57a.75.75 0 0 0 1.374.602c.185-.422.437-.8.747-1.11a3.59 3.59 0 0 1 3.36-.959l7.857 7.858a.75.75 0 0 0 1.061-1.06zm8.304 6.182l1.584 1.584a6.53 6.53 0 0 1 3.516 1.825a6.8 6.8 0 0 1 1.217 1.692a.75.75 0 0 0 1.335-.683a8.3 8.3 0 0 0-1.492-2.07a8.04 8.04 0 0 0-6.16-2.348M8.487 5.305L9.713 6.53a10.44 10.44 0 0 1 10.908 4.297a.75.75 0 0 0 1.235-.852a11.95 11.95 0 0 0-13.369-4.67m4.573 11.134a1.5 1.5 0 1 1-2.121 2.122a1.5 1.5 0 0 1 2.121-2.122" /></svg>',
-          'arrow-repeat':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="#fff" d="m14.712 2.289l-.087-.078a1 1 0 0 0-1.327.078l-.078.087a1 1 0 0 0 .078 1.326l1.299 1.297H8.999l-.24.004A6.997 6.997 0 0 0 2 11.993a6.94 6.94 0 0 0 1.189 3.899a.999.999 0 0 0 1.626-1.163l-.135-.218A4.997 4.997 0 0 1 9 6.998h5.595l-1.297 1.297l-.078.087a.999.999 0 0 0 1.492 1.326l3.006-3.003l.077-.087a1 1 0 0 0-.078-1.326zm6.075 5.771A.999.999 0 0 0 19 8.677c0 .209.064.402.172.561a4.997 4.997 0 0 1-4.17 7.75H9.414l1.294-1.29l.083-.096a1 1 0 0 0-.006-1.23l-.077-.088l-.095-.084a1 1 0 0 0-1.232.006l-.088.078l-3.005 3.003l-.083.095a1 1 0 0 0 .006 1.231l.077.087l3.005 3.003l.095.084a1 1 0 0 0 1.397-1.41l-.077-.087l-1.304-1.303H15l.24-.003a6.997 6.997 0 0 0 5.546-10.927z" /></svg>',
-        },
-        'ant-design': {
-          'info-circle-outlined':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><path fill="currentColor" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448s448-200.6 448-448S759.4 64 512 64m0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372s372 166.6 372 372s-166.6 372-372 372" /><path fill="currentColor" d="M464 336a48 48 0 1 0 96 0a48 48 0 1 0-96 0m72 112h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V456c0-4.4-3.6-8-8-8" /></svg>',
-          'warning-outlined':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><path fill="currentColor" d="M464 720a48 48 0 1 0 96 0a48 48 0 1 0-96 0m16-304v184c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V416c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8m475.7 440l-416-720c-6.2-10.7-16.9-16-27.7-16s-21.6 5.3-27.7 16l-416 720C56 877.4 71.4 904 96 904h832c24.6 0 40-26.6 27.7-48m-783.5-27.9L512 239.9l339.8 588.2z" /></svg>',
-          'loading-outlined':
-            '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><path fill="currentColor" d="M988 548c-19.9 0-36-16.1-36-36c0-59.4-11.6-117-34.6-171.3a440.5 440.5 0 0 0-94.3-139.9a437.7 437.7 0 0 0-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150s83.9 101.8 109.7 162.7c26.7 63.1 40.2 130.2 40.2 199.3c.1 19.9-16 36-35.9 36" /></svg>',
-        },
-      },
       extraProperties: {
-        width: '1em',
-        height: '1em',
-        'min-width': '22px',
+        width: '18px',
+        height: '18px',
+        display: 'inline-flex',
+        'justify-content': 'center',
+        'align-items': 'center',
+        'flex-shrink': '0',
       },
-      scale: 1.2,
       prefix: 'i-',
       warn: true,
+      collections: {
+        bi: async (): Promise<IconifyJSON> =>
+          (await import('@iconify-json/bi/icons.json')).default as IconifyJSON,
+        weui: async (): Promise<IconifyJSON> =>
+          (await import('@iconify-json/weui/icons.json')).default as IconifyJSON,
+        'ant-design': async (): Promise<IconifyJSON> =>
+          (await import('@iconify-json/ant-design/icons.json')).default as IconifyJSON,
+        fluent: async (): Promise<IconifyJSON> =>
+          (await import('@iconify-json/fluent/icons.json')).default as IconifyJSON,
+        ri: async (): Promise<IconifyJSON> =>
+          (await import('@iconify-json/ri/icons.json')).default as IconifyJSON,
+        hugeicons: async (): Promise<IconifyJSON> =>
+          (await import('@iconify-json/hugeicons/icons.json')).default as IconifyJSON,
+      },
     }),
   ],
+  rules: [...cssZoomRules],
   transformers: [transformerDirectives()],
 })
