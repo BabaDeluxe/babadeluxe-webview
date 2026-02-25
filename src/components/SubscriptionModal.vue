@@ -13,12 +13,11 @@
         <!-- X Button -->
         <BaseButton
           variant="icon"
-          class="absolute top-4 right-4 text-subtleText hover:text-deepText transition-colors"
+          icon="i-bi:x-lg"
+          class="absolute top-4 right-4"
           aria-label="Close modal"
           @click="handleClose"
-        >
-          <i class="i-bi:x-lg text-xl" />
-        </BaseButton>
+        />
 
         <!-- Header -->
         <header class="text-center">

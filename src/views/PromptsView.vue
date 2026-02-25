@@ -23,7 +23,7 @@
     >
       <p class="text-error text-lg">Something went wrong with the prompts view.</p>
       <BaseButton
-        variant="primary"
+        variant="ghost"
         data-testid="prompts-reload-button"
         @click="handleReload"
       >
@@ -255,7 +255,7 @@ const {
   refKey: 'verticalContainer',
   defaultRatio: 40,
   direction: 'vertical',
-  minRatio: 20,
+  minRatio: 0,
   maxRatio: 50,
 })
 

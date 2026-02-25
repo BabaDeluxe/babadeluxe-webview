@@ -40,7 +40,7 @@
       <!-- Password Toggle Button -->
       <BaseButton
         v-if="type === 'password' && isToggleable"
-        variant="ghost"
+        variant="icon"
         type="button"
         :aria-label="showPassword ? 'Hide password' : 'Show password'"
         tabindex="-1"

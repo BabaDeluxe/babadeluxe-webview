@@ -53,7 +53,7 @@ const props = defineProps({
   isDisabled: { type: Boolean, default: false },
   isLoading: { type: Boolean, default: false },
   isSelected: { type: Boolean, default: false },
-  allowTextOverride: { type: Boolean, default: false },
+  allowTextOverride: { type: Boolean, default: true },
 })
 
 defineEmits(['click'])
@@ -115,12 +115,10 @@ onMounted(async () => {
     scheduleContrastUpdate()
   })
 
-  if (buttonRef.value) {
-    buttonObserver.observe(buttonRef.value, {
-      attributes: true,
-      attributeFilter: ['class', 'style'],
-    })
-  }
+  buttonObserver.observe(buttonRef.value, {
+    attributes: true,
+    attributeFilter: ['class', 'style'],
+  })
 })
 
 onUnmounted(() => {
@@ -133,33 +131,42 @@ onUnmounted(() => {
 const computedClasses = computed(() => {
   const variantClasses = getButtonClasses(props.variant)
 
-  const selected = props.isSelected
-    ? props.variant === 'icon'
-      ? 'text-deepText' // icon: only text color changes when selected
-      : 'bg-borderMuted text-deepText'
-    : ''
+  const selectedClasses =
+    props.isSelected && props.variant === 'icon'
+      ? 'text-deepText'
+      : props.isSelected
+        ? 'bg-borderMuted text-deepText'
+        : ''
 
-  const userClasses = props.class
+  const userClassesRaw = props.class.trim()
 
-  let merged = twMerge(variantClasses, selected, userClasses)
+  const userHasTextClass =
+    /\btext-(white|black|deepText|subtleText|accent|error|success|warning)\b/.test(userClassesRaw)
 
+  const shouldLetUserControlText = userHasTextClass && props.allowTextOverride
+  const shouldStripUserText = userHasTextClass && !props.allowTextOverride
+
+  const userClassesCleaned = shouldStripUserText
+    ? userClassesRaw
+        .split(/\s+/)
+        .filter(
+          (cls) =>
+            !/\btext-(white|black|deepText|subtleText|accent|error|success|warning)\b/.test(cls)
+        )
+        .join(' ')
+    : userClassesRaw
+
+  const baseMerged = twMerge(variantClasses, selectedClasses, userClassesCleaned)
+
+  if (shouldLetUserControlText) {
+    return baseMerged
+  }
+
+  // Variant/auto controls text: only add auto color if no text-* at all
   const hasAnyTextClass =
-    /text-(white|black|deepText|subtleText|accent|error|success|warning)/.test(merged)
+    /\btext-(white|black|deepText|subtleText|accent|error|success|warning)\b/.test(baseMerged)
 
-  if (props.allowTextOverride && hasAnyTextClass) {
-    return merged
-  }
-
-  if (!props.allowTextOverride && hasAnyTextClass) {
-    merged = merged
-      .split(' ')
-      .filter(
-        (cls) => !/^text-(white|black|deepText|subtleText|accent|error|success|warning)$/.test(cls)
-      )
-      .join(' ')
-  }
-
-  return twMerge(merged, autoTextColor.value)
+  return hasAnyTextClass ? baseMerged : twMerge(baseMerged, autoTextColor.value)
 })
 
 watch(

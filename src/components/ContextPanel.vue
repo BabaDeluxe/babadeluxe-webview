@@ -4,19 +4,15 @@
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2 min-w-0">
         <BaseButton
+          variant="ghost"
           type="button"
-          variant="icon"
-          class="text-subtleText hover:text-deepText"
+          :icon="isCollapsed ? 'i-bi:chevron-right' : 'i-bi:chevron-down'"
           :is-disabled="items.length === 0"
           :aria-expanded="!isCollapsed"
           aria-label="Toggle context visibility"
+          aria-hidden="true"
           @click="isCollapsed = !isCollapsed"
         >
-          <i
-            class="text-xs transition-transform duration-200"
-            :class="isCollapsed ? 'i-bi:chevron-right' : 'i-bi:chevron-down'"
-            aria-hidden="true"
-          />
         </BaseButton>
 
         <span class="text-xs font-onest font-semibold text-deepText tracking-wide">
@@ -24,30 +20,21 @@
         </span>
 
         <BaseButton
+          variant="ghost"
           type="button"
-          variant="icon"
-          class="ml-0.5"
-          :class="
-            isRootBarVisible
-              ? 'text-accent bg-accent/10'
-              : 'text-subtleText hover:bg-borderMuted/30 hover:text-deepText'
-          "
-          :is-disabled="false"
+          icon="i-bi:folder2-open"
+          :class="isRootBarVisible ? 'text-accent bg-accent/10' : ''"
           :aria-pressed="isRootBarVisible"
           aria-label="Toggle context root path"
+          aria-hidden="true"
           @click="$emit('toggleRootBar')"
-        >
-          <i
-            class="i-bi:folder2-open text-xs"
-            aria-hidden="true"
-          />
-        </BaseButton>
+        />
       </div>
 
       <BaseButton
-        type="button"
         variant="ghost"
-        class="text-xs px-2 py-1 text-subtleText hover:text-error hover:bg-error/5"
+        type="button"
+        class="text-xs px-2 py-1 hover:text-error hover:bg-error/5"
         :is-disabled="items.length === 0"
         text="Clear all"
         @click="$emit('clearAll')"

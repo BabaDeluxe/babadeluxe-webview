@@ -16,8 +16,9 @@
       </div>
       <BaseButton
         v-if="isDismissible"
+        variant="icon"
         icon="i-weui:close-outlined"
-        :class="`bg-transparent hover:bg-transparent rounded-none border-0 ${textColorClass}`"
+        :class="textColorClass"
         data-testid="alert-close-button"
         @click="handleClose"
       />

@@ -34,7 +34,7 @@
           />
 
           <BaseButton
-            variant="primary"
+            variant="secondary"
             aria-label="Back to Login"
             type="button"
             text="Back to Login"

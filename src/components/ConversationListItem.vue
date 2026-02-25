@@ -16,21 +16,18 @@
     </div>
     <div class="flex items-center gap-2">
       <BaseButton
-        variant="icon"
+        variant="ghost"
         :data-testid="renameTestId"
-        class="text-subtleText hover:text-accent"
+        icon="i-weui:pencil-outlined"
         @click.stop="handleRename"
-      >
-        <i class="i-weui:pencil-outlined" />
-      </BaseButton>
+      />
       <BaseButton
-        variant="icon"
+        variant="ghost"
         :data-testid="deleteTestId"
-        class="text-subtleText hover:text-error"
+        icon="i-weui:delete-outlined"
+        class="hover:text-error"
         @click.stop="handleDelete"
-      >
-        <i class="i-weui:delete-outlined" />
-      </BaseButton>
+      />
     </div>
   </div>
 </template>

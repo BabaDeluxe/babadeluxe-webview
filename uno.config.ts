@@ -12,14 +12,12 @@ const createPxToRemPostprocessor = (baseFontSize = 16): Postprocessor => {
   const pxRegex = /(-?[\d.]+)px/g
 
   return (util) => {
-    // util.entries is [property, value][]
     for (const entry of util.entries) {
       const value = entry[1]
       if (typeof value !== 'string' || !pxRegex.test(value)) continue
 
-      // Reset lastIndex for global regex reuse
       pxRegex.lastIndex = 0
-      console.log('Manipulating value')
+
       entry[1] = value.replace(pxRegex, (_, pxValue: string) => {
         const numericPx = Number(pxValue)
         if (!Number.isFinite(numericPx)) return _
@@ -79,6 +77,10 @@ export default defineConfig({
       extraProperties: {
         width: '1em',
         height: '1em',
+        display: 'inline-flex',
+        'justify-content': 'center',
+        'align-items': 'center',
+        'flex-shrink': '0',
       },
       prefix: 'i-',
       warn: true,

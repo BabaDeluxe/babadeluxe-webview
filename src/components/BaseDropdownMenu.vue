@@ -5,7 +5,6 @@
   >
     <BaseButton
       variant="icon"
-      :class="triggerClass"
       :data-testid="triggerTestId"
       @click="toggle"
     >
@@ -36,18 +35,17 @@ import { useDropdown } from '@/composables/use-dropdown'
 import { useTeleportedMenuPosition } from '@/composables/use-teleported-menu-position'
 
 interface BaseDropdownMenuProps {
-  triggerClass?: string
   triggerTestId?: string
   menuTestId?: string
   placement?: 'bottom' | 'top' | 'right'
 }
 
 const props = withDefaults(defineProps<BaseDropdownMenuProps>(), {
-  triggerClass: 'w-7 h-7 border border-borderMuted bg-panel',
   triggerTestId: 'dropdown-trigger',
   menuTestId: 'dropdown-menu',
   placement: 'bottom',
 })
+
 const menuRef = ref<HTMLElement | undefined>(undefined)
 const { isOpen, containerRef, toggle, close } = useDropdown({ ignore: [menuRef] })
 

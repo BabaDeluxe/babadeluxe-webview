@@ -34,7 +34,7 @@
   >
     <BaseButton
       variant="icon"
-      class="w-7 h-7 bg-panel border border-borderMuted text-accent hover:bg-borderMuted transition-colors duration-150"
+      class="bg-panel border border-borderMuted hover:bg-borderMuted"
       :class="savingClass"
       :is-disabled="isSaving"
       :title="saveHint"
@@ -53,15 +53,13 @@
 
     <BaseButton
       variant="icon"
-      class="w-7 h-7 bg-panel border border-borderMuted text-subtleText hover:bg-borderMuted/80 hover:text-deepText transition-colors duration-150"
+      class="bg-panel border border-borderMuted hover:bg-borderMuted/80"
       :class="savingClass"
       :is-disabled="isSaving"
       :title="cancelHint"
       data-testid="editable-cancel-button"
       @click="handleCancel"
-    >
-      <i class="i-weui:close-outlined text-lg" />
-    </BaseButton>
+    />
   </div>
 </template>
 

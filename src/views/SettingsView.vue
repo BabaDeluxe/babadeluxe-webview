@@ -12,7 +12,12 @@
       class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
     >
       <p class="text-error text-lg">Something went wrong with the settings view.</p>
-      <BaseButton @click="handleReload"> Reload Page </BaseButton>
+      <BaseButton
+        variant="secondary"
+        @click="handleReload"
+      >
+        Reload Page
+      </BaseButton>
     </div>
 
     <div

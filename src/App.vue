@@ -11,18 +11,17 @@
 
         <div class="flex flex-row gap-2 justify-end items-center">
           <BaseButton
-            variant="primary"
             data-testid="nav-new-chat-button"
-            text="New Chat"
+            variant="primary"
             icon="i-weui:pencil-outlined"
+            text="New Chat"
             @click="handleNewChat"
           />
 
           <BaseButton
-            variant="icon"
-            icon="i-weui:setting-outlined"
-            class="border-none"
             data-testid="nav-settings-button"
+            variant="ghost"
+            icon="i-weui:setting-outlined"
             @click="router.push('/settings')"
           />
         </div>
@@ -100,6 +99,7 @@
 </template>
 
 <script setup lang="ts">
+import { useStorage } from '@vueuse/core'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { onMounted, ref, onErrorCaptured } from 'vue'
 import { useEventListener } from '@vueuse/core'
@@ -108,6 +108,7 @@ import type { AbstractLogger } from '@/logger'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import { type SupabaseClientType } from '@/main'
+import { localStorageKeys } from '@/constants'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { safeInject } from '@/safe-inject'
@@ -137,8 +138,10 @@ const handleExtensionMessage = (event: MessageEvent) => {
 
 useEventListener(window, 'message', handleExtensionMessage)
 
+const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
+
 const handleNewChat = async () => {
-  await conversationStore.markAllStreamingCompleteInCurrentConversation()
+  await conversationStore.markAllStreamingCompleteInCurrentConversation(currentConversationId)
   await router.push({ path: '/chat', query: { newConversation: 'true' } })
 }
 

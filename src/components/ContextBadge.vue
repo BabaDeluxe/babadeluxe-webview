@@ -33,13 +33,9 @@
       class="flex items-center gap-1 ml-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
     >
       <BaseButton
+        variant="icon"
         type="button"
-        :class="
-          isPinned
-            ? 'w-7 h-7 p-0 bg-transparent text-accent hover:bg-accent/10'
-            : 'w-7 h-7 p-0 bg-transparent text-subtleText hover:text-accent hover:bg-accent/5'
-        "
-        :is-disabled="false"
+        :class="isPinned ? 'hover:bg-accent/10 text-accent' : 'hover:bg-accent/5 hover:text-accent'"
         :aria-label="isPinned ? 'Unpin' : 'Pin'"
         @click.stop="$emit('toggle-pin')"
       >
@@ -51,9 +47,9 @@
       </BaseButton>
 
       <BaseButton
+        variant="icon"
         type="button"
-        class="w-7 h-7 p-0 bg-transparent text-subtleText hover:text-error hover:bg-error/5"
-        :is-disabled="false"
+        class="hover:text-error hover:bg-error/5"
         aria-label="Remove"
         @click.stop="$emit('remove')"
       >

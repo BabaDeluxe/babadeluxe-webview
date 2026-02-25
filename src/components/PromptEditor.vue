@@ -112,8 +112,9 @@
     <!-- Save Button -->
     <div class="flex justify-end pb-4">
       <BaseButton
-        :disabled="!canSave"
-        :loading="isSaving"
+        variant="primary"
+        :is-disabled="!canSave"
+        :is-loading="isSaving"
         data-testid="prompt-save-button"
         @click="handleSave"
       >

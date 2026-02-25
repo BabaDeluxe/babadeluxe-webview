@@ -19,7 +19,6 @@
       <BaseButton
         v-if="!isSubmitting"
         variant="ghost"
-        class="bg-transparent"
         :icon="submitIcon"
         :data-testid="submitButtonTestId"
         :is-disabled="!canSubmit"
@@ -34,7 +33,6 @@
       <BaseButton
         v-else
         variant="ghost"
-        class="bg-transparent"
         :icon="abortIcon"
         :data-testid="abortButtonTestId"
         @click="emit('abort')"

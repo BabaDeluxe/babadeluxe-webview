@@ -7,77 +7,76 @@
       <!-- Copy -->
       <BaseButton
         v-if="isClipboardSupported"
-        variant="ghost"
         data-testid="message-copy-button"
-        class="w-full text-sm"
+        variant="ghost"
+        :icon="hasCopied ? 'i-bi:check2' : 'i-weui:copy-outlined'"
+        class="w-full text-subtleText"
         type="button"
         @click="handleCopy(close)"
       >
-        <i :class="hasCopied ? 'i-bi:check2' : 'i-weui:copy-outlined'" />
         <span>{{ hasCopied ? 'Copied' : 'Copy' }}</span>
       </BaseButton>
 
       <div
-        v-if="canEdit || canRewrite || canDelete"
+        v-if="isEditable || isRewritable || isDeletable"
         class="border-t border-borderMuted my-1"
       />
 
       <!-- Edit -->
       <BaseButton
-        v-if="canEdit"
-        variant="ghost"
+        v-if="isEditable"
         data-testid="message-edit-button"
-        class="w-full text-sm"
+        variant="ghost"
+        icon="i-weui:pencil-outlined"
+        class="w-full text-subtleText"
         type="button"
         @click="handleEdit(close)"
       >
-        <i class="i-weui:pencil-outlined" />
-        <span>Edit Message</span>
+        Edit Message
       </BaseButton>
 
       <div
-        v-if="canEdit && canRewrite"
+        v-if="isEditable && isRewritable"
         class="border-t border-borderMuted my-1"
       />
 
       <!-- Rewrite -->
       <BaseDropdown
-        v-if="canRewrite"
-        variant="ghost"
-        class="w-full text-sm"
+        v-if="isRewritable"
         data-testid="message-rewrite-selector"
+        variant="icon"
+        icon=""
         :model-value="selectedModel"
-        icon="i-bi:arrow-repeat"
-        trigger-class="w-full px-3 py-2 flex items-center justify-between gap-2 text-subtleText hover:text-deepText hover:bg-borderMuted/20 transition-colors duration-150 hover:cursor-pointer rounded-lg"
         :groups="modelGroups"
         :is-disabled="isLoadingModels"
         placement="right"
-        is-full-width
         @update:model-value="(modelId) => handleRewrite(modelId, close)"
       >
-        <i class="i-bi:arrow-repeat" />
-        <span v-if="isLoadingModels">Loading models...</span>
-        <span v-else-if="modelsError">Error loading models</span>
-        <span v-else>Rewrite with...</span>
-        <i class="i-weui:arrow-outlined rotate-90 opacity-50" />
+        <div class="w-full flex justify-between items-center px-2 gap-2">
+          <i class="i-bi:arrow-repeat"></i>
+          <span v-if="isLoadingModels">Loading models...</span>
+          <span v-else-if="modelsError">Error loading models</span>
+          <span v-else>Rewrite with...</span>
+          <i class="i-weui:arrow-outlined rotate-90 opacity-50" />
+        </div>
       </BaseDropdown>
 
       <div
-        v-if="(canEdit || canRewrite) && canDelete"
+        v-if="(isEditable || isRewritable) && isDeletable"
         class="border-t border-borderMuted my-1"
       />
 
       <!-- Delete -->
       <BaseButton
-        v-if="canDelete"
-        variant="ghost"
-        class="hover:text-error w-full text-sm"
+        v-if="isDeletable"
         data-testid="message-delete-button"
+        variant="ghost"
+        icon="i-weui:delete-outlined"
+        class="w-full text-error"
         type="button"
         @click="handleDelete(close)"
       >
-        <i class="i-weui:delete-outlined" />
-        <span>Delete Message</span>
+        Delete Message
       </BaseButton>
     </template>
   </BaseDropdownMenu>
@@ -138,9 +137,9 @@ const modelGroups = computed<DropdownGroup[]>(() =>
   }))
 )
 
-const canEdit = computed(() => props.isEditEnabled && props.role === 'user')
-const canRewrite = computed(() => props.isRewriteEnabled && props.role === 'assistant')
-const canDelete = computed(() => props.isDeleteEnabled)
+const isEditable = computed(() => props.isEditEnabled && props.role === 'user')
+const isRewritable = computed(() => props.isRewriteEnabled && props.role === 'assistant')
+const isDeletable = computed(() => props.isDeleteEnabled)
 
 async function handleCopy(close: () => void): Promise<void> {
   if (!isClipboardSupported.value) return

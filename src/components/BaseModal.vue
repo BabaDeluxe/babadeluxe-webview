@@ -35,7 +35,7 @@
           <div class="flex justify-end gap-2">
             <slot name="actions">
               <BaseButton
-                variant="ghost"
+                variant="secondary"
                 @click="handleCancel"
               >
                 {{ cancelText }}

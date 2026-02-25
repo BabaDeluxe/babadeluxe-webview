@@ -5,9 +5,9 @@
   >
     <div
       :class="[
-        'transition-colors',
-        props.isFullWidth ? 'w-full' : '',
-        props.triggerClass ?? 'flex items-center gap-2 p-1 text-subtleText hover:text-accent',
+        'flex items-center gap-2 px-3 py-2 rounded-lg text-subtleText',
+        'hover:text-deepText hover:bg-borderMuted/20 transition-colors',
+        props.isFullWidth ? 'w-full' : 'w-auto',
         props.isDisabled ? 'cursor-default opacity-60' : 'cursor-pointer',
       ]"
       :aria-disabled="props.isDisabled || undefined"
@@ -42,24 +42,16 @@
           <!-- Flat items (no groups) -->
           <template v-if="!props.groups">
             <template v-if="flatItems.length">
-              <div
+              <BaseDropdownItem
                 v-for="option in flatItems"
                 :key="option.value"
-                class="px-4 py-2 text-sm text-deepText transition-colors flex items-center gap-2"
-                :class="[
-                  option.value === props.modelValue ? 'bg-slate' : 'hover:bg-slate',
-                  option.isDisabled ? 'opacity-60 cursor-default' : 'cursor-pointer',
-                ]"
-                @click="!option.isDisabled && selectOption(option.value)"
-              >
-                <i
-                  v-if="option.icon"
-                  :class="option.icon"
-                  class="text-xs"
-                  aria-hidden="true"
-                />
-                <span>{{ option.label }}</span>
-              </div>
+                :value="option.value"
+                :label="option.label"
+                :icon="option.icon"
+                :is-active="option.value === props.modelValue"
+                :is-disabled="option.isDisabled"
+                @select="selectOption"
+              />
             </template>
             <div
               v-else
@@ -90,29 +82,18 @@
                 <div class="px-4 py-2 text-xs text-subtleText font-semibold bg-slate">
                   {{ group.label }}
                 </div>
-                <div
+                <BaseDropdownItem
                   v-for="option in group.items"
                   :key="option.value"
-                  class="px-6 py-2 text-sm text-deepText transition-colors flex items-center gap-2"
-                  :class="[
-                    option.value === props.modelValue ? 'bg-slate' : 'hover:bg-slate',
-                    option.isDisabled ? 'opacity-60 cursor-default' : 'cursor-pointer',
-                  ]"
-                  @click="!option.isDisabled && selectOption(option.value)"
-                >
-                  <i
-                    v-if="option.icon"
-                    :class="option.icon"
-                    class="text-xs"
-                    aria-hidden="true"
-                  />
-                  <div class="flex flex-col">
-                    <span>{{ option.label }}</span>
-                    <span class="text-xs text-subtleText">
-                      {{ option.value.split(':')[0] }}
-                    </span>
-                  </div>
-                </div>
+                  :value="option.value"
+                  :label="option.label"
+                  :icon="option.icon"
+                  :subtitle="option.value.split(':')[0]"
+                  :is-active="option.value === props.modelValue"
+                  :is-disabled="option.isDisabled"
+                  item-class="px-6"
+                  @select="selectOption"
+                />
               </div>
             </template>
           </template>
@@ -126,6 +107,7 @@
 import { computed, ref } from 'vue'
 import { useDropdown } from '@/composables/use-dropdown'
 import { useTeleportedMenuPosition } from '@/composables/use-teleported-menu-position'
+import BaseDropdownItem from './BaseDropdownItem.vue'
 
 export interface DropdownItem {
   value: string
@@ -146,7 +128,6 @@ interface DropdownProps {
   items?: DropdownItem[]
   groups?: DropdownGroup[]
   placement?: 'bottom' | 'right' | 'top'
-  triggerClass?: string
   isFullWidth?: boolean
   isDisabled?: boolean
 }
@@ -156,7 +137,6 @@ const props = withDefaults(defineProps<DropdownProps>(), {
   options: undefined,
   items: undefined,
   groups: undefined,
-  triggerClass: undefined,
   isFullWidth: false,
   isDisabled: false,
 })

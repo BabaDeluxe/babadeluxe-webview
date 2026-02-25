@@ -1,3 +1,4 @@
+// @unocss-include
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'menu'
 
 const textBase = 'text-sm'
@@ -8,55 +9,57 @@ const baseClasses = [
   'rounded-lg',
   'cursor-pointer',
   'disabled:opacity-50 disabled:cursor-not-allowed',
+  'transition-colors transition-transform duration-150',
 ].join(' ')
+
+const baseHover = 'hover:brightness-105 active:brightness-95'
 
 const variantClassMap: Record<ButtonVariant, string> = {
   primary: [
     baseClasses,
+    baseHover,
     textBase,
     paddingPrimary,
     'font-onest font-medium',
     'bg-accentButton text-white',
-    'transition-colors transition-transform duration-150',
-    'hover:brightness-110 active:brightness-95',
   ].join(' '),
 
   secondary: [
     baseClasses,
+    baseHover,
     textBase,
     paddingPrimary,
     'font-onest font-medium',
     'bg-transparent border-2 border-accent text-accent',
-    'transition-colors transition-transform duration-150',
     'hover:bg-accent/10 active:bg-accent/20',
   ].join(' '),
 
   ghost: [
     baseClasses,
+    baseHover,
     textBase,
     paddingGhostMenu,
     'font-onest font-medium',
     'text-subtleText',
-    'transition-colors transition-transform duration-150',
     'hover:text-deepText hover:bg-borderMuted/20',
   ].join(' '),
 
   icon: [
     baseClasses,
+    baseHover,
     'w-7 h-7',
     'font-onest font-medium',
     'bg-transparent text-subtleText',
-    'transition-colors transition-transform duration-150',
     'hover:text-deepText',
   ].join(' '),
 
   menu: [
     baseClasses,
+    baseHover,
     textBase,
     paddingGhostMenu,
     'font-onest font-medium',
     'bg-panel border border-borderMuted text-subtleText',
-    'transition-colors transition-transform duration-150',
     'hover:bg-borderMuted hover:text-deepText',
   ].join(' '),
 }

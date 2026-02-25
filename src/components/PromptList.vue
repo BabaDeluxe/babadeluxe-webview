@@ -21,15 +21,14 @@
         </span>
         <BaseButton
           v-if="!prompt.isSystem"
-          variant="icon"
+          variant="ghost"
+          icon="i-weui:delete-outlined"
           data-testid="prompt-delete-button"
           aria-label="Delete prompt"
-          class="text-subtleText hover:text-error p-1 transition-colors"
+          class="p-1 hover:text-error"
           title="Delete prompt"
           @click.stop="emit('delete', prompt.id)"
-        >
-          <i class="i-weui:delete-outlined" />
-        </BaseButton>
+        />
       </div>
     </div>
 

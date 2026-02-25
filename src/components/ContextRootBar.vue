@@ -3,19 +3,15 @@
     class="relative flex flex-col gap-3 p-2 bg-panel rounded-lg border border-borderMuted shadow-sm"
   >
     <BaseButton
-      type="button"
       variant="icon"
-      class="absolute top-2.5 right-2.5 text-subtleText hover:text-deepText hover:bg-borderMuted/30"
-      :is-disabled="false"
+      type="button"
+      icon=" i-bi:x-lg"
+      class="absolute top-2.5 right-2.5 hover:bg-borderMuted/30 text-sm"
       aria-label="Hide context root bar"
       data-testid="context-root-bar-close"
+      aria-hidden="true"
       @click="$emit('hide')"
-    >
-      <i
-        class="i-bi:x-lg text-sm"
-        aria-hidden="true"
-      />
-    </BaseButton>
+    />
 
     <div class="flex items-center justify-between gap-3 pr-8">
       <div class="flex items-center gap-2.5 min-w-0">
@@ -28,11 +24,10 @@
         </span>
       </div>
       <BaseButton
+        variant="menu"
         type="button"
-        variant="ghost"
-        class="border border-borderMuted text-subtleText hover:text-deepText hover:bg-borderMuted/20 text-xs px-3 py-1.5"
-        :is-disabled="false"
         icon="i-bi:pencil-square"
+        class="text-xs"
         aria-label="Change context root path"
         data-testid="context-root-bar-change"
         @click="pickContextRoot"
