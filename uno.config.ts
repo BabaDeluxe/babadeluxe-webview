@@ -1,4 +1,4 @@
-import type { Postprocessor } from 'unocss'
+import type { Postprocessor, Rule } from 'unocss'
 import {
   defineConfig,
   presetWind4,
@@ -27,6 +27,16 @@ const createPxToRemPostprocessor = (baseFontSize = 16): Postprocessor => {
     }
   }
 }
+
+const cssZoomRules: Rule[] = [
+  // zoom-1.5 => zoom: 1.5
+  [
+    /^zoom-(\d+(?:\.\d+)?)$/,
+    ([, v]) => ({
+      zoom: v,
+    }),
+  ],
+]
 
 export default defineConfig({
   postprocess: [createPxToRemPostprocessor(16)],
@@ -75,8 +85,8 @@ export default defineConfig({
     }),
     presetIcons({
       extraProperties: {
-        width: '1em',
-        height: '1em',
+        width: '18px',
+        height: '18px',
         display: 'inline-flex',
         'justify-content': 'center',
         'align-items': 'center',
@@ -100,5 +110,6 @@ export default defineConfig({
       },
     }),
   ],
+  rules: [...cssZoomRules],
   transformers: [transformerDirectives()],
 })

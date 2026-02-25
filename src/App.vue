@@ -22,6 +22,7 @@
             data-testid="nav-settings-button"
             variant="ghost"
             icon="i-weui:setting-outlined"
+            class="zoom-1.2"
             @click="router.push('/settings')"
           />
         </div>
@@ -33,13 +34,14 @@
           data-testid="app-nav"
         >
           <RouterLink
-            v-slot="{ navigate }"
+            v-slot="{ navigate, isExactActive }"
             to="/chat"
             custom
           >
             <BaseButton
               variant="menu"
               data-testid="nav-chat-link"
+              :is-selected="isExactActive"
               @click="navigate"
             >
               Chat
@@ -47,13 +49,14 @@
           </RouterLink>
 
           <RouterLink
-            v-slot="{ navigate }"
+            v-slot="{ navigate, isExactActive }"
             to="/history"
             custom
           >
             <BaseButton
               variant="menu"
               data-testid="nav-history-link"
+              :is-selected="isExactActive"
               @click="navigate"
             >
               History
@@ -61,13 +64,14 @@
           </RouterLink>
 
           <RouterLink
-            v-slot="{ navigate }"
+            v-slot="{ navigate, isExactActive }"
             to="/prompts"
             custom
           >
             <BaseButton
               variant="menu"
               data-testid="nav-prompts-link"
+              :is-selected="isExactActive"
               @click="navigate"
             >
               Prompts

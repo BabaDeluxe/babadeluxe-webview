@@ -34,7 +34,7 @@
   >
     <BaseButton
       variant="icon"
-      class="bg-panel border border-borderMuted hover:bg-borderMuted"
+      class="bg-panel border border-borderMuted hover:bg-borderMuted/80"
       :class="savingClass"
       :is-disabled="isSaving"
       :title="saveHint"
@@ -53,6 +53,7 @@
 
     <BaseButton
       variant="icon"
+      icon="i-bi:x-lg"
       class="bg-panel border border-borderMuted hover:bg-borderMuted/80"
       :class="savingClass"
       :is-disabled="isSaving"

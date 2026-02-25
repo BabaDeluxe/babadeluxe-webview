@@ -2,23 +2,25 @@
   <div class="flex flex-col pb-4 gap-2">
     <h3 class="text-lg font-medium text-deepText">Conversations</h3>
 
-    <ConversationListItem
-      v-for="conversation in conversations"
-      :key="conversation.id ?? -1"
-      :conversation="conversation"
-      :message-count="getMessageCount(conversation.id)"
-      :is-selected="conversation.id === currentConversationId"
-      :test-id-prefix="testIdPrefix"
-      @click="emit('select', conversation)"
-      @rename="emit('rename', conversation)"
-      @delete="emit('delete', conversation)"
-    />
+    <div class="flex-1 min-h-0 flex flex-col gap-2">
+      <ConversationListItem
+        v-for="conversation in conversations"
+        :key="conversation.id ?? -1"
+        :conversation="conversation"
+        :message-count="getMessageCount(conversation.id)"
+        :is-selected="conversation.id === currentConversationId"
+        :test-id-prefix="testIdPrefix"
+        @click="emit('select', conversation)"
+        @rename="emit('rename', conversation)"
+        @delete="emit('delete', conversation)"
+      />
 
-    <BaseEmptyState
-      v-if="conversations.length === 0"
-      icon="i-bi:chat-left"
-      :description="emptyDescription"
-    />
+      <BaseEmptyState
+        v-if="conversations.length === 0"
+        icon="i-bi:chat-left"
+        :description="emptyDescription"
+      />
+    </div>
   </div>
 </template>
 

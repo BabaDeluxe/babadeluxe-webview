@@ -33,29 +33,8 @@
       @result-hover="handleResultHover"
     />
 
-    <div
-      v-if="isLoadingConversations"
-      data-testid="history-loading-state"
-      class="flex-1惜 flex justify-center items-center"
-    >
-      <div class="flex items-center gap-2 text-subtleText">
-        <BaseSpinner size="medium" />
-        <span>Loading conversations...</span>
-      </div>
-    </div>
-
-    <div
-      v-else
-      class="flex flex-col flex-1 min-h-0 w-full overflow-hidden px-4 pt-4"
-    >
-      <template v-if="isLoadingMessages">
-        <div class="flex items-center gap-2 text-subtleText">
-          <BaseSpinner size="medium" />
-          <span>Loading messages...</span>
-        </div>
-      </template>
-
-      <template v-if="areSelectedMessagesShown && !isLoadingMessages">
+    <div class="flex flex-col flex-1 min-h-0 w-full overflow-hidden px-4 pt-4">
+      <template v-if="areSelectedMessagesShown">
         <!-- Mobile: Vertical stack -->
         <div
           ref="verticalContainer"
@@ -102,7 +81,6 @@
             <MessageList
               :messages="selectedConversationMessages"
               :conversation-title="currentConversationTitle"
-              :is-loading="isLoadingMessages"
               :is-rewrite-enabled="true"
               @delete="handleDeleteMessage"
               @update="handleEditMessage"
@@ -156,7 +134,6 @@
             <MessageList
               :messages="selectedConversationMessages"
               :conversation-title="currentConversationTitle"
-              :is-loading="isLoadingMessages"
               :is-rewrite-enabled="true"
               @delete="handleDeleteMessage"
               @update="handleEditMessage"
@@ -218,7 +195,6 @@
 import ConversationList from '@/components/ConversationList.vue'
 import MessageList from '@/components/MessageList.vue'
 import BaseModal from '@/components/BaseModal.vue'
-import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseAlert from '@/components/BaseAlert.vue'
 import SearchResultsDropdown from '@/components/SearchResultsDropdown.vue'
 import BaseTextField from '@/components/BaseTextField.vue'
@@ -228,7 +204,6 @@ defineOptions({ name: 'HistoryView' })
 
 const {
   // conversations,
-  isLoadingConversations,
   error,
 
   splitLeftWidthPercent,
@@ -242,7 +217,6 @@ const {
 
   selectedConversationId,
   selectedConversationMessages,
-  isLoadingMessages,
   currentConversationTitle,
   areSelectedMessagesShown,
 
