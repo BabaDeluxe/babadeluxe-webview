@@ -8,9 +8,10 @@ export class DexieError extends BaseError {
   constructor(
     public readonly operation: string,
     public readonly tableName: string,
-    cause: Error
+    cause: unknown
   ) {
-    super(`operation '${operation}' failed on table '${tableName}'`, cause)
+    const validCause = cause instanceof Error ? cause : new Error(String(cause))
+    super(`operation '${operation}' failed on table '${tableName}'`, validCause)
   }
 }
 
@@ -135,6 +136,6 @@ export class SafeTable<T extends TInsert, TInsert, TKey = number> {
   }
 
   private _createError(operation: string, error: unknown): DexieError {
-    return new DexieError(operation, this._table.name, error as Error)
+    return new DexieError(operation, this._table.name, error)
   }
 }

@@ -1,5 +1,6 @@
 {
   "name": "@babadeluxe/webview",
+  "description": "Enterprise-grade AI Coding Assistant Interface by BabaDeluxe",
   "version": "0.1.0",
   "engines": {
     "node": "^20.19.0 || >=22.12.0",
