@@ -25,7 +25,7 @@
           icon="i-weui:delete-outlined"
           data-testid="prompt-delete-button"
           aria-label="Delete prompt"
-          class="p-1 hover:text-error"
+          class="hover:text-error"
           title="Delete prompt"
           @click.stop="emit('delete', prompt.id)"
         />

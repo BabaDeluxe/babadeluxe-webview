@@ -156,7 +156,6 @@ function getBaseName(filePath: string): string {
 }
 
 function startEdit() {
-  console.log('startEdit for message', props.id)
   isEditing.value = true
 }
 
@@ -168,7 +167,6 @@ function handleCancel() {
 function handleSave(newContent: string) {
   isSaving.value = true
   errorMessage.value = ''
-  console.log('child emit update', props.id, newContent)
   emit('update', props.id, newContent)
   isEditing.value = false
   isSaving.value = false

@@ -16,14 +16,14 @@
     </div>
     <div class="flex items-center gap-2">
       <BaseButton
-        variant="ghost"
         :data-testid="renameTestId"
+        variant="ghost"
         icon="i-weui:pencil-outlined"
         @click.stop="handleRename"
       />
       <BaseButton
-        variant="ghost"
         :data-testid="deleteTestId"
+        variant="ghost"
         icon="i-weui:delete-outlined"
         class="hover:text-error"
         @click.stop="handleDelete"
