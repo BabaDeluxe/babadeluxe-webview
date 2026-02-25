@@ -463,7 +463,6 @@ async function confirmDelete() {
 }
 
 function cancelDelete() {
-  console.log('cancelDelete fired', deleteModal.value)
   deleteModal.value = {
     isShown: false,
     promptId: null,
