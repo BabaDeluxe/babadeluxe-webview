@@ -57,8 +57,8 @@ export default defineConfig({
       bodyText: '#f6f4ff',
     },
     fontFamily: {
-      onest: 'Onest, sans-serif',
-      mono: 'Victor Mono, monospace',
+      onest: 'Onest, Roboto, Arial Nova, Arial, sans-serif',
+      mono: 'Victor Mono, Lucida Console, Consolas, monospace',
     },
   },
   extendTheme: (theme) => {

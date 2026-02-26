@@ -99,6 +99,7 @@
         </Suspense>
       </template>
     </Suspense>
+    <ToastLayer />
   </div>
 </template>
 
@@ -106,6 +107,7 @@
 import { useStorage } from '@vueuse/core'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { onMounted, ref, onErrorCaptured } from 'vue'
+import type { Ref } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import type { AbstractLogger } from '@/logger'
@@ -113,12 +115,15 @@ import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import { type SupabaseClientType } from '@/main'
 import { localStorageKeys } from '@/constants'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { safeInject } from '@/safe-inject'
+import type { SocketManager } from '@/socket-manager'
+import ToastLayer from '@/components/ToastLayer.vue'
 
 const logger: AbstractLogger = safeInject(LOGGER_KEY)
 const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
+const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(SOCKET_MANAGER_KEY)
 
 const session = ref<Session | null>(null)
 const router = useRouter()
@@ -145,7 +150,7 @@ useEventListener(window, 'message', handleExtensionMessage)
 const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
 
 const handleNewChat = async () => {
-  await conversationStore.markAllStreamingCompleteInCurrentConversation(currentConversationId)
+  await conversationStore.markAllStreamingCompleteInCurrentConversation(currentConversationId.value)
   await router.push({ path: '/chat', query: { newConversation: 'true' } })
 }
 
@@ -157,8 +162,15 @@ onMounted(async () => {
     } else if (event === 'SIGNED_OUT') {
       session.value = null
       router.push('/')
-    } else if (event === 'USER_UPDATED' && supabaseSession) {
+    } else if (
+      (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') &&
+      supabaseSession?.access_token
+    ) {
       session.value = supabaseSession
+      if (socketManagerRef.value) {
+        socketManagerRef.value.updateAuthToken(supabaseSession.access_token)
+        logger.debug('Updated socket auth token from session refresh')
+      }
     } else if (event === 'PASSWORD_RECOVERY') {
       router.push('/reset-password')
     }
