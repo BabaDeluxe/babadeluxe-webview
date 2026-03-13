@@ -8,27 +8,33 @@ export interface Toast {
   message: string
   type: ToastType
   duration?: number
+  timeoutId?: ReturnType<typeof setTimeout>
 }
 
 export const useToastStore = defineStore('toast', () => {
   const toasts = ref<Toast[]>([])
 
+  const removeToast = (id: string) => {
+    const index = toasts.value.findIndex((toast) => toast.id === id)
+    if (index === -1) return
+
+    const toast = toasts.value[index]
+    if (toast.timeoutId) clearTimeout(toast.timeoutId)
+
+    toasts.value.splice(index, 1)
+  }
+
   const addToast = (message: string, type: ToastType = 'info', duration = 4000) => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
-    toasts.value.push({ id, message, type, duration })
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
 
     if (duration > 0) {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         removeToast(id)
       }, duration)
     }
-  }
 
-  const removeToast = (id: string) => {
-    const index = toasts.value.findIndex((t) => t.id === id)
-    if (index !== -1) {
-      toasts.value.splice(index, 1)
-    }
+    toasts.value.push({ id, message, type, duration, timeoutId })
   }
 
   const success = (message: string) => {
