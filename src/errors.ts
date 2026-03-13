@@ -1,4 +1,5 @@
 import { BaseError } from '@babadeluxe/shared'
+export { BaseError }
 export class DbError extends BaseError {}
 export class ValidationError extends BaseError {}
 export class ChatError extends BaseError {}
@@ -69,3 +70,5 @@ export type CreateOrResetAssistantError =
   | MessageNotFoundError
   | MessageCreationError
   | MessageUpdateError
+
+export class UnexpectedAppError extends BaseError {}
