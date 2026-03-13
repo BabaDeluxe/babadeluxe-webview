@@ -1,8 +1,53 @@
+/* Theme Variables */
+:root {
+  /* Light Mode Defaults */
+  --color-slate: #f8fafc;
+  --color-panel: #ffffff;
+
+  --color-deep-text: #1e293b;
+  --color-subtle-text: #64748b;
+  --color-heading-text: #0f172a;
+  --color-body-text: #334155;
+
+  --color-accent: #8854c0; /* Darker purple for better contrast on white */
+  --color-accent-button: #8854c0;
+  --color-accent-hover: #7043a0;
+
+  --color-code-bg: #f1f5f9;
+  --color-border-muted: #e2e8f0;
+
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+}
+
+html.dark {
+  /* Dark Mode (Original Colors) */
+  --color-slate: #161925;
+  --color-panel: #1a1e2d;
+
+  --color-deep-text: #eceaff;
+  --color-subtle-text: #b3b3e6;
+  --color-heading-text: #dcd8ff;
+  --color-body-text: #f6f4ff;
+
+  --color-accent: #b67ee6;
+  --color-accent-button: #8854c0;
+  --color-accent-hover: #a36fdb;
+
+  --color-code-bg: #131422;
+  --color-border-muted: #55437b;
+
+  --color-error: #e74c5c;
+  --color-warning: #f59e0b;
+}
+
 /* General */
 html,
 body {
   height: 100%;
   width: 100%;
+  background-color: var(--color-slate);
+  color: var(--color-body-text);
 }
 
 * {
