@@ -135,7 +135,7 @@ export class ApiKeyValidator {
         if (error instanceof BaseError) {
           return error as ApiKeyValidationError
         }
-        return new ValidationError('An unexpected error occurred during validation', error as Error)
+        return new ValidationError('An unexpected error occurred during validation', error)
       }
     )
   }
