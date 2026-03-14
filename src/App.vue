@@ -106,20 +106,22 @@
 <script setup lang="ts">
 import { useStorage } from '@vueuse/core'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { onMounted, ref, onErrorCaptured } from 'vue'
-import type { Ref } from 'vue'
+import { type Ref, watch, onMounted, ref, onErrorCaptured } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
-import type { AbstractLogger } from '@/logger'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
-import { type SupabaseClientType } from '@/main'
-import { localStorageKeys } from '@/constants'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import ToastLayer from '@/components/ToastLayer.vue'
+import { useSettingsSocket } from '@/composables/use-settings-socket'
+import { useTheme } from '@/composables/use-theme'
+import type { AbstractLogger } from '@/logger'
 import { useConversationStore } from '@/stores/use-conversation-store'
+import { type SupabaseClientType } from '@/main'
+import { useToastStore } from '@/stores/use-toast-store'
+import { localStorageKeys } from '@/constants'
 import { safeInject } from '@/safe-inject'
 import type { SocketManager } from '@/socket-manager'
-import ToastLayer from '@/components/ToastLayer.vue'
+import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 
 const logger: AbstractLogger = safeInject(LOGGER_KEY)
 const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
@@ -128,6 +130,10 @@ const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(SOCKET_MANAG
 const session = ref<Session | null>(null)
 const router = useRouter()
 const conversationStore = useConversationStore()
+const toasts = useToastStore()
+const { settings, loadSettings } = useSettingsSocket()
+const { isDark } = useTheme()
+
 const handleExtensionMessage = (event: MessageEvent) => {
   const message = event.data
 
@@ -180,7 +186,24 @@ onMounted(async () => {
     handleAuthStateChange(event, session)
   })
 
+  // Watch for theme setting changes from DB (or initial load)
+  watch(
+    settings,
+    (newSettings) => {
+      const themeSetting = newSettings.find((setting) => setting.settingKey === 'theme')
+      if (themeSetting?.settingValue) {
+        const val = String(themeSetting.settingValue)
+        if (val === 'dark' && !isDark.value) isDark.value = true
+        else if (val === 'light' && isDark.value) isDark.value = false
+      }
+    },
+    { deep: true }
+  )
+
   const { data, error } = await supabase.auth.getSession()
+
+  // Start loading settings immediately to apply theme
+  if (data.session) void loadSettings()
 
   if (error) {
     logger.error('Failed to retrieve auth session, clearing stale data', { error })
@@ -202,6 +225,8 @@ onErrorCaptured((err, instance, info) => {
     componentName: instance?.$options?.name,
     error: err,
   })
+
+  toasts.error('Something crashed. Please reload.')
 
   return false
 })

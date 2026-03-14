@@ -3,12 +3,14 @@ export const lottieBaseSpinnerUrl =
 
 export const defaultModel = 'gemini:gemini-2.5-flash'
 
-export const streamingCommitIntervalMs = 2000
+export const streamingCommitIntervalMs = 2_000
 
 export const socketTimeoutMs = {
+  emit: 15_000,
   models: 15_000,
   prompts: 15_000,
   settings: 5_000,
+  validation: 5_000,
   subscription: 10_000,
   vsCodeContext: 30_000,
   vsCodeFileResolve: 60_000,
@@ -16,6 +18,7 @@ export const socketTimeoutMs = {
   vsCodeAuthSession: 1_500,
   chatSend: 60_000,
   chatAbort: 5_000,
+  init: 15_000,
 } as const
 
 export const localStorageKeys = {
