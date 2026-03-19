@@ -2,29 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}" && pwd)"
-echo "PROJECT_ROOT: ${PROJECT_ROOT}"
-cd "${PROJECT_ROOT}"
-
-# load env
-LOADED_ENV_KEYS=""
-
-if [ -f ".env" ]; then
-  # collect keys before loading
-  BEFORE_KEYS=$(compgen -v)
-
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
-
-  # collect keys after loading
-  AFTER_KEYS=$(compgen -v)
-
-  # diff: vars that appeared after sourcing .env
-  LOADED_ENV_KEYS=$(comm -13 <(printf '%s\n' "$BEFORE_KEYS" | sort) \
-                          <(printf '%s\n' "$AFTER_KEYS" | sort))
-fi
+cd "${SCRIPT_DIR}"
 
 log() {
   local ts
@@ -32,11 +10,40 @@ log() {
   echo "[$ts] $1"
 }
 
-# log env keys initially
-if [ -n "$LOADED_ENV_KEYS" ]; then
-  log "Loaded .env keys: $(echo "$LOADED_ENV_KEYS" | tr '\n' ' ')"
+# --- load .env: first '=' per line, export rest as value ---
+if [ -f ".env" ]; then
+  log "Loading .env from ${SCRIPT_DIR}"
+
+  LOADED_KEYS=()
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    # skip comments and blank lines
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    # skip lines without '='
+    [[ "$line" != *"="* ]] && continue
+
+    # split at first '='
+    key="${line%%=*}"
+    value="${line#*=}"
+
+    # trim spaces around key
+    key="$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+    # skip invalid keys
+    [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && continue
+
+    export "$key=$value"
+    LOADED_KEYS+=("$key")
+  done < ".env"
+
+  if ((${#LOADED_KEYS[@]})); then
+    log "Loaded .env keys: ${LOADED_KEYS[*]}"
+  else
+    log ".env had no valid KEY=VALUE lines"
+  fi
 else
-  log "No .env file found or no new keys loaded"
+  log ".env not found in ${SCRIPT_DIR}"
 fi
 
 # interval in ms from env, default 5 minutes
@@ -46,9 +53,12 @@ DEPLOY_INTERVAL_SECONDS=$((DEPLOY_CHECK_INTERVAL_MS / 1000))
 # Vite outDir is 'dist' in vite.config.ts
 BUILD_DIR="${BUILD_DIR:-dist}"
 
-# branches
+# branches (auto-discovery with env override)
+# prefer explicit env vars; otherwise infer default main branch name
+DEFAULT_PROD_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || echo 'master')"
+
 STAGING_BRANCH="${STAGING_BRANCH:-dev}"
-PROD_BRANCH="${PROD_BRANCH:-master}"
+PROD_BRANCH="${PROD_BRANCH:-$DEFAULT_PROD_BRANCH}"
 
 # docroots (adjust to your real Plesk paths)
 STAGING_DOCROOT="${STAGING_DOCROOT:-/var/www/vhosts/babadeluxe.com/webview-staging.babadeluxe.com}"
@@ -69,7 +79,7 @@ deploy_one() {
 
   # preserve local hacks: abort if dirty
   if [ -n "$(git status --porcelain)" ]; then
-    log "[webview:${name}] deploy aborted: working tree is dirty in ${PROJECT_ROOT}"
+    log "[webview:${name}] deploy aborted: working tree is dirty in ${SCRIPT_DIR}"
     return 1
   fi
 
@@ -92,7 +102,7 @@ deploy_one() {
   npm run build
 
   mkdir -p "${target}"
-  rsync -a --delete "${PROJECT_ROOT}/${BUILD_DIR}/" "${target}/"
+  rsync -a --delete "${SCRIPT_DIR}/${BUILD_DIR}/" "${target}/"
 
   log "[webview:${name}] deploy done → ${target}"
 }
@@ -102,7 +112,7 @@ run_cycle() {
   deploy_one "production" "${PROD_BRANCH}" || true
 }
 
-log "Starting BabaDeluxe webview auto-deploy loop from ${PROJECT_ROOT}, interval ${DEPLOY_INTERVAL_SECONDS}s, build dir '${BUILD_DIR}'"
+log "Starting BabaDeluxe webview auto-deploy loop from ${SCRIPT_DIR}, interval ${DEPLOY_INTERVAL_SECONDS}s, build dir '${BUILD_DIR}'"
 log "Staging → branch '${STAGING_BRANCH}' → ${STAGING_DOCROOT}"
 log "Production → branch '${PROD_BRANCH}' → ${PROD_DOCROOT}"
 
