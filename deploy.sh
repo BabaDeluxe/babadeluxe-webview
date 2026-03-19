@@ -2,14 +2,28 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}" && pwd)"
+echo "PROJECT_ROOT: ${PROJECT_ROOT}"
 cd "${PROJECT_ROOT}"
 
-# --- load .env ---
+# load env
+LOADED_ENV_KEYS=""
+
 if [ -f ".env" ]; then
-  # basic KEY=VALUE, no spaces parser
-  export $(grep -v '^#' .env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' | xargs)
+  # collect keys before loading
+  BEFORE_KEYS=$(compgen -v)
+
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+
+  # collect keys after loading
+  AFTER_KEYS=$(compgen -v)
+
+  # diff: vars that appeared after sourcing .env
+  LOADED_ENV_KEYS=$(comm -13 <(printf '%s\n' "$BEFORE_KEYS" | sort) \
+                          <(printf '%s\n' "$AFTER_KEYS" | sort))
 fi
 
 log() {
@@ -17,6 +31,13 @@ log() {
   ts="$(date '+%d-%m-%Y %H:%M:%S')"
   echo "[$ts] $1"
 }
+
+# log env keys initially
+if [ -n "$LOADED_ENV_KEYS" ]; then
+  log "Loaded .env keys: $(echo "$LOADED_ENV_KEYS" | tr '\n' ' ')"
+else
+  log "No .env file found or no new keys loaded"
+fi
 
 # interval in ms from env, default 5 minutes
 DEPLOY_CHECK_INTERVAL_MS="${DEPLOY_CHECK_INTERVAL_MS:-300000}"
@@ -30,8 +51,8 @@ STAGING_BRANCH="${STAGING_BRANCH:-dev}"
 PROD_BRANCH="${PROD_BRANCH:-master}"
 
 # docroots (adjust to your real Plesk paths)
-STAGING_DOCROOT="${STAGING_DOCROOT:-/var/www/vhosts/babadeluxe.com/webview-staging.babadeluxe.com/httpdocs}"
-PROD_DOCROOT="${PROD_DOCROOT:-/var/www/vhosts/babadeluxe.com/webview.babadeluxe.com/httpdocs}"
+STAGING_DOCROOT="${STAGING_DOCROOT:-/var/www/vhosts/babadeluxe.com/webview-staging.babadeluxe.com}"
+PROD_DOCROOT="${PROD_DOCROOT:-/var/www/vhosts/babadeluxe.com/webview.babadeluxe.com}"
 
 deploy_one() {
   local name="$1"     # "staging" | "production"
