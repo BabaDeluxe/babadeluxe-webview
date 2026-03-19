@@ -1,7 +1,7 @@
 export const apps = [
   {
     name: 'babadeluxe-webview-auto-deploy',
-    script: './scripts/deploy.sh',
+    script: './deploy.sh',
     interpreter: '/bin/bash',
     cwd: '.',
     log_date_format: 'DD-MM-YYYY HH:mm:ss',
