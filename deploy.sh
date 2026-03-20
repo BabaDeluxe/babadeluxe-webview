@@ -98,7 +98,7 @@ deploy_one() {
 
   git pull --ff-only origin "${branch}"
 
-  npm ci
+  npm ci --include=dev
   npm run build
 
   mkdir -p "${target}"
