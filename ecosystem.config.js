@@ -9,7 +9,7 @@ export const apps = [
       NODE_ENV: 'production',
     },
     env_staging: {
-      NODE_ENV: 'staging'
+      NODE_ENV: 'staging',
     },
   },
 ]
