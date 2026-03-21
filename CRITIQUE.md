@@ -22,24 +22,28 @@ The `use-conversation.ts` composable is overloaded: managing message state, conv
 `PromptsView.vue` is currently a hollow shell with no logic ("No logic attached currently").
 - **Refactoring Suggestion:** Unless a feature is imminent, **Inline Class** or remove the placeholder until it is actually needed (YAGNI).
 
+### Complex Logic in UI Components
+`ButtonItem.vue` contains complex class-merging and conflict-resolution logic (`_resolveClassConflictsWithResponsive`) directly within the component script.
+- **Refactoring Suggestion:** **Extract Method** to a utility file (e.g., `src/utils/css-utils.ts`) to keep the component focused on its primary responsibility: rendering a button.
+
 ---
 
 ## 2. The Uncle Bob Perspective: Clean Code & SOLID
 
 ### Single Responsibility Principle (SRP)
-`ActiveChatItem.vue` violates SRP. It handles UI rendering, local state for editing, and direct database persistence.
-- **Clean Code Advice:** "A class should have one, and only one, reason to change." This component changes if the UI changes AND if the database schema changes.
+`ActiveChatItem.vue` violates SRP by handling UI rendering, local state for editing, and direct database persistence. `AvatarItem.vue` also performs its own user data fetching from Supabase.
+- **Clean Code Advice:** "A class should have one, and only one, reason to change." Data fetching and persistence should be handled by views or injected services, not leaf components.
 
 ### Dependency Inversion Principle (DIP)
-While the project uses an IoC container (`IocEnum`), it's inconsistently applied. `ActiveChatItem.vue` hardcodes the creation of `KeyValueStore`.
-- **Clean Code Advice:** Depend on abstractions, not concretions. Always use the provided IoC mechanism (`inject(IocEnum.LOGGER)`) to retrieve dependencies.
+While an IoC container (`IocEnum`) exists, it is inconsistently applied. `ActiveChatItem.vue` hardcodes the creation of `KeyValueStore`, and `AvatarItem.vue` directly uses the injected Supabase client to fetch user data rather than using a dedicated `UserService`.
+- **Clean Code Advice:** Depend on abstractions, not concretions. Leaf components should receive data via props rather than reaching out to global services or instantiating databases.
 
 ### Interface Segregation Principle (ISP)
 The `VSCodeApi` type in `use-settings-socket.ts` is a good example of a narrow interface that prevents the webview from needing to know about the entire VS Code extension API.
 
 ### "The Only Way to Go Fast is to Go Well" (Tests)
 Critical business logic like `damerau-levenshtein-similarity.ts` and `api-key-validator.ts` lack unit tests, relying on `console.log` for verification.
-- **Clean Code Advice:** Complex algorithms must be covered by robust unit tests. Writing code without tests is "borrowing time from the future with a high interest rate."
+- **Clean Code Advice:** Complex algorithms must be covered by robust unit tests. Writing code without tests is "borrowing time from the future with a high interest rate." The existing `tests/auth.test.ts` is a good start for integration testing but lacks the granularity needed for edge-case validation.
 
 ---
 
@@ -53,7 +57,7 @@ Critical business logic like `damerau-levenshtein-similarity.ts` and `api-key-va
 | **Maintainability** | **6/10** | Clean TypeScript types. Penalized for code duplication between Chat components and logic scattered across Vue files instead of services. |
 | **Readability** | **8/10** | High. Consistent naming, clean UnoCSS templates, and effective use of the Composition API. |
 | **Documentation** | **3/10** | Poor. README is boilerplate. Code lacks comments explaining complex decisions (e.g., the 0.3 similarity threshold or the manual class conflict resolution in `ButtonItem.vue`). |
-| **Pragmatism/Efficiency of Tests** | **2/10** | Critical failure. Most unit tests are empty placeholders. E2E tests exist but lack coverage for the core AI interaction loops. |
+| **Pragmatism/Efficiency of Tests** | **3/10** | Low. Most unit tests are empty placeholders. E2E tests and some Auth integration tests exist, but they don't cover core AI interaction loops. |
 
 ---
 
