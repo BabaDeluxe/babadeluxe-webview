@@ -32,8 +32,6 @@
     </div>
 
     <template v-else>
-      <BaseAlertList :banners="alertBanners" />
-
       <div
         v-if="isLoading"
         data-testid="prompts-loading-state"
@@ -188,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineAsyncComponent, onMounted } from 'vue'
+import { ref, computed, defineAsyncComponent, onMounted, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { ResultAsync } from 'neverthrow'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
@@ -196,8 +194,9 @@ import { useResizableSplit } from '@/composables/use-resizable-split'
 import { KEY_VALUE_STORE_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 import { AuthError } from '@/errors'
+import { toUserMessage } from '@/error-mapper'
+import { useToastStore } from '@/stores/use-toast-store'
 import BaseButton from '@/components/BaseButton.vue'
-import BaseAlertList from '@/components/BaseAlertList.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
 import PromptList from '@/components/PromptList.vue'
@@ -229,6 +228,8 @@ const {
   isValidationError,
   clearError,
 } = usePromptsSocket()
+
+const toasts = useToastStore()
 
 const {
   leftWidthPercent: splitLeftWidthPercent,
@@ -302,39 +303,31 @@ const editablePrompt = computed(() => {
   return undefined
 })
 
-const alertBanners = computed(() => {
-  const banners = []
+watch(
+  error,
+  (val) => {
+    if (val) {
+      toasts.error(toUserMessage(val))
+      clearError()
+    }
+  },
+  { immediate: true }
+)
 
-  if (error.value) {
-    banners.push({
-      id: 'fetch-error',
-      message: error.value,
-      type: 'error' as const,
-      isDismissible: true,
-      onClose: () => {
-        clearError()
-      },
-    })
-  }
-
-  if (saveError.value) {
-    const isValidation =
-      saveError.value.startsWith('Invalid prompt') || saveError.value.startsWith('Cannot delete')
-    const alertType = isValidation ? ('warning' as const) : ('error' as const)
-
-    banners.push({
-      id: 'save-error',
-      message: saveError.value,
-      type: alertType,
-      isDismissible: true,
-      onClose: () => {
-        saveError.value = undefined
-      },
-    })
-  }
-
-  return banners
-})
+watch(
+  saveError,
+  (val) => {
+    if (val) {
+      const isValidation = val.startsWith('Invalid prompt') || val.startsWith('Cannot delete')
+      if (isValidation) {
+        toasts.warning(toUserMessage(val))
+      } else {
+        toasts.error(toUserMessage(val))
+      }
+    }
+  },
+  { immediate: true }
+)
 
 const fetchUserId = async (): Promise<void> => {
   const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {

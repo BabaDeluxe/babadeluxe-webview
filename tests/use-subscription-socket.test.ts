@@ -12,8 +12,12 @@ import {
 } from './helpers/mock-subscription-socket'
 import { trigger as triggerSocketEvent } from './helpers/mock-socket-manager'
 
-function trigger(socket: MockSubscriptionSocket, event: string, payload: unknown): void {
-  triggerSocketEvent(socket, event, payload)
+async function trigger(
+  socket: MockSubscriptionSocket,
+  event: string,
+  payload: unknown
+): Promise<void> {
+  return triggerSocketEvent(socket, event, payload)
 }
 
 describe('useSubscriptionSocket()', () => {
@@ -72,7 +76,8 @@ describe('useSubscriptionSocket()', () => {
         error: 'Checkout failed',
       })
 
-      expect(error.value).toBe('Checkout failed')
+      expect(error.value?.message).toMatch(/Checkout/i)
+      expect(error.value?.message).toContain('failed')
     })
   })
 

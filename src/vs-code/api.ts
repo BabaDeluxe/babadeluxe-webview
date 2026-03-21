@@ -23,11 +23,7 @@ export function getVsCodeApi(): Result<VsCodeApi, VsCodeAcquireError> {
 
   const acquireResult = Result.fromThrowable(
     () => acquireFunction(),
-    (unknownError: unknown) =>
-      new VsCodeAcquireError(
-        'Failed to acquire VS Code API',
-        unknownError instanceof Error ? unknownError : undefined
-      )
+    (unknownError: unknown) => new VsCodeAcquireError('Failed to acquire VS Code API', unknownError)
   )()
 
   if (acquireResult.isErr()) return err(acquireResult.error)

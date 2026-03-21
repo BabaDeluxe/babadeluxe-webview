@@ -8,7 +8,7 @@
       :value="stringValue"
       type="text"
       :class="inputClasses"
-      @input="handleInput"
+      @change="handleInput"
     />
 
     <!-- Number Field -->
@@ -19,7 +19,7 @@
       :value="numberValue"
       type="number"
       :class="inputClasses"
-      @input="handleInput"
+      @change="handleInput"
     />
 
     <!-- Boolean Field -->
@@ -35,7 +35,7 @@
         class="w-4 h-4"
         @change="handleCheckbox"
       />
-      <span class="text-sm text-deepText">Enable</span>
+      <span class="text-sm text-deepText">{{ fieldName }}</span>
     </label>
   </div>
 </template>

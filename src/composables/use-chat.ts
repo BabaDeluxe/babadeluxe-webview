@@ -9,37 +9,18 @@ import { useChatSocket } from '@/composables/use-chat-socket'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
-import {
-  useVsCodeContextStore,
-  type LockedContextReference,
-} from '@/stores/use-vs-code-context-store'
 import { useConversationStore } from '@/stores/use-conversation-store'
-import { defaultModel, localStorageKeys, streamingCommitIntervalMs } from '@/constants'
-import type { ContextReference } from '@/database/types'
-import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY, APP_DB_KEY } from '@/injection-keys'
-import { createStreamingCommitHandler, finalizeStreamingMessage } from '@/streaming-helpers'
+import { defaultModel, localStorageKeys } from '@/constants'
+import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { finalizeStreamingMessage } from '@/streaming-helpers'
 import { safeInject } from '@/safe-inject'
-import { AuthError, InitializationError } from '@/errors'
+import { AuthError, InitializationError, ChatError, BaseError } from '@/errors'
 import { findPreferredModel } from '@/model-preferences'
-import { isVsCodeContextItem } from '@/vs-code/context-type-guards'
+import { useChatAlerts } from '@/composables/use-chat-alerts'
+import { useChatContextHandler } from '@/composables/use-chat-context-handler'
 
 type ChatMessageInstance = InstanceType<typeof ChatMessage>
 type ChatInputInstance = InstanceType<typeof ChatInput>
-type FormattedContextItem = { kind: 'file' | 'snippet'; filePath: string; content: string }
-
-type BaseAlertBanner = {
-  id: string
-  message: string | undefined
-  type: 'error' | 'warning'
-  isDismissible: boolean
-  onClose: () => void
-}
-
-type PreparedChatRequest = {
-  contextReferences: ContextReference[]
-  contextItems: FormattedContextItem[]
-  onChunk: ReturnType<typeof createStreamingCommitHandler>
-}
 
 type ModelItem = {
   value: string
@@ -50,7 +31,6 @@ export function useChat() {
   const logger = safeInject(LOGGER_KEY)
   const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)
   const supabase = safeInject(SUPABASE_CLIENT_KEY)
-  const appDb = safeInject(APP_DB_KEY)
 
   const route = useRoute()
   const router = useRouter()
@@ -72,13 +52,13 @@ export function useChat() {
     createConversation,
     finalizeAssistantMessage,
     loadConversations,
+    loadMessages,
     loadMessageCounts,
     resumeInterruptedStreams,
   } = store
 
   const {
     isStreaming: isChatStreaming,
-    error: chatError,
     streamingMessageIds,
     abortMessage: abortChatMessage,
   } = useChatSocket()
@@ -98,18 +78,6 @@ export function useChat() {
 
   const { shouldShowModal, dismissModal } = useSubscriptionSocket()
 
-  const vsCodeContext = useVsCodeContextStore()
-  const { isInVsCode, contextItems, contextError, contextRevision, isLoadingContext } =
-    storeToRefs(vsCodeContext)
-  const {
-    toggleLocked,
-    refreshSuggestions,
-    getLockedReferences,
-    resolveFilesFromDocument,
-    removeContextItem,
-    clearAllContext,
-  } = vsCodeContext
-
   const currentPrompt = ref('BabaSeniorDev™')
   const currentModel = ref(defaultModel)
   const currentMessage = ref('')
@@ -122,11 +90,35 @@ export function useChat() {
 
   const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
 
+  const {
+    isInVsCode,
+    contextItems,
+    contextError,
+    contextRevision,
+    isLoadingContext,
+    refreshSuggestions,
+    prepareChatRequest,
+    handleRemoveContextItem,
+    handleClearAllContext,
+    handleToggleLock,
+    clearAllContext,
+  } = useChatContextHandler(
+    logger,
+    currentConversationId,
+    currentUserId,
+    messages,
+    messageComponents
+  )
+
   const isLoadingConversations = ref(false)
   const isLoadingMessages = ref(false)
 
-  const modelsReloadWarning = ref<string>()
-  const persistenceWarning = ref<string>()
+  const { persistenceWarning } = useChatAlerts(
+    conversationError,
+    contextError,
+    promptsError,
+    clearPromptsError
+  )
 
   const contextUsageWarning = computed(() => {
     const usage = lastContextUsage.value
@@ -138,111 +130,6 @@ export function useChat() {
     }
     return ''
   })
-
-  // --- alerts setup (same as before) ---
-  const baseAlerts = ref<BaseAlertBanner[]>([
-    {
-      id: 'conversation-error',
-      message: undefined,
-      type: 'error',
-      isDismissible: true,
-      onClose: () => (conversationError.value = undefined),
-    },
-    {
-      id: 'chat-error',
-      message: undefined,
-      type: 'error',
-      isDismissible: false,
-      onClose: () => {},
-    },
-    {
-      id: 'context-error',
-      message: undefined,
-      type: 'warning',
-      isDismissible: true,
-      onClose: () => (contextError.value = undefined),
-    },
-    {
-      id: 'prompts-error',
-      message: undefined,
-      type: 'warning',
-      isDismissible: true,
-      onClose: clearPromptsError,
-    },
-    {
-      id: 'models-reload-warning',
-      message: undefined,
-      type: 'warning',
-      isDismissible: true,
-      onClose: () => (modelsReloadWarning.value = undefined),
-    },
-    {
-      id: 'persistence-warning',
-      message: undefined,
-      type: 'warning',
-      isDismissible: true,
-      onClose: () => (persistenceWarning.value = undefined),
-    },
-  ])
-
-  const setBaseAlertMessage = (id: string, message: string | undefined) => {
-    const banner = baseAlerts.value.find((alert) => alert.id === id)
-    if (!banner) return
-    banner.message = message
-  }
-
-  watch(
-    conversationError,
-    (v) => {
-      setBaseAlertMessage('conversation-error', v)
-    },
-    {
-      immediate: true,
-    }
-  )
-  watch(
-    chatError,
-    (v) => {
-      setBaseAlertMessage('chat-error', v)
-    },
-    { immediate: true }
-  )
-  watch(
-    contextError,
-    (v) => {
-      setBaseAlertMessage('context-error', v)
-    },
-    { immediate: true }
-  )
-  watch(
-    promptsError,
-    (v) => {
-      setBaseAlertMessage('prompts-error', v)
-    },
-    { immediate: true }
-  )
-  watch(
-    modelsReloadWarning,
-    (v) => {
-      setBaseAlertMessage('models-reload-warning', v)
-    },
-    {
-      immediate: true,
-    }
-  )
-  watch(
-    persistenceWarning,
-    (v) => {
-      setBaseAlertMessage('persistence-warning', v)
-    },
-    {
-      immediate: true,
-    }
-  )
-
-  const activeBaseAlerts = computed(() =>
-    baseAlerts.value.filter((banner) => banner.message !== undefined)
-  )
 
   const promptOptions = computed(() => {
     if (isLoadingPrompts.value) {
@@ -273,65 +160,6 @@ export function useChat() {
     if ('$' in (element as Element | ChatMessageInstance)) {
       messageComponents.value.set(id, element as ChatMessageInstance)
     }
-  }
-
-  function toContextReference(refLocked: LockedContextReference): ContextReference | undefined {
-    if (refLocked.kind === 'file') {
-      const cleaned = refLocked.filePath.trim()
-      if (!cleaned) return undefined
-      return { type: 'file', filePath: cleaned }
-    }
-
-    const cleanedSnippet = refLocked.snippetText.trim()
-    if (!cleanedSnippet) return undefined
-
-    const cleanedPath = refLocked.filePath.trim()
-    return cleanedPath.length > 0
-      ? { type: 'snippet', filePath: cleanedPath, snippetText: cleanedSnippet }
-      : { type: 'snippet', snippetText: cleanedSnippet }
-  }
-
-  const prepareChatRequest = async (): Promise<PreparedChatRequest> => {
-    const locked = getLockedReferences()
-
-    const lockedFilePaths = locked
-      .filter((refLocked) => refLocked.kind === 'file')
-      .map((refLocked) => refLocked.filePath)
-
-    const lockedSnippets = locked
-      .filter((refLocked) => refLocked.kind === 'snippet')
-      .map((refLocked) => ({
-        filePath: refLocked.filePath,
-        snippetText: refLocked.snippetText,
-      }))
-
-    const resolvedFilesResult = await resolveFilesFromDocument(lockedFilePaths)
-    const resolvedFiles = resolvedFilesResult.isOk() ? resolvedFilesResult.value : []
-
-    const contextReferences: ContextReference[] = locked
-      .map(toContextReference)
-      .filter((ref): ref is ContextReference => ref !== undefined)
-
-    const contextItems: FormattedContextItem[] = [
-      ...resolvedFiles.map((file) => ({
-        kind: 'file' as const,
-        filePath: file.filePath,
-        content: file.content,
-      })),
-      ...lockedSnippets.map((snippet) => ({
-        kind: 'snippet' as const,
-        filePath: snippet.filePath,
-        content: snippet.snippetText,
-      })),
-    ]
-
-    const onChunk = createStreamingCommitHandler(
-      messages,
-      messageComponents,
-      streamingCommitIntervalMs
-    )
-
-    return { contextReferences, contextItems, onChunk }
   }
 
   const shouldRestoreFocusAfterAbort = (): boolean => {
@@ -383,7 +211,7 @@ export function useChat() {
     }
   }
 
-  // --- message loading using AppDb directly ---
+  // --- message loading using store ---
   async function loadMessagesForCurrentConversation(): Promise<void> {
     if (!currentConversationId.value) {
       messages.value = []
@@ -391,7 +219,7 @@ export function useChat() {
     }
 
     isLoadingMessages.value = true
-    const result = await appDb.getMessageByConversation(currentConversationId.value)
+    const result = await loadMessages(currentConversationId.value)
     isLoadingMessages.value = false
 
     if (result.isErr()) {
@@ -400,12 +228,10 @@ export function useChat() {
         userId: currentUserId.value,
         error: result.error,
       })
-      messages.value = []
       conversationError.value = 'Failed to load messages'
       return
     }
 
-    messages.value = [...result.value]
     conversationError.value = undefined
   }
 
@@ -423,42 +249,6 @@ export function useChat() {
     }
   }
 
-  const handleRemoveContextItem = (payload: unknown) => {
-    if (isVsCodeContextItem(payload)) {
-      removeContextItem(payload)
-      return
-    }
-
-    if (typeof payload === 'string') {
-      const item = contextItems.value.find((i) => i.id === payload)
-      if (item) {
-        removeContextItem(item)
-        return
-      }
-
-      logger.warn('Context item removal failed: unknown id', {
-        conversationId: currentConversationId.value,
-        userId: currentUserId.value,
-        itemId: payload,
-      })
-      return
-    }
-
-    logger.warn('Context item removal failed: unsupported payload', {
-      conversationId: currentConversationId.value,
-      userId: currentUserId.value,
-      payload: JSON.stringify(payload),
-    })
-  }
-
-  const handleClearAllContext = () => {
-    clearAllContext()
-  }
-
-  const handleToggleLock = (filePath: string) => {
-    toggleLocked(filePath)
-  }
-
   const parseModel = (value: string | undefined): { provider: string; model: string } | null => {
     if (!value || !value.includes(':')) return null
     const [provider, model] = value.split(':')
@@ -474,10 +264,11 @@ export function useChat() {
     conversationError.value = message
   }
 
-  const createError = (fallback: string, errorResult: unknown): Error =>
-    errorResult instanceof Error
-      ? errorResult
-      : new Error(typeof errorResult === 'string' ? errorResult : fallback)
+  const createError = (fallback: string, errorResult: unknown): BaseError => {
+    if (errorResult instanceof BaseError) return errorResult
+    if (errorResult instanceof Error) return new ChatError(errorResult.message, errorResult)
+    return new ChatError(typeof errorResult === 'string' ? errorResult : fallback)
+  }
 
   async function handleEditMessage(messageId: number, newContent: string) {
     const updateResult = await store.updateUserMessage(messageId, newContent)
@@ -495,7 +286,9 @@ export function useChat() {
     const userMessageIndex = messages.value.findIndex((m) => m.id === messageId)
     const nextMessage = messages.value[userMessageIndex + 1]
 
-    if (!nextMessage || nextMessage.role !== 'assistant') return
+    // Abort if the next message exists but is not an assistant (avoids breaking linear history).
+    // If nextMessage is missing, we proceed to generate a new response (e.g. retrying last message).
+    if (nextMessage && nextMessage.role !== 'assistant') return
 
     const fromCurrent = parseModel(currentModel.value)
     if (!fromCurrent) {
@@ -508,14 +301,14 @@ export function useChat() {
 
     const { provider, model } = fromCurrent
 
-    const systemPromptText = getSelectedSystemPromptText(nextMessage.systemPrompt)
+    const systemPromptText = getSelectedSystemPromptText(nextMessage?.systemPrompt)
     const prepared = await prepareChatRequest()
 
     await resendFromMessage(currentConversationId.value, messageId, {
       provider,
       model,
       systemPrompt: systemPromptText,
-      existingAssistantId: nextMessage.id,
+      existingAssistantId: nextMessage?.id,
       contextItems: prepared.contextItems,
       contextReferences: prepared.contextReferences,
       onChunk: prepared.onChunk,
@@ -527,7 +320,7 @@ export function useChat() {
           conversationId: currentConversationId.value,
           userId: currentUserId.value,
           messageId,
-          assistantMessageId: nextMessage.id,
+          assistantMessageId: nextMessage?.id,
           error: asError,
         })
         conversationError.value = asError.message
@@ -859,6 +652,12 @@ export function useChat() {
     { debounce: 450, maxWait: 1500 }
   )
 
+  watch(currentConversationId, async (newId, oldId) => {
+    if (newId !== oldId) {
+      await loadMessagesForCurrentConversation()
+    }
+  })
+
   watch(
     () => route.query.newConversation,
     async (isNew) => {
@@ -974,7 +773,6 @@ export function useChat() {
     modelsLoadedCount,
     contextUsageWarning,
     lastContextUsage,
-    activeBaseAlerts,
     shouldShowModal,
 
     // handlers

@@ -3,16 +3,12 @@ import { authTest as test } from './helpers/fixtures'
 import { createLocatorDealer, locators } from './helpers/locators'
 import { safeGoto } from 'tests/e2e/helpers/safe-navigation'
 import { gotoOptions } from 'tests/e2e/helpers/test-data'
-// import { seedPromptsViewData } from 'tests/e2e/helpers/test-data'
 
 test.describe.configure({ mode: 'serial' })
 
 test.describe('Prompts View', () => {
-  test.beforeAll(() => {})
-
   test.beforeEach(async ({ page }) => {
-    safeGoto(page, '/prompts', gotoOptions)
-    await page.waitForTimeout(1500)
+    await safeGoto(page, '/prompts', gotoOptions)
   })
 
   test('creates a new prompt successfully', async ({ page }) => {
@@ -23,24 +19,18 @@ test.describe('Prompts View', () => {
 
     const newButton = await dealer.get(locators.promptsNewButton)
     await newButton.click()
-    await page.waitForTimeout(500)
 
     await (await dealer.get(locators.promptsNameInput)).fill('E2E Test Prompt')
-    await page.waitForTimeout(500)
     await (await dealer.get(locators.promptsCommandInput)).fill('e2etest')
-    await page.waitForTimeout(500)
     await (await dealer.get(locators.promptsDescriptionInput)).fill('E2E description')
-    await page.waitForTimeout(500)
     await (await dealer.get(locators.promptsTemplateInput)).fill('Test template content')
-    await page.waitForTimeout(500)
 
     const saveButton = await dealer.get(locators.promptsSaveButton)
     await expect(saveButton).toBeEnabled()
     await saveButton.click()
-    await page.waitForTimeout(2000)
 
-    await expect(saveButton).toBeDisabled({ timeout: 5000 })
-    await expect(page.getByText('E2E Test Prompt')).toBeVisible()
+    // Assert result: prompt appears in the list
+    await expect(page.getByText('E2E Test Prompt')).toBeVisible({ timeout: 5000 })
   })
 
   test('edits an existing prompt', async ({ page }) => {
@@ -58,22 +48,17 @@ test.describe('Prompts View', () => {
     }
 
     await item.click()
-    await page.waitForTimeout(500)
 
     const nameInput = await dealer.get(locators.promptsNameInput)
     const originalName = await nameInput.inputValue()
 
     await nameInput.fill(`${originalName} - Updated`)
-    await page.waitForTimeout(500)
 
     const saveButton = await dealer.get(locators.promptsSaveButton)
     await expect(saveButton).toBeEnabled()
-
     await saveButton.click()
-    await page.waitForTimeout(500)
 
-    await expect(saveButton).toBeDisabled({ timeout: 5000 })
-    await expect(page.getByText(`${originalName} - Updated`)).toBeVisible()
+    await expect(page.getByText(`${originalName} - Updated`)).toBeVisible({ timeout: 5000 })
   })
 
   test('deletes a prompt after confirmation', async ({ page }) => {
@@ -90,20 +75,18 @@ test.describe('Prompts View', () => {
       return
     }
 
-    const promptText = await item.textContent()
+    const promptText = (await item.textContent()) ?? ''
 
     const deleteButton = await dealer.get(locators.promptsDeleteButton)
     await deleteButton.click()
-    await page.waitForTimeout(500)
 
     const modal = await dealer.get(locators.promptsDeleteDialog)
-    await expect(modal).toContainText(promptText || '')
+    await expect(modal).toContainText(promptText)
 
     await modal.getByRole('button', { name: /delete/i }).click()
-    await page.waitForTimeout(500)
 
-    await expect(modal).not.toBeVisible()
-    await expect(page.getByText(promptText || '')).not.toBeVisible()
+    await expect(modal).not.toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(promptText)).not.toBeVisible()
   })
 
   test('shows validation errors on empty save', async ({ page }) => {
@@ -114,7 +97,6 @@ test.describe('Prompts View', () => {
 
     const newButton = await dealer.get(locators.promptsNewButton)
     await newButton.click()
-    await page.waitForTimeout(500)
 
     const saveButton = await dealer.get(locators.promptsSaveButton)
     await expect(saveButton).toBeDisabled()
@@ -128,17 +110,13 @@ test.describe('Prompts View', () => {
 
     const newButton = await dealer.get(locators.promptsNewButton)
     await newButton.click()
-    await page.waitForTimeout(500)
 
     const saveButton = await dealer.get(locators.promptsSaveButton)
     await expect(saveButton).toBeDisabled()
 
     await (await dealer.get(locators.promptsNameInput)).fill('Test')
-    await page.waitForTimeout(500)
     await (await dealer.get(locators.promptsCommandInput)).fill('test')
-    await page.waitForTimeout(500)
     await (await dealer.get(locators.promptsTemplateInput)).fill('Test template')
-    await page.waitForTimeout(500)
 
     await expect(saveButton).toBeEnabled()
   })

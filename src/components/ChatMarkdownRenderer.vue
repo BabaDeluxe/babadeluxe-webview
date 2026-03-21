@@ -2,6 +2,7 @@
   <div
     ref="rendererRootRef"
     class="markdown-content min-h-5 overflow-x-hidden"
+    @click="handleRootClick"
   >
     <VueMarkdown
       v-if="shouldRenderMarkdown && currentRenderedContent"
@@ -38,6 +39,7 @@ import type MarkdownIt from 'markdown-it/index.js'
 
 import 'highlight.js/styles/base16/rebecca.css'
 import 'katex/dist/katex.min.css'
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 
 type ContentTrustLevel = 'trusted' | 'untrusted'
 
@@ -54,6 +56,8 @@ const props = withDefaults(
     trustLevel: 'untrusted',
   }
 )
+
+const { createTimeout } = useTrackedTimeouts()
 
 const committedContent = ref('')
 const currentRenderedContent = computed(() =>
@@ -114,13 +118,31 @@ const markdownFenceEnhancer = (md: MarkdownItLike): void => {
     if (lang === 'env') token.info = token.info.replace(/^env\b/i, 'properties')
     if (lang === 'yml') token.info = token.info.replace(/^yml\b/i, 'yaml')
 
-    if (!existingFenceRenderer) {
+    const rawCode = token.content
+    // We inject the button directly into the HTML string to avoid manual DOM insertion later
+    // We use a data attribute to store the code for the click handler
+    const buttonHtml = `
+      <div class="code-block-wrapper relative group">
+        <button
+          type="button"
+          class="code-copy-button absolute top-2 right-2 flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-borderMuted bg-panel/90 cursor-pointer transition-colors transition-opacity opacity-0 group-hover:opacity-100"
+          aria-label="Copy code"
+          data-code="${md.utils.escapeHtml(rawCode)}"
+        >
+          <span class="code-copy-icon i-weui:copy-outlined text-xs"></span>
+        </button>
+    `
+
+    let fenceOutput = ''
+    if (existingFenceRenderer) {
+      fenceOutput = existingFenceRenderer(tokens, index, options, environment, self)
+    } else {
       const escaped = md.utils.escapeHtml(token.content)
       const safeLang = lang ? `language-${lang}` : ''
-      return `<pre><code class="${safeLang}">${escaped}</code></pre>`
+      fenceOutput = `<pre><code class="${safeLang}">${escaped}</code></pre>`
     }
 
-    return existingFenceRenderer(tokens, index, options, environment, self)
+    return `${buttonHtml}${fenceOutput}</div>`
   }
 
   // @ts-expect-error Missing declaration file
@@ -204,7 +226,6 @@ async function schedulePostRenderEnhancements(): Promise<void> {
 
   window.setTimeout(() => {
     void renderMermaidIfPresent()
-    void enhanceCodeBlocksWithCopy()
   }, 0)
 }
 
@@ -235,55 +256,34 @@ async function renderMermaidIfPresent(): Promise<void> {
   await mermaidModule.run({ nodes, suppressErrors: true })
 }
 
-async function enhanceCodeBlocksWithCopy(): Promise<void> {
-  await nextTick()
+const handleRootClick = async (event: MouseEvent) => {
+  const target = event.target as HTMLElement
+  const button = target.closest('.code-copy-button') as HTMLElement
+  if (!button) return
 
-  const root = rendererRootRef.value
-  if (!root) return
+  const rawCode = button.getAttribute('data-code')
+  if (!rawCode) return
 
-  const codeBlocks = root.querySelectorAll('pre > code') as NodeListOf<HTMLElement>
-  if (codeBlocks.length === 0) return
+  const textarea = document.createElement('textarea')
+  textarea.innerHTML = rawCode
+  const decodedCode = textarea.value
 
-  for (const codeElement of codeBlocks) {
-    const pre = codeElement.parentElement
-    if (!pre) continue
+  await navigator.clipboard.writeText(decodedCode)
 
-    const existingWrapper = pre.closest('.code-block-wrapper')
-    if (existingWrapper) continue
-
-    const wrapper = document.createElement('div')
-    wrapper.className = 'code-block-wrapper'
-
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'code-copy-button'
-    button.setAttribute('aria-label', 'Copy code')
-
-    const iconSpan = document.createElement('span')
-    iconSpan.className = 'code-copy-icon'
-    iconSpan.classList.add('i-weui:copy-outlined')
-
-    button.appendChild(iconSpan)
-
-    button.addEventListener('click', () => {
-      const rawCode = codeElement.innerText
-      void navigator.clipboard.writeText(rawCode)
-
-      button.classList.add('is-copied')
-      iconSpan.classList.remove('i-weui:copy-outlined')
-      iconSpan.classList.add('i-bi-check2')
-
-      window.setTimeout(() => {
-        button.classList.remove('is-copied')
-        iconSpan.classList.remove('i-bi-check2')
-        iconSpan.classList.add('i-weui:copy-outlined')
-      }, 1500)
-    })
-
-    pre.parentNode?.insertBefore(wrapper, pre)
-    wrapper.appendChild(button)
-    wrapper.appendChild(pre)
+  button.classList.add('is-copied')
+  const icon = button.querySelector('.code-copy-icon')
+  if (icon) {
+    icon.classList.remove('i-weui:copy-outlined')
+    icon.classList.add('i-bi-check2')
   }
+
+  createTimeout(() => {
+    button.classList.remove('is-copied')
+    if (icon) {
+      icon.classList.remove('i-bi-check2')
+      icon.classList.add('i-weui:copy-outlined')
+    }
+  }, 1500)
 }
 
 function sanitizeContent(text: string): string {
@@ -449,24 +449,12 @@ defineExpose({
   @apply text-accentHover;
 }
 
-.markdown-content :deep(.code-block-wrapper) {
-  @apply relative;
-}
-
-.markdown-content :deep(.code-copy-button) {
-  @apply absolute top-2 right-2 flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-borderMuted bg-panel/90 cursor-pointer;
-  @apply transition-colors transition-opacity;
-}
-
+/* Button styles are now injected via tailwind classes in render function, but we keep these for safety/overrides */
 .markdown-content :deep(.code-copy-button:hover) {
   @apply bg-panel;
 }
 
 .markdown-content :deep(.code-copy-button.is-copied) {
   @apply opacity-80;
-}
-
-.markdown-content :deep(.code-copy-icon) {
-  @apply text-xs;
 }
 </style>

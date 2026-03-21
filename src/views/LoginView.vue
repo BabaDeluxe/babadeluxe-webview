@@ -94,16 +94,6 @@
             @click="toggleMode"
           />
         </form>
-
-        <BaseAlert
-          v-if="error"
-          class="pt-4"
-          data-testid="login-error-alert"
-          :message="error"
-          type="error"
-          :is-dismissible="true"
-          @close="error = undefined"
-        />
       </div>
     </div>
   </section>
@@ -117,18 +107,21 @@ import type { AbstractLogger } from '@/logger'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseInput from '@/components/BaseInput.vue'
-import BaseAlert from '@/components/BaseAlert.vue'
 import { useVsCodeAuth } from '@/composables/use-vs-code-auth'
 import type { SupabaseClientType } from '@/main'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 import { AuthError, NetworkError } from '@/errors'
+import { toUserMessage } from '@/error-mapper'
+import { useToastStore } from '@/stores/use-toast-store'
+import { watch } from 'vue'
 
 const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
 const logger: AbstractLogger = safeInject(LOGGER_KEY)
 
 const router = useRouter()
 const vsCodeAuth = useVsCodeAuth()
+const toasts = useToastStore()
 
 const email = ref('')
 const password = ref('')
@@ -138,6 +131,16 @@ const emailError = ref<string | undefined>()
 const passwordError = ref<string | undefined>()
 const isLoading = ref(false)
 const hasAttemptedStoredSession = ref(false)
+
+watch(
+  error,
+  (val) => {
+    if (val) {
+      toasts.error(toUserMessage(val))
+    }
+  },
+  { immediate: true }
+)
 
 const handleEmailChange = (value: string | number) => {
   email.value = String(value)
@@ -227,7 +230,7 @@ const handleAuth = async (): Promise<void> => {
         email: email.value,
         error: authError,
       })
-      error.value = authError.message
+      error.value = toUserMessage(authError)
       password.value = ''
     }
   )
@@ -290,7 +293,7 @@ onMounted(() => {
           error: setSessionResult.error,
         }
       )
-      error.value = 'Session expired. Please sign in again.'
+      error.value = toUserMessage(setSessionResult.error, 'Session expired. Please sign in again.')
       vsCodeAuth.clearStoredSession()
       return
     }
@@ -332,7 +335,7 @@ const handleGitHubLogin = async (): Promise<void> => {
       logger.error('GitHub OAuth failed in VS Code mode', {
         error: oauthResult.error,
       })
-      error.value = oauthResult.error.message
+      error.value = toUserMessage(oauthResult.error)
       isLoading.value = false
       return
     }
@@ -348,7 +351,7 @@ const handleGitHubLogin = async (): Promise<void> => {
       logger.error('GitHub OAuth succeeded but session setup failed', {
         error: setSessionResult.error,
       })
-      error.value = setSessionResult.error.message
+      error.value = toUserMessage(setSessionResult.error)
       isLoading.value = false
       return
     }
@@ -362,7 +365,7 @@ const handleGitHubLogin = async (): Promise<void> => {
     supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
-        redirectTo: `http://127.0.0.1:5100/auth/callback`,
+        redirectTo: `${globalThis.location.origin}/auth/callback`,
       },
     }),
     (unknownError) => {
@@ -377,13 +380,13 @@ const handleGitHubLogin = async (): Promise<void> => {
     logger.error('GitHub OAuth failed in browser mode', {
       error: browserResult.error,
     })
-    error.value = browserResult.error.message
+    error.value = toUserMessage(browserResult.error)
   } else if (browserResult.value.error) {
     const authError = new AuthError(browserResult.value.error.message)
     logger.error('GitHub OAuth failed in browser mode', {
       error: authError,
     })
-    error.value = authError.message
+    error.value = toUserMessage(authError)
   }
 
   isLoading.value = false

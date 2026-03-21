@@ -6,12 +6,17 @@
     <div
       :class="[
         'flex items-center gap-2 px-3 py-2 rounded-lg text-subtleText',
-        'hover:text-deepText hover:bg-borderMuted/20 transition-colors',
+        'hover:text-deepText hover:bg-borderMuted/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent',
         props.isFullWidth ? 'w-full' : 'w-auto',
         props.isDisabled ? 'cursor-default opacity-60' : 'cursor-pointer',
       ]"
+      role="button"
+      :tabindex="props.isDisabled ? -1 : 0"
       :aria-disabled="props.isDisabled || undefined"
+      :aria-expanded="isOpen"
       @click="!props.isDisabled && toggle()"
+      @keydown.enter.prevent="!props.isDisabled && toggle()"
+      @keydown.space.prevent="!props.isDisabled && toggle()"
     >
       <slot>
         <i

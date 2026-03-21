@@ -1,29 +1,36 @@
-import type { Ref } from 'vue'
+import { type Ref, watch } from 'vue'
 import type { SocketManager } from '@/socket-manager'
 import { safeInject } from '@/safe-inject'
 import { SOCKET_MANAGER_KEY } from '@/injection-keys'
 import { NetworkError } from '@/errors'
+import { socketTimeoutMs } from '@/constants'
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 
 export function useSocketManager() {
   const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(SOCKET_MANAGER_KEY)
+
+  const { createTimeout } = useTrackedTimeouts()
 
   async function getSocketManager(): Promise<SocketManager> {
     if (socketManagerRef.value) return socketManagerRef.value
 
     return new Promise<SocketManager>((resolve, reject) => {
-      const start = Date.now()
-      const intervalId = window.setInterval(() => {
-        if (socketManagerRef.value) {
-          window.clearInterval(intervalId)
-          resolve(socketManagerRef.value)
-          return
-        }
+      const stopWatcher = watch(
+        socketManagerRef,
+        (newManager) => {
+          if (newManager) {
+            stopWatcher()
+            resolve(newManager)
+          }
+        },
+        { immediate: true }
+      )
 
-        if (Date.now() - start > 15_000) {
-          window.clearInterval(intervalId)
-          reject(new NetworkError('SocketManager initialization timeout'))
-        }
-      }, 50)
+      createTimeout(() => {
+        if (socketManagerRef.value) return
+        stopWatcher()
+        reject(new NetworkError('SocketManager initialization timeout'))
+      }, socketTimeoutMs.init)
     })
   }
 

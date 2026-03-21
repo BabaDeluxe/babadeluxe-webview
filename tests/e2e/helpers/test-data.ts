@@ -123,6 +123,7 @@ export const testData = {
     prompts: [
       {
         id: 1,
+        userId: '123',
         name: 'E2E Test Prompt',
         command: 'e2etest',
         description: 'Prompt used for E2E testing',
@@ -134,6 +135,7 @@ export const testData = {
       },
       {
         id: 2,
+        userId: '123',
         name: 'Code Reviewer',
         command: 'review',
         description: 'Reviews code for potential issues',
@@ -145,6 +147,7 @@ export const testData = {
       },
       {
         id: 3,
+        userId: '123',
         name: 'Bug Hunter',
         command: 'bughunt',
         description: 'Helps find bugs in TypeScript code',

@@ -1,4 +1,4 @@
-import { getCurrentScope, onScopeDispose } from 'vue'
+import { getCurrentScope, onScopeDispose, ref } from 'vue'
 import { err, ok, Result, ResultAsync } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { NetworkError, AuthError } from '@/errors'
@@ -24,6 +24,8 @@ type IncomingMessage =
  * The last registered listener wins. Consider serializing calls at the caller level
  * if concurrent authentication requests are possible.
  */
+const isRequestPending = ref(false)
+
 export function useVsCodeAuth() {
   const { createTimeout, cancelTimeout } = useTrackedTimeouts()
 
@@ -36,9 +38,21 @@ export function useVsCodeAuth() {
   const requestGitHubLoginFromExtension = async (
     timeoutMilliseconds = socketTimeoutMs.vsCodeAuthLogin
   ): Promise<Result<AuthSessionPayload | undefined, NetworkError | AuthError>> => {
+    if (isRequestPending.value) {
+      return err(new NetworkError('Authentication request already in progress'))
+    }
+
+    isRequestPending.value = true
+
     const apiResult = getVsCodeApi()
-    if (apiResult.isErr()) return err(apiResult.error)
-    if (!apiResult.value) return ok(undefined)
+    if (apiResult.isErr()) {
+      isRequestPending.value = false
+      return err(apiResult.error)
+    }
+    if (!apiResult.value) {
+      isRequestPending.value = false
+      return ok(undefined)
+    }
 
     const vscodeApi = apiResult.value
 
@@ -47,6 +61,7 @@ export function useVsCodeAuth() {
         let timeoutId: ReturnType<typeof setTimeout> | undefined
 
         const cleanup = () => {
+          isRequestPending.value = false
           if (timeoutId) {
             cancelTimeout(timeoutId)
             timeoutId = undefined

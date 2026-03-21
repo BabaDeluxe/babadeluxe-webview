@@ -9,7 +9,6 @@
     <div
       class="i-simple-icons:openai i-simple-icons:anthropic i-ri:gemini-line i-simple-icons:ollama i-hugeicons:deepseek hidden"
     />
-    <BaseAlertList :banners="activeBaseAlerts" />
 
     <div class="flex flex-col flex-1 min-h-0 w-full">
       <!-- Empty state input section -->
@@ -188,7 +187,6 @@
 <script setup lang="ts">
 import ChatInput from '@/components/ChatInput.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
-import BaseAlertList from '@/components/BaseAlertList.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import ContextPanel from '@/components/ContextPanel.vue'
@@ -220,7 +218,6 @@ const {
   modelsLoadedCount,
   contextUsageWarning,
   lastContextUsage,
-  activeBaseAlerts,
   shouldShowModal,
   registerMessageComponent,
   handleSendMessage,

@@ -56,12 +56,6 @@
         />
       </template>
     </BaseMessageBubble>
-
-    <BaseAlert
-      v-if="errorMessage"
-      :message="errorMessage"
-      @close="errorMessage = ''"
-    />
   </div>
 </template>
 
@@ -73,7 +67,6 @@ import BaseEditableText from '@/components/BaseEditableText.vue'
 import ChatMessageActions from '@/components/ChatMessageActions.vue'
 import MarkdownRenderer from '@/components/ChatMarkdownRenderer.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
-import BaseAlert from '@/components/BaseAlert.vue'
 import ContextBadge from '@/components/ContextBadge.vue'
 import { getDisambiguatedPaths } from '@/path-disambiguation'
 

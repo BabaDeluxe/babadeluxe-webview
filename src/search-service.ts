@@ -22,7 +22,7 @@ export class SearchService {
       return err(conversationsResult.error)
     }
 
-    const allMessagesResult = await this._getAllMessages(conversationsResult.value)
+    const allMessagesResult = await this._getAllMessages()
     if (allMessagesResult.isErr()) {
       return err(new NetworkError('Failed to get all messages for search', allMessagesResult.error))
     }
@@ -37,24 +37,31 @@ export class SearchService {
     return searchResult
   }
 
-  private async _getAllMessages(
-    conversations: readonly Conversation[]
-  ): Promise<Result<Message[], DbError>> {
-    const allMessages: Message[] = []
+  private async _getAllMessages(): Promise<Result<Message[], DbError>> {
+    // Optimization: Fetch all messages at once instead of N+1 selects loop
+    const result = await this._db.message.toArray()
 
-    for (const conversation of conversations) {
-      const messagesResult = await this._db.getMessageByConversation(conversation.id)
-      if (messagesResult.isErr()) {
-        this._logger.error('Failed to get messages for conversation in search', {
-          conversationId: conversation.id,
-          error: messagesResult.error,
-        })
-        return err(messagesResult.error)
-      }
-      allMessages.push(...messagesResult.value)
+    if (result.isErr()) {
+      this._logger.error('Failed to get all messages for search', {
+        error: result.error,
+      })
+      return err(result.error)
     }
 
-    return ok(allMessages)
+    // Map DbMessage to Message (skipping context reference decoding for performance as search doesn't use it)
+    const mapped: Message[] = result.value.map((dbMsg) => ({
+      id: dbMsg.id!,
+      conversationId: dbMsg.conversationId,
+      role: dbMsg.role,
+      timestamp: dbMsg.timestamp,
+      content: dbMsg.content,
+      isStreaming: dbMsg.isStreaming,
+      model: dbMsg.model,
+      systemPrompt: dbMsg.systemPrompt,
+      contextReferences: undefined,
+    }))
+
+    return ok(mapped)
   }
 
   private _performSearch(

@@ -37,12 +37,17 @@ import {
 } from '@/vs-code/context-utils'
 import { useContextState } from '@/vs-code/context-state'
 import { useIsInVsCode } from '@/composables/use-is-in-vs-code'
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 
 export type { VsCodeTextRange, VsCodeContextItem, LockedContextReference } from '@/vs-code/types'
 
 type PendingResolver = (result: Result<unknown[], NetworkError | ValidationError>) => void
 
 export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
+  // State specific to this store instance to prevent leaks between tests/sessions
+  let latestSuggestionSequence = 0
+  let latestRebuildSequence = 0
+
   const state = useContextState()
   const {
     pinnedPaths,
@@ -60,13 +65,12 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
 
   const { isInVsCode } = useIsInVsCode()
 
+  const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+
   const isLoadingContext = ref(false)
   const contextError = ref<string>()
 
   const pending = new Map<string, PendingResolver>()
-
-  let latestSuggestionSequence = 0
-  let latestRebuildSequence = 0
 
   const postToVsCode = (message: object): void => {
     const apiResult = getVsCodeApi()
@@ -153,7 +157,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
         resolve(result)
       }
 
-      const timeoutId = setTimeout(() => {
+      const timeoutId = createTimeout(() => {
         finish(
           err(
             new NetworkError(
@@ -164,7 +168,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
       }, timeoutMs)
 
       pending.set(requestId, (result) => {
-        clearTimeout(timeoutId)
+        cancelTimeout(timeoutId)
         finish(result)
       })
 
@@ -231,12 +235,9 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
   const rebuildPinnedItems = async (): Promise<Result<void, never>> => {
     const rebuildSequence = ++latestRebuildSequence
 
-    if (!isInVsCode.value) {
-      if (rebuildSequence === latestRebuildSequence) {
-        pinnedById.value = new Map()
-        pinnedIdsByPath.value = new Map()
-      }
-      return ok(undefined)
+    if (!isInVsCode.value && rebuildSequence === latestRebuildSequence) {
+      pinnedById.value = new Map()
+      pinnedIdsByPath.value = new Map()
     }
 
     return ok(undefined)

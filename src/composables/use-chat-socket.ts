@@ -1,6 +1,7 @@
-import { computed, reactive, getCurrentScope, onScopeDispose, watch } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, watch } from 'vue'
 import { err, ResultAsync, type Result } from 'neverthrow'
 import { LOGGER_KEY } from '@/injection-keys'
+import type { AbstractLogger } from '@/logger'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { ChatError, NetworkError, RateLimitError } from '@/errors'
 import type { SocketManager } from '@/socket-manager'
@@ -9,18 +10,11 @@ import { socketTimeoutMs } from '@/constants'
 import { useSocketManager } from '@/composables/use-socket-manager'
 import { retryWithBackoff } from '@/retry'
 
+import { useChatSocketStore } from '@/stores/use-chat-socket-store'
+
 type ChunkHandler = (chunk: string) => void
 type CompleteHandler = (fullContent: string) => void
 type ErrorHandler = (errorMessage: string) => void
-
-type MessageState = Readonly<{
-  onChunk: ChunkHandler | undefined
-  onComplete: CompleteHandler | undefined
-  onError: ErrorHandler | undefined
-  isStreaming: boolean
-  error?: string
-  lastSequence: number
-}>
 
 type MessageChunkPayload = { messageId: number; chunk: string; sequence: number }
 type MessageCompletePayload = { messageId: number; fullContent: string }
@@ -34,27 +28,22 @@ type AttachedHandlers = Readonly<{
   onDeleted: (payload: MessageDeletedPayload) => void
 }>
 
-const messageStateById = reactive(new Map<number, MessageState>())
 const handlersBySocket = new WeakMap<object, AttachedHandlers>()
 
-function setMessageState(messageId: number, nextState: MessageState): void {
-  messageStateById.set(messageId, nextState)
-}
-
-function deleteMessageState(messageId: number): void {
-  messageStateById.delete(messageId)
-}
-
-function ensureChatSocketListeners(chatSocket: SocketManager['chatSocket']): void {
+function ensureChatSocketListeners(
+  chatSocket: SocketManager['chatSocket'],
+  logger: AbstractLogger
+): void {
+  const store = useChatSocketStore()
   let handlers = handlersBySocket.get(chatSocket)
 
   if (!handlers) {
     const onChunk = (payload: MessageChunkPayload) => {
-      const state = messageStateById.get(payload.messageId)
+      const state = store.getMessageState(payload.messageId)
       if (!state || !Number.isFinite(payload.sequence) || payload.sequence <= state.lastSequence)
         return
 
-      setMessageState(payload.messageId, {
+      store.setMessageState(payload.messageId, {
         ...state,
         isStreaming: true,
         lastSequence: payload.sequence,
@@ -64,23 +53,28 @@ function ensureChatSocketListeners(chatSocket: SocketManager['chatSocket']): voi
     }
 
     const onComplete = (payload: MessageCompletePayload) => {
-      const state = messageStateById.get(payload.messageId)
+      const state = store.getMessageState(payload.messageId)
       if (!state) return
 
       state.onComplete?.(payload.fullContent)
 
-      setMessageState(payload.messageId, { ...state, isStreaming: false })
-      deleteMessageState(payload.messageId)
+      store.setMessageState(payload.messageId, { ...state, isStreaming: false })
+      store.deleteMessageState(payload.messageId)
     }
 
     const onChatError = (payload: ChatErrorPayload) => {
-      if (payload.messageId === undefined) return
-      const state = messageStateById.get(payload.messageId)
+      if (payload.messageId === undefined) {
+        logger.warn('Received global chat error without messageId', {
+          error: payload.error,
+        })
+        return
+      }
+      const state = store.getMessageState(payload.messageId)
       if (!state) return
 
       state.onError?.(payload.error)
 
-      setMessageState(payload.messageId, {
+      store.setMessageState(payload.messageId, {
         ...state,
         isStreaming: false,
         error: payload.error,
@@ -88,7 +82,7 @@ function ensureChatSocketListeners(chatSocket: SocketManager['chatSocket']): voi
     }
 
     const onDeleted = (payload: MessageDeletedPayload) => {
-      deleteMessageState(payload.messageId)
+      store.deleteMessageState(payload.messageId)
     }
 
     handlers = { onChunk, onComplete, onChatError, onDeleted }
@@ -114,9 +108,10 @@ export function registerStreamingHandlers(
     onError?: ErrorHandler
   }
 ): void {
-  const existing = messageStateById.get(messageId)
+  const store = useChatSocketStore()
+  const existing = store.getMessageState(messageId)
 
-  setMessageState(messageId, {
+  store.setMessageState(messageId, {
     onChunk: handlers.onChunk ?? existing?.onChunk,
     onComplete: handlers.onComplete ?? existing?.onComplete,
     onError: handlers.onError ?? existing?.onError,
@@ -127,10 +122,12 @@ export function registerStreamingHandlers(
 }
 
 export function resetChatSocketStateForTests(): void {
-  messageStateById.clear()
+  const store = useChatSocketStore()
+  store.resetState()
 }
 
 export function useChatSocket() {
+  const store = useChatSocketStore()
   const { socketManagerRef } = useSocketManager()
   const logger = safeInject(LOGGER_KEY)
 
@@ -139,26 +136,20 @@ export function useChatSocket() {
   watch(
     chatSocketRef,
     (newSocket) => {
-      if (newSocket) ensureChatSocketListeners(newSocket)
+      if (newSocket) ensureChatSocketListeners(newSocket, logger)
     },
     { immediate: true }
   )
 
   const { createTimeout, cancelTimeout } = useTrackedTimeouts()
 
-  const streamingMessageIds = computed(() => {
-    const ids: number[] = []
-    for (const [messageId, state] of messageStateById.entries()) {
-      if (state.isStreaming) ids.push(messageId)
-    }
-    return ids
-  })
+  const streamingMessageIds = computed(() => store.streamingMessageIds)
 
   const isStreaming = computed(() => streamingMessageIds.value.length > 0)
 
   const error = computed(() => {
     for (const messageId of streamingMessageIds.value) {
-      const state = messageStateById.get(messageId)
+      const state = store.getMessageState(messageId)
       if (state?.error) return state.error
     }
     return undefined
@@ -177,7 +168,7 @@ export function useChatSocket() {
       if (isDone) return
       isDone = true
       cancelTimeout(timeoutId)
-      deleteMessageState(messageId)
+      store.deleteMessageState(messageId)
     }
 
     const finishOk = () => {
@@ -221,7 +212,7 @@ export function useChatSocket() {
       return err(new NetworkError('Socket connection failed', connectionResult.error))
     }
 
-    ensureChatSocketListeners(chatSocket)
+    ensureChatSocketListeners(chatSocket, logger)
 
     const sendTimeoutMilliseconds = socketTimeoutMs.chatSend
 
@@ -258,7 +249,7 @@ export function useChatSocket() {
         if (scope) {
           onScopeDispose(() => {
             if (!completion.isDone()) {
-              deleteMessageState(messageId)
+              store.deleteMessageState(messageId)
             }
           })
         }
@@ -337,8 +328,8 @@ export function useChatSocket() {
       return err(new NetworkError('Socket connection failed', connectionResult.error))
     }
 
-    ensureChatSocketListeners(socket)
-    deleteMessageState(messageId)
+    ensureChatSocketListeners(socket, logger)
+    store.deleteMessageState(messageId)
 
     return await ResultAsync.fromPromise(
       new Promise<void>((resolve, reject) => {

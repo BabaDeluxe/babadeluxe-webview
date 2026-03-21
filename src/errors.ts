@@ -12,11 +12,7 @@ export type SocketConnectionError = NetworkError | SocketError
 export class AuthError extends BaseError {}
 export class InitializationError extends BaseError {}
 export class RateLimitError extends BaseError {
-  constructor(
-    message: string,
-    public readonly retryAfterMs?: number,
-    cause?: unknown
-  ) {
+  constructor(message: string, cause?: unknown) {
     super(message, cause)
   }
 }

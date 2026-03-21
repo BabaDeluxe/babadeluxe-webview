@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted, watch } from 'vue'
+import { ref, computed, onUnmounted, watch, readonly } from 'vue'
 import { type Result, err, ok, ResultAsync } from 'neverthrow'
 import type { AbstractLogger } from '@/logger'
 import type { SocketManager } from '@/socket-manager'
@@ -7,8 +7,19 @@ import { NetworkError } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { socketTimeoutMs } from '@/constants'
 import { useSocketManager } from '@/composables/use-socket-manager'
-import { retryWithBackoff } from '@/retry' // NEW
-
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
+import { retryWithBackoff } from '@/retry'
+import {
+  modelsSocketConnectionFailed,
+  requestTimeout15s,
+  backendReturnedSuccessFalse,
+  backendReturnedEmptyModels,
+  failedToListModels,
+  socketNotConnected,
+  modelsInitializeContext,
+  reloadModelsDueToUpdate,
+  failedToReloadModels,
+} from '@/composables/constants'
 const providers = ['openai', 'anthropic', 'gemini', 'ollama', 'deepseek'] as const
 type Provider = (typeof providers)[number]
 
@@ -25,6 +36,7 @@ export interface ModelItemGroup {
   items: ModelItem[]
 }
 
+type RawModel = { modelId: string; contextWindow?: number; source?: string }
 const modelsLoadedCount = ref(0)
 const modelIdPrefix = 'models/'
 
@@ -131,9 +143,6 @@ const getProviderDisplayName = (provider: Provider): string => {
   }
   return displayNames[provider]
 }
-
-type RawModel = { modelId: string; contextWindow?: number; source?: string }
-
 const models = ref<Record<Provider, RawModel[]>>({
   openai: [],
   anthropic: [],
@@ -143,11 +152,42 @@ const models = ref<Record<Provider, RawModel[]>>({
 })
 
 const isLoadingModels = ref(false)
-const modelsError = ref<string>()
+const modelsError = ref<NetworkError | undefined>()
 let fetchPromise: Promise<Result<void, NetworkError>> | undefined
+type Timeouts = {
+  createTimeout: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>
+  cancelTimeout: (id: ReturnType<typeof setTimeout>) => void
+}
+type ModelsUpdateHandler = () => void
+const updateHandlerBySocket = new WeakMap<object, ModelsUpdateHandler>()
 
+/**
+ * Ensures that the 'models:updated' listener is attached to the given socket.
+ * Uses a WeakMap to cache the handler per socket instance, preventing duplicate listeners.
+ */
+function ensureModelsSocketListeners(
+  modelsSocket: SocketManager['modelsSocket'],
+  logger: AbstractLogger,
+  timeouts: Timeouts
+) {
+  let handler = updateHandlerBySocket.get(modelsSocket)
+  if (!handler) {
+    handler = async () => {
+      logger.log(reloadModelsDueToUpdate)
+      fetchPromise = undefined
+      const initResult = await initializeModels(modelsSocket, timeouts)
+      if (initResult.isErr()) {
+        logger.error(failedToReloadModels, initResult.error)
+      }
+    }
+    updateHandlerBySocket.set(modelsSocket, handler)
+  }
+  modelsSocket.off('models:updated', handler)
+  modelsSocket.on('models:updated', handler)
+}
 export async function initializeModels(
-  socketManager: SocketManager
+  modelsSocket: SocketManager['modelsSocket'],
+  timeouts?: Timeouts
 ): Promise<Result<void, NetworkError>> {
   if (fetchPromise !== undefined) return await fetchPromise
 
@@ -155,27 +195,30 @@ export async function initializeModels(
   modelsError.value = undefined
 
   const fetchWork = async (): Promise<Result<void, NetworkError>> => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof window !== 'undefined' && (window as any).__TEST_MODELS__) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const testModels = (window as any).__TEST_MODELS__ as Record<Provider, RawModel[]>
-      models.value = filterModelsByProvider(testModels)
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    const win = window as unknown as { __TEST_MODELS__?: Record<Provider, RawModel[]> }
+
+    if (typeof window !== 'undefined' && win.__TEST_MODELS__) {
+      models.value = filterModelsByProvider(win.__TEST_MODELS__)
       modelsLoadedCount.value++
       isLoadingModels.value = false
       return ok()
     }
 
-    const modelsSocket = socketManager.modelsSocket
     const waitResult = await modelsSocket.waitForConnection()
 
     if (waitResult.isErr()) {
-      const error = waitResult.error
-      modelsError.value = error.message
-      isLoadingModels.value = false
-      return err(new NetworkError(error instanceof Error ? error.message : 'Unknown exception'))
+      return err(new NetworkError(modelsSocketConnectionFailed, waitResult.error))
     }
+    const createTimeout =
+      timeouts?.createTimeout ?? ((callback, delay) => setTimeout(callback, delay))
+    const cancelTimeout =
+      timeouts?.cancelTimeout ??
+      ((id) => {
+        clearTimeout(id)
+      })
 
-    const listResult = await ResultAsync.fromPromise(
+    const rawModelsResult = await ResultAsync.fromPromise(
       new Promise<{
         openai: RawModel[]
         anthropic: RawModel[]
@@ -183,106 +226,92 @@ export async function initializeModels(
         ollama: RawModel[]
         deepseek: RawModel[]
       }>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new NetworkError('Request timeout after 15s'))
+        const timeoutId = createTimeout(() => {
+          reject(new NetworkError(requestTimeout15s))
         }, socketTimeoutMs.models)
 
-        modelsSocket.emit(
-          'models:listAllModels',
-          // @ts-expect-error Need new generated types
-          (response: {
-            success: boolean
-            models?: {
-              openai: RawModel[]
-              anthropic: RawModel[]
-              gemini: RawModel[]
-              ollama: RawModel[]
-              deepseek: RawModel[]
-            }
-            error?: string
-          }) => {
-            clearTimeout(timeoutId)
+        modelsSocket.emit('models:listAllModels', (response) => {
+          cancelTimeout(timeoutId)
 
-            if (!response.success) {
-              reject(new NetworkError(response.error || 'Backend returned success: false'))
-              return
-            }
-
-            if (response.models === undefined) {
-              reject(new NetworkError('Backend returned empty models'))
-              return
-            }
-
-            resolve({
-              openai: response.models.openai,
-              anthropic: response.models.anthropic,
-              gemini: response.models.gemini,
-              // TODO Remove ?? [] after implementing the LLM providers in the backend
-              ollama: response.models.ollama ?? [],
-              deepseek: response.models.deepseek ?? [],
-            })
+          if (!response.success) {
+            reject(new NetworkError(response.error || backendReturnedSuccessFalse))
+            return
           }
-        )
+
+          if (response.models === undefined) {
+            reject(new NetworkError(backendReturnedEmptyModels))
+            return
+          }
+
+          resolve({
+            openai: response.models.openai,
+            anthropic: response.models.anthropic,
+            gemini: response.models.gemini,
+            ollama: [], // TODO Implement ollama and deepseek
+            deepseek: [],
+          })
+        })
       }),
-      (error) => (error instanceof NetworkError ? error : new NetworkError(String(error)))
+      (error) => {
+        if (error instanceof NetworkError) {
+          return error
+        }
+        return new NetworkError(failedToListModels, error)
+      }
     )
 
-    if (listResult.isErr()) {
-      modelsError.value = listResult.error.message
-      isLoadingModels.value = false
-      return err(listResult.error)
+    if (rawModelsResult.isErr()) {
+      return err(rawModelsResult.error)
     }
 
-    const rawModels = listResult.value
+    const rawModels = rawModelsResult.value
     models.value = filterModelsByProvider(rawModels)
-    modelsError.value = undefined
     modelsLoadedCount.value++
-    isLoadingModels.value = false
 
     return ok()
   }
 
-  // NEW: retry on transient NetworkError when listing models
-  fetchPromise = retryWithBackoff(fetchWork, 'models:initialize', {
+  fetchPromise = retryWithBackoff(fetchWork, modelsInitializeContext, {
     maxRetries: 3,
   })
+
   const fetchResult = await fetchPromise
   fetchPromise = undefined
+  isLoadingModels.value = false
+
+  if (fetchResult.isErr()) {
+    modelsError.value = fetchResult.error
+  } else {
+    modelsError.value = undefined
+  }
 
   return fetchResult
 }
-
 export function useModelsSocket() {
   const { socketManagerRef } = useSocketManager()
   const logger: AbstractLogger = safeInject(LOGGER_KEY)
-
-  const handleModelsUpdate = async () => {
-    logger.log('Reloading models due to server update')
-    fetchPromise = undefined
-    if (socketManagerRef.value) {
-      const initResult = await initializeModels(socketManagerRef.value)
-      if (initResult.isErr()) {
-        logger.error('Failed to reload models after server update:', initResult.error)
-      }
-    }
-  }
+  const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+  const timeouts: Timeouts = { createTimeout, cancelTimeout }
 
   watch(
     () => socketManagerRef.value?.modelsSocket,
     (newSocket, oldSocket) => {
       if (oldSocket) {
-        oldSocket.off('models:updated', handleModelsUpdate)
+        const oldHandler = updateHandlerBySocket.get(oldSocket)
+        if (oldHandler) oldSocket.off('models:updated', oldHandler)
       }
       if (newSocket) {
-        newSocket.on('models:updated', handleModelsUpdate)
+        ensureModelsSocketListeners(newSocket, logger, timeouts)
       }
     },
     { immediate: true }
   )
 
   onUnmounted(() => {
-    if (socketManagerRef.value?.modelsSocket) {
-      socketManagerRef.value.modelsSocket.off('models:updated', handleModelsUpdate)
+    const socket = socketManagerRef.value?.modelsSocket
+    if (socket) {
+      const handler = updateHandlerBySocket.get(socket)
+      if (handler) socket.off('models:updated', handler)
     }
   })
 
@@ -315,19 +344,23 @@ export function useModelsSocket() {
   })
 
   const reload = async (): Promise<Result<void, NetworkError>> => {
-    if (!socketManagerRef.value) {
-      return err(new NetworkError('Socket not connected'))
+    if (!socketManagerRef.value?.modelsSocket) {
+      const e = new NetworkError(socketNotConnected)
+      modelsError.value = e
+      return err(e)
     }
 
     fetchPromise = undefined
-    return await initializeModels(socketManagerRef.value)
+    const result = await initializeModels(socketManagerRef.value.modelsSocket, timeouts)
+    if (result.isErr()) modelsError.value = result.error
+    return result
   }
 
   return {
     models,
     groupedModels,
     isLoadingModels,
-    modelsError,
+    modelsError: readonly(modelsError),
     modelsLoadedCount,
     reloadModels: reload,
   }

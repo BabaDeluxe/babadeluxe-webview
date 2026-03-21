@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Ref } from 'vue'
 import { ResultAsync, type Result, err, ok } from 'neverthrow'
 import type { Message, Conversation, ContextReference } from '@/database/types'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
 import { useChatSocket } from '@/composables/use-chat-socket'
+import type { ValidationError } from '@/errors'
 import {
   MessageNotFoundError,
   InvalidModelFormatError,
@@ -13,12 +13,11 @@ import {
   DbError,
   type CreateOrResetAssistantError,
   MessageUpdateError,
-  ValidationError,
 } from '@/errors'
 import { safeInject } from '@/safe-inject'
-import { getVsCodeApi } from '@/vs-code/api'
-import { type FileContextResponse, type IncomingMessage } from '@/vs-code/types'
-import { isResponseWithRequestId } from '@/vs-code/context-type-guards'
+import { useFileContextResolver } from '@/composables/use-file-context-resolver'
+import { encodeContextReferences, decodeContextReferences } from '@/database/serializers'
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 
 type SendOptions = {
   provider: string
@@ -35,18 +34,6 @@ type SendOptions = {
 }
 
 type MessageMetadata = { model?: string; systemPrompt?: string }
-
-type ResolvedContextItem = {
-  filePath: string
-  content: string
-}
-
-type PendingFileContextRequest = {
-  resolve: (value: Result<ResolvedContextItem[], ValidationError>) => void
-}
-
-const pendingFileContextRequests = new Map<string, PendingFileContextRequest>()
-let isFileContextListenerAttached = false
 
 function buildInjectedText(
   systemPrompt?: string,
@@ -74,83 +61,6 @@ function buildInjectedText(
 
   if (!parts.length) return ''
   return `\n\n---\n${parts.join('\n\n')}\n---\n`
-}
-
-function generateFileContextRequestId(): string {
-  return `fileContext:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`
-}
-
-function ensureFileContextListenerAttached(): void {
-  if (isFileContextListenerAttached) return
-
-  window.addEventListener('message', (event: MessageEvent<IncomingMessage>) => {
-    const message = event.data
-    if (!isResponseWithRequestId(message)) return
-    if (message.type !== 'fileContext:response') return
-
-    const pending = pendingFileContextRequests.get(message.requestId)
-    if (!pending) return
-
-    pendingFileContextRequests.delete(message.requestId)
-
-    const response = message as FileContextResponse
-
-    if (response.error) {
-      pending.resolve(err(new ValidationError(`Failed to resolve file context: ${response.error}`)))
-      return
-    }
-
-    const rawItems = response.items ?? []
-    const items: ResolvedContextItem[] = rawItems
-      .filter((item) => item.filePath && item.snippet)
-      .map((item) => ({
-        filePath: item.filePath as string,
-        content: item.snippet as string,
-      }))
-
-    pending.resolve(ok(items))
-  })
-
-  isFileContextListenerAttached = true
-}
-
-async function resolveContextItems(
-  contextReferences: ContextReference[]
-): Promise<Result<Array<{ filePath: string; content: string }>, ValidationError>> {
-  if (contextReferences.length === 0) return ok([])
-
-  ensureFileContextListenerAttached()
-
-  const apiResult = getVsCodeApi()
-  if (apiResult.isErr()) {
-    return err(new ValidationError('VS Code API not available', apiResult.error))
-  }
-
-  const filePaths = Array.from(
-    new Set(
-      contextReferences
-        .map((ref) => ref.filePath?.trim())
-        .filter((p): p is string => !!p && p.length > 0)
-    )
-  )
-
-  if (filePaths.length === 0) {
-    return err(new ValidationError('No valid file paths in context references'))
-  }
-
-  const requestId = generateFileContextRequestId()
-
-  const promise = new Promise<Result<ResolvedContextItem[], ValidationError>>((resolve) => {
-    pendingFileContextRequests.set(requestId, { resolve })
-
-    apiResult.value.postMessage({
-      type: 'fileContext:resolve',
-      requestId,
-      filePaths,
-    })
-  })
-
-  return promise
 }
 
 function estimateTokens(text: string): number {
@@ -192,46 +102,13 @@ function computeContextUsageForSend(
   return usagePercent > 1 ? 1 : usagePercent
 }
 
-function encodeContextReferences(refs: ContextReference[] | undefined): string | undefined {
-  if (!refs) return undefined
-
-  const plain = refs.map((ref) =>
-    ref.type === 'file'
-      ? { type: 'file' as const, filePath: ref.filePath }
-      : ref.filePath
-        ? { type: 'snippet' as const, snippetText: ref.snippetText, filePath: ref.filePath }
-        : { type: 'snippet' as const, snippetText: ref.snippetText }
-  )
-
-  return JSON.stringify(plain)
-}
-
-function decodeContextReferences(raw: string | undefined): ContextReference[] | undefined {
-  if (!raw) return undefined
-
-  try {
-    const parsed = JSON.parse(raw) as Array<
-      | { type: 'file'; filePath: string }
-      | { type: 'snippet'; snippetText: string; filePath?: string }
-    >
-
-    return parsed.map((ref) =>
-      ref.type === 'file'
-        ? { type: 'file' as const, filePath: ref.filePath }
-        : ref.filePath
-          ? { type: 'snippet' as const, snippetText: ref.snippetText, filePath: ref.filePath }
-          : { type: 'snippet' as const, snippetText: ref.snippetText }
-    )
-  } catch {
-    return undefined
-  }
-}
-
 export const useConversationStore = defineStore('conversation', () => {
   const logger = safeInject(LOGGER_KEY)
   const appDb = safeInject(APP_DB_KEY)
 
   const { sendMessage: sendChatSocket, resumeStreamingMessage } = useChatSocket()
+  const { resolveFromReferences } = useFileContextResolver()
+  const { createTimeout } = useTrackedTimeouts()
 
   const messages = ref<Message[]>([])
   const conversations = ref<Conversation[]>([])
@@ -311,12 +188,12 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   async function markAllStreamingCompleteInCurrentConversation(
-    currentConversationId: Ref<number>
+    conversationId: number
   ): Promise<void> {
-    if (!currentConversationId.value) return
+    if (!conversationId) return
 
     const streamingMessages = messages.value.filter(
-      (message) => message.conversationId === currentConversationId.value && message.isStreaming
+      (message) => message.conversationId === conversationId && message.isStreaming
     )
 
     for (const message of streamingMessages) {
@@ -394,7 +271,7 @@ export const useConversationStore = defineStore('conversation', () => {
         },
       })
 
-      setTimeout(async () => {
+      createTimeout(async () => {
         if (didReceiveChunk) return
 
         logger.log('Message appears complete, cleaning up', {
@@ -448,6 +325,22 @@ export const useConversationStore = defineStore('conversation', () => {
     conversations.value = [...result.value]
     error.value = undefined
     isLoadingConversations.value = false
+    return ok(undefined)
+  }
+
+  async function loadMessages(conversationId: number): Promise<Result<void, DbError>> {
+    if (!conversationId) {
+      messages.value = []
+      return ok(undefined)
+    }
+
+    const result = await appDb.getMessageByConversation(conversationId)
+    if (result.isErr()) {
+      messages.value = []
+      return err(result.error)
+    }
+
+    messages.value = [...result.value]
     return ok(undefined)
   }
 
@@ -922,7 +815,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
     let freshContextItems: Array<{ filePath: string; content: string }> | undefined
     if (userMessage.contextReferences && userMessage.contextReferences.length > 0) {
-      const resolveResult = await resolveContextItems(userMessage.contextReferences)
+      const resolveResult = await resolveFromReferences(userMessage.contextReferences)
       if (resolveResult.isErr()) {
         logger.error('Failed to resolve context on resend', {
           messageId,
@@ -1031,6 +924,7 @@ export const useConversationStore = defineStore('conversation', () => {
     initialize,
     refreshMessageById,
     loadConversations,
+    loadMessages,
 
     loadMessageCounts,
     getMessageCount,

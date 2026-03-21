@@ -1,6 +1,6 @@
-import { err, ok, type Result, ResultAsync } from 'neverthrow'
-import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client'
-import type { Root } from '@babadeluxe/shared'
+import { type Result, err, ok, ResultAsync } from 'neverthrow'
+import { type ManagerOptions, type SocketOptions, io } from 'socket.io-client'
+import { Root } from '@babadeluxe/shared'
 import type { AbstractLogger } from '@/logger'
 import { SocketError } from '@/errors'
 import { SocketFeatures } from '@/socket-features'
@@ -12,7 +12,7 @@ type SocketGetters = {
 }
 
 class SocketManagerBase {
-  private readonly _socket: Socket
+  private readonly _socket: Root.Socket
   private _isConnectedInternal = false
   private _isConnectingInternal = false
   private readonly _trackedEvents = new Set<string>()
@@ -30,7 +30,7 @@ class SocketManagerBase {
       auth: { token: this._authToken },
     }
 
-    this._socket = io(this._baseUrl, socketOptions)
+    this._socket = io(Root.path, socketOptions)
     this._createSocketGetters()
   }
 
@@ -106,9 +106,9 @@ class SocketManagerBase {
 
   private async _performConnection(
     timeoutMilliseconds: number
-  ): Promise<Result<Socket, SocketError>> {
+  ): Promise<Result<Root.Socket, SocketError>> {
     return ResultAsync.fromPromise(
-      new Promise<Socket>((resolve, reject) => {
+      new Promise<Root.Socket>((resolve, reject) => {
         let hasResolved = false
 
         const connectHandler = () => {
@@ -139,6 +139,15 @@ class SocketManagerBase {
           unknownError instanceof Error ? unknownError : undefined
         )
     )
+  }
+
+  /**
+   * Update authentication token for the socket connection.
+   * This ensures that subsequent reconnections use a valid, fresh token.
+   */
+  updateAuthToken(token: string): void {
+    // Socket.io client allows updating auth options at runtime
+    this._socket.auth = { token }
   }
 
   async waitForConnection(timeoutMilliseconds = 10_000): Promise<Result<void, SocketError>> {

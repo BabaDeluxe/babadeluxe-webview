@@ -4,6 +4,7 @@ import type { Conversation, Message, ContextReference } from '@/database/types'
 import type { AbstractLogger } from '@/logger'
 import { DbError } from '@/errors'
 import { DexieError, SafeTable } from '@/database/safe-table'
+import { encodeContextReferences, decodeContextReferences } from '@/database/serializers'
 
 // What actually lives in IndexedDB
 type DbMessage = {
@@ -20,41 +21,6 @@ type DbMessage = {
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
-
-function encodeContextReferences(refs: ContextReference[] | undefined): string | undefined {
-  if (!refs) return undefined
-
-  const plain = refs.map((ref) =>
-    ref.type === 'file'
-      ? { type: 'file' as const, filePath: ref.filePath }
-      : ref.filePath
-        ? { type: 'snippet' as const, snippetText: ref.snippetText, filePath: ref.filePath }
-        : { type: 'snippet' as const, snippetText: ref.snippetText }
-  )
-
-  return JSON.stringify(plain)
-}
-
-function decodeContextReferences(raw: string | undefined): ContextReference[] | undefined {
-  if (!raw) return undefined
-
-  try {
-    const parsed = JSON.parse(raw) as Array<
-      | { type: 'file'; filePath: string }
-      | { type: 'snippet'; snippetText: string; filePath?: string }
-    >
-
-    return parsed.map((ref) =>
-      ref.type === 'file'
-        ? { type: 'file' as const, filePath: ref.filePath }
-        : ref.filePath
-          ? { type: 'snippet' as const, snippetText: ref.snippetText, filePath: ref.filePath }
-          : { type: 'snippet' as const, snippetText: ref.snippetText }
-    )
-  } catch {
-    return undefined
-  }
-}
 
 export class AppDb extends Dexie {
   conversation!: SafeTable<Conversation, Conversation, number>
@@ -260,27 +226,26 @@ export class AppDb extends Dexie {
   }
 
   async getStreamingMessages(): Promise<Result<Message[], DbError>> {
-    const allMessagesResult = await this.message.toArray()
-    if (allMessagesResult.isErr()) {
+    const messagesResult = await this.message.where('isStreaming').equals('true').toArray()
+
+    if (messagesResult.isErr()) {
       this._logger.error('Failed to get streaming messages', {
-        error: allMessagesResult.error,
+        error: messagesResult.error,
       })
-      return err(this._toDomainError(allMessagesResult.error))
+      return err(this._toDomainError(messagesResult.error))
     }
 
-    const mapped: Message[] = allMessagesResult.value
-      .filter((message) => message.isStreaming === true)
-      .map((message) => ({
-        id: message.id!,
-        conversationId: message.conversationId,
-        role: message.role,
-        timestamp: message.timestamp,
-        content: message.content,
-        isStreaming: message.isStreaming,
-        model: message.model,
-        systemPrompt: message.systemPrompt,
-        contextReferences: decodeContextReferences(message.contextReferences),
-      }))
+    const mapped: Message[] = messagesResult.value.map((message) => ({
+      id: message.id!,
+      conversationId: message.conversationId,
+      role: message.role,
+      timestamp: message.timestamp,
+      content: message.content,
+      isStreaming: message.isStreaming,
+      model: message.model,
+      systemPrompt: message.systemPrompt,
+      contextReferences: decodeContextReferences(message.contextReferences),
+    }))
 
     return ok(mapped)
   }

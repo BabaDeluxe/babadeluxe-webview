@@ -19,6 +19,7 @@ import type { KeyValueStore } from '@/database/key-value-store'
 import { type SearchResult, isMessageResult, isConversationResult } from '@/search-types'
 import type { AbstractLogger } from '@/logger'
 import { AuthError } from '@/errors'
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 
 export function useHistory() {
   const logger: AbstractLogger = safeInject(LOGGER_KEY)
@@ -68,6 +69,8 @@ export function useHistory() {
     maxRatio: 70,
     direction: 'vertical',
   })
+
+  const { createTimeout } = useTrackedTimeouts()
 
   const selectedConversationId = ref<number | null>(null)
   const selectedConversationMessages = ref<Message[]>([])
@@ -330,7 +333,7 @@ export function useHistory() {
 
     messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
     messageElement.style.backgroundColor = 'rgba(var(--accent-rgb), 0.2)'
-    setTimeout(() => {
+    createTimeout(() => {
       messageElement.style.backgroundColor = ''
     }, 2000)
   }

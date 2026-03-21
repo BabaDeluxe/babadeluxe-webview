@@ -24,6 +24,7 @@ import {
 } from '@/injection-keys'
 import { initializeModels } from '@/composables/use-models-socket'
 import { SocketManager } from '@/socket-manager'
+import { useToastStore } from '@/stores/use-toast-store'
 
 const logger = createColorino(themePalettes['catppuccin-mocha'])
 
@@ -40,6 +41,17 @@ const app = createApp(App)
 
 const pinia = createPinia()
 app.use(pinia)
+
+app.config.errorHandler = (err, instance, info) => {
+  logger.error('Uncaught Vue exception', {
+    vueInfo: info,
+    componentName: instance?.$options?.name,
+    error: err,
+  })
+
+  const toasts = useToastStore()
+  toasts.error('An unexpected error occurred.')
+}
 
 app.provide(ENV_CONFIG_KEY, envConfig)
 app.provide(LOGGER_KEY, logger)
@@ -92,11 +104,6 @@ app.mount('#app')
   window.addEventListener('beforeunload', () => {
     socketManager.disconnect()
   })
-
-  // await router.isReady()
-  // if (router.currentRoute.value.path === '/' || router.currentRoute.value.path === '/login') {
-  //   await router.replace('/chat')
-  // }
 
   await initializeModels(socketManager)
 })()

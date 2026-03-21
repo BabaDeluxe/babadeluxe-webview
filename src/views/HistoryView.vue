@@ -164,13 +164,6 @@
       </div>
     </div>
 
-    <BaseAlert
-      v-if="error"
-      :message="error"
-      type="error"
-      :is-dismissible="false"
-    />
-
     <!-- Rename Dialog -->
     <BaseModal
       v-model:is-shown="renameDialog['is-shown']"
@@ -195,10 +188,12 @@
 import ConversationList from '@/components/ConversationList.vue'
 import MessageList from '@/components/MessageList.vue'
 import BaseModal from '@/components/BaseModal.vue'
-import BaseAlert from '@/components/BaseAlert.vue'
 import SearchResultsDropdown from '@/components/SearchResultsDropdown.vue'
 import BaseTextField from '@/components/BaseTextField.vue'
 import { useHistory } from '@/composables/use-history'
+import { useToastStore } from '@/stores/use-toast-store'
+import { toUserMessage } from '@/error-mapper'
+import { watch } from 'vue'
 
 defineOptions({ name: 'HistoryView' })
 
@@ -248,4 +243,16 @@ const {
   handleDeleteMessage,
   handleEditMessage,
 } = useHistory()
+
+const toasts = useToastStore()
+
+watch(
+  error,
+  (val) => {
+    if (val) {
+      toasts.error(toUserMessage(val))
+    }
+  },
+  { immediate: true }
+)
 </script>

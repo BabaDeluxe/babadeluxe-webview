@@ -1,6 +1,8 @@
 import { err, type Result } from 'neverthrow'
 import { RateLimitError } from '@/errors'
 
+// TODO: Get rid of this. It is supported by socket.io natively.
+
 type RetryConfig = {
   maxRetries: number
   initialDelayMilliseconds: number

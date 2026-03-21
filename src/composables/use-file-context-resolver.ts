@@ -5,6 +5,8 @@ import type { ContextReference } from '@/database/types'
 import { type FileContextResponse, type IncomingMessage } from '@/vs-code/types'
 import { isResponseWithRequestId } from '@/vs-code/context-type-guards'
 import { ValidationError } from '@/errors'
+import { socketTimeoutMs } from '@/constants'
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 
 type ResolvedContextItem = {
   filePath: string
@@ -59,6 +61,8 @@ function ensureListenerAttached(): void {
 export function useFileContextResolver() {
   ensureListenerAttached()
 
+  const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+
   async function resolveFromReferences(
     references: ContextReference[]
   ): Promise<Result<ResolvedContextItem[], ValidationError>> {
@@ -84,7 +88,17 @@ export function useFileContextResolver() {
     const requestId = generateRequestId()
 
     const promise = new Promise<Result<ResolvedContextItem[], ValidationError>>((resolve) => {
-      pendingRequests.set(requestId, { resolve })
+      const timeoutId = createTimeout(() => {
+        pendingRequests.delete(requestId)
+        resolve(err(new ValidationError('Timeout waiting for file context from VS Code')))
+      }, socketTimeoutMs.vsCodeFileResolve)
+
+      pendingRequests.set(requestId, {
+        resolve: (result) => {
+          cancelTimeout(timeoutId)
+          resolve(result)
+        },
+      })
 
       apiResult.value.postMessage({
         type: 'fileContext:resolve',

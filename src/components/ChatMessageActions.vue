@@ -85,6 +85,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useClipboard } from '@vueuse/core'
+import { useToastStore } from '@/stores/use-toast-store'
 import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import BaseDropdown, { type DropdownGroup } from '@/components/BaseDropdown.vue'
 import BaseButton from '@/components/BaseButton.vue'
@@ -111,6 +112,7 @@ const emit = defineEmits<{
 }>()
 
 const { groupedModels: rawGroupedModels, isLoadingModels, modelsError } = useModelsSocket()
+const toasts = useToastStore()
 
 const selectedModel = ref('')
 
@@ -148,6 +150,7 @@ async function handleCopy(close: () => void): Promise<void> {
   if (!textToCopy) return
 
   await copy(textToCopy)
+  toasts.success('Message copied')
 
   // always close after copy resolves to avoid timing flakiness
   close()

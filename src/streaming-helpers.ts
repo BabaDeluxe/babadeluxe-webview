@@ -1,7 +1,7 @@
 import type { Ref } from 'vue'
 import type { Message } from '@/database/types'
 
-interface StreamingMessageComponent {
+export interface StreamingMessageComponent {
   markdownRef?: {
     commitContent: () => void
   } | null

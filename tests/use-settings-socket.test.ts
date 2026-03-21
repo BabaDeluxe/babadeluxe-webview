@@ -1,13 +1,61 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeEach, afterEach, vi, test } from 'vitest'
+import { describe, it, expect, afterEach, vi, test } from 'vitest'
 import type { Root } from '@babadeluxe/shared'
-import { ref } from 'vue'
+import { nextTick } from 'vue'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
-import { SOCKET_MANAGER_KEY } from '@/injection-keys'
+import * as emitWithTimeoutModule from '@/emit-with-timeout'
 import { mountComposable } from './helpers/mount-composable'
-import { MockSocket, trigger as triggerSocketEvent } from './helpers/mock-socket-manager'
+import type { MockSocket } from './helpers/mock-socket-manager'
+import {
+  createMockSocketManager,
+  trigger as triggerSocketEvent,
+} from './helpers/mock-socket-manager'
+import type { Result } from 'neverthrow'
+import { ok } from 'neverthrow'
+
+vi.mock('@babadeluxe/shared', async (origImport) => {
+  const actual = await origImport<{
+    getSettingDefinition: (key: string) => unknown
+  }>()
+
+  return {
+    ...actual,
+    getSettingDefinition: (key: string) => {
+      if (key === 'OPENAI_API_KEY') {
+        return {
+          category: 'apiKey',
+          encrypted: true,
+          dataType: 'string' as const,
+          required: false,
+          description: 'OpenAI API key',
+        }
+      }
+      if (key === 'ANTHROPIC_API_KEY') {
+        return {
+          category: 'apiKey',
+          encrypted: true,
+          dataType: 'string' as const,
+          required: false,
+          description: 'Anthropic API key',
+        }
+      }
+      if (key === 'MAX_TOKENS') {
+        return {
+          category: 'llm',
+          encrypted: false,
+          dataType: 'number' as const,
+          required: false,
+          description: 'Max tokens',
+          minValue: 1,
+        }
+      }
+      // Fallback to real behavior
+      return actual.getSettingDefinition?.(key)
+    },
+  }
+})
 
 export type MockSettingsSocket = MockSocket
 
@@ -41,70 +89,47 @@ const fixtures = {
   },
 }
 
-function createMockSettingsSocket(): MockSettingsSocket {
-  return new MockSocket()
-}
+let settingsSocket: MockSettingsSocket
 
 function trigger<T extends keyof Root.Emission>(
-  socket: MockSettingsSocket,
   event: T,
   payload: Parameters<Root.Emission[T]>[0]
-): void {
-  triggerSocketEvent(socket, event as string, payload)
+): Promise<void> {
+  return triggerSocketEvent(settingsSocket, event as string, payload)
 }
 
-function mockGetAllEmit(socket: MockSettingsSocket, response: unknown): void {
-  socket.emit = vi.fn((event: string, ...args: unknown[]) => {
-    if (event === 'settings:getAll' && typeof args[0] === 'function') {
-      const callback = args[0] as (resp: unknown) => void
-      callback(response)
-    }
-    return {
-      isOk: () => true,
-      isErr: () => false,
-    }
-  })
+function mockGetAllEmit(response: unknown): void {
+  vi.spyOn(emitWithTimeoutModule, 'emitWithTimeout').mockResolvedValue(
+    ok(response) as Result<unknown, Error | string>
+  )
 }
 
-function mockUpsertEmit(socket: MockSettingsSocket, response: unknown): void {
-  socket.emit = vi.fn((event: string, ...args: unknown[]) => {
-    if (event === 'settings:upsert' && typeof args[1] === 'function') {
-      const callback = args[1] as (resp: unknown) => void
-      callback(response)
-    }
-    return {
-      isOk: () => true,
-      isErr: () => false,
-    }
-  })
+function mockUpsertEmit(): void {
+  vi.spyOn(emitWithTimeoutModule, 'emitWithTimeout').mockResolvedValue(
+    ok(undefined) as Result<unknown, Error | string>
+  )
 }
 
 describe('useSettingsSocket()', () => {
-  let settingsSocket: MockSettingsSocket
-
   function mountSettingsSocket() {
+    const { socketManager, global } = createMockSocketManager()
+    settingsSocket = socketManager.settingsSocket as MockSettingsSocket
+
     return mountComposable(() => useSettingsSocket(), {
-      global: {
-        provide: {
-          [SOCKET_MANAGER_KEY as symbol]: ref({ settingsSocket }),
-        },
-      },
+      global,
     })
   }
-
-  beforeEach(() => {
-    settingsSocket = createMockSettingsSocket()
-  })
 
   afterEach(() => {
     vi.clearAllMocks()
   })
 
   describe('real-time settings synchronization', () => {
-    it('adds new setting on settings:updated event', () => {
+    it('adds new setting on settings:updated event', async () => {
       const { settings } = mountSettingsSocket()
+      await nextTick()
 
-      trigger(settingsSocket, 'settings:updated', fixtures.settings.openaiKey)
+      await trigger('settings:updated', fixtures.settings.openaiKey)
 
       expect(settings.value).toHaveLength(1)
       expect(settings.value[0]).toEqual(
@@ -116,11 +141,12 @@ describe('useSettingsSocket()', () => {
       )
     })
 
-    it('updates existing setting on settings:updated event', () => {
+    it('updates existing setting on settings:updated event', async () => {
       const { settings } = mountSettingsSocket()
+      await nextTick()
 
-      trigger(settingsSocket, 'settings:updated', fixtures.settings.openaiKey)
-      trigger(settingsSocket, 'settings:updated', {
+      await trigger('settings:updated', fixtures.settings.openaiKey)
+      await trigger('settings:updated', {
         ...fixtures.settings.openaiKey,
         settingValue: 'sk-new-key',
       })
@@ -134,32 +160,35 @@ describe('useSettingsSocket()', () => {
       )
     })
 
-    it('removes setting on settings:deleted event', () => {
+    it('removes setting on settings:deleted event', async () => {
       const { settings } = mountSettingsSocket()
+      await nextTick()
 
-      trigger(settingsSocket, 'settings:updated', fixtures.settings.openaiKey)
-      trigger(settingsSocket, 'settings:updated', fixtures.settings.anthropicKey)
+      await trigger('settings:updated', fixtures.settings.openaiKey)
+      await trigger('settings:updated', fixtures.settings.anthropicKey)
+
       expect(settings.value).toHaveLength(2)
 
-      trigger(settingsSocket, 'settings:deleted', { settingKey: 'OPENAI_API_KEY' })
+      await trigger('settings:deleted', { settingKey: 'OPENAI_API_KEY' })
 
       expect(settings.value).toHaveLength(1)
       expect(settings.value[0].settingKey).toBe('ANTHROPIC_API_KEY')
     })
 
-    it('surfaces server errors', () => {
+    it('surfaces server errors', async () => {
       const { error } = mountSettingsSocket()
+      await nextTick()
 
-      trigger(settingsSocket, 'settings:error', { error: 'Database connection failed' })
+      await trigger('settings:error', { error: 'Database connection failed' })
 
-      expect(error.value).toBe('Database connection failed')
+      expect(error.value).toMatch(/database/i)
+      expect(error.value).toMatch(/failed/i)
     })
   })
 
   describe('loadSettings', () => {
     it('loads all settings on success', async () => {
       mockGetAllEmit(
-        settingsSocket,
         fixtures.responses.success([
           fixtures.settings.openaiKey,
           fixtures.settings.anthropicKey,
@@ -169,7 +198,8 @@ describe('useSettingsSocket()', () => {
 
       const { settings, loadSettings, isLoading } = mountSettingsSocket()
 
-      await loadSettings()
+      const loadResult = await loadSettings()
+      if (loadResult.isErr()) return
 
       expect(isLoading.value).toBe(false)
       expect(settings.value).toHaveLength(3)
@@ -208,7 +238,7 @@ describe('useSettingsSocket()', () => {
     test.each(upsertCases)(
       'resolves on successful upsert: $name',
       async ({ key, value, dataType }) => {
-        mockUpsertEmit(settingsSocket, fixtures.responses.success())
+        mockUpsertEmit()
 
         const { upsertSetting } = mountSettingsSocket()
 

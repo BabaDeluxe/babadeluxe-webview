@@ -4,8 +4,6 @@
     data-testid="settings-container"
     class="flex-1 flex flex-col gap-6 p-4 sm:p-6 max-w-4xl mx-auto w-full"
   >
-    <BaseAlertList :banners="alertBanners" />
-
     <div
       v-if="hasComponentError"
       data-testid="component-error"
@@ -32,6 +30,27 @@
     </div>
 
     <template v-else>
+      <section
+        data-testid="appearance-section"
+        class="flex flex-col gap-4"
+      >
+        <h2 class="text-xl font-onest font-semibold text-deepText">Appearance</h2>
+        <div
+          class="flex items-center justify-between p-3 border border-borderMuted rounded-lg bg-panel"
+        >
+          <div class="flex flex-col">
+            <span class="text-deepText font-medium">Dark Mode</span>
+            <span class="text-xs text-subtleText">Toggle application theme</span>
+          </div>
+          <BaseButton
+            variant="ghost"
+            :icon="isDark ? 'i-bi:moon-stars-fill' : 'i-bi:sun-fill'"
+            :text="isDark ? 'Dark' : 'Light'"
+            @click="handleThemeToggle"
+          />
+        </div>
+      </section>
+
       <section
         v-if="generalSettings.length > 0"
         data-testid="general-settings-section"
@@ -71,7 +90,7 @@
           class="flex flex-col gap-1"
         >
           <BaseInput
-            v-model="fieldStates[provider.key].value"
+            :model-value="fieldStates[provider.key].value"
             type="password"
             :label="provider.name"
             :placeholder="`Enter ${provider.name} API key...`"
@@ -89,123 +108,94 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, onErrorCaptured, watch } from 'vue'
-import { useDebounceFn } from '@vueuse/core'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ResultAsync } from 'neverthrow'
-import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
-import { getApiProviders } from '@/settings-utils'
+import { validateSetting } from '@babadeluxe/shared'
 import { useSettingsSocket } from '@/composables/use-settings-socket'
 import { useModelsSocket } from '@/composables/use-models-socket'
+import { useApiKeyManagement } from '@/composables/use-api-key-management'
+import { useToastStore } from '@/stores/use-toast-store'
+import { useTheme } from '@/composables/use-theme'
+import { toUserMessage } from '@/error-mapper'
 import SettingsField from '@/components/SettingsField.vue'
-import BaseAlertList from '@/components/BaseAlertList.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseInput from '@/components/BaseInput.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
-import {
-  ValidationError,
-  RateLimitError,
-  AuthError,
-  InitializationError,
-  NetworkError,
-} from '@/errors'
+import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
-
-type FieldStatus = 'idle' | 'validating' | 'valid' | 'invalid'
-
-type FieldState = {
-  value: string
-  status: FieldStatus
-  error?: string
-}
 
 const logger = safeInject(LOGGER_KEY)
 const validator = safeInject(API_KEY_VALIDATOR_KEY)
 const supabase = safeInject(SUPABASE_CLIENT_KEY)
+const toasts = useToastStore()
 
 const { settings, upsertSetting, loadSettings } = useSettingsSocket()
 const { reloadModels } = useModelsSocket()
-const apiProviders = getApiProviders()
+const { isDark, toggleDark } = useTheme()
 
-const fieldStates = ref<Record<string, FieldState>>(
-  Object.fromEntries(
-    apiProviders.map((provider) => [
-      provider.key,
-      {
-        value: '',
-        status: 'idle' as FieldStatus,
-      },
-    ])
+const currentUserId = ref<string>()
+
+const upsertSettingWrapper = async (
+  key: string,
+  value: unknown,
+  dataType: 'string' | 'number' | 'boolean'
+): Promise<void> => {
+  await upsertSetting(key, value, dataType)
+}
+
+const { apiProviders, fieldStates, modelsReloadWarning, hydrateFieldStates, handleApiKeyInput } =
+  useApiKeyManagement(
+    validator,
+    logger,
+    upsertSettingWrapper,
+    reloadModels,
+    () => currentUserId.value,
+    settings
   )
-)
+
+const updateFieldStatus = (
+  key: string,
+  status: 'valid' | 'invalid' | 'validating' | 'idle',
+  error?: string
+) => {
+  if (fieldStates.value[key]) {
+    fieldStates.value[key].status = status
+    fieldStates.value[key].error = error
+  }
+}
 
 const isLoadingSettings = ref(true)
 const loadError = ref<string | undefined>()
-const isDebounceStopped = ref(false)
-const modelsReloadWarning = ref<string | undefined>()
-const currentUserId = ref<string>()
 
 const hasComponentError = ref(false)
 const handleReload = () => {
   window.location.reload()
 }
 
-onErrorCaptured((err, instance, info) => {
-  logger.error('Settings component crashed', {
-    vueInfo: info,
-    componentName: instance?.$options?.name,
-    userId: currentUserId.value,
-    error: err,
-  })
-
-  hasComponentError.value = true
-  return false
-})
-
 const generalSettings = computed(() =>
   settings.value.filter((setting) => !setting.settingKey.startsWith('apiKey'))
 )
 
-const alertBanners = computed(() => {
-  const banners = []
+watch(
+  loadError,
+  (val) => {
+    if (val) {
+      toasts.error(toUserMessage(val))
+    }
+  },
+  { immediate: true }
+)
 
-  if (loadError.value) {
-    banners.push({
-      id: 'load-error',
-      message: loadError.value,
-      type: 'error' as const,
-      isDismissible: false,
-    })
-  }
-
-  if (modelsReloadWarning.value) {
-    banners.push({
-      id: 'models-reload-warning',
-      message: modelsReloadWarning.value,
-      type: 'warning' as const,
-      isDismissible: true,
-      onClose: () => {
-        modelsReloadWarning.value = undefined
-      },
-    })
-  }
-
-  return banners
-})
-
-const getSettingByKey = (key: string) =>
-  settings.value.find((setting) => setting.settingKey === key)
-
-const hydrateFieldStates = () => {
-  for (const provider of apiProviders) {
-    const setting = getSettingByKey(provider.key)
-
-    if (!setting?.settingValue || !fieldStates.value[provider.key]) continue
-
-    fieldStates.value[provider.key].value = String(setting.settingValue)
-    fieldStates.value[provider.key].status = 'idle'
-  }
-}
+watch(
+  modelsReloadWarning,
+  (val) => {
+    if (val) {
+      toasts.warning(toUserMessage(val))
+    }
+  },
+  { immediate: true }
+)
 
 watch(
   settings,
@@ -216,91 +206,8 @@ watch(
   { deep: true }
 )
 
-const updateFieldStatus = (key: string, status: FieldStatus, error?: string) => {
-  if (!fieldStates.value[key]) return
-
-  fieldStates.value[key] = {
-    ...fieldStates.value[key],
-    status,
-    error,
-  }
-}
-
-const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
-  if (isLoadingSettings.value) return
-
-  const definition = getSettingDefinition(provider)
-  if (!definition) return
-
-  const validationResult = validateSetting(provider, apiKey)
-  if (!validationResult.success) {
-    updateFieldStatus(provider, 'invalid', validationResult.error)
-    return
-  }
-
-  updateFieldStatus(provider, 'validating')
-
-  const providerName = provider.replace('apiKey', '').toLowerCase()
-  const result = await validator.validate(providerName, apiKey)
-
-  if (!result || result.isErr()) {
-    const error = result?.error
-
-    if (error) {
-      logger.error('API key validation failed', {
-        userId: currentUserId.value,
-        provider,
-        error,
-      })
-      if (error instanceof ValidationError) {
-        updateFieldStatus(provider, 'invalid', 'The provided API key is not valid.')
-      } else if (error instanceof RateLimitError) {
-        updateFieldStatus(provider, 'invalid', 'Rate limited. Please wait a moment.')
-      } else if (error instanceof NetworkError) {
-        updateFieldStatus(provider, 'invalid', 'Network error. Check connection and retry.')
-      } else {
-        updateFieldStatus(provider, 'invalid', 'Validation failed. Please try again.')
-      }
-    } else {
-      updateFieldStatus(provider, 'invalid', 'Validation failed')
-    }
-    return
-  }
-
-  updateFieldStatus(provider, 'valid')
-  upsertSetting(provider, apiKey, definition.dataType)
-
-  const reloadModelsResult = await reloadModels()
-  if (reloadModelsResult.isErr()) {
-    logger.error('Failed to reload models after API key validation', {
-      userId: currentUserId.value,
-      provider,
-      error: reloadModelsResult.error,
-    })
-    modelsReloadWarning.value =
-      'API key saved, but models could not be updated. Please reload the page.'
-  }
-}
-
-const debouncedValidate = useDebounceFn(
-  async (provider: string, apiKey: string) => {
-    if (isDebounceStopped.value) return
-    await validateAndSaveApiKey(provider, apiKey)
-  },
-  500,
-  { rejectOnCancel: false }
-)
-
-const handleApiKeyInput = (provider: string, value: string | number) => {
-  const apiKey = String(value).trim()
-
-  fieldStates.value[provider].value = apiKey
-  updateFieldStatus(provider, 'idle')
-
-  if (apiKey) {
-    debouncedValidate(provider, apiKey)
-  }
-}
+const getSettingByKey = (key: string) =>
+  settings.value.find((setting) => setting.settingKey === key)
 
 const handleFieldChange = async (fieldName: string, value: unknown) => {
   if (isLoadingSettings.value) return
@@ -317,6 +224,14 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
 
   updateFieldStatus(fieldName, 'valid')
   await upsertSetting(fieldName, value, setting.dataType)
+  toasts.success('Setting saved')
+}
+
+const handleThemeToggle = async () => {
+  toggleDark()
+  const newValue = isDark.value ? 'dark' : 'light'
+  // We optimistically toggle, then save to DB
+  await upsertSetting('theme', newValue, 'string')
 }
 
 const fetchUserId = async (): Promise<void> => {
@@ -365,9 +280,5 @@ onMounted(async () => {
       isLoadingSettings.value = false
     }
   )
-})
-
-onBeforeUnmount(() => {
-  isDebounceStopped.value = true
 })
 </script>

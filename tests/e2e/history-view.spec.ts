@@ -18,7 +18,7 @@ test.describe('History View E2E', () => {
     await dealer.get(locators.historySearchInput)
 
     const list = await dealer.get(locators.historyConversationsContainer)
-    await expect(list.getByText('Vue component patterns')).toBeVisible({ timeout: 10000 })
+    await expect(list.getByText('Vue component patterns')).toBeVisible({ timeout: 10_000 })
   })
 
   test('user can search and find their conversation by title', async ({ page }) => {
@@ -76,7 +76,10 @@ test.describe('History View E2E', () => {
     await searchInput.fill('typescript')
 
     const dropdown = await dealer.get(locators.historySearchDropdown)
-    await dropdown.locator('[data-result-type="conversation"]').click()
+    const result = dropdown.locator('[data-result-type="conversation"]')
+
+    await expect(result).toBeVisible()
+    await result.click()
 
     const messagesHeading = page.getByRole('heading', {
       name: /messages in "typescript debugging guide"/i,

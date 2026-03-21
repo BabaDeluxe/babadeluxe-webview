@@ -110,16 +110,13 @@ export class LocatorDealer {
     this._global.set(locators.messageCancel, this._page.getByTestId('editable-cancel-button'))
 
     /* ---- History view ---- */
-    // Header nav button
     this._scoped.set(locators.historyTab, this._page.getByTestId('nav-history-link'))
 
-    // Root of History view
     this._scoped.set(locators.historyRoot, this._page.getByTestId('history-view-container'))
 
     const historySearchInput = this._page.getByTestId('history-search-input')
     this._scoped.set(locators.historySearchInput, historySearchInput)
 
-    // <SearchResultsDropdown data-testid="history-search-dropdown" .../>
     this._scoped.set(
       locators.historySearchDropdown,
       this._page.getByTestId('history-search-dropdown')
@@ -164,9 +161,17 @@ export class LocatorDealer {
     return locator
   }
 
-  private async _applyExpectations(locator: Locator, key: LocatorKey): Promise<void> {
-    const exp = this._expectations.get(key)
+  private async _applyExpectations(
+    locator: Locator,
+    key: LocatorKey,
+    override?: LocatorStateExpectation
+  ): Promise<void> {
+    const base = this._expectations.get(key)
+    const exp: LocatorStateExpectation | undefined =
+      base || override ? { ...(base ?? {}), ...(override ?? {}) } : undefined
+
     if (!exp) return
+
     const timeout = exp.timeoutMs ?? 10_000
 
     if (exp.isAttached) await locator.waitFor({ state: 'attached', timeout })
@@ -175,10 +180,10 @@ export class LocatorDealer {
     if (exp.isDisabled) await expect(locator).toBeDisabled({ timeout })
   }
 
-  async get(key: LocatorKey): Promise<Locator> {
+  async get(key: LocatorKey, override?: LocatorStateExpectation): Promise<Locator> {
     let locator = this._require(this._scoped, key)
     if (!locator) locator = this._require(this._global, key)
-    await this._applyExpectations(locator, key)
+    await this._applyExpectations(locator, key, override)
     return locator
   }
 }

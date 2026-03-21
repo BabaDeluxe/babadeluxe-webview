@@ -1,27 +1,57 @@
 import { ref, onBeforeUnmount, readonly, computed, watch } from 'vue'
 import type { SocketManager } from '@/socket-manager'
-import { err, ok, ResultAsync, type Result } from 'neverthrow'
-import type { SocketConnectionError } from '@/errors'
-import { NetworkError, SocketError } from '@/errors'
+import { err, ok, type Result, ResultAsync } from 'neverthrow'
+import { type SocketConnectionError, NetworkError, SocketError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
 import { useSocketManager } from '@/composables/use-socket-manager'
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
+import {
+  subscriptionSocketNotConnected,
+  subscriptionSocketConnectionFailed,
+  serverAcknowledgmentTimeout,
+  failedToCreateCheckoutSession,
+} from '@/composables/constants'
+
+// ----------------------------------------------------------------------
+// Types for attached handlers (both sockets)
+// ----------------------------------------------------------------------
+type AttachedHandlers = Readonly<{
+  onUserTierChanged: (payload: { tier: string }) => void
+  onCheckoutSessionError: (payload: { error: string }) => void
+  onMessageLimitReached: () => void // from chat socket
+}>
+
+/**
+ * We use a WeakMap to store the attached handlers for each socket instance.
+ * This ensures that when the socket changes, we can easily detach the old handlers
+ * and re‑attach them to the new socket without creating duplicate listeners.
+ * The WeakMap also allows the garbage collector to clean up entries when a socket
+ * is no longer referenced.
+ *
+ * Note: The chat socket is also included here because it fires the
+ * 'subscription:messageLimitReached' event. Although it's not ideal to have
+ * subscription events on the chat socket, it's a current architectural decision.
+ */
+const subscriptionHandlersBySocket = new WeakMap<object, AttachedHandlers>()
+const chatHandlersBySocket = new WeakMap<object, AttachedHandlers>() // separate for chat socket
 
 export function useSubscriptionSocket() {
   const { socketManagerRef } = useSocketManager()
+  const { createTimeout, cancelTimeout } = useTrackedTimeouts()
 
+  // Both sockets are needed: subscription socket for tier/checkout events,
+  // and chat socket for the message limit event.
   const subscriptionSocketRef = computed(() => socketManagerRef.value?.subscriptionSocket)
   const chatSocketRef = computed(() => socketManagerRef.value?.chatSocket)
 
   const isUpgrading = ref(false)
-  const error = ref<string | undefined>()
+  const error = ref<NetworkError | SocketError | undefined>()
   const isMessageLimitReached = ref(false)
   const isDismissed = ref(false)
 
-  const onMessageLimitReached = () => {
-    isMessageLimitReached.value = true
-    isDismissed.value = false
-  }
-
+  // --------------------------------------------------------------------
+  // Event handlers
+  // --------------------------------------------------------------------
   const onUserTierChanged = (payload: { tier: string }) => {
     if (payload.tier === 'PRO') {
       isMessageLimitReached.value = false
@@ -30,40 +60,74 @@ export function useSubscriptionSocket() {
   }
 
   const onCheckoutSessionError = (payload: { error: string }) => {
-    error.value = payload.error
+    error.value = new NetworkError(payload.error)
   }
 
-  const attachListeners = (
-    subSocket: SocketManager['subscriptionSocket'],
-    chatSocket: SocketManager['chatSocket']
-  ) => {
-    subSocket.on('subscription:userTierChanged', onUserTierChanged)
-    subSocket.on('subscription:checkoutSessionError', onCheckoutSessionError)
-    chatSocket.on('subscription:messageLimitReached', onMessageLimitReached)
+  const onMessageLimitReached = () => {
+    isMessageLimitReached.value = true
+    isDismissed.value = false
   }
 
-  const detachListeners = (
-    subSocket: SocketManager['subscriptionSocket'],
-    chatSocket: SocketManager['chatSocket']
-  ) => {
-    subSocket.off('subscription:userTierChanged', onUserTierChanged)
-    subSocket.off('subscription:checkoutSessionError', onCheckoutSessionError)
-    chatSocket.off('subscription:messageLimitReached', onMessageLimitReached)
+  // --------------------------------------------------------------------
+  // Attachment helpers (each socket gets its own WeakMap)
+  // --------------------------------------------------------------------
+  const attachSubscriptionListeners = (socket: SocketManager['subscriptionSocket']) => {
+    let handlers = subscriptionHandlersBySocket.get(socket)
+    if (!handlers) {
+      handlers = { onUserTierChanged, onCheckoutSessionError, onMessageLimitReached }
+      subscriptionHandlersBySocket.set(socket, handlers)
+    }
+    socket.on('subscription:userTierChanged', handlers.onUserTierChanged)
+    socket.on('subscription:checkoutSessionError', handlers.onCheckoutSessionError)
   }
 
+  const detachSubscriptionListeners = (socket: SocketManager['subscriptionSocket']) => {
+    const handlers = subscriptionHandlersBySocket.get(socket)
+    if (handlers) {
+      socket.off('subscription:userTierChanged', handlers.onUserTierChanged)
+      socket.off('subscription:checkoutSessionError', handlers.onCheckoutSessionError)
+    }
+  }
+
+  const attachChatListeners = (socket: SocketManager['chatSocket']) => {
+    let handlers = chatHandlersBySocket.get(socket)
+    if (!handlers) {
+      handlers = { onUserTierChanged, onCheckoutSessionError, onMessageLimitReached } // reuse type
+      chatHandlersBySocket.set(socket, handlers)
+    }
+    socket.on('subscription:messageLimitReached', handlers.onMessageLimitReached)
+  }
+
+  const detachChatListeners = (socket: SocketManager['chatSocket']) => {
+    const handlers = chatHandlersBySocket.get(socket)
+    if (handlers) {
+      socket.off('subscription:messageLimitReached', handlers.onMessageLimitReached)
+    }
+  }
+
+  // --------------------------------------------------------------------
+  // Watch both sockets
+  // --------------------------------------------------------------------
   watch(
     [subscriptionSocketRef, chatSocketRef],
     ([newSub, newChat], [oldSub, oldChat]) => {
-      if (oldSub && oldChat) detachListeners(oldSub, oldChat)
-      if (newSub && newChat) attachListeners(newSub, newChat)
+      if (oldSub) detachSubscriptionListeners(oldSub)
+      if (oldChat) detachChatListeners(oldChat)
+
+      if (newSub) attachSubscriptionListeners(newSub)
+      if (newChat) attachChatListeners(newChat)
     },
     { immediate: true }
   )
 
+  // --------------------------------------------------------------------
+  // Cleanup on unmount
+  // --------------------------------------------------------------------
   onBeforeUnmount(() => {
-    if (subscriptionSocketRef.value && chatSocketRef.value) {
-      detachListeners(subscriptionSocketRef.value, chatSocketRef.value)
-    }
+    const subSocket = subscriptionSocketRef.value
+    const chatSocket = chatSocketRef.value
+    if (subSocket) detachSubscriptionListeners(subSocket)
+    if (chatSocket) detachChatListeners(chatSocket)
   })
 
   const dismissModal = () => {
@@ -71,16 +135,18 @@ export function useSubscriptionSocket() {
   }
 
   const shouldShowModal = computed(() => {
-    const result: boolean = isMessageLimitReached.value && !isDismissed.value
-    return result
+    return isMessageLimitReached.value && !isDismissed.value
   })
 
+  // --------------------------------------------------------------------
+  // Checkout action (unchanged)
+  // --------------------------------------------------------------------
   const redirectToCheckout = async (): Promise<Result<void, SocketConnectionError>> => {
     const socket = subscriptionSocketRef.value
     if (!socket) {
-      const socketError = new SocketError('Subscription socket not connected')
-      error.value = socketError.message
-      return err(socketError)
+      const e = new SocketError(subscriptionSocketNotConnected)
+      error.value = e
+      return err(e)
     }
 
     isUpgrading.value = true
@@ -88,52 +154,54 @@ export function useSubscriptionSocket() {
 
     const waitResult = await socket.waitForConnection()
 
-    isUpgrading.value = false
     if (waitResult.isErr()) {
+      isUpgrading.value = false
       const rootError = waitResult.error
       const mappedError =
         rootError instanceof NetworkError || rootError instanceof SocketError
           ? rootError
-          : new NetworkError('Subscription socket connection failed', rootError)
-      error.value = mappedError.message
+          : new NetworkError(subscriptionSocketConnectionFailed, rootError)
+      error.value = mappedError
       return err(mappedError)
     }
 
-    const checkoutResult = await ResultAsync.fromPromise(
+    const responseResult = await ResultAsync.fromPromise(
       new Promise<{ success: boolean; checkoutUrl?: string; error?: string }>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new NetworkError('Server acknowledgment timeout'))
+        const timeoutId = createTimeout(() => {
+          reject(new NetworkError(serverAcknowledgmentTimeout))
         }, socketTimeoutMs.subscription)
 
         socket.emit(
           'subscription:createCheckoutSession',
-          (response: { success: boolean; checkoutUrl?: string; error?: string }) => {
-            clearTimeout(timeoutId)
-            resolve(response)
+          (res: { success: boolean; checkoutUrl?: string; error?: string }) => {
+            cancelTimeout(timeoutId)
+            resolve(res)
           }
         )
       }),
-      (unknownError: unknown): NetworkError =>
-        unknownError instanceof NetworkError
-          ? unknownError
-          : new NetworkError('Failed to create checkout session', unknownError)
+      (error) => {
+        return error instanceof NetworkError
+          ? error
+          : new NetworkError(failedToCreateCheckoutSession, error)
+      }
     )
 
-    if (checkoutResult.isErr()) {
-      error.value = checkoutResult.error.message
-      return err(checkoutResult.error)
+    isUpgrading.value = false
+
+    if (responseResult.isErr()) {
+      error.value = responseResult.error
+      return err(responseResult.error)
     }
 
-    const response = checkoutResult.value
+    const response = responseResult.value
 
     if (response.success && response.checkoutUrl) {
       window.location.href = response.checkoutUrl
       return ok(undefined)
     }
 
-    const errorMessage = response.error ?? 'Failed to create checkout session'
-    const networkError = new NetworkError(errorMessage)
-    error.value = networkError.message
+    const networkError = new NetworkError(response.error ?? failedToCreateCheckoutSession)
+    error.value = networkError
     return err(networkError)
   }
 

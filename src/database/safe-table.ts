@@ -10,8 +10,7 @@ export class DexieError extends BaseError {
     public readonly tableName: string,
     cause: unknown
   ) {
-    const validCause = cause instanceof Error ? cause : new Error(String(cause))
-    super(`operation '${operation}' failed on table '${tableName}'`, validCause)
+    super(`operation '${operation}' failed on table '${tableName}'`, cause)
   }
 }
 

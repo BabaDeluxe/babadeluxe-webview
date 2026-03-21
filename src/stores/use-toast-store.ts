@@ -1,3 +1,4 @@
+import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
@@ -12,6 +13,8 @@ export interface Toast {
 }
 
 export const useToastStore = defineStore('toast', () => {
+  const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+
   const toasts = ref<Toast[]>([])
 
   const removeToast = (id: string) => {
@@ -19,7 +22,7 @@ export const useToastStore = defineStore('toast', () => {
     if (index === -1) return
 
     const toast = toasts.value[index]
-    if (toast.timeoutId) clearTimeout(toast.timeoutId)
+    if (toast.timeoutId) cancelTimeout(toast.timeoutId)
 
     toasts.value.splice(index, 1)
   }
@@ -29,7 +32,7 @@ export const useToastStore = defineStore('toast', () => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
 
     if (duration > 0) {
-      timeoutId = setTimeout(() => {
+      timeoutId = createTimeout(() => {
         removeToast(id)
       }, duration)
     }

@@ -1,13 +1,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ref } from 'vue'
-import type { ComponentMountingOptions } from '@vue/test-utils'
+import { nextTick, ref } from 'vue'
 import { SOCKET_MANAGER_KEY } from '@/injection-keys'
+import type { BaseResponse } from '@/emit-with-timeout'
+import type { GlobalMountOptions } from 'node_modules/@vue/test-utils/dist/types'
 
 type EventHandler = (...args: any[]) => void
 
 export class MockSocket {
   private _handlers = new Map<string, EventHandler[]>()
   public isConnected = true
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  timeout(_ms: number) {
+    return {
+      emit: (event: string, ...args: any[]): { isOk: () => boolean; isErr: () => boolean } => {
+        const callback = args[args.length - 1] as (error: unknown, response: BaseResponse) => void
+        const response: BaseResponse = { success: true }
+
+        setTimeout(() => {
+          callback(null, response)
+        }, 0)
+
+        return {
+          isOk: () => true,
+          isErr: () => false,
+        }
+      },
+    }
+  }
 
   on(event: string, handler: EventHandler): void {
     if (!this._handlers.has(event)) {
@@ -24,8 +44,8 @@ export class MockSocket {
   }
 
   emit(
-    event: string,
-    payload?: any,
+    _event: string,
+    _payload?: any,
     callback?: (response: any) => void
   ): { isOk: () => boolean; isErr: () => boolean } {
     if (callback) {
@@ -61,29 +81,47 @@ export type MockChatSocket = MockSocket
 export type MockSettingsSocket = MockSocket
 export type MockSubscriptionSocket = MockSocket
 
+export class MockSocketManager {
+  public readonly chatSocket: MockChatSocket
+  public readonly settingsSocket: MockSettingsSocket
+  public readonly subscriptionSocket: MockSubscriptionSocket
+
+  constructor(
+    opts: {
+      chatSocket?: MockChatSocket
+      settingsSocket?: MockSettingsSocket
+      subscriptionSocket?: MockSubscriptionSocket
+    } = {}
+  ) {
+    this.chatSocket = opts.chatSocket ?? new MockSocket()
+    this.settingsSocket = opts.settingsSocket ?? new MockSocket()
+    this.subscriptionSocket = opts.subscriptionSocket ?? new MockSocket()
+  }
+}
+
 export function createMockSocketManager(
-  sockets: {
-    chatSocket?: MockSocket
-    settingsSocket?: MockSocket
-    subscriptionSocket?: MockSocket
+  opts: {
+    chatSocket?: MockChatSocket
+    settingsSocket?: MockSettingsSocket
+    subscriptionSocket?: MockSubscriptionSocket
   } = {}
 ) {
-  const socketManager = {
-    chatSocket: sockets.chatSocket ?? new MockSocket(),
-    settingsSocket: sockets.settingsSocket ?? new MockSocket(),
-    subscriptionSocket: sockets.subscriptionSocket ?? new MockSocket(),
+  const socketManager = new MockSocketManager(opts)
+
+  const global: GlobalMountOptions = {
+    provide: {
+      [SOCKET_MANAGER_KEY as symbol]: ref(socketManager),
+    },
   }
 
   return {
     socketManager,
     socketManagerRef: ref(socketManager),
-    provide: {
-      [SOCKET_MANAGER_KEY as symbol]: ref(socketManager),
-      // @ts-ignore
-    } as ComponentMountingOptions<any>['global']['provide'],
+    global,
   }
 }
 
-export function trigger(socket: MockSocket, event: string, payload?: any): void {
+export async function trigger(socket: MockSocket, event: string, payload?: any): Promise<void> {
   socket.trigger(event, payload)
+  await nextTick()
 }

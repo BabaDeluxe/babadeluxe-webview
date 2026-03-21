@@ -21,7 +21,7 @@
         variant="ghost"
         :icon="submitIcon"
         :data-testid="submitButtonTestId"
-        :is-disabled="!canSubmit"
+        :is-disabled="isDisabled"
         :is-loading="isLoading"
         @click="onSubmit"
       >
@@ -83,7 +83,13 @@ const emit = defineEmits<{
 
 const logger: AbstractLogger = safeInject(LOGGER_KEY)
 
-const canSubmit = computed(() => props.modelValue.trim().length > 0 && !props.isDisabled)
+const isDisabled = computed(
+  () =>
+    props.modelValue.trim().length > 0 &&
+    !props.isDisabled &&
+    !props.isLoading &&
+    !props.isSubmitting
+)
 
 const baseTextFieldRef = useTemplateRef('baseTextFieldRef')
 
@@ -95,20 +101,11 @@ function focus(): void {
     return
   }
 
-  const rootElement = instance?.$el
-  if (rootElement instanceof HTMLElement) {
-    const inputElement = rootElement.querySelector('input,textarea')
-    if (inputElement instanceof HTMLElement) {
-      inputElement.focus()
-      return
-    }
-  }
-
-  logger.warn('ChatInput.focus(): BaseTextField does not expose a focusable element')
+  logger.warn('ChatInput.focus(): BaseTextField instance not found or does not expose focus()')
 }
 
 function onSubmit() {
-  if (!canSubmit.value || props.isDisabled || props.isLoading) return
+  if (!isDisabled.value) return
   emit('submit')
 }
 
