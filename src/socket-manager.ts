@@ -3,15 +3,8 @@ import { type ManagerOptions, type SocketOptions, io } from 'socket.io-client'
 import { Root } from '@babadeluxe/shared'
 import type { AbstractLogger } from '@/logger'
 import { SocketError } from '@/errors'
-import { SocketFeatures } from '@/socket-features'
 
-type SocketGetterName<K extends string> = `${Lowercase<K>}Socket`
-
-type SocketGetters = {
-  [K in keyof typeof SocketFeatures as SocketGetterName<K>]: SocketManager
-}
-
-class SocketManagerBase {
+export class SocketManager {
   private readonly _socket: Root.Socket
   private _isConnectedInternal = false
   private _isConnectingInternal = false
@@ -31,19 +24,30 @@ class SocketManagerBase {
     }
 
     this._socket = io(Root.path, socketOptions)
-    this._createSocketGetters()
   }
 
-  private _createSocketGetters(): void {
-    for (const key of Object.keys(SocketFeatures)) {
-      const getterName = `${key.toLowerCase()}Socket` as SocketGetterName<string>
+  get chatSocket(): SocketManager {
+    return this
+  }
 
-      Object.defineProperty(this, getterName, {
-        get: () => this,
-        enumerable: true,
-        configurable: false,
-      })
-    }
+  get settingsSocket(): SocketManager {
+    return this
+  }
+
+  get modelsSocket(): SocketManager {
+    return this
+  }
+
+  get promptsSocket(): SocketManager {
+    return this
+  }
+
+  get validationSocket(): SocketManager {
+    return this
+  }
+
+  get subscriptionSocket(): SocketManager {
+    return this
   }
 
   get isConnected(): boolean {
@@ -236,10 +240,3 @@ class SocketManagerBase {
     return ok(undefined)
   }
 }
-
-// Interface merging for TypeScript awareness
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
-export interface SocketManager extends SocketGetters {}
-
-// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
-export class SocketManager extends SocketManagerBase {}

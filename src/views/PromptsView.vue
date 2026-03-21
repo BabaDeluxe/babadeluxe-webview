@@ -47,15 +47,17 @@
         v-else
         class="flex flex-col flex-1 min-h-0 w-full overflow-hidden pt-4 px-4"
       >
-        <!-- Mobile stacked layout -->
-        <div
-          ref="verticalContainer"
-          class="flex flex-col flex-1 min-h-0 md:hidden"
+        <!-- Adaptive layout using PromptLayout -->
+        <PromptLayout
+          v-if="isMobile"
+          ref-key="verticalContainer"
+          direction="vertical"
+          :left-width-percent="verticalTopHeightPercent"
+          :right-width-percent="verticalBottomHeightPercent"
+          :is-dragging="verticalIsDragging"
+          @start-dragging="verticalStartDragging"
         >
-          <div
-            class="overflow-y-auto pr-2"
-            :style="{ height: verticalTopHeightPercent }"
-          >
+          <template #master>
             <PromptList
               :prompts="prompts"
               :selected-prompt-id="selectedPromptId"
@@ -63,27 +65,8 @@
               @select="handleSelectPrompt"
               @delete="handleDeletePrompt"
             />
-          </div>
-
-          <div
-            class="relative flex items-center justify-center cursor-row-resize group flex-shrink-0"
-            :class="{ 'bg-accent/10': verticalIsDragging }"
-            @pointerdown="verticalStartDragging"
-          >
-            <div
-              class="h-0.5 w-12 rounded-full transition-all"
-              :class="
-                verticalIsDragging
-                  ? 'bg-accent w-16'
-                  : 'bg-borderMuted group-hover:bg-accent group-hover:w-16'
-              "
-            />
-          </div>
-
-          <div
-            class="overflow-y-auto border-t border-borderMuted pt-4 pr-2"
-            :style="{ height: verticalBottomHeightPercent }"
-          >
+          </template>
+          <template #detail>
             <PromptEditor
               v-if="selectedPrompt || isCreatingNewPrompt"
               :prompt="editablePrompt"
@@ -102,18 +85,19 @@
               icon="i-bi:cursor-text"
               description="Select a prompt to edit."
             />
-          </div>
-        </div>
+          </template>
+        </PromptLayout>
 
-        <!-- Desktop split layout -->
-        <div
-          ref="splitContainer"
-          class="hidden md:flex flex-row flex-1 min-h-0 relative"
+        <PromptLayout
+          v-else
+          ref-key="splitContainer"
+          direction="horizontal"
+          :left-width-percent="splitLeftWidthPercent"
+          :right-width-percent="splitRightWidthPercent"
+          :is-dragging="splitIsDragging"
+          @start-dragging="splitStartDragging"
         >
-          <div
-            class="overflow-y-auto pr-4 min-w-0"
-            :style="{ width: splitLeftWidthPercent }"
-          >
+          <template #master>
             <PromptList
               :prompts="prompts"
               :selected-prompt-id="selectedPromptId"
@@ -121,27 +105,8 @@
               @select="handleSelectPrompt"
               @delete="handleDeletePrompt"
             />
-          </div>
-
-          <div
-            class="relative flex items-center justify-center cursor-col-resize group touch-none select-none"
-            :class="{ 'bg-accent/10': splitIsDragging }"
-            @pointerdown="splitStartDragging"
-          >
-            <div
-              class="w-0.5 h-12 rounded-full transition-all"
-              :class="
-                splitIsDragging
-                  ? 'bg-accent h-16'
-                  : 'bg-borderMuted group-hover:bg-accent group-hover:h-16'
-              "
-            />
-          </div>
-
-          <div
-            class="overflow-y-auto pl-4 pr-2 border-l border-borderMuted min-w-0"
-            :style="{ width: splitRightWidthPercent }"
-          >
+          </template>
+          <template #detail>
             <PromptEditor
               v-if="selectedPrompt || isCreatingNewPrompt"
               :prompt="editablePrompt"
@@ -160,8 +125,8 @@
               icon="i-bi:cursor-text"
               description="Select a prompt to view or edit its details."
             />
-          </div>
-        </div>
+          </template>
+        </PromptLayout>
       </div>
     </template>
 
@@ -187,7 +152,7 @@
 
 <script setup lang="ts">
 import { ref, computed, defineAsyncComponent, onMounted, watch } from 'vue'
-import { useDebounceFn } from '@vueuse/core'
+import { useDebounceFn, useBreakpoints, breakpointsTailwind } from '@vueuse/core'
 import { ResultAsync } from 'neverthrow'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useResizableSplit } from '@/composables/use-resizable-split'
@@ -200,16 +165,19 @@ import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
 import PromptList from '@/components/PromptList.vue'
+import PromptLayout from '@/components/PromptLayout.vue'
 
 defineOptions({ name: 'PromptsView' })
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
+const breakpoints = useBreakpoints(breakpointsTailwind)
+const isMobile = breakpoints.smaller('md')
+
 const PromptEditor = defineAsyncComponent({
   loader: () => import('@/components/PromptEditor.vue'),
   loadingComponent: BaseSpinner,
   delay: 200,
 })
-// eslint-disable-next-line @typescript-eslint/naming-convention
+
 const BaseModal = defineAsyncComponent(() => import('@/components/BaseModal.vue'))
 
 const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)

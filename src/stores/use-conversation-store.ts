@@ -16,8 +16,9 @@ import {
 } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { useFileContextResolver } from '@/composables/use-file-context-resolver'
-import { encodeContextReferences, decodeContextReferences } from '@/database/serializers'
+import { decodeContextReferences, encodeContextReferences } from '@/database/serializers'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
+import { ChatContextManager } from '@/services/chat-context-manager'
 
 type SendOptions = {
   provider: string
@@ -34,73 +35,6 @@ type SendOptions = {
 }
 
 type MessageMetadata = { model?: string; systemPrompt?: string }
-
-function buildInjectedText(
-  systemPrompt?: string,
-  contextItems?: Array<{ filePath: string; content: string }>
-): string {
-  const parts: string[] = []
-
-  const sp = systemPrompt?.trim()
-  if (sp) {
-    parts.push(`SYSTEM:\n${sp}`)
-  }
-
-  const cleanedItems = (contextItems ?? []).filter(
-    (item) => item.filePath?.trim().length && item.content?.trim().length
-  )
-
-  if (cleanedItems.length) {
-    const ctxParts: string[] = []
-    for (const item of cleanedItems) {
-      ctxParts.push(`FILE: ${item.filePath}\n${item.content}`)
-    }
-    const ctx = ctxParts.join('\n\n')
-    parts.push(`CONTEXT:\n${ctx}`)
-  }
-
-  if (!parts.length) return ''
-  return `\n\n---\n${parts.join('\n\n')}\n---\n`
-}
-
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4)
-}
-
-function computeContextUsageForSend(
-  historyMessages: Message[],
-  systemPrompt: string | undefined,
-  contextItems: Array<{ filePath: string; content: string }> | undefined,
-  modelContextWindow: number
-): number {
-  if (!modelContextWindow || modelContextWindow <= 0) {
-    return 0
-  }
-
-  const messagesToSend: Array<{ role: Message['role']; content: string }> = []
-  for (const message of historyMessages) {
-    messagesToSend.push({
-      role: message.role,
-      content: message.content,
-    })
-  }
-
-  const injected = buildInjectedText(systemPrompt, contextItems ?? [])
-  const last = messagesToSend[messagesToSend.length - 1]
-  if (last && last.role === 'user' && injected) {
-    last.content = `${last.content}${injected}`
-  }
-
-  const safeBudget = Math.max(1, Math.floor(modelContextWindow * 0.95))
-
-  let totalTokens = 0
-  for (const msg of messagesToSend) {
-    totalTokens += estimateTokens(msg.content)
-  }
-
-  const usagePercent = totalTokens / safeBudget
-  return usagePercent > 1 ? 1 : usagePercent
-}
 
 export const useConversationStore = defineStore('conversation', () => {
   const logger = safeInject(LOGGER_KEY)
@@ -676,7 +610,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
     const messageId = assistantResult.value.id
     if (selectedModelContextWindow.value !== undefined) {
-      lastContextUsage.value = computeContextUsageForSend(
+      lastContextUsage.value = ChatContextManager.computeContextUsage(
         historyMessages,
         systemPrompt,
         contextItems,
@@ -694,7 +628,7 @@ export const useConversationStore = defineStore('conversation', () => {
       })
     }
 
-    const injected = buildInjectedText(systemPrompt, contextItems ?? [])
+    const injected = ChatContextManager.buildInjectedText(systemPrompt, contextItems ?? [])
 
     const last = messagesToSend[messagesToSend.length - 1]
     if (last && last.role === 'user' && injected) {

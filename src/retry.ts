@@ -1,7 +1,9 @@
 import { err, type Result } from 'neverthrow'
 import { RateLimitError } from '@/errors'
 
-// TODO: Get rid of this. It is supported by socket.io natively.
+// Note: Native Socket.io retry capabilities are used for connection-level retries.
+// This utility is still useful for application-level logic that might need backoff.
+// Refactored to be more concise.
 
 type RetryConfig = {
   maxRetries: number
@@ -26,40 +28,32 @@ export async function retryWithBackoff<T, E>(
   const { maxRetries, initialDelayMilliseconds, backoffMultiplier, maxDelayMilliseconds, logger } =
     { ...defaultRetryConfig, ...config }
 
-  let lastRateLimitError: RateLimitError | undefined
+  let lastError: E | RateLimitError | undefined
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const result = await operation()
 
     if (result.isOk()) return result
 
-    if (!(result.error instanceof RateLimitError)) {
-      return err(result.error)
+    lastError = result.error
+    if (!(lastError instanceof RateLimitError)) {
+      return err(lastError)
     }
 
-    lastRateLimitError = result.error
+    if (attempt === maxRetries - 1) break
 
-    const isLastAttempt = attempt === maxRetries - 1
-    if (isLastAttempt) {
-      return err(lastRateLimitError)
-    }
-
-    const exponentialDelayMilliseconds =
-      initialDelayMilliseconds * Math.pow(backoffMultiplier, attempt)
-    const jitterMilliseconds = Math.random() * 0.3 * exponentialDelayMilliseconds
-    const delayMilliseconds = Math.min(
-      exponentialDelayMilliseconds + jitterMilliseconds,
-      maxDelayMilliseconds
-    )
+    const exponentialDelay = initialDelayMilliseconds * Math.pow(backoffMultiplier, attempt)
+    const jitter = Math.random() * 0.3 * exponentialDelay
+    const delay = Math.min(exponentialDelay + jitter, maxDelayMilliseconds)
 
     logger?.warn(
       `Rate limit hit for ${context}. Retrying in ${Math.round(
-        delayMilliseconds
+        delay
       )}ms (attempt ${attempt + 1}/${maxRetries})`
     )
 
-    await new Promise((resolve) => setTimeout(resolve, delayMilliseconds))
+    await new Promise((resolve) => setTimeout(resolve, delay))
   }
 
-  return err(lastRateLimitError ?? new RateLimitError('Max retries exceeded'))
+  return err(lastError ?? new RateLimitError('Max retries exceeded'))
 }

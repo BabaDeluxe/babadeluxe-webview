@@ -30,12 +30,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, nextTick, watch, type PropType } from 'vue'
-import { useMutationObserver, useDebounceFn } from '@vueuse/core'
-import { parse, wcagContrast } from 'culori'
+import { computed, ref, type PropType } from 'vue'
 import { twMerge } from 'tailwind-merge'
 import { type ButtonVariant, useButtonVariants } from '@/composables/use-button-variants'
-import { logger } from '@/logger'
 
 const { getButtonClasses } = useButtonVariants()
 
@@ -60,81 +57,9 @@ const props = defineProps({
 defineEmits(['click'])
 
 const buttonRef = ref<HTMLButtonElement>()
-const autoTextColor = ref<'text-white' | 'text-black'>('text-white')
-
-// Memoization cache for contrast results (per background color string)
-const contrastCache = new Map<string, 'text-white' | 'text-black'>()
 
 // Compiled regex for text color classes (performance)
 const textColorRegex = /\btext-(white|black|deepText|subtleText|accent|error|success|warning)\b/
-
-function calculateContrastColor(): void {
-  if (!buttonRef.value) return
-
-  const computedStyle = window.getComputedStyle(buttonRef.value)
-  const backgroundColor = computedStyle.backgroundColor
-
-  // Check cache first
-  const cached = contrastCache.get(backgroundColor)
-  if (cached) {
-    autoTextColor.value = cached
-    return
-  }
-
-  const parsedBackground = parse(backgroundColor)
-  // In production, logger calls can be stripped by build tools
-  logger.log('Parsed background color:', parsedBackground)
-  if (!parsedBackground) {
-    autoTextColor.value = 'text-white'
-    contrastCache.set(backgroundColor, 'text-white')
-    return
-  }
-
-  const whiteContrast = wcagContrast(parsedBackground, '#ffffff')
-  const blackContrast = wcagContrast(parsedBackground, '#000000')
-
-  const result = whiteContrast >= blackContrast ? 'text-white' : 'text-black'
-  autoTextColor.value = result
-  contrastCache.set(backgroundColor, result)
-}
-
-// Debounced update to avoid excessive recalculations during rapid changes
-const debouncedUpdate = useDebounceFn(() => {
-  nextTick(() => {
-    // Using a single requestAnimationFrame after nextTick is usually sufficient
-    requestAnimationFrame(calculateContrastColor)
-  })
-}, 100) // 100ms debounce
-
-// Observe root element for class/data-theme changes
-useMutationObserver(
-  document.documentElement,
-  () => {
-    debouncedUpdate()
-  },
-  {
-    attributes: true,
-    attributeFilter: ['class', 'data-theme'],
-  }
-)
-
-// Observe button for class/style changes
-useMutationObserver(
-  buttonRef,
-  () => {
-    debouncedUpdate()
-  },
-  {
-    attributes: true,
-    attributeFilter: ['class', 'style'],
-  }
-)
-
-// Initial contrast calculation after button is mounted
-onMounted(async () => {
-  await nextTick()
-  requestAnimationFrame(calculateContrastColor)
-})
 
 const computedClasses = computed(() => {
   const variantClasses = getButtonClasses(props.variant)
@@ -147,7 +72,6 @@ const computedClasses = computed(() => {
         : ''
 
   const userClassesRaw = props.class.trim()
-
   const userHasTextClass = textColorRegex.test(userClassesRaw)
 
   const shouldLetUserControlText = userHasTextClass && props.allowTextOverride
@@ -169,14 +93,9 @@ const computedClasses = computed(() => {
   // Variant/auto controls text: only add auto color if no text-* at all
   const hasAnyTextClass = textColorRegex.test(baseMerged)
 
-  return hasAnyTextClass ? baseMerged : twMerge(baseMerged, autoTextColor.value)
-})
+  // Default to text-white for primary, text-deepText for others if not specified
+  const defaultTextColor = props.variant === 'primary' ? 'text-white' : 'text-deepText'
 
-watch(
-  () => props.class,
-  () => {
-    debouncedUpdate()
-  },
-  { flush: 'post' }
-)
+  return hasAnyTextClass ? baseMerged : twMerge(baseMerged, defaultTextColor)
+})
 </script>

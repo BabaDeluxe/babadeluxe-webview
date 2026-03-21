@@ -1,10 +1,8 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { ResultAsync } from 'neverthrow'
 import { storeToRefs } from 'pinia'
-import { onClickOutside } from '@vueuse/core'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { useResizableSplit } from '@/composables/use-resizable-split'
-import { useSearch } from '@/composables/use-search'
 import {
   APP_DB_KEY,
   KEY_VALUE_STORE_KEY,
@@ -16,10 +14,10 @@ import { safeInject } from '@/safe-inject'
 import { type Conversation, type Message } from '@/database/types'
 import type { SearchService } from '@/search-service'
 import type { KeyValueStore } from '@/database/key-value-store'
-import { type SearchResult, isMessageResult, isConversationResult } from '@/search-types'
 import type { AbstractLogger } from '@/logger'
 import { AuthError } from '@/errors'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
+import { useHistorySearch } from '@/composables/use-history-search'
 
 export function useHistory() {
   const logger: AbstractLogger = safeInject(LOGGER_KEY)
@@ -38,8 +36,6 @@ export function useHistory() {
     updateUserMessage,
     updateConversationTitle,
   } = conversationStore
-
-  const { searchResults, isSearching, performSearch } = useSearch(searchService)
 
   const {
     leftWidthPercent: splitLeftWidthPercent,
@@ -75,10 +71,6 @@ export function useHistory() {
   const selectedConversationId = ref<number | null>(null)
   const selectedConversationMessages = ref<Message[]>([])
   const isLoadingMessages = ref(false)
-
-  const searchQuery = ref('')
-  const highlightedIndex = ref(-1)
-  const dropdownRef = ref<HTMLElement>()
   const currentUserId = ref<string>()
 
   const renameDialog = ref({
@@ -141,25 +133,43 @@ export function useHistory() {
     isLoadingMessages.value = false
   }
 
+  const navigateToMessage = async (mid: number, cid: number) => {
+    await switchToConversation(cid)
+    await nextTick()
+    await nextTick()
+
+    const messageElement = document.querySelector(
+      `[data-message-id="${mid}"]`
+    ) as HTMLElement | null
+    if (!messageElement) return
+
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    messageElement.style.backgroundColor = 'rgba(var(--accent-rgb), 0.2)'
+    createTimeout(() => {
+      messageElement.style.backgroundColor = ''
+    }, 2000)
+  }
+
+  const {
+    searchQuery,
+    searchResults,
+    isSearching,
+    highlightedIndex,
+    dropdownRef,
+    filteredConversations,
+    handleSearch,
+    clearSearch,
+    highlightNext,
+    highlightPrevious,
+    selectHighlighted,
+    handleResultHover,
+    handleSearchResultClick,
+    getSearchResultSubtitle,
+    getSearchResultMainText,
+  } = useHistorySearch(searchService, conversations, navigateToMessage, switchToConversation)
+
   onMounted(async () => {
     await Promise.all([initialize(), fetchUserId()])
-  })
-
-  onClickOutside(dropdownRef, () => {
-    if (searchQuery.value) {
-      searchQuery.value = ''
-      highlightedIndex.value = -1
-    }
-  })
-
-  const filteredConversations = computed(() => {
-    if (!searchQuery.value.trim()) {
-      return conversations.value
-    }
-
-    return conversations.value.filter((conv) =>
-      conv.title.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
   })
 
   const currentConversationTitle = computed(() => {
@@ -174,15 +184,6 @@ export function useHistory() {
       selectedConversationMessages.value.length > 0
     )
   })
-
-  const truncateText = (text: string, maxLength = 150) => {
-    if (text.length <= maxLength) return text
-    return `${text.slice(0, maxLength)}...`
-  }
-
-  const handleSearch = () => {
-    performSearch(searchQuery.value)
-  }
 
   const handleDeleteConversation = async (conversationId: number) => {
     if (!confirm('Are you sure you want to delete this conversation? This cannot be undone.')) {
@@ -290,84 +291,6 @@ export function useHistory() {
     }
   }
 
-  const clearSearch = () => {
-    searchQuery.value = ''
-    highlightedIndex.value = -1
-  }
-
-  const highlightNext = () => {
-    if (searchResults.value.length === 0) return
-    highlightedIndex.value = (highlightedIndex.value + 1) % searchResults.value.length
-  }
-
-  const highlightPrevious = () => {
-    if (searchResults.value.length === 0) return
-    highlightedIndex.value =
-      highlightedIndex.value <= 0 ? searchResults.value.length - 1 : highlightedIndex.value - 1
-  }
-
-  const selectHighlighted = () => {
-    if (highlightedIndex.value >= 0 && searchResults.value[highlightedIndex.value]) {
-      handleSearchResultClick(searchResults.value[highlightedIndex.value])
-    }
-  }
-
-  const handleResultHover = (index: number) => {
-    highlightedIndex.value = index
-  }
-
-  const navigateToMessage = async (messageId: number | string, conversationId: number | string) => {
-    const cid = Number(conversationId)
-    const mid = Number(messageId)
-    if (Number.isNaN(cid) || Number.isNaN(mid)) return
-
-    await switchToConversation(cid)
-
-    await nextTick()
-    await nextTick()
-
-    const messageElement = document.querySelector(
-      `[data-message-id="${mid}"]`
-    ) as HTMLElement | null
-    if (!messageElement) return
-
-    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    messageElement.style.backgroundColor = 'rgba(var(--accent-rgb), 0.2)'
-    createTimeout(() => {
-      messageElement.style.backgroundColor = ''
-    }, 2000)
-  }
-
-  const getSearchResultSubtitle = (result: SearchResult) => {
-    if (isConversationResult(result)) return 'Conversation'
-    if (isMessageResult(result)) {
-      const found = conversations.value.find((c) => c.id === result.conversationId)
-      const title = found?.title || 'Unknown'
-      return `Message in "${title}"`
-    }
-
-    return 'Result'
-  }
-
-  const getSearchResultMainText = (result: SearchResult) => {
-    if (isConversationResult(result)) return result.title
-    if (isMessageResult(result)) return truncateText(result.content)
-    return ''
-  }
-
-  const handleSearchResultClick = async (result: SearchResult) => {
-    if (isMessageResult(result)) {
-      const mid = Number(result.id)
-      const cid = Number(result.conversationId)
-      await navigateToMessage(mid, cid)
-    } else if (isConversationResult(result)) {
-      const cid = Number(result.id)
-      await switchToConversation(cid)
-    }
-
-    searchQuery.value = ''
-  }
-
   const onSwitchConversation = async (conversation: Conversation) => {
     if (conversation.id == null) return
     await switchToConversation(conversation.id)
@@ -383,7 +306,6 @@ export function useHistory() {
     isLoadingConversations,
     error,
 
-    // layout
     splitLeftWidthPercent,
     splitRightWidthPercent,
     splitIsDragging,
@@ -393,14 +315,12 @@ export function useHistory() {
     verticalIsDragging,
     verticalStartDragging,
 
-    // selection + messages
     selectedConversationId,
     selectedConversationMessages,
     isLoadingMessages,
     currentConversationTitle,
     areSelectedMessagesShown,
 
-    // search
     searchQuery,
     searchResults,
     isSearching,
@@ -417,7 +337,6 @@ export function useHistory() {
     handleResultHover,
     handleSearchResultClick,
 
-    // conversation actions
     getMessageCount,
     handleRenameConversation,
     confirmRename,
@@ -427,7 +346,6 @@ export function useHistory() {
     onDeleteConversation,
     renameDialog,
 
-    // message actions
     handleDeleteMessage,
     handleEditMessage,
   }

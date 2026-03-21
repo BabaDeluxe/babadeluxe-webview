@@ -66,12 +66,17 @@ export class AppDb extends Dexie {
   async getMessageCountsByConversation(): Promise<Result<Map<number, number>, DbError>> {
     const result = await ResultAsync.fromPromise(
       (async () => {
-        const allMessages = await this._messageTable.toArray()
         const countMap = new Map<number, number>()
+        const allConversations = await this._conversationTable.toArray()
 
-        for (const message of allMessages) {
-          const currentCount = countMap.get(message.conversationId) ?? 0
-          countMap.set(message.conversationId, currentCount + 1)
+        for (const conversation of allConversations) {
+          if (conversation.id) {
+            const count = await this._messageTable
+              .where('conversationId')
+              .equals(conversation.id)
+              .count()
+            countMap.set(conversation.id, count)
+          }
         }
 
         return countMap

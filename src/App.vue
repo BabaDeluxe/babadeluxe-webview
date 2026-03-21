@@ -104,120 +104,20 @@
 </template>
 
 <script setup lang="ts">
-import { useStorage } from '@vueuse/core'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { type Ref, watch, onMounted, ref, onErrorCaptured } from 'vue'
-import { useEventListener } from '@vueuse/core'
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { onErrorCaptured } from 'vue'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
-import { useSettingsSocket } from '@/composables/use-settings-socket'
-import { useTheme } from '@/composables/use-theme'
-import type { AbstractLogger } from '@/logger'
-import { useConversationStore } from '@/stores/use-conversation-store'
-import { type SupabaseClientType } from '@/main'
 import { useToastStore } from '@/stores/use-toast-store'
-import { localStorageKeys } from '@/constants'
 import { safeInject } from '@/safe-inject'
-import type { SocketManager } from '@/socket-manager'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { LOGGER_KEY } from '@/injection-keys'
+import { useAppLogic } from '@/composables/use-app-logic'
 
-const logger: AbstractLogger = safeInject(LOGGER_KEY)
-const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
-const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(SOCKET_MANAGER_KEY)
-
-const session = ref<Session | null>(null)
+const logger = safeInject(LOGGER_KEY)
 const router = useRouter()
-const conversationStore = useConversationStore()
 const toasts = useToastStore()
-const { settings, loadSettings } = useSettingsSocket()
-const { isDark } = useTheme()
-
-const handleExtensionMessage = (event: MessageEvent) => {
-  const message = event.data
-
-  if (message?.type !== 'navigate-to' || !message.payload?.view) return
-
-  const targetView = message.payload.view
-  logger.log('Received navigation request from extension:', targetView)
-
-  const targetRoute = router.getRoutes().find((route) => route.name === targetView)
-  if (targetRoute) {
-    logger.log('Navigating to:', targetRoute)
-    router.push(targetRoute)
-  } else {
-    logger.warn('Unknown view requested:', targetView)
-  }
-}
-
-useEventListener(window, 'message', handleExtensionMessage)
-
-const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
-
-const handleNewChat = async () => {
-  await conversationStore.markAllStreamingCompleteInCurrentConversation(currentConversationId.value)
-  await router.push({ path: '/chat', query: { newConversation: 'true' } })
-}
-
-onMounted(async () => {
-  const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
-    if (event === 'SIGNED_IN' && supabaseSession) {
-      session.value = supabaseSession
-      // No redirect here – LoginView / router guard already decide destination
-    } else if (event === 'SIGNED_OUT') {
-      session.value = null
-      router.push('/')
-    } else if (
-      (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') &&
-      supabaseSession?.access_token
-    ) {
-      session.value = supabaseSession
-      if (socketManagerRef.value) {
-        socketManagerRef.value.updateAuthToken(supabaseSession.access_token)
-        logger.debug('Updated socket auth token from session refresh')
-      }
-    } else if (event === 'PASSWORD_RECOVERY') {
-      router.push('/reset-password')
-    }
-  }
-
-  supabase.auth.onAuthStateChange((event, session) => {
-    handleAuthStateChange(event, session)
-  })
-
-  // Watch for theme setting changes from DB (or initial load)
-  watch(
-    settings,
-    (newSettings) => {
-      const themeSetting = newSettings.find((setting) => setting.settingKey === 'theme')
-      if (themeSetting?.settingValue) {
-        const val = String(themeSetting.settingValue)
-        if (val === 'dark' && !isDark.value) isDark.value = true
-        else if (val === 'light' && isDark.value) isDark.value = false
-      }
-    },
-    { deep: true }
-  )
-
-  const { data, error } = await supabase.auth.getSession()
-
-  // Start loading settings immediately to apply theme
-  if (data.session) void loadSettings()
-
-  if (error) {
-    logger.error('Failed to retrieve auth session, clearing stale data', { error })
-    await supabase.auth.signOut()
-    return
-  }
-
-  if (!data.session) {
-    logger.warn('No active session found in App.vue mount')
-    return
-  }
-
-  session.value = data.session
-})
+const { session, handleNewChat } = useAppLogic()
 
 onErrorCaptured((err, instance, info) => {
   logger.error('Something crashed', {
@@ -227,7 +127,6 @@ onErrorCaptured((err, instance, info) => {
   })
 
   toasts.error('Something crashed. Please reload.')
-
   return false
 })
 </script>

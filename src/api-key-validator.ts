@@ -3,11 +3,11 @@ import { BaseError } from '@babadeluxe/shared/utils'
 import type { AbstractLogger } from '@/logger'
 import type { SocketManager } from '@/socket-manager'
 import { type ApiKeyValidationError, NetworkError, ValidationError, RateLimitError } from '@/errors'
+import { socketTimeoutMs } from '@/constants'
 
 const supportedProviders = ['openai', 'anthropic', 'google'] as const
 type SupportedProvider = (typeof supportedProviders)[number]
 
-const validationTimeoutMs = 10000
 const defaultSuccessStatusCode = 200
 
 type ValidationSuccess = {
@@ -105,11 +105,13 @@ export class ApiKeyValidator {
     provider: SupportedProvider,
     apiKey: string
   ): Promise<Result<ValidationSuccess, ApiKeyValidationError>> {
+    const timeoutMs = socketTimeoutMs.validation
+
     return await ResultAsync.fromPromise(
       new Promise<ValidationSuccess>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
-          reject(new NetworkError(`Validation request timeout after ${validationTimeoutMs}ms`))
-        }, validationTimeoutMs)
+          reject(new NetworkError(`Validation request timeout after ${timeoutMs}ms`))
+        }, timeoutMs)
 
         this._validationSocket.emit(
           'validation:validateApiKey',
