@@ -17,11 +17,12 @@
       <div
         class="flex flex-col w-full max-w-md bg-panel rounded-lg shadow-lg p-6 my-4 border border-borderMuted"
       >
-        <div class="flex flex-col gap-4">
+        <div class="flex flex-row gap-4">
           <BaseButton
             variant="primary"
+            class="flex-1"
             data-testid="login-github-button"
-            text="Login with GitHub"
+            text="GitHub"
             icon="i-simple-icons:github"
             :disabled="isLoading"
             type="button"
@@ -30,8 +31,9 @@
 
           <BaseButton
             variant="primary"
+            class="flex-1"
             data-testid="login-google-button"
-            text="Login with Google"
+            text="Google"
             icon="i-simple-icons:google"
             :disabled="isLoading"
             type="button"
