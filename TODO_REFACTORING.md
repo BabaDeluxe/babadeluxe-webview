@@ -3,7 +3,7 @@
 ## Core Application Logic
 - [x] **src/main.ts**: Extract the async initialization logic from the IIFE into a dedicated `AppInitializer` class.
 - [x] **src/api-key-validator.ts**: Move the `validationTimeoutMs` magic number into a configuration object or a constant at the top of the file.
-- [x] **src/logger.ts**: Disable stack trace parsing for non-error log levels (like `info`, `log`, `debug`) to improve performance.
+- [ ] **src/logger.ts**: Disable stack trace parsing for non-error log levels (like `info`, `log`, `debug`) to improve performance. (Undone by request)
 - [x] **src/socket-manager.ts**: Replace dynamic getter generation (`_createSocketGetters`) with explicit, statically defined properties for better discoverability and IDE support.
 - [x] **src/retry.ts**: Remove custom retry logic and utilize native Socket.io retry capabilities.
 - [x] **src/App.vue**: Decompose the "God Component" by extracting auth state management, theme watching, and extension message handling into specialized composables.

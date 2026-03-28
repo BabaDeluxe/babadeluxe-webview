@@ -26,13 +26,6 @@ interface AppLoggerOptions {
    * @default false
    */
   isCallerPrefixShown?: boolean
-
-  /**
-   * Enable stack trace parsing for all log levels.
-   * If false, only 'error' and 'warn' will have stack frames.
-   * @default false
-   */
-  isStackParsingEnabledAllLevels?: boolean
 }
 
 interface StackFrame {
@@ -45,13 +38,11 @@ export class AppLogger implements AbstractLogger {
   private readonly _logger: ColorinoLogger
   private readonly _areFileLinksShown: boolean
   private readonly _isCallerPrefixShown: boolean
-  private readonly _isStackParsingEnabledAllLevels: boolean
 
   constructor(options: AppLoggerOptions = {}) {
     this._logger = createColorino(themePalettes['catppuccin-mocha'])
     this._areFileLinksShown = options.areFileLinksShown ?? true
     this._isCallerPrefixShown = options.isCallerPrefixShown ?? false
-    this._isStackParsingEnabledAllLevels = options.isStackParsingEnabledAllLevels ?? false
   }
 
   info(...args: unknown[]): void {
@@ -85,8 +76,7 @@ export class AppLogger implements AbstractLogger {
     }
 
     const finalArguments: unknown[] = []
-    const shouldParseStack = this._isStackParsingEnabledAllLevels || level === 'error' || level === 'warn'
-    const callerFrame = shouldParseStack ? this._getCallerFrame() : undefined
+    const callerFrame = this._getCallerFrame()
 
     if (this._isCallerPrefixShown) {
       const prefix = callerFrame && this._buildCallerPrefix(callerFrame)
