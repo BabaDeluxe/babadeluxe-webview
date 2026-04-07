@@ -8,6 +8,7 @@ import type { EnvConfigType } from '@/env-validator'
 import type { SearchService } from '@/search-service'
 import type { SupabaseClientType } from '@/main'
 import type { SocketManager } from '@/socket-manager'
+import type { AnalyticsManager } from '@/analytics/analytics-manager'
 
 // Type-safe injection keys - Symbols guarantee uniqueness
 export const LOGGER_KEY: InjectionKey<AbstractLogger> = Symbol('logger')
@@ -20,3 +21,4 @@ export const KEY_VALUE_STORE_KEY: InjectionKey<KeyValueStore> = Symbol('keyValue
 export const APP_DB_KEY: InjectionKey<AppDb> = Symbol('appDb')
 export const SEARCH_SERVICE_KEY: InjectionKey<SearchService> = Symbol('searchService')
 export const ENV_CONFIG_KEY: InjectionKey<EnvConfigType> = Symbol('envConfig')
+export const ANALYTICS_MANAGER_KEY: InjectionKey<AnalyticsManager> = Symbol('analyticsManager')

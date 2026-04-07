@@ -111,7 +111,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { ResultAsync } from 'neverthrow'
 import { validateSetting } from '@babadeluxe/shared'
-import { useSettingsSocket } from '@/composables/use-settings-socket'
+import { useSettings } from '@/composables/use-settings'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { useApiKeyManagement } from '@/composables/use-api-key-management'
 import { useToastStore } from '@/stores/use-toast-store'
@@ -124,13 +124,14 @@ import BaseButton from '@/components/BaseButton.vue'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
+import { isOfflineMode } from '@/env-validator'
 
 const logger = safeInject(LOGGER_KEY)
 const validator = safeInject(API_KEY_VALIDATOR_KEY)
 const supabase = safeInject(SUPABASE_CLIENT_KEY)
 const toasts = useToastStore()
 
-const { settings, upsertSetting, loadSettings } = useSettingsSocket()
+const { settings, upsertSetting, loadSettings } = useSettings()
 const { reloadModels } = useModelsSocket()
 const { isDark, toggleDark } = useTheme()
 
@@ -235,6 +236,11 @@ const handleThemeToggle = async () => {
 }
 
 const fetchUserId = async (): Promise<void> => {
+  if (isOfflineMode()) {
+    currentUserId.value = 'offline-user'
+    return
+  }
+
   const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
     if (unknownError instanceof Error) {
       return new AuthError(unknownError.message, unknownError)

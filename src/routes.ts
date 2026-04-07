@@ -2,8 +2,11 @@ import { createMemoryHistory, createRouter, createWebHistory } from 'vue-router'
 import type { Router } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useIsInVsCode } from '@/composables/use-is-in-vs-code'
+import { isOfflineMode } from '@/env-validator'
+
 export function createAppRouter(supabase: SupabaseClient): Router {
   const { isInVsCode } = useIsInVsCode()
+  const offline = isOfflineMode()
 
   const router = createRouter({
     history: isInVsCode.value ? createMemoryHistory() : createWebHistory(),
@@ -49,6 +52,13 @@ export function createAppRouter(supabase: SupabaseClient): Router {
   })
 
   router.beforeEach(async (to) => {
+    if (offline) {
+      if (to.path === '/' || to.path === '/login') {
+        return { path: '/chat' }
+      }
+      return
+    }
+
     const {
       data: { session },
     } = await supabase.auth.getSession()

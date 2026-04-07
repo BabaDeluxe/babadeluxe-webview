@@ -1,5 +1,5 @@
-import { err, type Result, ResultAsync } from 'neverthrow'
-import { BaseError } from '@babadeluxe/shared/utils'
+import { err, ok, type Result, ResultAsync } from 'neverthrow'
+import { BaseError } from '@babadeluxe/shared'
 import type { AbstractLogger } from '@/logger'
 import type { SocketManager } from '@/socket-manager'
 import { type ApiKeyValidationError, NetworkError, ValidationError, RateLimitError } from '@/errors'
@@ -10,7 +10,7 @@ type SupportedProvider = (typeof supportedProviders)[number]
 const validationTimeoutMs = 10000
 const defaultSuccessStatusCode = 200
 
-type ValidationSuccess = {
+export type ValidationSuccess = {
   readonly provider: string
   readonly statusCode: number
 }
@@ -25,6 +25,10 @@ type ValidationErrorResponse = {
   readonly error?: 'network_error' | 'server_error' | string
   readonly provider?: string
   readonly statusCode?: number
+}
+
+export interface IApiKeyValidator {
+  validate(provider: string, apiKey: string): Promise<Result<ValidationSuccess, ApiKeyValidationError>>
 }
 
 function mapResponseToError(response: unknown): BaseError {
@@ -61,7 +65,7 @@ function mapResponseToError(response: unknown): BaseError {
   }
 }
 
-export class ApiKeyValidator {
+export class ApiKeyValidator implements IApiKeyValidator {
   constructor(
     private readonly _logger: AbstractLogger,
     private readonly _validationSocket: SocketManager['validationSocket']
@@ -138,5 +142,28 @@ export class ApiKeyValidator {
         return new ValidationError('An unexpected error occurred during validation', error)
       }
     )
+  }
+}
+
+export class LocalApiKeyValidator implements IApiKeyValidator {
+  async validate(provider: string, apiKey: string): Promise<Result<ValidationSuccess, ApiKeyValidationError>> {
+    // Basic local validation (regex check)
+    const trimmedKey = apiKey.trim()
+    if (!trimmedKey) {
+      return err(new ValidationError(`API key for ${provider} cannot be empty`))
+    }
+
+    if (provider === 'openai' && !trimmedKey.startsWith('sk-')) {
+      return err(new ValidationError('Invalid OpenAI API key format (should start with sk-)'))
+    }
+
+    if (provider === 'anthropic' && !trimmedKey.startsWith('sk-ant-')) {
+      return err(new ValidationError('Invalid Anthropic API key format (should start with sk-ant-)'))
+    }
+
+    return ok({
+      provider,
+      statusCode: defaultSuccessStatusCode,
+    })
   }
 }

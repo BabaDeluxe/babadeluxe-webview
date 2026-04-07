@@ -5,6 +5,7 @@ import { NetworkError, AuthError } from '@/errors'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { getVsCodeApi } from '@/vs-code/api'
 import { socketTimeoutMs } from '@/constants'
+import { isOfflineMode } from '@/env-validator'
 
 export type AuthSessionPayload = Readonly<{
   accessToken: string
@@ -33,18 +34,17 @@ export function useVsCodeAuth() {
 
   const apiResult = getVsCodeApi()
   const vsCodeApi = apiResult.isOk() ? apiResult.value : undefined
-  if (!vsCodeApi) return undefined
 
   const requestGitHubLoginFromExtension = async (
     timeoutMilliseconds = socketTimeoutMs.vsCodeAuthLogin
   ): Promise<Result<AuthSessionPayload | undefined, NetworkError | AuthError>> => {
+    if (isOfflineMode()) return ok(undefined)
     if (isRequestPending.value) {
       return err(new NetworkError('Authentication request already in progress'))
     }
 
     isRequestPending.value = true
 
-    const apiResult = getVsCodeApi()
     if (apiResult.isErr()) {
       isRequestPending.value = false
       return err(apiResult.error)
@@ -102,6 +102,7 @@ export function useVsCodeAuth() {
   const getStoredSessionFromExtension = async (
     timeoutMilliseconds = socketTimeoutMs.vsCodeAuthSession
   ): Promise<Result<AuthSessionPayload | undefined, NetworkError>> => {
+    if (isOfflineMode()) return ok(undefined)
     const waitForSession = new Promise<Result<AuthSessionPayload | undefined, NetworkError>>(
       (resolve) => {
         let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -131,7 +132,7 @@ export function useVsCodeAuth() {
 
         window.addEventListener('message', onMessage)
 
-        vsCodeApi.postMessage({ type: 'auth.getSession' })
+        vsCodeApi?.postMessage({ type: 'auth.getSession' })
       }
     )
 
@@ -142,6 +143,7 @@ export function useVsCodeAuth() {
     supabaseClient: SupabaseClient,
     sessionPayload: AuthSessionPayload
   ): Promise<Result<void, AuthError>> => {
+    if (isOfflineMode()) return ok(undefined)
     const setSessionResult = await ResultAsync.fromPromise(
       supabaseClient.auth.setSession({
         // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -166,11 +168,11 @@ export function useVsCodeAuth() {
   }
 
   const clearStoredSession = (): Result<void, AuthError> => {
-    if (!isRunningInsideVsCode()) return ok(undefined)
+    if (!isRunningInsideVsCode() || isOfflineMode()) return ok(undefined)
 
     const result = Result.fromThrowable(
       () => {
-        vsCodeApi.postMessage({
+        vsCodeApi?.postMessage({
           type: 'clear-session',
           payload: {},
         })

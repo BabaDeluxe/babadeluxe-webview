@@ -1,6 +1,6 @@
 import { Dexie, type Table } from 'dexie'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
-import type { Conversation, Message, ContextReference } from '@/database/types'
+import type { Conversation, Message, ContextReference, LocalSetting } from '@/database/types'
 import type { AbstractLogger } from '@/logger'
 import { DbError } from '@/errors'
 import { DexieError, SafeTable } from '@/database/safe-table'
@@ -25,8 +25,10 @@ type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
 export class AppDb extends Dexie {
   conversation!: SafeTable<Conversation, Conversation, number>
   message!: SafeTable<DbMessage, NewDbMessage, number>
+  localSetting!: SafeTable<LocalSetting, LocalSetting, number>
   private _conversationTable!: Table<Conversation, number>
   private _messageTable!: Table<DbMessage, number>
+  private _localSettingTable!: Table<LocalSetting, number>
 
   constructor(private readonly _logger: AbstractLogger) {
     super('AppDb')
@@ -273,11 +275,18 @@ export class AppDb extends Dexie {
       message:
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
     })
+    this.version(6).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt',
+      message:
+        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
+      localSetting: '++id, settingKey, updatedAt',
+    })
   }
 
   private _bindTables(): void {
     this._conversationTable = this.table<Conversation, number>('conversation')
     this._messageTable = this.table<DbMessage, number>('message')
+    this._localSettingTable = this.table<LocalSetting, number>('localSetting')
   }
 
   private _setupHooks(): void {
@@ -296,11 +305,16 @@ export class AppDb extends Dexie {
     this._messageTable.hook('creating', (_primaryKey: number | undefined, myObject: DbMessage) => {
       if (myObject.timestamp === undefined) myObject.timestamp = new Date()
     })
+
+    this._localSettingTable.hook('creating', (_primaryKey: number | undefined, myObject: LocalSetting) => {
+      if (myObject.updatedAt === undefined) myObject.updatedAt = new Date()
+    })
   }
 
   private _wrapSafeTables(): void {
     this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
     this.message = new SafeTable<DbMessage, NewDbMessage, number>(this._messageTable)
+    this.localSetting = new SafeTable<LocalSetting, LocalSetting, number>(this._localSettingTable)
   }
 
   private async _deleteEmptyConversation(conversationId: number): Promise<Result<void, DbError>> {

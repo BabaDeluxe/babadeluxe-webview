@@ -1,170 +1,48 @@
-<template>
-  <div
-    class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText overflow-x-hidden"
-  >
-    <div v-if="session && $route.path !== '/'">
-      <header
-        class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20"
-        data-testid="app-header"
-      >
-        <IconBabaDeluxe />
-
-        <div class="flex flex-row gap-2 justify-end items-center">
-          <BaseButton
-            data-testid="nav-new-chat-button"
-            variant="primary"
-            icon="i-weui:pencil-outlined"
-            text="New Chat"
-            @click="handleNewChat"
-          />
-
-          <BaseButton
-            data-testid="nav-settings-button"
-            variant="ghost"
-            icon="i-weui:setting-outlined"
-            class="zoom-1.2"
-            @click="router.push('/settings')"
-          />
-        </div>
-      </header>
-
-      <div class="flex justify-start items-center bg-panel">
-        <nav
-          class="flex flex-row gap-2 text-deepText p-2"
-          data-testid="app-nav"
-        >
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/chat"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              data-testid="nav-chat-link"
-              :is-selected="isExactActive"
-              @click="navigate"
-            >
-              Chat
-            </BaseButton>
-          </RouterLink>
-
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/history"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              data-testid="nav-history-link"
-              :is-selected="isExactActive"
-              @click="navigate"
-            >
-              History
-            </BaseButton>
-          </RouterLink>
-
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/prompts"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              data-testid="nav-prompts-link"
-              :is-selected="isExactActive"
-              @click="navigate"
-            >
-              Prompts
-            </BaseButton>
-          </RouterLink>
-        </nav>
-      </div>
-    </div>
-
-    <Suspense>
-      <template #default>
-        <Suspense suspensible>
-          <div class="flex-1 min-h-0 flex flex-col bg-slate overflow-hidden">
-            <RouterView v-slot="{ Component }">
-              <Transition mode="out-in">
-                <KeepAlive :include="['ChatView', 'HistoryView', 'PromptsView']">
-                  <component
-                    :is="Component"
-                    class="flex-1 min-h-0 flex flex-col animate-fade-in animate-duration-150 animate-ease-out"
-                  />
-                </KeepAlive>
-              </Transition>
-            </RouterView>
-          </div>
-        </Suspense>
-      </template>
-    </Suspense>
-    <ToastLayer />
-  </div>
-</template>
-
 <script setup lang="ts">
-import { useStorage } from '@vueuse/core'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { type Ref, watch, onMounted, ref, onErrorCaptured } from 'vue'
-import { useEventListener } from '@vueuse/core'
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
-import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
-import BaseButton from '@/components/BaseButton.vue'
-import ToastLayer from '@/components/ToastLayer.vue'
-import { useSettingsSocket } from '@/composables/use-settings-socket'
-import { useTheme } from '@/composables/use-theme'
-import type { AbstractLogger } from '@/logger'
-import { useConversationStore } from '@/stores/use-conversation-store'
-import { type SupabaseClientType } from '@/main'
+import { ref, onMounted, provide, watch, onErrorCaptured } from 'vue'
+import { useRouter } from 'vue-router'
+import type { Session } from '@supabase/supabase-js'
+import { useDark, useToggle } from '@vueuse/core'
+import { useSettings } from '@/composables/use-settings'
 import { useToastStore } from '@/stores/use-toast-store'
-import { localStorageKeys } from '@/constants'
+import {
+  LOGGER_KEY,
+  SOCKET_MANAGER_KEY,
+  SUPABASE_CLIENT_KEY,
+} from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
-import type { SocketManager } from '@/socket-manager'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { isOfflineMode } from '@/env-validator'
 
-const logger: AbstractLogger = safeInject(LOGGER_KEY)
-const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
-const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(SOCKET_MANAGER_KEY)
+const logger = safeInject(LOGGER_KEY)
+const supabase = safeInject(SUPABASE_CLIENT_KEY)
+const socketManagerRef = safeInject(SOCKET_MANAGER_KEY)
+const toasts = useToastStore()
+const router = useRouter()
+
+const isDark = useDark()
+const toggleDark = useToggle(isDark)
+provide('isDark', isDark)
+provide('toggleDark', toggleDark)
 
 const session = ref<Session | null>(null)
-const router = useRouter()
-const conversationStore = useConversationStore()
-const toasts = useToastStore()
-const { settings, loadSettings } = useSettingsSocket()
-const { isDark } = useTheme()
+const { settings, loadSettings } = useSettings()
 
-const handleExtensionMessage = (event: MessageEvent) => {
-  const message = event.data
-
-  if (message?.type !== 'navigate-to' || !message.payload?.view) return
-
-  const targetView = message.payload.view
-  logger.log('Received navigation request from extension:', targetView)
-
-  const targetRoute = router.getRoutes().find((route) => route.name === targetView)
-  if (targetRoute) {
-    logger.log('Navigating to:', targetRoute)
-    router.push(targetRoute)
-  } else {
-    logger.warn('Unknown view requested:', targetView)
-  }
-}
-
-useEventListener(window, 'message', handleExtensionMessage)
-
-const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
-
-const handleNewChat = async () => {
-  await conversationStore.markAllStreamingCompleteInCurrentConversation(currentConversationId.value)
-  await router.push({ path: '/chat', query: { newConversation: 'true' } })
-}
+const offline = isOfflineMode()
 
 onMounted(async () => {
-  const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
-    if (event === 'SIGNED_IN' && supabaseSession) {
+  if (offline) {
+    logger.info('App started in OFFLINE MODE')
+    void loadSettings()
+    return
+  }
+
+  const handleAuthStateChange = (event: string, supabaseSession: Session | null) => {
+    if (event === 'SIGNED_IN' && supabaseSession?.access_token) {
       session.value = supabaseSession
-      // No redirect here – LoginView / router guard already decide destination
+      if (socketManagerRef.value) {
+        socketManagerRef.value.updateAuthToken(supabaseSession.access_token)
+        logger.debug('Updated socket auth token from session sign-in')
+      }
     } else if (event === 'SIGNED_OUT') {
       session.value = null
       router.push('/')
@@ -222,7 +100,7 @@ onMounted(async () => {
 onErrorCaptured((err, instance, info) => {
   logger.error('Something crashed', {
     vueInfo: info,
-    componentName: instance?.$options?.name,
+    componentName: instance?.?.name,
     error: err,
   })
 
@@ -231,3 +109,26 @@ onErrorCaptured((err, instance, info) => {
   return false
 })
 </script>
+
+<template>
+  <div
+    class="min-h-screen bg-bg text-text selection:bg-accent selection:text-white transition-colors duration-300"
+    :class="{ dark: isDark }"
+  >
+    <router-view />
+  </div>
+</template>
+
+<style>
+@font-face {
+  font-family: 'Onest';
+  src: url('@/assets/Onest-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  font-family: 'Onest', sans-serif;
+}
+</style>
