@@ -1,76 +1,49 @@
-import { computed, nextTick, onMounted, ref } from 'vue'
-import { ResultAsync } from 'neverthrow'
-import { storeToRefs } from 'pinia'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { onClickOutside } from '@vueuse/core'
+import { ResultAsync } from 'neverthrow'
+import type { Conversation, Message } from '@/database/types'
+import { APP_DB_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { AuthError } from '@/errors'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { useResizableSplit } from '@/composables/use-resizable-split'
 import { useSearch } from '@/composables/use-search'
-import {
-  APP_DB_KEY,
-  KEY_VALUE_STORE_KEY,
-  LOGGER_KEY,
-  SEARCH_SERVICE_KEY,
-  SUPABASE_CLIENT_KEY,
-} from '@/injection-keys'
+import { isConversationResult, isMessageResult, type SearchResult } from '@/search-types'
 import { safeInject } from '@/safe-inject'
-import { type Conversation, type Message } from '@/database/types'
-import type { SearchService } from '@/search-service'
-import type { KeyValueStore } from '@/database/key-value-store'
-import { type SearchResult, isMessageResult, isConversationResult } from '@/search-types'
-import type { AbstractLogger } from '@/logger'
-import { AuthError } from '@/errors'
-import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
+import { isOfflineMode } from '@/env-validator'
 
 export function useHistory() {
-  const logger: AbstractLogger = safeInject(LOGGER_KEY)
-  const searchService: SearchService = safeInject(SEARCH_SERVICE_KEY)
-  const keyValueStore: KeyValueStore = safeInject(KEY_VALUE_STORE_KEY)
-  const supabase = safeInject(SUPABASE_CLIENT_KEY)
-  const appDb = safeInject(APP_DB_KEY)
-
-  const conversationStore = useConversationStore()
-  const { conversations, isLoadingConversations, error } = storeToRefs(conversationStore)
+  const store = useConversationStore()
   const {
+    conversations,
+    isLoadingConversations,
+    error,
     initialize,
     getMessageCount,
     deleteConversation,
+    updateConversationTitle,
     deleteMessage,
     updateUserMessage,
-    updateConversationTitle,
-  } = conversationStore
+  } = store
 
-  const { searchResults, isSearching, performSearch } = useSearch(searchService)
+  const appDb = safeInject(APP_DB_KEY)
+  const logger = safeInject(LOGGER_KEY)
+  const supabase = safeInject(SUPABASE_CLIENT_KEY)
 
   const {
     leftWidthPercent: splitLeftWidthPercent,
     rightWidthPercent: splitRightWidthPercent,
     isDragging: splitIsDragging,
     startDragging: splitStartDragging,
-  } = useResizableSplit({
-    keyValueStore,
-    storageKey: 'history-split-ratio',
-    refKey: 'splitContainer',
-    defaultRatio: 35,
-    minRatio: 25,
-    maxRatio: 65,
-  })
+  } = useResizableSplit({ initialLeft: 30, direction: 'horizontal' })
 
   const {
-    leftWidthPercent: verticalTopHeightPercent,
-    rightWidthPercent: verticalBottomHeightPercent,
+    topHeightPercent: verticalTopHeightPercent,
+    bottomHeightPercent: verticalBottomHeightPercent,
     isDragging: verticalIsDragging,
     startDragging: verticalStartDragging,
-  } = useResizableSplit({
-    keyValueStore,
-    storageKey: 'history-vertical-split-ratio',
-    refKey: 'verticalContainer',
-    defaultRatio: 50,
-    minRatio: 0,
-    maxRatio: 70,
-    direction: 'vertical',
-  })
+  } = useResizableSplit({ initialTop: 40, direction: 'vertical' })
 
-  const { createTimeout } = useTrackedTimeouts()
+  const { isSearching, searchResults, performSearch, createTimeout } = useSearch()
 
   const selectedConversationId = ref<number | null>(null)
   const selectedConversationMessages = ref<Message[]>([])
@@ -88,6 +61,11 @@ export function useHistory() {
   })
 
   const fetchUserId = async (): Promise<void> => {
+    if (isOfflineMode()) {
+      currentUserId.value = 'offline-user'
+      return
+    }
+
     const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) =>
       unknownError instanceof Error
         ? new AuthError(unknownError.message, unknownError)
