@@ -16,7 +16,7 @@ export type EnvConfigType = z.infer<typeof envSchema>
 export function isOfflineMode(): boolean {
   // @ts-ignore
   const env = import.meta.env
-  return env.VITE_OFFLINE_MODE === 'true' || env.VITE_OFFLINE_MODE === true || env.VITE_NODE_ENV === 'development'
+  return env.VITE_OFFLINE_MODE === 'true' || env.VITE_OFFLINE_MODE === true
 }
 
 export function validateEnvConfig(): Result<void, ValidationError> {
