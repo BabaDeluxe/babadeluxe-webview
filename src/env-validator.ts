@@ -9,6 +9,8 @@ const envSchema = z.object({
   VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
   VITE_SOCKET_URL: z.url().optional(),
   VITE_OFFLINE_MODE: z.preprocess((val) => val === 'true' || val === true, z.boolean()).optional(),
+  VITE_GA_MEASUREMENT_ID: z.string().optional(),
+  VITE_STATSIG_CLIENT_KEY: z.string().optional(),
 })
 
 export type EnvConfigType = z.infer<typeof envSchema>

@@ -39,7 +39,13 @@ if (envValidationResult.isErr()) throw envValidationResult.error
 const envConfig: EnvConfigType = import.meta.env
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
-const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SOCKET_URL } = envConfig
+const {
+  VITE_SUPABASE_URL,
+  VITE_SUPABASE_ANON_KEY,
+  VITE_SOCKET_URL,
+  VITE_GA_MEASUREMENT_ID,
+  VITE_STATSIG_CLIENT_KEY
+} = envConfig
 
 const app = createApp(App)
 
@@ -61,8 +67,8 @@ app.provide(ENV_CONFIG_KEY, envConfig)
 app.provide(LOGGER_KEY, logger)
 
 const analyticsManager = new AnalyticsManager()
-analyticsManager.addProvider(new GoogleAnalyticsProvider(logger))
-analyticsManager.addProvider(new StatsigProvider(logger))
+analyticsManager.addProvider(new GoogleAnalyticsProvider(logger, VITE_GA_MEASUREMENT_ID))
+analyticsManager.addProvider(new StatsigProvider(logger, VITE_STATSIG_CLIENT_KEY))
 app.provide(ANALYTICS_MANAGER_KEY, analyticsManager)
 
 const offline = isOfflineMode()
