@@ -1,12 +1,11 @@
+import Statsig from 'statsig-js'
 import type { AnalyticsProvider } from '../types'
 import type { AbstractLogger } from '@/logger'
 
-declare global {
-  interface Window {
-    statsig: any
-  }
-}
-
+/**
+ * Statsig analytics provider implementation.
+ * Uses the 'statsig-js' library for feature flags and event logging.
+ */
 export class StatsigProvider implements AnalyticsProvider {
   readonly name = 'Statsig'
   private _isInitialized = false
@@ -24,19 +23,8 @@ export class StatsigProvider implements AnalyticsProvider {
     if (this._isInitialized || !this._clientKey) return
 
     try {
-      if (!window.statsig) {
-        const script = document.createElement('script')
-        script.src = 'https://cdn.jsdelivr.net/npm/statsig-js@latest/dist/statsig-js.min.js'
-        script.async = true
-
-        await new Promise((resolve, reject) => {
-          script.onload = resolve
-          script.onerror = reject
-          document.head.appendChild(script)
-        })
-      }
-
-      await window.statsig.initialize(this._clientKey, { userID: 'anonymous' })
+      // Initialize Statsig with a default anonymous user
+      await Statsig.initialize(this._clientKey, { userID: 'anonymous' })
       this._isInitialized = true
       this._logger.log(`[${this.name}] Initialized with key: ${this._clientKey}`)
     } catch (error) {
@@ -46,13 +34,13 @@ export class StatsigProvider implements AnalyticsProvider {
 
   trackEvent(event: string, properties?: Record<string, any>): void {
     if (!this._isInitialized) return
-    window.statsig.logEvent(event, null, properties)
+    Statsig.logEvent(event, null, properties)
     this._logger.debug(`[${this.name}] Tracked event: ${event}`, properties)
   }
 
   identify(userId: string, traits?: Record<string, any>): void {
     if (!this._isInitialized) return
-    void window.statsig.updateUser({ userID: userId, custom: traits })
+    void Statsig.updateUser({ userID: userId, custom: traits })
     this._logger.debug(`[${this.name}] Identified user: ${userId}`, traits)
   }
 }
