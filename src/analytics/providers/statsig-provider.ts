@@ -1,8 +1,12 @@
 import type { AnalyticsProvider } from '../types'
 import type { AbstractLogger } from '@/logger'
 
-// Statsig JS SDK Mock/Stub implementation for open source
-// In a real production build, one would import 'statsig-js'
+declare global {
+  interface Window {
+    statsig: any
+  }
+}
+
 export class StatsigProvider implements AnalyticsProvider {
   readonly name = 'Statsig'
   private _isInitialized = false
@@ -12,29 +16,43 @@ export class StatsigProvider implements AnalyticsProvider {
     private readonly _clientKey?: string
   ) {
     if (this._clientKey) {
-      this._initialize()
+      void this._initialize()
     }
   }
 
   private async _initialize(): Promise<void> {
-    if (this._isInitialized) return
+    if (this._isInitialized || !this._clientKey) return
 
-    // In a real app, we would do:
-    // await Statsig.initialize(this._clientKey);
+    try {
+      if (!window.statsig) {
+        const script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/npm/statsig-js@latest/dist/statsig-js.min.js'
+        script.async = true
 
-    this._isInitialized = true
-    this._logger.log(`[${this.name}] Initialized with key: ${this._clientKey}`)
+        await new Promise((resolve, reject) => {
+          script.onload = resolve
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+      }
+
+      await window.statsig.initialize(this._clientKey, { userID: 'anonymous' })
+      this._isInitialized = true
+      this._logger.log(`[${this.name}] Initialized with key: ${this._clientKey}`)
+    } catch (error) {
+      this._logger.error(`[${this.name}] Initialization failed`, { error })
+    }
   }
 
   trackEvent(event: string, properties?: Record<string, any>): void {
     if (!this._isInitialized) return
-    // Statsig.logEvent(event, null, properties);
+    window.statsig.logEvent(event, null, properties)
     this._logger.debug(`[${this.name}] Tracked event: ${event}`, properties)
   }
 
   identify(userId: string, traits?: Record<string, any>): void {
     if (!this._isInitialized) return
-    // Statsig.updateUser({ userID: userId, custom: traits });
+    void window.statsig.updateUser({ userID: userId, custom: traits })
     this._logger.debug(`[${this.name}] Identified user: ${userId}`, traits)
   }
 }
