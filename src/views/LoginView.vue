@@ -380,7 +380,11 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
   if (vsCodeAuth?.isRunningInsideVsCode()) {
     const oauthResult = await vsCodeAuth.requestOAuthLoginFromExtension(provider)
 
-    if (oauthResult.isOk()) {
+    if (oauthResult.isErr()) {
+      logger.error(`${providerName} OAuth failed in VS Code mode, falling back to direct Supabase login`, {
+        error: oauthResult.error.message,
+      })
+    } else {
       if (!oauthResult.value) {
         logger.warn(`${providerName} OAuth aborted by user`)
         isLoading.value = false
@@ -388,23 +392,19 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
       }
 
       const setSessionResult = await vsCodeAuth.setSupabaseSession(supabase, oauthResult.value)
-      if (setSessionResult.isOk()) {
-        await navigateAfterLogin()
+      if (setSessionResult.isErr()) {
+        logger.error(`${providerName} OAuth succeeded but session setup failed`, {
+          error: setSessionResult.error.message,
+        })
+        error.value = toUserMessage(setSessionResult.error)
         isLoading.value = false
         return
       }
 
-      logger.error(`${providerName} OAuth succeeded but session setup failed`, {
-        error: setSessionResult.error.message,
-      })
-      error.value = toUserMessage(setSessionResult.error)
+      await navigateAfterLogin()
       isLoading.value = false
       return
     }
-
-    logger.error(`${providerName} OAuth failed in VS Code mode, falling back to direct Supabase login`, {
-      error: oauthResult.error.message,
-    })
   }
 
   const result = await signInWithSupabaseOAuth(supabase, provider)
