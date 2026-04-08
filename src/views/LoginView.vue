@@ -17,15 +17,29 @@
       <div
         class="flex flex-col w-full max-w-md bg-panel rounded-lg shadow-lg p-6 my-4 border border-borderMuted"
       >
-        <BaseButton
-          variant="primary"
-          data-testid="login-github-button"
-          text="Login with GitHub"
-          icon="i-simple-icons:github"
-          :disabled="isLoading"
-          type="submit"
-          @click="handleGitHubLogin"
-        />
+        <div class="flex flex-row gap-4">
+          <BaseButton
+            variant="primary"
+            class="flex-1"
+            data-testid="login-github-button"
+            text="GitHub"
+            icon="i-simple-icons:github"
+            :disabled="isLoading"
+            type="button"
+            @click="handleGitHubLogin"
+          />
+
+          <BaseButton
+            variant="primary"
+            class="flex-1"
+            data-testid="login-google-button"
+            text="Google"
+            icon="i-simple-icons:google"
+            :disabled="isLoading"
+            type="button"
+            @click="handleGoogleLogin"
+          />
+        </div>
 
         <div class="text-center text-subtleText my-4">or</div>
 
@@ -207,6 +221,31 @@ const signInWithEmail = async (
   return ok(undefined)
 }
 
+const signInWithSupabaseOAuth = async (
+  supabaseClient: SupabaseClientType,
+  provider: 'github' | 'google' = 'github'
+): Promise<Result<void, AuthError>> => {
+  const result = await ResultAsync.fromPromise(
+    supabaseClient.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${globalThis.location.origin}/auth/callback`,
+      },
+    }),
+    (unknownError) => {
+      if (unknownError instanceof Error) {
+        return new AuthError(unknownError.message, unknownError)
+      }
+      return new AuthError(`${provider.charAt(0).toUpperCase() + provider.slice(1)} OAuth failed`, unknownError)
+    }
+  )
+
+  if (result.isErr()) return err(result.error)
+  if (result.value.error) return err(new AuthError(result.value.error.message))
+
+  return ok(undefined)
+}
+
 const handleAuth = async (): Promise<void> => {
   if (isLoading.value) return
 
@@ -323,71 +362,64 @@ const handleForgotPassword = async (): Promise<void> => {
 }
 
 const handleGitHubLogin = async (): Promise<void> => {
+  await handleOAuthLogin('github')
+}
+
+const handleGoogleLogin = async (): Promise<void> => {
+  await handleOAuthLogin('google')
+}
+
+const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> => {
   if (isLoading.value) return
 
   isLoading.value = true
   error.value = undefined
 
+  const providerName = provider.charAt(0).toUpperCase() + provider.slice(1)
+
   if (vsCodeAuth?.isRunningInsideVsCode()) {
-    const oauthResult = await vsCodeAuth.requestGitHubLoginFromExtension()
+    const oauthResult = await vsCodeAuth.requestOAuthLoginFromExtension(provider)
 
     if (oauthResult.isErr()) {
-      logger.error('GitHub OAuth failed in VS Code mode', {
-        error: oauthResult.error,
+      logger.error(`${providerName} OAuth failed in VS Code mode, falling back to direct Supabase login`, {
+        error: oauthResult.error.message,
       })
-      error.value = toUserMessage(oauthResult.error)
+    } else {
+      if (!oauthResult.value) {
+        logger.warn(`${providerName} OAuth aborted by user`)
+        isLoading.value = false
+        return
+      }
+
+      const setSessionResult = await vsCodeAuth.setSupabaseSession(supabase, oauthResult.value)
+      if (setSessionResult.isErr()) {
+        logger.error(`${providerName} OAuth succeeded but session setup failed`, {
+          error: setSessionResult.error.message,
+        })
+        error.value = toUserMessage(setSessionResult.error)
+        isLoading.value = false
+        return
+      }
+
+      await navigateAfterLogin()
       isLoading.value = false
       return
     }
-
-    if (!oauthResult.value) {
-      logger.warn('GitHub OAuth aborted by user')
-      isLoading.value = false
-      return
-    }
-
-    const setSessionResult = await vsCodeAuth.setSupabaseSession(supabase, oauthResult.value)
-    if (setSessionResult.isErr()) {
-      logger.error('GitHub OAuth succeeded but session setup failed', {
-        error: setSessionResult.error,
-      })
-      error.value = toUserMessage(setSessionResult.error)
-      isLoading.value = false
-      return
-    }
-
-    await navigateAfterLogin()
-    isLoading.value = false
-    return
   }
 
-  const browserResult = await ResultAsync.fromPromise(
-    supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: `${globalThis.location.origin}/auth/callback`,
-      },
-    }),
-    (unknownError) => {
-      if (unknownError instanceof Error) {
-        return new AuthError(unknownError.message, unknownError)
-      }
-      return new AuthError('GitHub OAuth failed', unknownError)
+  const result = await signInWithSupabaseOAuth(supabase, provider)
+
+  result.match(
+    async () => {
+      logger.log(`${providerName} OAuth succeeded through direct Supabase login`)
+    },
+    (authError) => {
+      logger.error(`${providerName} OAuth failed in browser mode`, {
+        error: authError.message,
+      })
+      error.value = toUserMessage(authError)
     }
   )
-
-  if (browserResult.isErr()) {
-    logger.error('GitHub OAuth failed in browser mode', {
-      error: browserResult.error,
-    })
-    error.value = toUserMessage(browserResult.error)
-  } else if (browserResult.value.error) {
-    const authError = new AuthError(browserResult.value.error.message)
-    logger.error('GitHub OAuth failed in browser mode', {
-      error: authError,
-    })
-    error.value = toUserMessage(authError)
-  }
 
   isLoading.value = false
 }
