@@ -55,7 +55,7 @@ app.use(pinia)
 app.config.errorHandler = (err, instance, info) => {
   logger.error('Uncaught Vue exception', {
     vueInfo: info,
-    componentName: (instance as any)?.$.type?.name || (instance as any)?.?.name,
+    componentName: (instance as any)?.$.type?.name || (instance as any)?.$options?.name,
     error: err,
   })
 
