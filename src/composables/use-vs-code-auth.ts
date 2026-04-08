@@ -35,7 +35,8 @@ export function useVsCodeAuth() {
   const vsCodeApi = apiResult.isOk() ? apiResult.value : undefined
   if (!vsCodeApi) return undefined
 
-  const requestGitHubLoginFromExtension = async (
+  const requestOAuthLoginFromExtension = async (
+    provider: 'github' | 'google',
     timeoutMilliseconds = socketTimeoutMs.vsCodeAuthLogin
   ): Promise<Result<AuthSessionPayload | undefined, NetworkError | AuthError>> => {
     if (isRequestPending.value) {
@@ -92,7 +93,7 @@ export function useVsCodeAuth() {
         if (getCurrentScope()) onScopeDispose(cleanup)
 
         window.addEventListener('message', onMessage)
-        vscodeApi.postMessage({ type: 'auth.login' })
+        vscodeApi.postMessage({ type: 'auth.login', provider })
       }
     )
 
@@ -189,7 +190,7 @@ export function useVsCodeAuth() {
 
   return {
     isRunningInsideVsCode,
-    requestGitHubLoginFromExtension,
+    requestOAuthLoginFromExtension,
     getStoredSessionFromExtension,
     setSupabaseSession,
     clearStoredSession,
