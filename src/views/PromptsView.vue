@@ -1,78 +1,145 @@
 <template>
   <section
     id="prompts"
-    data-testid="prompts-container"
-    class="flex-1 flex flex-col h-screen overflow-hidden bg-bg"
+    data-testid="prompts-view-container"
+    class="relative flex flex-col flex-1 min-h-0 w-full bg-slate overflow-hidden"
   >
+    <div class="flex flex-row w-full items-center justify-between flex-shrink-0 gap-2 px-4 pt-4">
+      <h3 class="text-lg font-medium text-deepText">All Prompts</h3>
+      <BaseButton
+        variant="primary"
+        data-testid="prompts-new-button"
+        icon="i-bi:plus-circle"
+        @click="handleCreateNewPrompt"
+      >
+        New Prompt
+      </BaseButton>
+    </div>
+
     <div
       v-if="hasComponentError"
       data-testid="component-error"
-      class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
+      class="flex flex-1 flex-col items-center justify-center gap-4 text-center px-4"
     >
       <p class="text-error text-lg">Something went wrong with the prompts view.</p>
       <BaseButton
-        variant="secondary"
+        variant="ghost"
+        data-testid="prompts-reload-button"
         @click="handleReload"
       >
         Reload Page
       </BaseButton>
     </div>
 
-    <div
-      v-else-if="isLoading"
-      data-testid="loading-state"
-      class="flex-1 flex items-center justify-center"
-    >
-      <BaseSpinner
-        size="large"
-        message="Loading prompts..."
-      />
-    </div>
-
     <template v-else>
-      <header class="flex items-center justify-between px-6 py-4 border-b border-borderMuted">
-        <div class="flex items-center gap-3">
-          <div class="p-2 rounded-lg bg-accent/10 text-accent">
-            <i class="i-bi:cursor-text text-xl" />
-          </div>
-          <div>
-            <h1 class="text-xl font-onest font-semibold text-deepText">Prompt Library</h1>
-            <p class="text-xs text-subtleText">Manage and customize your AI instructions</p>
-          </div>
-        </div>
-        <BaseButton
-          variant="primary"
-          icon="i-bi:plus-lg"
-          text="New Prompt"
-          data-testid="create-prompt-btn"
-          @click="handleCreateNewPrompt"
+      <div
+        v-if="isLoading"
+        data-testid="prompts-loading-state"
+        class="flex flex-1 justify-center items-center"
+      >
+        <BaseSpinner
+          size="medium"
+          message="Loading prompts..."
         />
-      </header>
+      </div>
 
       <div
-        ref="verticalContainer"
-        class="flex-1 flex flex-col min-h-0"
+        v-else
+        class="flex flex-col flex-1 min-h-0 w-full overflow-hidden pt-4 px-4"
       >
+        <!-- Mobile stacked layout -->
         <div
-          ref="splitContainer"
-          class="flex-1 flex min-h-0"
+          ref="verticalContainer"
+          class="flex flex-col flex-1 min-h-0 md:hidden"
         >
           <div
-            class="flex flex-col border-r border-borderMuted bg-panel/50"
-            :style="{ width: splitLeftWidthPercent }"
+            class="overflow-y-auto pr-2"
+            :style="{ height: verticalTopHeightPercent }"
           >
             <PromptList
               :prompts="prompts"
-              :selected-id="selectedPromptId"
-              :is-creating="isCreatingNewPrompt"
-              data-testid="prompt-list"
+              :selected-prompt-id="selectedPromptId"
+              :empty-description="'No prompts created yet. Click New Prompt to start.'"
               @select="handleSelectPrompt"
               @delete="handleDeletePrompt"
             />
           </div>
 
           <div
-            class="flex-1 flex flex-col bg-bg overflow-y-auto pr-2 border-l border-borderMuted min-w-0"
+            class="relative flex items-center justify-center cursor-row-resize group flex-shrink-0"
+            :class="{ 'bg-accent/10': verticalIsDragging }"
+            @pointerdown="verticalStartDragging"
+          >
+            <div
+              class="h-0.5 w-12 rounded-full transition-all"
+              :class="
+                verticalIsDragging
+                  ? 'bg-accent w-16'
+                  : 'bg-borderMuted group-hover:bg-accent group-hover:w-16'
+              "
+            />
+          </div>
+
+          <div
+            class="overflow-y-auto border-t border-borderMuted pt-4 pr-2"
+            :style="{ height: verticalBottomHeightPercent }"
+          >
+            <PromptEditor
+              v-if="selectedPrompt || isCreatingNewPrompt"
+              :prompt="editablePrompt"
+              :is-creating="isCreatingNewPrompt"
+              :is-saving="isSaving"
+              :rows="6"
+              :can-duplicate="canDuplicate"
+              :duplicate-label="duplicateLabel"
+              data-testid="prompt-editor"
+              @save="handleSaveChanges"
+              @change="handleFormChange"
+              @duplicate="handleDuplicate"
+            />
+            <BaseEmptyState
+              v-else-if="prompts.length > 0"
+              icon="i-bi:cursor-text"
+              description="Select a prompt to edit."
+            />
+          </div>
+        </div>
+
+        <!-- Desktop split layout -->
+        <div
+          ref="splitContainer"
+          class="hidden md:flex flex-row flex-1 min-h-0 relative"
+        >
+          <div
+            class="overflow-y-auto pr-4 min-w-0"
+            :style="{ width: splitLeftWidthPercent }"
+          >
+            <PromptList
+              :prompts="prompts"
+              :selected-prompt-id="selectedPromptId"
+              :empty-description="'No prompts created yet. Click New Prompt to start.'"
+              @select="handleSelectPrompt"
+              @delete="handleDeletePrompt"
+            />
+          </div>
+
+          <div
+            class="relative flex items-center justify-center cursor-col-resize group touch-none select-none"
+            :class="{ 'bg-accent/10': splitIsDragging }"
+            @pointerdown="splitStartDragging"
+          >
+            <div
+              class="w-0.5 h-12 rounded-full transition-all"
+              :class="
+                splitIsDragging
+                  ? 'bg-accent h-16'
+                  : 'bg-borderMuted group-hover:bg-accent group-hover:h-16'
+              "
+            />
+          </div>
+
+          <div
+            class="overflow-y-auto pl-4 pr-2 border-l border-borderMuted min-w-0"
             :style="{ width: splitRightWidthPercent }"
           >
             <PromptEditor
@@ -129,7 +196,6 @@ import { safeInject } from '@/safe-inject'
 import { AuthError } from '@/errors'
 import { toUserMessage } from '@/error-mapper'
 import { useToastStore } from '@/stores/use-toast-store'
-import { isOfflineMode } from '@/env-validator'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
@@ -263,12 +329,7 @@ watch(
   { immediate: true }
 )
 
-const fetchUserId = async (): Promise<void> => {
-  if (isOfflineMode()) {
-    currentUserId.value = 'offline-user'
-    return
-  }
-
+const fetchUserId = async (): Promise<void> => { if (isOfflineMode()) { currentUserId.value = "offline-user"; return; }
   const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
     if (unknownError instanceof Error) {
       return new AuthError(unknownError.message, unknownError)
