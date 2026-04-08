@@ -41,6 +41,7 @@
     }
   },
   "scripts": {
+    "my-install": "dotenv -e ./.env | pnpm i",
     "format": "eslint . --fix && prettier --write .",
     "dev": "vite",
     "dev-performance": "vite --profile --open",
