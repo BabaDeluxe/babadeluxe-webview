@@ -135,8 +135,6 @@ const toasts = useToastStore()
 const { settings, loadSettings } = useSettings()
 const { isDark } = useTheme()
 
-const offline = isOfflineMode()
-
 const handleExtensionMessage = (event: MessageEvent) => {
   const message = event.data
 
@@ -164,14 +162,6 @@ const handleNewChat = async () => {
 }
 
 onMounted(async () => {
-  if (offline) {
-    logger.info('App started in OFFLINE MODE')
-    void loadSettings()
-    // Provide a minimal fake session for the UI to show the layout
-    session.value = { user: { id: 'offline-user' } } as any
-    return
-  }
-
   const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
     if (event === 'SIGNED_IN' && supabaseSession) {
       session.value = supabaseSession
@@ -191,6 +181,13 @@ onMounted(async () => {
     } else if (event === 'PASSWORD_RECOVERY') {
       router.push('/reset-password')
     }
+  }
+
+  if (isOfflineMode()) {
+    logger.info('App started in OFFLINE MODE')
+    void loadSettings()
+    session.value = { user: { id: 'offline-user' } } as any
+    return
   }
 
   supabase.auth.onAuthStateChange((event, session) => {

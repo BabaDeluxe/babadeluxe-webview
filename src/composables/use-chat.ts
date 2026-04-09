@@ -18,21 +18,13 @@ import { AuthError, InitializationError, ChatError, BaseError } from '@/errors'
 import { findPreferredModel } from '@/model-preferences'
 import { useChatAlerts } from '@/composables/use-chat-alerts'
 import { useChatContextHandler } from '@/composables/use-chat-context-handler'
-import { isOfflineMode } from '@/env-validator'
 
 type ChatMessageInstance = InstanceType<typeof ChatMessage>
 type ChatInputInstance = InstanceType<typeof ChatInput>
 
-export type ModelItem = {
-  label: string
+type ModelItem = {
   value: string
-  provider: string
   contextWindow?: number
-}
-
-export type ModelGroup = {
-  label: string
-  items: ModelItem[]
 }
 
 export function useChat() {
@@ -160,76 +152,27 @@ export function useChat() {
     return selectedPromptObject?.template || fallback
   }
 
-  const registerMessageComponent = (id: number, component: ChatMessageInstance) => {
-    messageComponents.value.set(id, component)
-  }
-
-  const handleDeleteMessage = async (messageId: number): Promise<void> => {
-    const result = await store.deleteMessage(messageId)
-    if (result.isErr()) {
-      conversationError.value = result.error.message
-    }
-  }
-
-  const handleEditMessage = async (messageId: number, content: string): Promise<void> => {
-    const result = await store.updateUserMessage(messageId, content)
-    if (result.isErr()) {
-      conversationError.value = result.error.message
-    }
-  }
-
-  const handleRewriteMessage = async (messageId: number): Promise<void> => {
-    const result = await rewriteWithModel(
-      currentConversationId.value,
-      messageId,
-      currentModel.value,
-      {
-        systemPrompt: getSelectedSystemPromptText(undefined),
-      }
-    )
-
-    if (result.isErr()) {
-      conversationError.value = result.error.message
-    }
-  }
-
-  const loadMessagesForCurrentConversation = async (): Promise<void> => {
-    if (currentConversationId.value === 0) {
-      messages.value = []
+  const registerMessageComponent = (id: number, element: Element | ChatMessageInstance | null) => {
+    if (!element) {
+      messageComponents.value.delete(id)
       return
     }
-
-    isLoadingMessages.value = true
-    const result = await loadMessages(currentConversationId.value)
-    isLoadingMessages.value = false
-
-    if (result.isErr()) {
-      conversationError.value = result.error.message
+    if ('$' in (element as Element | ChatMessageInstance)) {
+      messageComponents.value.set(id, element as ChatMessageInstance)
     }
   }
 
-  const loadPersistedSettings = async (): Promise<void> => {
-    const [promptResult, modelResult] = await Promise.all([
-      keyValueStore.get('chat-prompt'),
-      keyValueStore.get('chat-model'),
-    ])
+  const shouldRestoreFocusAfterAbort = (): boolean => {
+    const activeElement = document.activeElement
+    if (!(activeElement instanceof HTMLElement)) return false
 
-    if (promptResult.isOk() && promptResult.value) {
-      currentPrompt.value = promptResult.value
-    }
-
-    if (modelResult.isOk() && modelResult.value) {
-      currentModel.value = modelResult.value
-    }
+    return (
+      activeElement.closest('[data-testid="chat-abort-button-top"]') !== null ||
+      activeElement.closest('[data-testid="chat-abort-button-bottom"]') !== null
+    )
   }
 
   const fetchUsername = async (): Promise<void> => {
-    if (isOfflineMode()) {
-      currentUserId.value = 'offline-user'
-      currentUsername.value = 'Simon Waiblinger'
-      return
-    }
-
     const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) =>
       unknownError instanceof Error
         ? new AuthError(unknownError.message, unknownError)
@@ -241,70 +184,270 @@ export function useChat() {
         const user = response.data.user
         if (user?.id) currentUserId.value = user.id
 
-        if (user?.app_metadata?.provider === 'github') {
-          const githubIdentity = user.identities?.find((id) => id.provider === 'github')
-          if (githubIdentity?.identity_data?.login) {
-            currentUsername.value = githubIdentity.identity_data.login as string
-            return
-          }
-        }
-
-        if (user?.user_metadata?.username) {
+        const githubIdentity = user?.identities?.find((id) => id.provider === 'github')
+        if (githubIdentity?.identity_data?.login) {
+          currentUsername.value = githubIdentity.identity_data.login as string
+        } else if (user?.user_metadata?.username) {
           currentUsername.value = user.user_metadata.username as string
-        } else if (user?.email) {
-          currentUsername.value = user.email.split('@')[0]
         }
       },
-      (error) => {
-        logger.error('Failed to fetch user details for chat view', {
-          error,
+      (fetchError) => {
+        logger.error('Failed to fetch user details', {
+          error: fetchError,
         })
       }
     )
   }
 
-  const cleanupStreamingMessage = async (): Promise<void> => {
-    if (currentStreamingMessageId.value) {
-      await abortChatMessage(currentStreamingMessageId.value)
+  const loadPersistedSettings = async (): Promise<void> => {
+    const promptResult = await keyValueStore.get('chat-prompt')
+    if (promptResult.isOk() && promptResult.value !== undefined) {
+      currentPrompt.value = promptResult.value
+    }
+
+    const modelResult = await keyValueStore.get('chat-model')
+    if (modelResult.isOk() && modelResult.value !== undefined) {
+      currentModel.value = modelResult.value
     }
   }
 
-  const createError = (message: string, cause: unknown): BaseError => {
-    if (cause instanceof BaseError) return cause
-    return new ChatError(message, cause instanceof Error ? cause : undefined)
-  }
-
-  const shouldRestoreFocusAfterAbort = (): boolean => {
-    const activeElement = document.activeElement
-    if (!activeElement) return false
-
-    return (
-      activeElement.closest('[data-testid="chat-abort-button-top"]') !== null ||
-      activeElement.closest('[data-testid="chat-abort-button-bottom"]') !== null
-    )
-  }
-
-  const handleSendMessage = async (messageContent: string): Promise<void> => {
-    if (!messageContent.trim() || isChatStreaming.value) return
-
-    if (currentConversationId.value === 0) {
-      const createResult = await createConversation('New Conversation')
-      if (createResult.isErr()) {
-        conversationError.value = createResult.error.message
-        return
-      }
-      currentConversationId.value = createResult.value
+  // --- message loading using store ---
+  async function loadMessagesForCurrentConversation(): Promise<void> {
+    if (!currentConversationId.value) {
+      messages.value = []
+      return
     }
 
-    const provider = currentModel.value.split(':')[0]
-    const selectedModel = currentModel.value.split(':')[1]
+    isLoadingMessages.value = true
+    const result = await loadMessages(currentConversationId.value)
+    isLoadingMessages.value = false
+
+    if (result.isErr()) {
+      logger.error('Failed to load messages in chat view', {
+        conversationId: currentConversationId.value,
+        userId: currentUserId.value,
+        error: result.error,
+      })
+      conversationError.value = 'Failed to load messages'
+      return
+    }
+
+    conversationError.value = undefined
+  }
+
+  const handleDeleteMessage = async (messageId: number) => {
+    const result = await store.deleteMessage(messageId)
+
+    if (result.isErr()) {
+      logger.error('Failed to delete message', {
+        conversationId: currentConversationId.value,
+        userId: currentUserId.value,
+        messageId,
+        error: result.error,
+      })
+      conversationError.value = result.error.message
+    }
+  }
+
+  const parseModel = (value: string | undefined): { provider: string; model: string } | null => {
+    if (!value || !value.includes(':')) return null
+    const [provider, model] = value.split(':')
+    return provider && model ? { provider, model } : null
+  }
+
+  const handleRegenerateError = (message: string, extra: Record<string, unknown> = {}) => {
+    logger.warn(message, {
+      conversationId: currentConversationId.value,
+      userId: currentUserId.value,
+      ...extra,
+    })
+    conversationError.value = message
+  }
+
+  const createError = (fallback: string, errorResult: unknown): BaseError => {
+    if (errorResult instanceof BaseError) return errorResult
+    if (errorResult instanceof Error) return new ChatError(errorResult.message, errorResult)
+    return new ChatError(typeof errorResult === 'string' ? errorResult : fallback)
+  }
+
+  async function handleEditMessage(messageId: number, newContent: string) {
+    const updateResult = await store.updateUserMessage(messageId, newContent)
+    if (updateResult.isErr()) {
+      logger.error('Failed to update message on edit', {
+        conversationId: currentConversationId.value,
+        userId: currentUserId.value,
+        messageId,
+        error: updateResult.error,
+      })
+      conversationError.value = updateResult.error.message
+      return
+    }
+
+    const userMessageIndex = messages.value.findIndex((m) => m.id === messageId)
+    const nextMessage = messages.value[userMessageIndex + 1]
+
+    // Abort if the next message exists but is not an assistant (avoids breaking linear history).
+    // If nextMessage is missing, we proceed to generate a new response (e.g. retrying last message).
+    if (nextMessage && nextMessage.role !== 'assistant') return
+
+    const fromCurrent = parseModel(currentModel.value)
+    if (!fromCurrent) {
+      handleRegenerateError('Please select a valid model', {
+        messageId,
+        currentModel: currentModel.value,
+      })
+      return
+    }
+
+    const { provider, model } = fromCurrent
+
+    const systemPromptText = getSelectedSystemPromptText(nextMessage?.systemPrompt)
+    const prepared = await prepareChatRequest()
+
+    await resendFromMessage(currentConversationId.value, messageId, {
+      provider,
+      model,
+      systemPrompt: systemPromptText,
+      existingAssistantId: nextMessage?.id,
+      contextItems: prepared.contextItems,
+      contextReferences: prepared.contextReferences,
+      onChunk: prepared.onChunk,
+      onError: (errorResult: unknown) => {
+        const errorMessage = 'Failed to regenerate message after edit'
+        const asError = createError(errorMessage, errorResult)
+
+        logger.error(errorMessage, {
+          conversationId: currentConversationId.value,
+          userId: currentUserId.value,
+          messageId,
+          assistantMessageId: nextMessage?.id,
+          error: asError,
+        })
+        conversationError.value = asError.message
+      },
+    })
+  }
+
+  async function handleRewriteMessage(assistantMessageId: number, newModelId: string) {
     const systemPromptText = getSelectedSystemPromptText(undefined)
+    const prepared = await prepareChatRequest()
+
+    await rewriteWithModel(currentConversationId.value, assistantMessageId, newModelId, {
+      systemPrompt: systemPromptText,
+      contextItems: prepared.contextItems,
+      contextReferences: prepared.contextReferences,
+      onChunk: prepared.onChunk,
+      onComplete: async (messageId: number) => {
+        const msg = messages.value.find((message) => message.id === messageId)
+        if (!msg) return
+
+        finalizeStreamingMessage(messageId, messageComponents)
+        msg.isStreaming = false
+      },
+      onError: (error: Error) => {
+        logger.error('Failed to rewrite message with new model', {
+          conversationId: currentConversationId.value,
+          userId: currentUserId.value,
+          assistantMessageId,
+          newModelId,
+          error,
+        })
+        conversationError.value = error.message
+      },
+    })
+  }
+
+  const ensureConversation = async (): Promise<boolean> => {
+    if (currentConversationId.value !== 0) return true
+
+    const result = await createConversation('New Conversation')
+    if (result.isErr()) {
+      logger.error('Failed to auto-create conversation for first message', {
+        userId: currentUserId.value,
+        error: result.error,
+      })
+      conversationError.value = result.error.message
+      return false
+    }
+
+    logger.log('Auto-created conversation for first message', {
+      conversationId: result.value,
+      userId: currentUserId.value,
+    })
+    currentConversationId.value = result.value
+    return true
+  }
+
+  const ensureModel = (): { provider: string; model: string } | null => {
+    const value = currentModel.value
+    if (!value || !value.includes(':')) {
+      logger.warn('Cannot send message: no valid model selected', {
+        conversationId: currentConversationId.value,
+        userId: currentUserId.value,
+        currentModel: value,
+      })
+      conversationError.value = 'Please select a valid model first'
+      return null
+    }
+
+    const [provider, model] = value.split(':')
+    if (!provider || !model) {
+      logger.warn('Cannot send message: invalid model format', {
+        conversationId: currentConversationId.value,
+        userId: currentUserId.value,
+        currentModel: value,
+      })
+      conversationError.value = 'Invalid model format'
+      return null
+    }
+
+    return { provider, model }
+  }
+
+  let streamingAssistantId: number | undefined
+
+  const cleanupStreamingMessage = async () => {
+    if (streamingAssistantId == null) return
+
+    const msg = messages.value.find((m) => m.id === streamingAssistantId)
+    if (msg) msg.isStreaming = false
+
+    const deleteResult = await store.deleteMessage(streamingAssistantId)
+    if (deleteResult.isErr()) {
+      logger.error('Failed to delete failed assistant message', {
+        conversationId: currentConversationId.value,
+        userId: currentUserId.value,
+        messageId: streamingAssistantId,
+        error: deleteResult.error,
+      })
+    }
+  }
+
+  async function handleSendMessage(): Promise<void> {
+    if (
+      !currentMessage.value.trim() ||
+      isLoadingConversations.value ||
+      isChatStreaming.value ||
+      isLoadingMessages.value
+    ) {
+      return
+    }
+
+    if (!(await ensureConversation())) return
+
+    const modelInfo = ensureModel()
+    if (!modelInfo) return
+
+    const { provider, model: selectedModel } = modelInfo
+
+    const messageContent = currentMessage.value
+    currentMessage.value = ''
 
     const revisionAtSendStart = contextRevision.value
-    const prepared = prepareChatRequest()
-    let streamingAssistantId: number | undefined
+    const systemPromptText = getSelectedSystemPromptText(undefined)
+    const prepared = await prepareChatRequest()
 
-    currentMessage.value = ''
+    streamingAssistantId = undefined
 
     const result = await sendConversationMessage(currentConversationId.value, messageContent, {
       provider,
