@@ -1,13 +1,14 @@
-import Statsig from 'statsig-js'
+import { StatsigClient } from '@statsig/js-client'
 import type { AnalyticsProvider } from '../types'
 import type { AbstractLogger } from '@/logger'
 
 /**
  * Statsig analytics provider implementation.
- * Uses the 'statsig-js' library for feature flags and event logging.
+ * Uses the modern '@statsig/js-client' library.
  */
 export class StatsigProvider implements AnalyticsProvider {
   readonly name = 'Statsig'
+  private _client?: StatsigClient
   private _isInitialized = false
 
   constructor(
@@ -23,8 +24,8 @@ export class StatsigProvider implements AnalyticsProvider {
     if (this._isInitialized || !this._clientKey) return
 
     try {
-      // Initialize Statsig with a default anonymous user
-      await Statsig.initialize(this._clientKey, { userID: 'anonymous' })
+      this._client = new StatsigClient(this._clientKey, { userID: 'anonymous' })
+      await this._client.initializeAsync()
       this._isInitialized = true
       this._logger.log(`[${this.name}] Initialized with key: ${this._clientKey}`)
     } catch (error) {
@@ -33,14 +34,15 @@ export class StatsigProvider implements AnalyticsProvider {
   }
 
   trackEvent(event: string, properties?: Record<string, any>): void {
-    if (!this._isInitialized) return
-    Statsig.logEvent(event, null, properties)
+    if (!this._isInitialized || !this._client) return
+    this._client.logEvent(event, null, properties)
     this._logger.debug(`[${this.name}] Tracked event: ${event}`, properties)
   }
 
   identify(userId: string, traits?: Record<string, any>): void {
-    if (!this._isInitialized) return
-    void Statsig.updateUser({ userID: userId, custom: traits })
+    if (!this._isInitialized || !this._client) return
+    // Note: In @statsig/js-client, updateUserAsync is used for updating user identity
+    void this._client.updateUserAsync({ userID: userId, custom: traits })
     this._logger.debug(`[${this.name}] Identified user: ${userId}`, traits)
   }
 }
