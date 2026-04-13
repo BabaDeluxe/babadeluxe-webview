@@ -22,9 +22,9 @@
     "jsx": "preserve"
   },
   "include": [
-    "./src/**/*",
-    "./tests/**/*",
-    "./*.config.ts"
+    "*.ts",
+    "./src/**/*.ts",
+    "./tests/**/*.ts"
   ],
   "exclude": [
     "./dist",
