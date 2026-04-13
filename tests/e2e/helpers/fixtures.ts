@@ -9,8 +9,8 @@ import {
   type TestUser,
 } from '../../helpers/supabase-test'
 import { IndexedDbManager } from './indexeddb-manager'
-import { loginViaUi } from 'tests/e2e/helpers/login-via-ui'
-import { gotoOptions } from 'tests/e2e/helpers/test-data'
+import { loginViaUi } from './login-via-ui'
+import { gotoOptions } from './test-data'
 
 type WorkerOptions = {
   variant: 'raw' | 'sdk'

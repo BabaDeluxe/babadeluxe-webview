@@ -1,5 +1,5 @@
 import type { Page, Locator } from '@playwright/test'
-import { UnclickableError, UnexpectedTestError } from 'tests/e2e/errors'
+import { UnclickableError, UnexpectedTestError } from '../errors'
 
 export async function tryClick(page: Page, locator: Locator, maxTries = 3): Promise<void> {
   if (!locator) {
