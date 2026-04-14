@@ -1,9 +1,9 @@
 import { expect } from '@playwright/test'
 import { authTest as test } from './helpers/fixtures'
 import { seedChatViewData } from './helpers/test-data'
+import { tryClick } from './helpers/try-click'
 import { createLocatorDealer, locators } from './helpers/locators'
 import { logger } from '@/logger'
-import { tryClick } from 'tests/e2e/helpers/try-click'
 
 test.describe('Chat View E2E', () => {
   test.beforeEach(async ({ page, db }) => {

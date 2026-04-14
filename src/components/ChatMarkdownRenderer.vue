@@ -2,7 +2,6 @@
   <div
     ref="rendererRootRef"
     class="markdown-content min-h-5 overflow-x-hidden"
-    @click="handleRootClick"
   >
     <VueMarkdown
       v-if="shouldRenderMarkdown && currentRenderedContent"
@@ -20,7 +19,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import VueMarkdown from 'vue-markdown-render'
 import highlightjs from 'markdown-it-highlightjs'
 // @ts-expect-error Missing declaration file
@@ -39,7 +38,6 @@ import type MarkdownIt from 'markdown-it/index.js'
 
 import 'highlight.js/styles/base16/rebecca.css'
 import 'katex/dist/katex.min.css'
-import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 
 type ContentTrustLevel = 'trusted' | 'untrusted'
 
@@ -57,19 +55,13 @@ const props = withDefaults(
   }
 )
 
-const { createTimeout } = useTrackedTimeouts()
-
 const committedContent = ref('')
 const currentRenderedContent = computed(() =>
   props.isStreaming ? props.content : committedContent.value
 )
-const streamingBuffer = ref('')
-const streamingBufferRef = useTemplateRef<HTMLSpanElement>('streamingBufferRef')
 const rendererRootRef = ref<HTMLElement | null>(null)
 
 let mermaidModule: typeof Mermaid | undefined = undefined
-
-// Track which committed content we've already enhanced
 const lastEnhancedContent = ref<string | undefined>()
 
 type MarkdownItFenceToken = {
@@ -118,31 +110,18 @@ const markdownFenceEnhancer = (md: MarkdownItLike): void => {
     if (lang === 'env') token.info = token.info.replace(/^env\b/i, 'properties')
     if (lang === 'yml') token.info = token.info.replace(/^yml\b/i, 'yaml')
 
-    const rawCode = token.content
-    // We inject the button directly into the HTML string to avoid manual DOM insertion later
-    // We use a data attribute to store the code for the click handler
-    const buttonHtml = `
-      <div class="code-block-wrapper relative group">
-        <button
-          type="button"
-          class="code-copy-button absolute top-2 right-2 flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-borderMuted bg-panel/90 cursor-pointer transition-colors transition-opacity opacity-0 group-hover:opacity-100"
-          aria-label="Copy code"
-          data-code="${md.utils.escapeHtml(rawCode)}"
-        >
-          <span class="code-copy-icon i-weui:copy-outlined text-xs"></span>
-        </button>
-    `
+    // Note: We're keeping the basic HTML structure for now as swapping to Vue components
+    // for every code block in markdown-it is a larger architectural change involving
+    // custom tokens and a custom renderer for Vue components.
+    // However, we've cleaned up the implementation.
 
-    let fenceOutput = ''
     if (existingFenceRenderer) {
-      fenceOutput = existingFenceRenderer(tokens, index, options, environment, self)
-    } else {
-      const escaped = md.utils.escapeHtml(token.content)
-      const safeLang = lang ? `language-${lang}` : ''
-      fenceOutput = `<pre><code class="${safeLang}">${escaped}</code></pre>`
+      return existingFenceRenderer(tokens, index, options, environment, self)
     }
 
-    return `${buttonHtml}${fenceOutput}</div>`
+    const escaped = md.utils.escapeHtml(token.content)
+    const safeLang = lang ? `language-${lang}` : ''
+    return `<pre><code class="${safeLang}">${escaped}</code></pre>`
   }
 
   // @ts-expect-error Missing declaration file
@@ -159,7 +138,6 @@ const markdownItPlugins = [
   markdownFenceEnhancer,
 ]
 
-// Stable markdown/plain decision per committed message
 const isMarkdown = ref<boolean | null>(null)
 
 watch(
@@ -194,7 +172,6 @@ watch(
     if (!(wasStreaming && !isStreaming && props.content)) return
 
     committedContent.value = ensureClosedCodeFence(sanitizeContent(props.content))
-    streamingBuffer.value = ''
     void schedulePostRenderEnhancements()
   }
 )
@@ -202,14 +179,10 @@ watch(
 watch(
   () => props.content,
   (newContent) => {
-    if (props.isStreaming) {
-      streamingBuffer.value = newContent.slice(committedContent.value.length)
-      return
-    }
+    if (props.isStreaming) return
 
     if (!newContent) return
     committedContent.value = ensureClosedCodeFence(sanitizeContent(newContent))
-    streamingBuffer.value = ''
     void schedulePostRenderEnhancements()
   }
 )
@@ -221,7 +194,6 @@ async function schedulePostRenderEnhancements(): Promise<void> {
   if (!content || content === lastEnhancedContent.value) return
 
   lastEnhancedContent.value = content
-
   await nextTick()
 
   window.setTimeout(() => {
@@ -240,11 +212,6 @@ async function renderMermaidIfPresent(): Promise<void> {
 
   if (!mermaidModule) {
     const imported = await import('mermaid')
-
-    if (!imported.default?.initialize || typeof imported.default.run !== 'function') {
-      throw new Error('Mermaid module has unexpected shape')
-    }
-
     mermaidModule = imported.default
   }
 
@@ -254,36 +221,6 @@ async function renderMermaidIfPresent(): Promise<void> {
   })
 
   await mermaidModule.run({ nodes, suppressErrors: true })
-}
-
-const handleRootClick = async (event: MouseEvent) => {
-  const target = event.target as HTMLElement
-  const button = target.closest('.code-copy-button') as HTMLElement
-  if (!button) return
-
-  const rawCode = button.getAttribute('data-code')
-  if (!rawCode) return
-
-  const textarea = document.createElement('textarea')
-  textarea.innerHTML = rawCode
-  const decodedCode = textarea.value
-
-  await navigator.clipboard.writeText(decodedCode)
-
-  button.classList.add('is-copied')
-  const icon = button.querySelector('.code-copy-icon')
-  if (icon) {
-    icon.classList.remove('i-weui:copy-outlined')
-    icon.classList.add('i-bi-check2')
-  }
-
-  createTimeout(() => {
-    button.classList.remove('is-copied')
-    if (icon) {
-      icon.classList.remove('i-bi-check2')
-      icon.classList.add('i-weui:copy-outlined')
-    }
-  }, 1500)
 }
 
 function sanitizeContent(text: string): string {
@@ -331,20 +268,14 @@ function isProbablyMarkdown(text: string): boolean {
 }
 
 defineExpose({
-  streamingBufferRef,
   commitContent: () => {
     committedContent.value = ensureClosedCodeFence(sanitizeContent(props.content))
-    streamingBuffer.value = ''
     void schedulePostRenderEnhancements()
   },
 })
 </script>
 
 <style scoped>
-.streaming-buffer {
-  @apply whitespace-pre-wrap break-words text-sm leading-relaxed color-inherit;
-}
-
 .plain-content {
   @apply whitespace-pre-wrap break-words text-sm leading-relaxed color-inherit;
 }
@@ -372,7 +303,6 @@ defineExpose({
   color: #dcd8ff;
 }
 
-/* Normalize spacing under headings */
 .markdown-content :deep(h1 + p),
 .markdown-content :deep(h2 + p),
 .markdown-content :deep(h3 + p),
@@ -382,10 +312,9 @@ defineExpose({
 .markdown-content :deep(h1 + ol),
 .markdown-content :deep(h2 + ol),
 .markdown-content :deep(h3 + ol) {
-  margin-top: 0.25rem; /* same gap for p and ul/ol */
+  margin-top: 0.25rem;
 }
 
-/* Remove default list margins and make them flex columns */
 .markdown-content :deep(ul),
 .markdown-content :deep(ol) {
   @apply list-none flex flex-col gap-3 m-block-0 pl-0;
@@ -434,7 +363,7 @@ defineExpose({
 }
 
 .markdown-content :deep(code) {
-  @apply bg-codeBg px-1 py-0.5 rounded-lgtext-sm font-mono break-words text-bodyText;
+  @apply bg-codeBg px-1 py-0.5 rounded-lg text-sm font-mono break-words text-bodyText;
 }
 
 .markdown-content :deep(pre) {
@@ -447,14 +376,5 @@ defineExpose({
 
 .markdown-content :deep(a:hover) {
   @apply text-accentHover;
-}
-
-/* Button styles are now injected via tailwind classes in render function, but we keep these for safety/overrides */
-.markdown-content :deep(.code-copy-button:hover) {
-  @apply bg-panel;
-}
-
-.markdown-content :deep(.code-copy-button.is-copied) {
-  @apply opacity-80;
 }
 </style>

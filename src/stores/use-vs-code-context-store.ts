@@ -2,7 +2,6 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useEventListener } from '@vueuse/core'
 import { err, ok, type Result } from 'neverthrow'
-import { getVsCodeApi } from '@/vs-code/api'
 import type { ValidationError } from '@/errors'
 import { NetworkError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
@@ -14,8 +13,6 @@ import type {
   SidebarReadyMessage,
   ContextUnpinFileMessage,
   ContextClearAllMessage,
-  AutoContextRequest,
-  FileContextResolveRequest,
   ContextPinFileMessage,
   SuggestedEntry,
 } from '@/vs-code/types'
@@ -38,13 +35,11 @@ import {
 import { useContextState } from '@/vs-code/context-state'
 import { useIsInVsCode } from '@/composables/use-is-in-vs-code'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
+import { VsCodeBridge } from '@/services/vs-code-bridge'
 
 export type { VsCodeTextRange, VsCodeContextItem, LockedContextReference } from '@/vs-code/types'
 
-type PendingResolver = (result: Result<unknown[], NetworkError | ValidationError>) => void
-
 export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
-  // State specific to this store instance to prevent leaks between tests/sessions
   let latestSuggestionSequence = 0
   let latestRebuildSequence = 0
 
@@ -64,25 +59,11 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
   } = state
 
   const { isInVsCode } = useIsInVsCode()
-
   const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+  const bridge = VsCodeBridge.getInstance()
 
   const isLoadingContext = ref(false)
   const contextError = ref<string>()
-
-  const pending = new Map<string, PendingResolver>()
-
-  const postToVsCode = (message: object): void => {
-    const apiResult = getVsCodeApi()
-    if (apiResult.isErr()) {
-      logger.warn('Cannot post message to VS Code', {
-        messageType: (message as { type?: string }).type,
-        error: apiResult.error,
-      })
-      return
-    }
-    apiResult.value.postMessage(message)
-  }
 
   const toggleLocked = (filePath: string): void => {
     const cleaned = compact(filePath)
@@ -94,13 +75,13 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     if (isLocked) {
       unpinLocal(cleaned)
       const message: ContextUnpinFileMessage = { type: 'context:unpinFile', filePath: cleaned }
-      postToVsCode(message)
+      bridge.post(message)
       return
     }
 
     pinFullFileLocal(cleaned)
     const message: ContextPinFileMessage = { type: 'context:pinFile', filePath: cleaned }
-    postToVsCode(message)
+    bridge.post(message)
   }
 
   const handleVsCodeMessage = (event: MessageEvent) => {
@@ -120,60 +101,6 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
       pinSnippetLocal(message.filePath, message.snippet, message.range)
       return
     }
-
-    if (!isResponseWithRequestId(message)) return
-
-    const resolve = pending.get(message.requestId)
-    if (!resolve) return
-
-    pending.delete(message.requestId)
-
-    if ('error' in message && typeof message.error === 'string' && message.error.length > 0) {
-      resolve(err(new NetworkError(message.error)))
-      return
-    }
-
-    resolve(ok(message.items ?? []))
-  }
-
-  const postAndAwait = async (
-    request: AutoContextRequest | FileContextResolveRequest,
-    timeoutMs: number = socketTimeoutMs.vsCodeContext
-  ): Promise<Result<unknown[], NetworkError>> => {
-    const apiResult = getVsCodeApi()
-    if (apiResult.isErr()) return err(apiResult.error)
-
-    const vsCodeApi = apiResult.value
-    const requestId = request.requestId
-    const requestType = request.type
-
-    return await new Promise<Result<unknown[], NetworkError>>((resolve) => {
-      let didFinish = false
-
-      const finish = (result: Result<unknown[], NetworkError>) => {
-        if (didFinish) return
-        didFinish = true
-        pending.delete(requestId)
-        resolve(result)
-      }
-
-      const timeoutId = createTimeout(() => {
-        finish(
-          err(
-            new NetworkError(
-              `VS Code context request timed out after ${timeoutMs}ms: ${requestType} (${requestId})`
-            )
-          )
-        )
-      }, timeoutMs)
-
-      pending.set(requestId, (result) => {
-        cancelTimeout(timeoutId)
-        finish(result)
-      })
-
-      vsCodeApi.postMessage(request)
-    })
   }
 
   const resolveFilesFromDocument = async (
@@ -186,8 +113,10 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     if (cleaned.length === 0) return ok([])
 
     const requestId = makeId()
-    const result = await postAndAwait(
+    const result = await bridge.postAndAwait(
       { type: 'fileContext:resolve', requestId, filePaths: cleaned },
+      createTimeout as any,
+      cancelTimeout as any,
       timeoutMs
     )
     if (result.isErr()) return err(result.error)
@@ -213,7 +142,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
         type: 'context:unpinFile',
         filePath: cleanedPath,
       }
-      postToVsCode(message)
+      bridge.post(message)
       return
     }
 
@@ -229,7 +158,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     contextError.value = undefined
 
     const message: ContextClearAllMessage = { type: 'context:clearAll' }
-    postToVsCode(message)
+    bridge.post(message)
   }
 
   const rebuildPinnedItems = async (): Promise<Result<void, never>> => {
@@ -274,7 +203,11 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     }
 
     const requestId = makeId()
-    const result = await postAndAwait({ type: 'autoContext:request', requestId, query: trimmed })
+    const result = await bridge.postAndAwait(
+      { type: 'autoContext:request', requestId, query: trimmed },
+      createTimeout as any,
+      cancelTimeout as any
+    )
 
     if (result.isErr()) {
       if (suggestionSequence === latestSuggestionSequence) {
@@ -385,7 +318,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
 
   const notifySidebarReady = (): void => {
     const message: SidebarReadyMessage = { type: 'sidebar.ready' }
-    postToVsCode(message)
+    bridge.post(message)
   }
 
   notifySidebarReady()

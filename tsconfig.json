@@ -3,10 +3,14 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["DOM", "ESNext"],
-    "baseUrl": ".",
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
     "strict": true,
     "noEmit": true,
@@ -17,6 +21,13 @@
     "isolatedModules": true,
     "jsx": "preserve"
   },
-  "include": ["./src/**/*", "./tests/**/*", "./*.config.ts"],
-  "exclude": ["./dist", "./node_modules"]
+  "include": [
+    "*.ts",
+    "./src/**/*.ts",
+    "./tests/**/*.ts"
+  ],
+  "exclude": [
+    "./dist",
+    "./node_modules"
+  ]
 }

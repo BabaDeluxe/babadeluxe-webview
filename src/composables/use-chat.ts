@@ -5,12 +5,11 @@ import { storeToRefs } from 'pinia'
 import { ResultAsync } from 'neverthrow'
 import type ChatInput from '@/components/ChatInput.vue'
 import type ChatMessage from '@/components/ChatMessage.vue'
-import { useChatSocket } from '@/composables/use-chat-socket'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { useConversationStore } from '@/stores/use-conversation-store'
-import { defaultModel, localStorageKeys } from '@/constants'
+import { localStorageKeys } from '@/constants'
 import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import { finalizeStreamingMessage } from '@/streaming-helpers'
 import { safeInject } from '@/safe-inject'
@@ -18,6 +17,9 @@ import { AuthError, InitializationError, ChatError, BaseError } from '@/errors'
 import { findPreferredModel } from '@/model-preferences'
 import { useChatAlerts } from '@/composables/use-chat-alerts'
 import { useChatContextHandler } from '@/composables/use-chat-context-handler'
+import { useChatStreaming } from '@/composables/use-chat-streaming'
+import { useChatHistory } from '@/composables/use-chat-history'
+import { useChatInput } from '@/composables/use-chat-input'
 
 type ChatMessageInstance = InstanceType<typeof ChatMessage>
 type ChatInputInstance = InstanceType<typeof ChatInput>
@@ -37,7 +39,6 @@ export function useChat() {
 
   const store = useConversationStore()
   const {
-    messages,
     error: conversationError,
     selectedModelContextWindow,
     lastContextUsage,
@@ -52,43 +53,22 @@ export function useChat() {
     createConversation,
     finalizeAssistantMessage,
     loadConversations,
-    loadMessages,
     loadMessageCounts,
     resumeInterruptedStreams,
   } = store
 
-  const {
-    isStreaming: isChatStreaming,
-    streamingMessageIds,
-    abortMessage: abortChatMessage,
-  } = useChatSocket()
+  const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
 
-  const currentStreamingMessageId = computed(() =>
-    streamingMessageIds.value.length > 0 ? streamingMessageIds.value[0] : undefined
-  )
+  const { isChatStreaming, currentStreamingMessageId, abortChatMessage } = useChatStreaming()
+  const { messages, isLoadingMessages, loadMessagesForCurrentConversation } = useChatHistory(currentConversationId)
+  const { currentMessage, currentPrompt, currentModel, clearMessage } = useChatInput()
 
-  const { groupedModels, isLoadingModels, modelsLoadedCount } = useModelsSocket()
-
-  const {
-    prompts,
-    isLoading: isLoadingPrompts,
-    error: promptsError,
-    clearError: clearPromptsError,
-  } = usePromptsSocket()
-
-  const { shouldShowModal, dismissModal } = useSubscriptionSocket()
-
-  const currentPrompt = ref('BabaSeniorDev™')
-  const currentModel = ref(defaultModel)
-  const currentMessage = ref('')
   const currentUsername = ref('User')
   const currentUserId = ref<string>()
   const isContextRootBarVisible = ref(true)
 
   const chatInputRef = ref<ChatInputInstance>()
   const messageComponents = ref<Map<number, ChatMessageInstance>>(new Map())
-
-  const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
 
   const {
     isInVsCode,
@@ -111,7 +91,6 @@ export function useChat() {
   )
 
   const isLoadingConversations = ref(false)
-  const isLoadingMessages = ref(false)
 
   const { persistenceWarning } = useChatAlerts(
     conversationError,
@@ -130,6 +109,15 @@ export function useChat() {
     }
     return ''
   })
+
+  const { groupedModels, isLoadingModels, modelsLoadedCount } = useModelsSocket()
+  const {
+    prompts,
+    isLoading: isLoadingPrompts,
+    error: promptsError,
+    clearError: clearPromptsError,
+  } = usePromptsSocket()
+  const { shouldShowModal, dismissModal } = useSubscriptionSocket()
 
   const promptOptions = computed(() => {
     if (isLoadingPrompts.value) {
@@ -211,30 +199,6 @@ export function useChat() {
     }
   }
 
-  // --- message loading using store ---
-  async function loadMessagesForCurrentConversation(): Promise<void> {
-    if (!currentConversationId.value) {
-      messages.value = []
-      return
-    }
-
-    isLoadingMessages.value = true
-    const result = await loadMessages(currentConversationId.value)
-    isLoadingMessages.value = false
-
-    if (result.isErr()) {
-      logger.error('Failed to load messages in chat view', {
-        conversationId: currentConversationId.value,
-        userId: currentUserId.value,
-        error: result.error,
-      })
-      conversationError.value = 'Failed to load messages'
-      return
-    }
-
-    conversationError.value = undefined
-  }
-
   const handleDeleteMessage = async (messageId: number) => {
     const result = await store.deleteMessage(messageId)
 
@@ -286,8 +250,6 @@ export function useChat() {
     const userMessageIndex = messages.value.findIndex((m) => m.id === messageId)
     const nextMessage = messages.value[userMessageIndex + 1]
 
-    // Abort if the next message exists but is not an assistant (avoids breaking linear history).
-    // If nextMessage is missing, we proceed to generate a new response (e.g. retrying last message).
     if (nextMessage && nextMessage.role !== 'assistant') return
 
     const fromCurrent = parseModel(currentModel.value)
@@ -441,7 +403,7 @@ export function useChat() {
     const { provider, model: selectedModel } = modelInfo
 
     const messageContent = currentMessage.value
-    currentMessage.value = ''
+    clearMessage()
 
     const revisionAtSendStart = contextRevision.value
     const systemPromptText = getSelectedSystemPromptText(undefined)
@@ -577,7 +539,6 @@ export function useChat() {
     isContextRootBarVisible.value = !isContextRootBarVisible.value
   }
 
-  // --- lifecycle init ---
   const initializeChat = async (): Promise<void> => {
     const initResult = await ResultAsync.fromPromise(
       (async () => {
@@ -591,7 +552,6 @@ export function useChat() {
         await loadMessageCounts()
         await resumeInterruptedStreams()
 
-        // select latest conversation if none
         if (!currentConversationId.value && store.conversations.length > 0) {
           const highestId = store.conversations.reduce(
             (max, c) => (c.id > max ? c.id : max),
@@ -627,7 +587,6 @@ export function useChat() {
     )
   }
 
-  // --- watches ---
   let lastPreviewText = ''
 
   watchDebounced(
@@ -752,7 +711,6 @@ export function useChat() {
   })
 
   return {
-    // refs for template
     chatInputRef,
     messages,
     isLoadingConversations,
@@ -775,7 +733,6 @@ export function useChat() {
     lastContextUsage,
     shouldShowModal,
 
-    // handlers
     registerMessageComponent,
     handleSendMessage,
     handleAbortMessage,

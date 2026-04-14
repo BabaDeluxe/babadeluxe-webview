@@ -1,142 +1,21 @@
-import { getCurrentScope, onScopeDispose, ref } from 'vue'
-import { err, ok, Result, ResultAsync } from 'neverthrow'
+import { Result, ResultAsync, ok, err } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { NetworkError, AuthError } from '@/errors'
+import { AuthError } from '@/errors'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { getVsCodeApi } from '@/vs-code/api'
-import { socketTimeoutMs } from '@/constants'
-
-export type AuthSessionPayload = Readonly<{
-  accessToken: string
-  refreshToken: string
-  expiresAtUnixSeconds: number | undefined
-}>
-
-type IncomingMessage =
-  | { type: 'auth.session'; session: AuthSessionPayload | undefined }
-  | { type: 'auth.error'; message: string }
-
-/**
- * Composable for handling authentication with VS Code extension.
- *
- * Technical constraint: requestGitHubLoginFromExtension uses window.addEventListener
- * which means multiple simultaneous calls will interfere with each other.
- * The last registered listener wins. Consider serializing calls at the caller level
- * if concurrent authentication requests are possible.
- */
-const isRequestPending = ref(false)
+import { VsCodeAuthGateway, type AuthSessionPayload } from '@/services/vs-code-auth-gateway'
 
 export function useVsCodeAuth() {
   const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+  const gateway = VsCodeAuthGateway.getInstance()
 
   const isRunningInsideVsCode = (): boolean => getVsCodeApi().isOk()
 
-  const apiResult = getVsCodeApi()
-  const vsCodeApi = apiResult.isOk() ? apiResult.value : undefined
-  if (!vsCodeApi) return undefined
+  const requestGitHubLoginFromExtension = (timeoutMs?: number) =>
+    gateway.requestLogin(createTimeout as any, cancelTimeout as any, timeoutMs)
 
-  const requestGitHubLoginFromExtension = async (
-    timeoutMilliseconds = socketTimeoutMs.vsCodeAuthLogin
-  ): Promise<Result<AuthSessionPayload | undefined, NetworkError | AuthError>> => {
-    if (isRequestPending.value) {
-      return err(new NetworkError('Authentication request already in progress'))
-    }
-
-    isRequestPending.value = true
-
-    const apiResult = getVsCodeApi()
-    if (apiResult.isErr()) {
-      isRequestPending.value = false
-      return err(apiResult.error)
-    }
-    if (!apiResult.value) {
-      isRequestPending.value = false
-      return ok(undefined)
-    }
-
-    const vscodeApi = apiResult.value
-
-    const waitForSession = new Promise<Result<AuthSessionPayload, NetworkError | AuthError>>(
-      (resolve) => {
-        let timeoutId: ReturnType<typeof setTimeout> | undefined
-
-        const cleanup = () => {
-          isRequestPending.value = false
-          if (timeoutId) {
-            cancelTimeout(timeoutId)
-            timeoutId = undefined
-          }
-          window.removeEventListener('message', onMessage)
-        }
-
-        const onMessage = (event: MessageEvent) => {
-          const message = event.data as IncomingMessage
-
-          if (message?.type === 'auth.error') {
-            cleanup()
-            resolve(err(new AuthError(message.message)))
-            return
-          }
-
-          if (message?.type === 'auth.session' && message.session) {
-            cleanup()
-            resolve(ok(message.session))
-          }
-        }
-
-        timeoutId = createTimeout(() => {
-          cleanup()
-          resolve(err(new NetworkError('VS Code authentication timed out')))
-        }, timeoutMilliseconds)
-
-        if (getCurrentScope()) onScopeDispose(cleanup)
-
-        window.addEventListener('message', onMessage)
-        vscodeApi.postMessage({ type: 'auth.login' })
-      }
-    )
-
-    return await waitForSession
-  }
-
-  const getStoredSessionFromExtension = async (
-    timeoutMilliseconds = socketTimeoutMs.vsCodeAuthSession
-  ): Promise<Result<AuthSessionPayload | undefined, NetworkError>> => {
-    const waitForSession = new Promise<Result<AuthSessionPayload | undefined, NetworkError>>(
-      (resolve) => {
-        let timeoutId: ReturnType<typeof setTimeout> | undefined
-
-        const cleanup = () => {
-          if (timeoutId) {
-            cancelTimeout(timeoutId)
-            timeoutId = undefined
-          }
-          window.removeEventListener('message', onMessage)
-        }
-
-        const onMessage = (event: MessageEvent) => {
-          const message = event.data as IncomingMessage
-          if (message?.type === 'auth.session') {
-            cleanup()
-            resolve(ok(message.session))
-          }
-        }
-
-        timeoutId = createTimeout(() => {
-          cleanup()
-          resolve(err(new NetworkError('VS Code session retrieval timed out')))
-        }, timeoutMilliseconds)
-
-        if (getCurrentScope()) onScopeDispose(cleanup)
-
-        window.addEventListener('message', onMessage)
-
-        vsCodeApi.postMessage({ type: 'auth.getSession' })
-      }
-    )
-
-    return await waitForSession
-  }
+  const getStoredSessionFromExtension = (timeoutMs?: number) =>
+    gateway.getSession(createTimeout as any, cancelTimeout as any, timeoutMs)
 
   const setSupabaseSession = async (
     supabaseClient: SupabaseClient,
@@ -168,14 +47,16 @@ export function useVsCodeAuth() {
   const clearStoredSession = (): Result<void, AuthError> => {
     if (!isRunningInsideVsCode()) return ok(undefined)
 
+    const vsCodeApi = getVsCodeApi()
+    if (vsCodeApi.isErr()) return ok(undefined)
+
     const result = Result.fromThrowable(
       () => {
-        vsCodeApi.postMessage({
+        vsCodeApi.value.postMessage({
           type: 'clear-session',
           payload: {},
         })
       },
-
       (unknownError) => {
         if (unknownError instanceof Error) {
           return new AuthError(unknownError.message, unknownError)
