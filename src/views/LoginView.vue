@@ -236,7 +236,10 @@ const signInWithSupabaseOAuth = async (
       if (unknownError instanceof Error) {
         return new AuthError(unknownError.message, unknownError)
       }
-      return new AuthError(`${provider.charAt(0).toUpperCase() + provider.slice(1)} OAuth failed`, unknownError)
+      return new AuthError(
+        `${provider.charAt(0).toUpperCase() + provider.slice(1)} OAuth failed`,
+        unknownError
+      )
     }
   )
 
@@ -380,11 +383,7 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
   if (vsCodeAuth?.isRunningInsideVsCode()) {
     const oauthResult = await vsCodeAuth.requestOAuthLoginFromExtension(provider)
 
-    if (oauthResult.isErr()) {
-      logger.error(`${providerName} OAuth failed in VS Code mode, falling back to direct Supabase login`, {
-        error: oauthResult.error.message,
-      })
-    } else {
+    if (oauthResult.isOk()) {
       if (!oauthResult.value) {
         logger.warn(`${providerName} OAuth aborted by user`)
         isLoading.value = false
@@ -392,19 +391,26 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
       }
 
       const setSessionResult = await vsCodeAuth.setSupabaseSession(supabase, oauthResult.value)
-      if (setSessionResult.isErr()) {
-        logger.error(`${providerName} OAuth succeeded but session setup failed`, {
-          error: setSessionResult.error.message,
-        })
-        error.value = toUserMessage(setSessionResult.error)
+      if (setSessionResult.isOk()) {
+        await navigateAfterLogin()
         isLoading.value = false
         return
       }
 
-      await navigateAfterLogin()
+      logger.error(`${providerName} OAuth succeeded but session setup failed`, {
+        error: setSessionResult.error.message,
+      })
+      error.value = toUserMessage(setSessionResult.error)
       isLoading.value = false
       return
     }
+
+    logger.error(
+      `${providerName} OAuth failed in VS Code mode, falling back to direct Supabase login`,
+      {
+        error: oauthResult.error.message,
+      }
+    )
   }
 
   const result = await signInWithSupabaseOAuth(supabase, provider)
