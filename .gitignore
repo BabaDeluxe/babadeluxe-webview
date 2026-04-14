@@ -21,7 +21,6 @@ bundle-analysis.html
 *.db
 *.vsix
 *.old
-.npmrc
 
 # Playwright
 node_modules/
@@ -33,5 +32,4 @@ node_modules/
 
 .github/workflows/playwright.yml
 .aider**
-.env
-
+.env.local

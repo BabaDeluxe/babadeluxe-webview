@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 import type { Message, Conversation } from '@/database/types'
 import { IndexedDbManager } from './indexeddb-manager'
 import type { Prompt } from '@/composables/use-prompts-socket'
-import { safeGoto, safeReload } from 'tests/e2e/helpers/safe-navigation'
+import { safeGoto, safeReload } from './safe-navigation'
 
 export type PlaywrightOptions = {
   referer?: string

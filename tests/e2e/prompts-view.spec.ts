@@ -1,8 +1,8 @@
 import { expect } from '@playwright/test'
 import { authTest as test } from './helpers/fixtures'
 import { createLocatorDealer, locators } from './helpers/locators'
-import { safeGoto } from 'tests/e2e/helpers/safe-navigation'
-import { gotoOptions } from 'tests/e2e/helpers/test-data'
+import { safeGoto } from './helpers/safe-navigation'
+import { gotoOptions } from './helpers/test-data'
 
 test.describe.configure({ mode: 'serial' })
 

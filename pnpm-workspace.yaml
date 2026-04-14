@@ -1,0 +1,4 @@
+allowBuilds:
+  '@babadeluxe/shared': false
+  esbuild: true
+  unrs-resolver: true

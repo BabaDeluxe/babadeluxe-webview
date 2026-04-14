@@ -1,14 +1,12 @@
 {
   "unocss.autocomplete.strict": false,
   "search.quickOpen.includeHistory": true,
-  "typescript.suggest.autoImports": true,
-  "typescript.preferences.importModuleSpecifierEnding": "index",
-  "typescript.preferences.importModuleSpecifier": "non-relative",
-  "typescript.suggest.paths": true,
-  "javascript.suggest.paths": true,
-  "javascript.format.semicolons": "remove",
-  "typescript.format.semicolons": "remove",
-  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "js/ts.suggest.autoImports": true,
+  "js/ts.preferences.importModuleSpecifierEnding": "index",
+  "js/ts.preferences.importModuleSpecifier": "non-relative",
+  "js/ts.suggest.paths": true,
+  "js/ts.format.semicolons": "remove",
+  "js/ts.preferences.includePackageJsonAutoImports": "on",
   "vue.format.wrapAttributes": "auto",
   "vue.format.script.initialIndent": false,
   "vue.format.style.initialIndent": false,
@@ -55,7 +53,12 @@
   },
   "eslint.enable": true,
   "eslint.format.enable": false,
-  "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "vue"
+  ],
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
@@ -78,6 +81,6 @@
   ],
   "git.enableSmartCommit": false,
   "git.suggestSmartCommit": false,
-  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
-  "typescript.tsdk": "node_modules\\typescript\\lib"
+  "js/ts.tsserver.experimental.enableProjectDiagnostics": false,
+  "js/ts.tsdk": "node_modules\\typescript\\lib"
 }

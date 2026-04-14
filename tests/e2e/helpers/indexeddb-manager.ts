@@ -2,8 +2,8 @@ import type { Page } from '@playwright/test'
 import type { Message, Conversation } from '@/database/types'
 import type { Prompt } from '@/composables/use-prompts-socket'
 import { logger } from '@/logger'
-import type { PlaywrightOptions } from 'tests/e2e/helpers/test-data'
-import { safeGoto } from 'tests/e2e/helpers/safe-navigation'
+import type { PlaywrightOptions } from './test-data'
+import { safeGoto } from './safe-navigation'
 
 const dbName = 'AppDb'
 const storeNames = {
