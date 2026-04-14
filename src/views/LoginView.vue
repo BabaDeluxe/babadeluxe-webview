@@ -236,7 +236,10 @@ const signInWithSupabaseOAuth = async (
       if (unknownError instanceof Error) {
         return new AuthError(unknownError.message, unknownError)
       }
-      return new AuthError(`${provider.charAt(0).toUpperCase() + provider.slice(1)} OAuth failed`, unknownError)
+      return new AuthError(
+        `${provider.charAt(0).toUpperCase() + provider.slice(1)} OAuth failed`,
+        unknownError
+      )
     }
   )
 
@@ -381,9 +384,12 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
     const oauthResult = await vsCodeAuth.requestOAuthLoginFromExtension(provider)
 
     if (oauthResult.isErr()) {
-      logger.error(`${providerName} OAuth failed in VS Code mode, falling back to direct Supabase login`, {
-        error: oauthResult.error.message,
-      })
+      logger.error(
+        `${providerName} OAuth failed in VS Code mode, falling back to direct Supabase login`,
+        {
+          error: oauthResult.error.message,
+        }
+      )
     } else {
       if (!oauthResult.value) {
         logger.warn(`${providerName} OAuth aborted by user`)
