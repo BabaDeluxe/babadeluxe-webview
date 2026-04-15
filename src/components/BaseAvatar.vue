@@ -29,17 +29,23 @@
 
 <script setup lang="ts">
 import type { EnvConfigType } from '@/env-validator'
-import { ENV_CONFIG_KEY } from '@/injection-keys'
+import { ENV_CONFIG_KEY, LOGGER_KEY } from '@/injection-keys'
 import IconRobot from '@/components/IconRobot.vue'
 import { useUserAvatar } from '@/composables/use-user-avatar'
 import { safeInject } from '@/safe-inject'
 
+const logger = safeInject(LOGGER_KEY)
 const envConfig: EnvConfigType = safeInject(ENV_CONFIG_KEY)
-const projectRef = new URL(envConfig.VITE_SUPABASE_URL).hostname.split('.')[0]
+const supabaseUrl = envConfig.VITE_SUPABASE_URL ?? ''
+const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : ''
+if (!projectRef) {
+  logger.warn('ProjectRef is unset in during base avatar component init')
+}
 
 defineProps<{
   role?: 'user' | 'assistant'
 }>()
 
-const { avatarUrl } = useUserAvatar(projectRef)
+const avatarUrlRef = useUserAvatar(projectRef)?.avatarUrl
+const avatarUrl = avatarUrlRef ? avatarUrlRef.value : undefined
 </script>

@@ -17,6 +17,9 @@ importers:
       '@lottiefiles/dotlottie-vue':
         specifier: ^0.10.1
         version: 0.10.15(vue@3.5.32(typescript@5.8.3))
+      '@statsig/js-client':
+        specifier: ^1.7.0
+        version: 1.7.0
       '@supabase/supabase-js':
         specifier: ^2.57.0
         version: 2.103.0
@@ -1166,6 +1169,12 @@ packages:
 
   '@socket.io/component-emitter@3.1.2':
     resolution: {integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==}
+
+  '@statsig/client-core@1.7.0':
+    resolution: {integrity: sha512-P3yPiEE4xB2XVnnhQJ23MhhfpnAa1aH4ss8ck6z/Iejf3TF+A1eSRJ+RWXPzdhZTvXFkKWS/GHBbIrVAqVavGQ==}
+
+  '@statsig/js-client@1.7.0':
+    resolution: {integrity: sha512-aykSVAzRsnu8mBk9JC8hfOmDzHGFfdUb0G+YgMzcM7XqmGN8Xpnf1Q70UaPA863utQhmExx6wOqzABq4sxxC4g==}
 
   '@stylistic/eslint-plugin@2.13.0':
     resolution: {integrity: sha512-RnO1SaiCFHn666wNz2QfZEFxvmiNRqhzaMXHXxXXKt+MEP7aajlPxUSMIQpKAaJfverpovEYqjBOXDq6dDcaOQ==}
@@ -5683,6 +5692,12 @@ snapshots:
   '@sindresorhus/tsconfig@7.0.0': {}
 
   '@socket.io/component-emitter@3.1.2': {}
+
+  '@statsig/client-core@1.7.0': {}
+
+  '@statsig/js-client@1.7.0':
+    dependencies:
+      '@statsig/client-core': 1.7.0
 
   '@stylistic/eslint-plugin@2.13.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.8.3)':
     dependencies:

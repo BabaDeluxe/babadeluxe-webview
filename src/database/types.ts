@@ -34,3 +34,11 @@ export type Message = {
   systemPrompt?: string
   contextReferences?: ContextReference[]
 }
+
+export type LocalSetting = {
+  id?: number
+  settingKey: string
+  settingValue: unknown
+  dataType: 'string' | 'number' | 'boolean'
+  updatedAt: Date
+}

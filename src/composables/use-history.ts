@@ -13,29 +13,29 @@ import {
 import { safeInject } from '@/safe-inject'
 import { type Conversation, type Message } from '@/database/types'
 import type { SearchService } from '@/search-service'
-import type { KeyValueStore } from '@/database/key-value-store'
 import type { AbstractLogger } from '@/logger'
 import { AuthError } from '@/errors'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { useHistorySearch } from '@/composables/use-history-search'
+import { isOfflineMode } from '@/env-validator'
 
 export function useHistory() {
-  const logger: AbstractLogger = safeInject(LOGGER_KEY)
-  const searchService: SearchService = safeInject(SEARCH_SERVICE_KEY)
-  const keyValueStore: KeyValueStore = safeInject(KEY_VALUE_STORE_KEY)
-  const supabase = safeInject(SUPABASE_CLIENT_KEY)
-  const appDb = safeInject(APP_DB_KEY)
-
-  const conversationStore = useConversationStore()
-  const { conversations, isLoadingConversations, error } = storeToRefs(conversationStore)
+  const store = useConversationStore()
+  const { conversations, isLoadingConversations, error } = storeToRefs(store)
   const {
     initialize,
     getMessageCount,
     deleteConversation,
+    updateConversationTitle,
     deleteMessage,
     updateUserMessage,
-    updateConversationTitle,
-  } = conversationStore
+  } = store
+
+  const appDb = safeInject(APP_DB_KEY)
+  const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)
+  const logger: AbstractLogger = safeInject(LOGGER_KEY)
+  const searchService: SearchService = safeInject(SEARCH_SERVICE_KEY)
+  const supabase = safeInject(SUPABASE_CLIENT_KEY)
 
   const {
     leftWidthPercent: splitLeftWidthPercent,
@@ -44,11 +44,12 @@ export function useHistory() {
     startDragging: splitStartDragging,
   } = useResizableSplit({
     keyValueStore,
-    storageKey: 'history-split-ratio',
-    refKey: 'splitContainer',
-    defaultRatio: 35,
-    minRatio: 25,
-    maxRatio: 65,
+    storageKey: 'history-horizontal-split-ratio',
+    refKey: 'horizontal-split-container',
+    defaultRatio: 30,
+    minRatio: 20,
+    maxRatio: 80,
+    direction: 'horizontal',
   })
 
   const {
@@ -59,10 +60,10 @@ export function useHistory() {
   } = useResizableSplit({
     keyValueStore,
     storageKey: 'history-vertical-split-ratio',
-    refKey: 'verticalContainer',
-    defaultRatio: 50,
-    minRatio: 0,
-    maxRatio: 70,
+    refKey: 'vertical-split-container',
+    defaultRatio: 40,
+    minRatio: 20,
+    maxRatio: 80,
     direction: 'vertical',
   })
 
@@ -80,24 +81,30 @@ export function useHistory() {
   })
 
   const fetchUserId = async (): Promise<void> => {
-    const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) =>
-      unknownError instanceof Error
-        ? new AuthError(unknownError.message, unknownError)
-        : new AuthError('Failed to fetch user', unknownError)
+    if (isOfflineMode()) {
+      currentUserId.value = 'offline-user'
+      return
+    }
+
+    const getUserResult = await ResultAsync.fromPromise(
+      supabase.auth.getUser(),
+      (unknownError: unknown) =>
+        unknownError instanceof Error
+          ? new AuthError(unknownError.message, unknownError)
+          : new AuthError('Failed to fetch user', unknownError)
     )
 
-    getUserResult.match(
-      (response) => {
-        if (response.data.user?.id) {
-          currentUserId.value = response.data.user.id
-        }
-      },
-      (fetchError) => {
-        logger.error('Failed to fetch user details for history view', {
-          error: fetchError,
-        })
-      }
-    )
+    if (getUserResult.isErr()) {
+      logger.error('Failed to fetch user details for history view', {
+        error: getUserResult.error,
+      })
+      return
+    }
+
+    const userId = getUserResult.value.data.user?.id
+    if (userId) {
+      currentUserId.value = userId
+    }
   }
 
   const loadMessagesForConversation = async (conversationId: number): Promise<void> => {
@@ -127,24 +134,24 @@ export function useHistory() {
   const switchToConversation = async (conversationId: number): Promise<void> => {
     if (!conversationId || conversationId === selectedConversationId.value) return
 
-    isLoadingMessages.value = true
     selectedConversationId.value = conversationId
     await loadMessagesForConversation(conversationId)
-    isLoadingMessages.value = false
   }
 
-  const navigateToMessage = async (mid: number, cid: number) => {
-    await switchToConversation(cid)
+  const navigateToMessage = async (messageId: number, conversationId: number): Promise<void> => {
+    await switchToConversation(conversationId)
     await nextTick()
     await nextTick()
 
     const messageElement = document.querySelector(
-      `[data-message-id="${mid}"]`
+      `[data-message-id="${messageId}"]`
     ) as HTMLElement | null
+
     if (!messageElement) return
 
     messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
     messageElement.style.backgroundColor = 'rgba(var(--accent-rgb), 0.2)'
+
     createTimeout(() => {
       messageElement.style.backgroundColor = ''
     }, 2000)
@@ -173,7 +180,9 @@ export function useHistory() {
   })
 
   const currentConversationTitle = computed(() => {
-    const conversation = conversations.value.find((c) => c.id === selectedConversationId.value)
+    const conversation = conversations.value.find(
+      (item) => item.id === selectedConversationId.value
+    )
     return conversation?.title || 'Unknown Conversation'
   })
 
@@ -185,7 +194,7 @@ export function useHistory() {
     )
   })
 
-  const handleDeleteConversation = async (conversationId: number) => {
+  const handleDeleteConversation = async (conversationId: number): Promise<void> => {
     if (!confirm('Are you sure you want to delete this conversation? This cannot be undone.')) {
       return
     }
@@ -199,13 +208,16 @@ export function useHistory() {
         error: result.error,
       })
       error.value = 'Failed to delete conversation'
-    } else if (selectedConversationId.value === conversationId) {
+      return
+    }
+
+    if (selectedConversationId.value === conversationId) {
       selectedConversationId.value = null
       selectedConversationMessages.value = []
     }
   }
 
-  const handleRenameConversation = (conversation: Conversation) => {
+  const handleRenameConversation = (conversation: Conversation): void => {
     renameDialog.value = {
       'is-shown': true,
       conversation,
@@ -213,7 +225,7 @@ export function useHistory() {
     }
   }
 
-  const confirmRename = async () => {
+  const confirmRename = async (): Promise<void> => {
     if (!renameDialog.value.conversation || !renameDialog.value.title.trim()) {
       return
     }
@@ -236,7 +248,7 @@ export function useHistory() {
     cancelRename()
   }
 
-  const cancelRename = () => {
+  const cancelRename = (): void => {
     renameDialog.value = {
       'is-shown': false,
       conversation: null,
@@ -244,7 +256,7 @@ export function useHistory() {
     }
   }
 
-  const handleDeleteMessage = async (messageId: number) => {
+  const handleDeleteMessage = async (messageId: number): Promise<void> => {
     if (!confirm('Are you sure you want to delete this message?')) {
       return
     }
@@ -263,11 +275,11 @@ export function useHistory() {
     }
 
     selectedConversationMessages.value = selectedConversationMessages.value.filter(
-      (m) => m.id !== messageId
+      (message) => message.id !== messageId
     )
   }
 
-  const handleEditMessage = async (messageId: number, content: string) => {
+  const handleEditMessage = async (messageId: number, content: string): Promise<void> => {
     const result = await updateUserMessage(messageId, content)
 
     if (result.isErr()) {
@@ -281,22 +293,26 @@ export function useHistory() {
       return
     }
 
-    const idx = selectedConversationMessages.value.findIndex((m) => m.id === messageId)
-    if (idx !== -1) {
-      const updated: Message = {
-        ...selectedConversationMessages.value[idx],
-        content,
-      }
-      selectedConversationMessages.value.splice(idx, 1, updated)
+    const messageIndex = selectedConversationMessages.value.findIndex(
+      (message) => message.id === messageId
+    )
+
+    if (messageIndex === -1) return
+
+    const updatedMessage: Message = {
+      ...selectedConversationMessages.value[messageIndex],
+      content,
     }
+
+    selectedConversationMessages.value.splice(messageIndex, 1, updatedMessage)
   }
 
-  const onSwitchConversation = async (conversation: Conversation) => {
+  const onSwitchConversation = async (conversation: Conversation): Promise<void> => {
     if (conversation.id == null) return
     await switchToConversation(conversation.id)
   }
 
-  const onDeleteConversation = async (conversation: Conversation) => {
+  const onDeleteConversation = async (conversation: Conversation): Promise<void> => {
     if (conversation.id == null) return
     await handleDeleteConversation(conversation.id)
   }
@@ -310,6 +326,7 @@ export function useHistory() {
     splitRightWidthPercent,
     splitIsDragging,
     splitStartDragging,
+
     verticalTopHeightPercent,
     verticalBottomHeightPercent,
     verticalIsDragging,

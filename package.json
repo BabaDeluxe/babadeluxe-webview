@@ -65,6 +65,7 @@
     "@babadeluxe/shared": "^0.20.6",
     "@iconify/types": "^2.0.0",
     "@lottiefiles/dotlottie-vue": "^0.10.1",
+    "@statsig/js-client": "^1.7.0",
     "@supabase/supabase-js": "^2.57.0",
     "@vueuse/core": "^13.7.0",
     "colorino": "^0.19.3",

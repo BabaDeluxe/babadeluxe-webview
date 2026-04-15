@@ -4,7 +4,7 @@
 import { describe, it, expect, afterEach, vi, test } from 'vitest'
 import type { Root } from '@babadeluxe/shared'
 import { nextTick } from 'vue'
-import { useSettingsSocket } from '@/composables/use-settings-socket'
+import { useSettings } from '@/composables/use-settings'
 import * as emitWithTimeoutModule from '@/emit-with-timeout'
 import { mountComposable } from './helpers/mount-composable'
 import type { MockSocket } from './helpers/mock-socket-manager'
@@ -110,12 +110,12 @@ function mockUpsertEmit(): void {
   )
 }
 
-describe('useSettingsSocket()', () => {
+describe('useSettings()', () => {
   function mountSettingsSocket() {
     const { socketManager, global } = createMockSocketManager()
     settingsSocket = socketManager.settingsSocket as MockSettingsSocket
 
-    return mountComposable(() => useSettingsSocket(), {
+    return mountComposable(() => useSettings(), {
       global,
     })
   }
@@ -188,13 +188,11 @@ describe('useSettingsSocket()', () => {
 
   describe('loadSettings', () => {
     it('loads all settings on success', async () => {
-      mockGetAllEmit(
-        fixtures.responses.success([
-          fixtures.settings.openaiKey,
-          fixtures.settings.anthropicKey,
-          fixtures.settings.maxTokens,
-        ])
-      )
+      mockGetAllEmit([
+        fixtures.settings.openaiKey,
+        fixtures.settings.anthropicKey,
+        fixtures.settings.maxTokens,
+      ])
 
       const { settings, loadSettings, isLoading } = mountSettingsSocket()
 

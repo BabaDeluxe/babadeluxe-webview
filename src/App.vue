@@ -99,13 +99,14 @@
         </Suspense>
       </template>
     </Suspense>
+
     <ToastLayer />
   </div>
 </template>
 
 <script setup lang="ts">
-import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { onErrorCaptured } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import ToastLayer from '@/components/ToastLayer.vue'

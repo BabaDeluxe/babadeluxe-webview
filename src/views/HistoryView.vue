@@ -37,7 +37,7 @@
       <template v-if="areSelectedMessagesShown">
         <!-- Mobile: Vertical stack -->
         <div
-          ref="verticalContainer"
+          ref="vertical-split-container"
           class="flex flex-col flex-1 min-h-0 md:hidden"
         >
           <!-- Conversations (Top Half) -->
@@ -90,7 +90,7 @@
 
         <!-- Desktop: Split view -->
         <div
-          ref="splitContainer"
+          ref="horizontal-split-container"
           class="hidden md:flex flex-row flex-1 min-h-0 relative"
         >
           <!-- Left Pane: Conversations -->

@@ -1,7 +1,7 @@
 import { type Ref, ref, onBeforeUnmount } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
-import type { ApiKeyValidator } from '@/api-key-validator'
+import type { ApiKeyValidator, IApiKeyValidator } from '@/api-key-validator'
 import type { AbstractLogger } from '@/logger'
 import { ValidationError, RateLimitError, NetworkError } from '@/errors'
 import { getApiProviders } from '@/settings-utils'
@@ -16,7 +16,7 @@ export type FieldState = {
 }
 
 export function useApiKeyManagement<T, E>(
-  validator: ApiKeyValidator,
+  validator: IApiKeyValidator,
   logger: AbstractLogger,
   upsertSetting: (
     key: string,

@@ -2,7 +2,7 @@ import { ref, watch, onMounted, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEventListener } from '@vueuse/core'
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js'
-import { useSettingsSocket } from '@/composables/use-settings-socket'
+import { useSettings } from '@/composables/use-settings'
 import { useTheme } from '@/composables/use-theme'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { useToastStore } from '@/stores/use-toast-store'
@@ -22,7 +22,7 @@ export function useAppLogic() {
   const router = useRouter()
   const conversationStore = useConversationStore()
   const toasts = useToastStore()
-  const { settings, loadSettings } = useSettingsSocket()
+  const { settings, loadSettings } = useSettings()
   const { isDark } = useTheme()
   const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
 
@@ -44,7 +44,9 @@ export function useAppLogic() {
   useEventListener(window, 'message', handleExtensionMessage)
 
   const handleNewChat = async () => {
-    await conversationStore.markAllStreamingCompleteInCurrentConversation(currentConversationId.value)
+    await conversationStore.markAllStreamingCompleteInCurrentConversation(
+      currentConversationId.value
+    )
     await router.push({ path: '/chat', query: { newConversation: 'true' } })
   }
 

@@ -7,6 +7,7 @@ import { getVsCodeApi } from '@/vs-code/api'
 import { VsCodeAuthGateway, type AuthSessionPayload } from '@/services/vs-code-auth-gateway'
 import { socketTimeoutMs } from '@/constants'
 import { incomingAuthMessageSchema } from '@/vs-code/types'
+import { isOfflineMode } from '@/env-validator'
 
 const isRequestPending = ref(false)
 
@@ -16,16 +17,20 @@ export function useVsCodeAuth() {
 
   const isRunningInsideVsCode = (): boolean => getVsCodeApi().isOk()
 
-  const requestGitHubLoginFromExtension = (timeoutMs?: number) =>
-    gateway.requestLogin(createTimeout as any, cancelTimeout as any, timeoutMs)
+  const requestGitHubLoginFromExtension = (timeoutMs = socketTimeoutMs.vsCodeAuthLogin) =>
+    requestOAuthLoginFromExtension('github', timeoutMs)
 
-  const getStoredSessionFromExtension = (timeoutMs?: number) =>
-    gateway.getSession(createTimeout as any, cancelTimeout as any, timeoutMs)
+  const getStoredSessionFromExtension = (timeoutMs?: number) => {
+    if (isOfflineMode()) return Promise.resolve(ok(undefined))
+    return gateway.getSession(createTimeout as any, cancelTimeout as any, timeoutMs)
+  }
 
   const setSupabaseSession = async (
     supabaseClient: SupabaseClient,
     sessionPayload: AuthSessionPayload
   ): Promise<Result<void, AuthError>> => {
+    if (isOfflineMode()) return ok(undefined)
+
     const setSessionResult = await ResultAsync.fromPromise(
       supabaseClient.auth.setSession({
         access_token: sessionPayload.accessToken,
@@ -49,15 +54,15 @@ export function useVsCodeAuth() {
   }
 
   const clearStoredSession = (): Result<void, AuthError> => {
-    if (!isRunningInsideVsCode()) return ok(undefined)
+    if (!isRunningInsideVsCode() || isOfflineMode()) return ok(undefined)
 
-    const vsCodeApi = getVsCodeApi()
-    if (vsCodeApi.isErr()) return ok(undefined)
-    if (!vsCodeApi.value) return ok(undefined)
+    const apiResult = getVsCodeApi()
+    if (apiResult.isErr()) return ok(undefined)
+    if (!apiResult.value) return ok(undefined)
 
-    const result = Result.fromThrowable(
+    return Result.fromThrowable(
       () => {
-        vsCodeApi.value.postMessage({
+        apiResult.value.postMessage({
           type: 'clear-session',
           payload: {},
         })
@@ -70,14 +75,14 @@ export function useVsCodeAuth() {
         return new AuthError('Failed to clear stored session', unknownError)
       }
     )()
-
-    return result
   }
 
   const requestOAuthLoginFromExtension = async (
     provider: 'github' | 'google',
     timeoutMilliseconds = socketTimeoutMs.vsCodeAuthLogin
   ): Promise<Result<AuthSessionPayload | undefined, NetworkError | AuthError>> => {
+    if (isOfflineMode()) return ok(undefined)
+
     if (isRequestPending.value) {
       return err(new NetworkError('Authentication request already in progress'))
     }
@@ -124,12 +129,7 @@ export function useVsCodeAuth() {
             return
           }
 
-          if (message.type !== 'auth.session') {
-            resolve(err(new AuthError('Unexpectedly login failed')))
-          }
-
           cleanup()
-
           resolve(
             ok({
               accessToken: message.session.accessToken,
@@ -137,7 +137,6 @@ export function useVsCodeAuth() {
               expiresAtUnixSeconds: message.session.expiresAtUnixSeconds,
             })
           )
-          return
         }
 
         timeoutId = createTimeout(() => {

@@ -12,6 +12,7 @@
         <div class="font-medium text-deepText truncate">{{ prompt.name }}</div>
         <div class="text-sm text-subtleText truncate">/{{ prompt.command ?? '' }}</div>
       </div>
+
       <div class="flex items-center gap-1 flex-shrink-0">
         <span
           v-if="prompt.isSystem"
@@ -19,6 +20,7 @@
         >
           System
         </span>
+
         <BaseButton
           v-if="!prompt.isSystem"
           variant="ghost"

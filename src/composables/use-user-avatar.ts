@@ -28,6 +28,8 @@ function extractAvatarUrl(session: Session | undefined): string | undefined {
 }
 
 export function useUserAvatar(projectRef: string) {
+  if (!projectRef) return
+
   const avatarUrl = computed(() => {
     const now = Date.now()
 

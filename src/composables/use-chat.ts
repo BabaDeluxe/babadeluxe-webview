@@ -20,6 +20,7 @@ import { useChatContextHandler } from '@/composables/use-chat-context-handler'
 import { useChatStreaming } from '@/composables/use-chat-streaming'
 import { useChatHistory } from '@/composables/use-chat-history'
 import { useChatInput } from '@/composables/use-chat-input'
+import { isOfflineMode } from '@/env-validator'
 
 type ChatMessageInstance = InstanceType<typeof ChatMessage>
 type ChatInputInstance = InstanceType<typeof ChatInput>
@@ -60,7 +61,8 @@ export function useChat() {
   const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
 
   const { isChatStreaming, currentStreamingMessageId, abortChatMessage } = useChatStreaming()
-  const { messages, isLoadingMessages, loadMessagesForCurrentConversation } = useChatHistory(currentConversationId)
+  const { messages, isLoadingMessages, loadMessagesForCurrentConversation } =
+    useChatHistory(currentConversationId)
   const { currentMessage, currentPrompt, currentModel, clearMessage } = useChatInput()
 
   const currentUsername = ref('User')
@@ -92,6 +94,13 @@ export function useChat() {
 
   const isLoadingConversations = ref(false)
 
+  const {
+    prompts,
+    isLoading: isLoadingPrompts,
+    error: promptsError,
+    clearError: clearPromptsError,
+  } = usePromptsSocket()
+
   const { persistenceWarning } = useChatAlerts(
     conversationError,
     contextError,
@@ -111,12 +120,6 @@ export function useChat() {
   })
 
   const { groupedModels, isLoadingModels, modelsLoadedCount } = useModelsSocket()
-  const {
-    prompts,
-    isLoading: isLoadingPrompts,
-    error: promptsError,
-    clearError: clearPromptsError,
-  } = usePromptsSocket()
   const { shouldShowModal, dismissModal } = useSubscriptionSocket()
 
   const promptOptions = computed(() => {
@@ -161,6 +164,12 @@ export function useChat() {
   }
 
   const fetchUsername = async (): Promise<void> => {
+    if (isOfflineMode()) {
+      currentUserId.value = 'offline-user'
+      currentUsername.value = 'Local User'
+      return
+    }
+
     const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) =>
       unknownError instanceof Error
         ? new AuthError(unknownError.message, unknownError)
@@ -596,6 +605,7 @@ export function useChat() {
 
       const trimmed = text.trim()
       if (trimmed === lastPreviewText) return
+
       lastPreviewText = trimmed
 
       const result = await refreshSuggestions(trimmed)
@@ -612,9 +622,7 @@ export function useChat() {
   )
 
   watch(currentConversationId, async (newId, oldId) => {
-    if (newId !== oldId) {
-      await loadMessagesForCurrentConversation()
-    }
+    if (newId !== oldId) await loadMessagesForCurrentConversation()
   })
 
   watch(
@@ -644,10 +652,8 @@ export function useChat() {
       if (!newModelGroups || newModelGroups.length === 0) return
 
       for (const modelGroup of newModelGroups) {
-        if (modelGroup.items.length <= 0) continue
-
+        if (modelGroup.items.length === 0) continue
         const preferredModel = findPreferredModel(modelGroup.items)
-
         if (preferredModel) {
           currentModel.value = preferredModel.value
           return
@@ -688,7 +694,6 @@ export function useChat() {
 
     const allItems: ModelItem[] = groupedModels.value.flatMap((group) => group.items as ModelItem[])
     const match = allItems.find((item) => item.value === fullValue)
-
     return match?.contextWindow
   }
 
@@ -706,9 +711,7 @@ export function useChat() {
     { immediate: true }
   )
 
-  onMounted(() => {
-    void initializeChat()
-  })
+  onMounted(() => void initializeChat())
 
   return {
     chatInputRef,
@@ -732,7 +735,6 @@ export function useChat() {
     contextUsageWarning,
     lastContextUsage,
     shouldShowModal,
-
     registerMessageComponent,
     handleSendMessage,
     handleAbortMessage,

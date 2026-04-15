@@ -8,22 +8,21 @@
       <h3 class="text-lg font-medium text-deepText">All Prompts</h3>
       <BaseButton
         variant="primary"
+        icon="i-bi:plus-lg"
+        text="New Prompt"
         data-testid="prompts-new-button"
-        icon="i-bi:plus-circle"
         @click="handleCreateNewPrompt"
-      >
-        New Prompt
-      </BaseButton>
+      />
     </div>
 
     <div
       v-if="hasComponentError"
       data-testid="component-error"
-      class="flex flex-1 flex-col items-center justify-center gap-4 text-center px-4"
+      class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
     >
       <p class="text-error text-lg">Something went wrong with the prompts view.</p>
       <BaseButton
-        variant="ghost"
+        variant="secondary"
         data-testid="prompts-reload-button"
         @click="handleReload"
       >
@@ -31,26 +30,22 @@
       </BaseButton>
     </div>
 
-    <template v-else>
-      <div
-        v-if="isLoading"
-        data-testid="prompts-loading-state"
-        class="flex flex-1 justify-center items-center"
-      >
-        <BaseSpinner
-          size="medium"
-          message="Loading prompts..."
-        />
-      </div>
+    <div
+      v-else-if="isLoading"
+      data-testid="prompts-loading-state"
+      class="flex-1 flex items-center justify-center"
+    >
+      <BaseSpinner
+        size="large"
+        message="Loading prompts..."
+      />
+    </div>
 
-      <div
-        v-else
-        class="flex flex-col flex-1 min-h-0 w-full overflow-hidden pt-4 px-4"
-      >
-        <!-- Adaptive layout using PromptLayout -->
+    <template v-else>
+      <div class="flex flex-col flex-1 min-h-0 w-full overflow-hidden pt-4 px-4">
         <PromptLayout
           v-if="isMobile"
-          ref-key="verticalContainer"
+          ref-key="vertical-split-container"
           direction="vertical"
           :left-width-percent="verticalTopHeightPercent"
           :right-width-percent="verticalBottomHeightPercent"
@@ -61,11 +56,13 @@
             <PromptList
               :prompts="prompts"
               :selected-prompt-id="selectedPromptId"
-              :empty-description="'No prompts created yet. Click New Prompt to start.'"
+              empty-description="No prompts created yet. Click New Prompt to start."
+              data-testid="prompt-list"
               @select="handleSelectPrompt"
               @delete="handleDeletePrompt"
             />
           </template>
+
           <template #detail>
             <PromptEditor
               v-if="selectedPrompt || isCreatingNewPrompt"
@@ -90,7 +87,7 @@
 
         <PromptLayout
           v-else
-          ref-key="splitContainer"
+          ref-key="horizontal-split-container"
           direction="horizontal"
           :left-width-percent="splitLeftWidthPercent"
           :right-width-percent="splitRightWidthPercent"
@@ -101,11 +98,13 @@
             <PromptList
               :prompts="prompts"
               :selected-prompt-id="selectedPromptId"
-              :empty-description="'No prompts created yet. Click New Prompt to start.'"
+              empty-description="No prompts created yet. Click New Prompt to start."
+              data-testid="prompt-list"
               @select="handleSelectPrompt"
               @delete="handleDeletePrompt"
             />
           </template>
+
           <template #detail>
             <PromptEditor
               v-if="selectedPrompt || isCreatingNewPrompt"
@@ -161,6 +160,7 @@ import { safeInject } from '@/safe-inject'
 import { AuthError } from '@/errors'
 import { toUserMessage } from '@/error-mapper'
 import { useToastStore } from '@/stores/use-toast-store'
+import { isOfflineMode } from '@/env-validator'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
@@ -207,7 +207,7 @@ const {
 } = useResizableSplit({
   keyValueStore,
   storageKey: 'prompts-split-ratio',
-  refKey: 'splitContainer',
+  refKey: 'horizontal-split-container',
   defaultRatio: 33,
   minRatio: 20,
   maxRatio: 50,
@@ -221,7 +221,7 @@ const {
 } = useResizableSplit({
   keyValueStore,
   storageKey: 'prompts-vertical-split-ratio',
-  refKey: 'verticalContainer',
+  refKey: 'vertical-split-container',
   defaultRatio: 40,
   direction: 'vertical',
   minRatio: 0,
@@ -298,6 +298,11 @@ watch(
 )
 
 const fetchUserId = async (): Promise<void> => {
+  if (isOfflineMode()) {
+    currentUserId.value = 'offline-user'
+    return
+  }
+
   const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
     if (unknownError instanceof Error) {
       return new AuthError(unknownError.message, unknownError)
