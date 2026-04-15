@@ -12,6 +12,7 @@
         "./src/*"
       ]
     },
+    "rootDir": ".",
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
@@ -22,9 +23,9 @@
     "jsx": "preserve"
   },
   "include": [
-    "*.ts",
-    "./src/**/*.ts",
-    "./tests/**/*.ts"
+    "./src/**/*",
+    "./tests/**/*",
+    "./*.ts"
   ],
   "exclude": [
     "./dist",
