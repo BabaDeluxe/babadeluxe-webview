@@ -1,135 +1,139 @@
-import {nextTick, ref} from 'vue';
-import {SOCKET_MANAGER_KEY} from '@/injection-keys.js';
-import type {BaseResponse} from '@/emit-with-timeout';
+import { nextTick, ref } from 'vue'
+import { SOCKET_MANAGER_KEY } from '@/injection-keys.js'
+import type { BaseResponse } from '@/emit-with-timeout'
 
-type EventHandler = (...args: any[]) => void;
+type EventHandler = (...args: any[]) => void
 
 export class MockSocket {
-	public isConnected = true;
-	private readonly _handlers = new Map<string, EventHandler[]>();
+  public isConnected = true
+  private readonly _handlers = new Map<string, EventHandler[]>()
 
-	timeout(_ms: number) {
-		return {
-			emit(_event: string, ...args: any[]): {isOk: () => boolean; isErr: () => boolean} {
-				const callback = args.at(-1) as (error: unknown, response: BaseResponse) => void;
-				const response: BaseResponse = {success: true};
+  timeout({ _ms }: { _ms: number }) {
+    return {
+      emit(_event: string, ...args: any[]): { isOk: () => boolean; isErr: () => boolean } {
+        const callback = args.at(-1) as (error: unknown, response: BaseResponse) => void
+        const response: BaseResponse = { success: true }
 
-				setTimeout(() => {
-					callback(null, response);
-				}, 0);
+        setTimeout(() => {
+          callback(null, response)
+        }, 0)
 
-				return {
-					isOk: () => true,
-					isErr: () => false,
-				};
-			},
-		};
-	}
+        return {
+          isOk: () => true,
+          isErr: () => false,
+        }
+      },
+    }
+  }
 
-	on(event: string, handler: EventHandler): void {
-		if (!this._handlers.has(event)) {
-			this._handlers.set(event, []);
-		}
+  on(event: string, handler: EventHandler): void {
+    if (!this._handlers.has(event)) {
+      this._handlers.set(event, [])
+    }
 
-		this._handlers.get(event)!.push(handler);
-	}
+    this._handlers.get(event)!.push(handler)
+  }
 
-	off(event: string, handler: EventHandler): void {
-		const handlers = this._handlers.get(event);
-		if (!handlers) {
-			return;
-		}
+  off(event: string, handler: EventHandler): void {
+    const handlers = this._handlers.get(event)
+    if (!handlers) {
+      return
+    }
 
-		const index = handlers.indexOf(handler);
-		if (index !== -1) {
-			handlers.splice(index, 1);
-		}
-	}
+    const index = handlers.indexOf(handler)
+    if (index !== -1) {
+      handlers.splice(index, 1)
+    }
+  }
 
-	emit(
-		_event: string,
-		_payload?: any,
-		callback?: (response: any) => void,
-	): {isOk: () => boolean; isErr: () => boolean} {
-		if (callback) {
-			setTimeout(() => {
-				callback({success: true});
-			}, 0);
-		}
+  emit(
+    _event: string,
+    _payload?: any,
+    callback?: (response: any) => void
+  ): { isOk: () => boolean; isErr: () => boolean } {
+    if (callback) {
+      setTimeout(() => {
+        callback({ success: true })
+      }, 0)
+    }
 
-		return {
-			isOk: () => true,
-			isErr: () => false,
-		};
-	}
+    return {
+      isOk: () => true,
+      isErr: () => false,
+    }
+  }
 
-	async waitForConnection(): Promise<{
-		isOk: () => boolean;
-		isErr: () => boolean;
-		value: undefined;
-		error: undefined;
-	}> {
-		return {
-			isOk: () => true,
-			isErr: () => false,
-			value: undefined,
-			error: undefined,
-		};
-	}
+  async waitForConnection(): Promise<{
+    isOk: () => boolean
+    isErr: () => boolean
+    value: undefined
+    error: undefined
+  }> {
+    return {
+      isOk: () => true,
+      isErr: () => false,
+      value: undefined,
+      error: undefined,
+    }
+  }
 
-	trigger(event: string, payload?: any): void {
-		const handlers = this._handlers.get(event);
-		if (!handlers) {
-			return;
-		}
+  trigger(event: string, payload?: any): void {
+    const handlers = this._handlers.get(event)
+    if (!handlers) {
+      return
+    }
 
-		for (const handler of handlers) {
-			handler(payload);
-		}
-	}
+    for (const handler of handlers) {
+      handler(payload)
+    }
+  }
 }
 
-export type MockChatSocket = MockSocket;
-export type MockSettingsSocket = MockSocket;
-export type MockSubscriptionSocket = MockSocket;
+export type MockChatSocket = MockSocket
+export type MockSettingsSocket = MockSocket
+export type MockSubscriptionSocket = MockSocket
 
 export class MockSocketManager {
-	public readonly chatSocket: MockChatSocket;
-	public readonly settingsSocket: MockSettingsSocket;
-	public readonly subscriptionSocket: MockSubscriptionSocket;
+  public readonly chatSocket: MockChatSocket
+  public readonly settingsSocket: MockSettingsSocket
+  public readonly subscriptionSocket: MockSubscriptionSocket
 
-	constructor(options: {
-		chatSocket?: MockChatSocket;
-		settingsSocket?: MockSettingsSocket;
-		subscriptionSocket?: MockSubscriptionSocket;
-	} = {}) {
-		this.chatSocket = options.chatSocket ?? new MockSocket();
-		this.settingsSocket = options.settingsSocket ?? new MockSocket();
-		this.subscriptionSocket = options.subscriptionSocket ?? new MockSocket();
-	}
+  constructor(
+    options: {
+      chatSocket?: MockChatSocket
+      settingsSocket?: MockSettingsSocket
+      subscriptionSocket?: MockSubscriptionSocket
+    } = {}
+  ) {
+    this.chatSocket = options.chatSocket ?? new MockSocket()
+    this.settingsSocket = options.settingsSocket ?? new MockSocket()
+    this.subscriptionSocket = options.subscriptionSocket ?? new MockSocket()
+  }
 }
 
-export function createMockSocketManager(options: {
-	chatSocket?: MockChatSocket;
-	settingsSocket?: MockSettingsSocket;
-	subscriptionSocket?: MockSubscriptionSocket;
-} = {}) {
-	const socketManager = new MockSocketManager(options);
+export function createMockSocketManager(
+  options: {
+    chatSocket?: MockChatSocket
+    settingsSocket?: MockSettingsSocket
+    subscriptionSocket?: MockSubscriptionSocket
+  } = {}
+) {
+  const socketManager = new MockSocketManager(options)
 
-	const global = {
-		provide: {
-			[SOCKET_MANAGER_KEY as symbol]: ref(socketManager),
-		},
-	};
+  const global = {
+    provide: {
+      [SOCKET_MANAGER_KEY as symbol]: ref(socketManager),
+    },
+  }
 
-	return {
-		socketManager,
-		socketManagerRef: ref(socketManager),
-		global,
-	};
+  return {
+    socketManager,
+    socketManagerRef: ref(socketManager),
+    global,
+  }
 }
 
 export async function trigger(socket: MockSocket, event: string, payload?: any): Promise<void> {
-	socket.trigger(event, payload);
-	await nextTick();
+  socket.trigger(event, payload)
+  await nextTick()
 }
