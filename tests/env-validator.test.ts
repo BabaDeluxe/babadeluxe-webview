@@ -5,7 +5,7 @@ type Writeable<T> = {
   -readonly [P in keyof T]: T[P]
 }
 
-const env: Writeable<EnvConfigType> = import.meta.env as Writeable<EnvConfigType>
+const env: Writeable<EnvConfigType> = import.meta.env as unknown as Writeable<EnvConfigType>
 
 describe('validateEnvConfig()', () => {
   const originalEnv = { ...env }
