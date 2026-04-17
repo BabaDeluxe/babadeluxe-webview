@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { useEventListener } from '@vueuse/core'
 import { err, ok, type Result } from 'neverthrow'
 import type { ValidationError } from '@/errors'
-import { NetworkError } from '@/errors'
+import type { NetworkError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
 import { logger } from '@/logger'
 import type {

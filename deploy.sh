@@ -17,20 +17,14 @@ if [ -f ".env" ]; then
   LOADED_KEYS=()
 
   while IFS= read -r line || [ -n "$line" ]; do
-    # skip comments and blank lines
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-    # skip lines without '='
     [[ "$line" != *"="* ]] && continue
 
-    # split at first '='
     key="${line%%=*}"
     value="${line#*=}"
-
-    # trim spaces around key
     key="$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
-    # skip invalid keys
     [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && continue
 
     export "$key=$value"
@@ -46,26 +40,21 @@ else
   log ".env not found in ${SCRIPT_DIR}"
 fi
 
-# interval in ms from env, default 5 minutes
 DEPLOY_CHECK_INTERVAL_MS="${DEPLOY_CHECK_INTERVAL_MS:-300000}"
 DEPLOY_INTERVAL_SECONDS=$((DEPLOY_CHECK_INTERVAL_MS / 1000))
 
-# Vite outDir is 'dist' in vite.config.ts
 BUILD_DIR="${BUILD_DIR:-dist}"
 
-# branches (auto-discovery with env override)
-# prefer explicit env vars; otherwise infer default main branch name
 DEFAULT_PROD_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || echo 'master')"
 
 STAGING_BRANCH="${STAGING_BRANCH:-dev}"
 PROD_BRANCH="${PROD_BRANCH:-$DEFAULT_PROD_BRANCH}"
 
-# docroots (adjust to your real Plesk paths)
 STAGING_DOCROOT="${STAGING_DOCROOT:-/var/www/vhosts/babadeluxe.com/webview-staging.babadeluxe.com}"
 PROD_DOCROOT="${PROD_DOCROOT:-/var/www/vhosts/babadeluxe.com/webview.babadeluxe.com}"
 
 deploy_one() {
-  local name="$1"     # "staging" | "production"
+  local name="$1"
   local branch="$2"
   local target
 
@@ -77,7 +66,6 @@ deploy_one() {
 
   log "[webview:${name}] checking for changes on branch '${branch}'..."
 
-  # preserve local hacks: abort if dirty
   if [ -n "$(git status --porcelain)" ]; then
     log "[webview:${name}] deploy aborted: working tree is dirty in ${SCRIPT_DIR}"
     return 1
@@ -98,8 +86,8 @@ deploy_one() {
 
   git pull --ff-only origin "${branch}"
 
-  npm ci --include=dev
-  npm run build
+  pnpm install --frozen-lockfile
+  pnpm run build
 
   mkdir -p "${target}"
   rsync -a --delete "${SCRIPT_DIR}/${BUILD_DIR}/" "${target}/"
@@ -120,4 +108,3 @@ while true; do
   run_cycle
   sleep "${DEPLOY_INTERVAL_SECONDS}"
 done
-
