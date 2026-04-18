@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 import { err, ok, type Result } from 'neverthrow'
 import { z } from 'zod'
 
@@ -9,12 +8,19 @@ const offlineModeSchema = z
 
 const envConfigSchema = z
   .object({
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     VITE_NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     VITE_SUPABASE_URL: z.string().url().optional(),
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     VITE_SOCKET_URL: z.string().url().optional(),
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     VITE_OFFLINE_MODE: offlineModeSchema,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     VITE_GA_MEASUREMENT_ID: z.string().min(1).optional(),
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     VITE_STATSIG_CLIENT_KEY: z.string().min(1).optional(),
   })
   .superRefine((config, ctx) => {
@@ -25,7 +31,9 @@ const envConfigSchema = z
     if (!config.VITE_SUPABASE_URL) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
+
         path: ['VITE_SUPABASE_URL'],
+
         message: 'VITE_SUPABASE_URL is required when offline mode is disabled',
       })
     }
@@ -33,7 +41,9 @@ const envConfigSchema = z
     if (!config.VITE_SUPABASE_ANON_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
+
         path: ['VITE_SUPABASE_ANON_KEY'],
+
         message: 'VITE_SUPABASE_ANON_KEY is required when offline mode is disabled',
       })
     }

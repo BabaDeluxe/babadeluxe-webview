@@ -53,12 +53,7 @@
   },
   "eslint.enable": true,
   "eslint.format.enable": false,
-  "eslint.validate": [
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "vue"
-  ],
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },

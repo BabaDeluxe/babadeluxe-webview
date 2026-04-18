@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 <template>
   <div class="flex flex-col gap-2">
     <ContextRootBar
@@ -62,9 +61,9 @@
   </div>
 </template>
 
-<!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { VsCodeContextItem } from '@/stores/use-vs-code-context-store'
 import ChatInput from '@/components/ChatInput.vue'
 import ContextPanel from '@/components/ContextPanel.vue'
 import ContextRootBar from '@/components/ContextRootBar.vue'
@@ -75,7 +74,7 @@ defineProps<{
   modelValue: string
   isInVsCode: boolean
   isContextRootBarVisible: boolean
-  contextItems: any[]
+  contextItems: VsCodeContextItem[]
   hasContextError: boolean
   isLoadingContext: boolean
   isDisabled: boolean
@@ -102,7 +101,7 @@ const emit = defineEmits<{
   (event: 'abort'): void
   (event: 'hide-root-bar'): void
   (event: 'toggle-root-bar'): void
-  (event: 'remove-context-item', payload: any): void
+  (event: 'remove-context-item', payload: string): void
   (event: 'clear-all-context'): void
   (event: 'toggle-lock', filePath: string): void
 }>()

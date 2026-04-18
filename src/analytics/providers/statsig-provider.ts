@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { StatsigClient } from '@statsig/js-client'
 import type { AnalyticsProvider } from '../types'
 import type { AbstractLogger } from '@/logger'
@@ -32,6 +31,7 @@ export class StatsigProvider implements AnalyticsProvider {
 
   trackEvent(event: string, properties?: Record<string, unknown>): void {
     if (!this._isInitialized || !this._client) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this._client.logEvent(event, undefined, properties as any)
     this._logger.debug(`[${this.name}] Tracked event: ${event}`, properties)
   }
@@ -39,6 +39,7 @@ export class StatsigProvider implements AnalyticsProvider {
   identify(userId: string, traits?: Record<string, unknown>): void {
     if (!this._isInitialized || !this._client) return
     // Note: In @statsig/js-client, updateUserAsync is used for updating user identity
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     void this._client.updateUserAsync({ userID: userId, custom: traits as any })
     this._logger.debug(`[${this.name}] Identified user: ${userId}`, traits)
   }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ref, onBeforeUnmount, readonly, computed, watch, inject } from 'vue'
 import { type UserSettingWithValidation } from '@babadeluxe/shared'
 import { type NetworkError } from '@/errors'

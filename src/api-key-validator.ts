@@ -28,7 +28,10 @@ type ValidationErrorResponse = {
 }
 
 export interface IApiKeyValidator {
-  validate(provider: string, apiKey: string): Promise<Result<ValidationSuccess, ApiKeyValidationError>>
+  validate(
+    provider: string,
+    apiKey: string
+  ): Promise<Result<ValidationSuccess, ApiKeyValidationError>>
 }
 
 function mapResponseToError(response: unknown): BaseError {
@@ -148,7 +151,10 @@ export class ApiKeyValidator implements IApiKeyValidator {
 }
 
 export class LocalApiKeyValidator implements IApiKeyValidator {
-  async validate(provider: string, apiKey: string): Promise<Result<ValidationSuccess, ApiKeyValidationError>> {
+  async validate(
+    provider: string,
+    apiKey: string
+  ): Promise<Result<ValidationSuccess, ApiKeyValidationError>> {
     // Basic local validation (regex check)
     const trimmedKey = apiKey.trim()
     if (!trimmedKey) {
@@ -160,7 +166,9 @@ export class LocalApiKeyValidator implements IApiKeyValidator {
     }
 
     if (provider === 'anthropic' && !trimmedKey.startsWith('sk-ant-')) {
-      return err(new ValidationError('Invalid Anthropic API key format (should start with sk-ant-)'))
+      return err(
+        new ValidationError('Invalid Anthropic API key format (should start with sk-ant-)')
+      )
     }
 
     return ok({
