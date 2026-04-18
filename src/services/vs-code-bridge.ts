@@ -37,8 +37,8 @@ export class VsCodeBridge {
 
   async postAndAwait(
     request: AutoContextRequest | FileContextResolveRequest,
-    createTimeout: (cb: () => void, ms: number) => number,
-    cancelTimeout: (id: number) => void,
+    createTimeout: (cb: () => void, ms: number) => ReturnType<typeof setTimeout>,
+    cancelTimeout: (id: ReturnType<typeof setTimeout>) => void,
     timeoutMs: number = socketTimeoutMs.vsCodeContext
   ): Promise<Result<unknown[], NetworkError>> {
     const apiResult = getVsCodeApi()

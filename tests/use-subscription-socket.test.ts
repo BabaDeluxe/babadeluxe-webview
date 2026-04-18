@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ref } from 'vue'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
-import { SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { socketManagerKey } from '@/injection-keys'
 import { mountComposable } from './helpers/mount-composable'
 import {
   type MockSubscriptionSocket,
@@ -28,7 +28,7 @@ describe('useSubscriptionSocket()', () => {
     return mountComposable(() => useSubscriptionSocket(), {
       global: {
         provide: {
-          [SOCKET_MANAGER_KEY as symbol]: ref({
+          [socketManagerKey as symbol]: ref({
             subscriptionSocket,
             chatSocket,
           }),
@@ -101,7 +101,7 @@ describe('useSubscriptionSocket()', () => {
       const { redirectToCheckout } = mountComposable(() => useSubscriptionSocket(), {
         global: {
           provide: {
-            [SOCKET_MANAGER_KEY as symbol]: {},
+            [socketManagerKey as symbol]: {},
           },
         },
       })

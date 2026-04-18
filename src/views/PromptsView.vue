@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 <template>
   <section
     id="prompts"
@@ -65,7 +64,7 @@
           </template>
 
           <template #detail>
-            <PromptEditor
+            <prompt-editor
               v-if="selectedPrompt || isCreatingNewPrompt"
               :prompt="editablePrompt"
               :is-creating="isCreatingNewPrompt"
@@ -107,7 +106,7 @@
           </template>
 
           <template #detail>
-            <PromptEditor
+            <prompt-editor
               v-if="selectedPrompt || isCreatingNewPrompt"
               :prompt="editablePrompt"
               :is-creating="isCreatingNewPrompt"
@@ -130,7 +129,7 @@
       </div>
     </template>
 
-    <BaseModal
+    <base-modal
       v-model:is-shown="deleteModal.isShown"
       data-test-id="prompt-delete-modal"
       title="Delete Prompt"
@@ -146,7 +145,7 @@
         >?
       </p>
       <p class="text-sm text-subtleText mt-2">This action cannot be undone.</p>
-    </BaseModal>
+    </base-modal>
   </section>
 </template>
 
@@ -157,7 +156,7 @@ import { useDebounceFn, useBreakpoints, breakpointsTailwind } from '@vueuse/core
 import { ResultAsync } from 'neverthrow'
 import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useResizableSplit } from '@/composables/use-resizable-split'
-import { KEY_VALUE_STORE_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { keyValueStoreKey, loggerKey, supabaseClientKey } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 import { AuthError } from '@/errors'
 import { toUserMessage } from '@/error-mapper'
@@ -174,17 +173,17 @@ defineOptions({ name: 'PromptsView' })
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('md')
 
-const PromptEditor = defineAsyncComponent({
+const promptEditor = defineAsyncComponent({
   loader: () => import('@/components/PromptEditor.vue'),
   loadingComponent: BaseSpinner,
   delay: 200,
 })
 
-const BaseModal = defineAsyncComponent(() => import('@/components/BaseModal.vue'))
+const baseModal = defineAsyncComponent(() => import('@/components/BaseModal.vue'))
 
-const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)
-const logger = safeInject(LOGGER_KEY)
-const supabase = safeInject(SUPABASE_CLIENT_KEY)
+const keyValueStore = safeInject(keyValueStoreKey)
+const logger = safeInject(loggerKey)
+const supabase = safeInject(supabaseClientKey)
 
 const {
   prompts,

@@ -30,16 +30,16 @@ export class StatsigProvider implements AnalyticsProvider {
     }
   }
 
-  trackEvent(event: string, properties?: Record<string, any>): void {
+  trackEvent(event: string, properties?: Record<string, unknown>): void {
     if (!this._isInitialized || !this._client) return
-    this._client.logEvent(event, undefined, properties)
+    this._client.logEvent(event, undefined, properties as any)
     this._logger.debug(`[${this.name}] Tracked event: ${event}`, properties)
   }
 
-  identify(userId: string, traits?: Record<string, any>): void {
+  identify(userId: string, traits?: Record<string, unknown>): void {
     if (!this._isInitialized || !this._client) return
     // Note: In @statsig/js-client, updateUserAsync is used for updating user identity
-    void this._client.updateUserAsync({ userID: userId, custom: traits })
+    void this._client.updateUserAsync({ userID: userId, custom: traits as any })
     this._logger.debug(`[${this.name}] Identified user: ${userId}`, traits)
   }
 }

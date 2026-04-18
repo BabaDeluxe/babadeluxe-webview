@@ -4,11 +4,11 @@ import { storeToRefs } from 'pinia'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { useResizableSplit } from '@/composables/use-resizable-split'
 import {
-  APP_DB_KEY,
-  KEY_VALUE_STORE_KEY,
-  LOGGER_KEY,
-  SEARCH_SERVICE_KEY,
-  SUPABASE_CLIENT_KEY,
+  appDbKey,
+  keyValueStoreKey,
+  loggerKey,
+  searchServiceKey,
+  supabaseClientKey,
 } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 import { type Conversation, type Message } from '@/database/types'
@@ -31,11 +31,11 @@ export function useHistory() {
     updateUserMessage,
   } = store
 
-  const appDb = safeInject(APP_DB_KEY)
-  const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)
-  const logger: AbstractLogger = safeInject(LOGGER_KEY)
-  const searchService: SearchService = safeInject(SEARCH_SERVICE_KEY)
-  const supabase = safeInject(SUPABASE_CLIENT_KEY)
+  const appDb = safeInject(appDbKey)
+  const keyValueStore = safeInject(keyValueStoreKey)
+  const logger: AbstractLogger = safeInject(loggerKey)
+  const searchService: SearchService = safeInject(searchServiceKey)
+  const supabase = safeInject(supabaseClientKey)
 
   const {
     leftWidthPercent: splitLeftWidthPercent,

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/naming-convention, @typescript-eslint/no-unused-vars */
 import { nextTick, ref } from 'vue'
-import { SOCKET_MANAGER_KEY } from '@/injection-keys.js'
+import { socketManagerKey } from '@/injection-keys.js'
 import type { BaseResponse } from '@/emit-with-timeout'
 
 type EventHandler = (...args: any[]) => void
@@ -123,7 +123,7 @@ export function createMockSocketManager(
 
   const global = {
     provide: {
-      [SOCKET_MANAGER_KEY as symbol]: ref(socketManager),
+      [socketManagerKey as symbol]: ref(socketManager),
     },
   }
 

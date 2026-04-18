@@ -29,13 +29,13 @@
 
 <script setup lang="ts">
 import type { EnvConfigType } from '@/env-validator'
-import { ENV_CONFIG_KEY, LOGGER_KEY } from '@/injection-keys'
+import { envConfigKey, loggerKey } from '@/injection-keys'
 import IconRobot from '@/components/IconRobot.vue'
 import { useUserAvatar } from '@/composables/use-user-avatar'
 import { safeInject } from '@/safe-inject'
 
-const logger = safeInject(LOGGER_KEY)
-const envConfig: EnvConfigType = safeInject(ENV_CONFIG_KEY)
+const logger = safeInject(loggerKey)
+const envConfig: EnvConfigType = safeInject(envConfigKey)
 const supabaseUrl = envConfig.VITE_SUPABASE_URL ?? ''
 const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : ''
 if (!projectRef) {

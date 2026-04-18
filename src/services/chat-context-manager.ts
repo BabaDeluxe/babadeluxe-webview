@@ -1,6 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { Message, ContextReference } from '@/database/types'
-
+import type { Message } from '@/database/types'
 export type FormattedContextItem = { filePath: string; content: string }
 
 export class ChatContextManager {

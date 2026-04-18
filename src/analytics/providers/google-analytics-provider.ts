@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { AnalyticsProvider } from '../types'
 import type { AbstractLogger } from '@/logger'
 
@@ -35,13 +34,13 @@ export class GoogleAnalyticsProvider implements AnalyticsProvider {
     this._logger.log(`[${this.name}] Initialized with ID: ${this._measurementId}`)
   }
 
-  trackEvent(event: string, properties?: Record<string, any>): void {
+  trackEvent(event: string, properties?: Record<string, unknown>): void {
     if (!this._isInitialized) return
     window.gtag('event', event, properties)
     this._logger.debug(`[${this.name}] Tracked event: ${event}`, properties)
   }
 
-  identify(userId: string, traits?: Record<string, any>): void {
+  identify(userId: string, traits?: Record<string, unknown>): void {
     if (!this._isInitialized) return
     window.gtag('config', this._measurementId, {
       // eslint-disable-next-line @typescript-eslint/naming-convention

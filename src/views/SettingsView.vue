@@ -121,14 +121,14 @@ import SettingsField from '@/components/SettingsField.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseInput from '@/components/BaseInput.vue'
 import BaseButton from '@/components/BaseButton.vue'
-import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { apiKeyValidatorKey, loggerKey, supabaseClientKey } from '@/injection-keys'
 import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { isOfflineMode } from '@/env-validator'
 
-const logger = safeInject(LOGGER_KEY)
-const validator = safeInject(API_KEY_VALIDATOR_KEY)
-const supabase = safeInject(SUPABASE_CLIENT_KEY)
+const logger = safeInject(loggerKey)
+const validator = safeInject(apiKeyValidatorKey)
+const supabase = safeInject(supabaseClientKey)
 const toasts = useToastStore()
 
 const { settings, upsertSetting, loadSettings } = useSettings()

@@ -1,21 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ref, onBeforeUnmount, readonly, computed, watch, inject } from 'vue'
 import { type UserSettingWithValidation } from '@babadeluxe/shared'
+import { type NetworkError } from '@/errors'
 import { mergePartialUpdate } from '@/merge-settings'
 import { isOfflineMode } from '@/env-validator'
 import { err, ok, type Result } from 'neverthrow'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { type NetworkError, SocketError } from '@/errors'
 import { useSocketManager } from '@/composables/use-socket-manager'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { APP_DB_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { appDbKey } from '@/injection-keys'
 import { SocketSettingsRepository } from '@/repositories/socket-settings-repository'
 import { DexieSettingsRepository } from '@/repositories/dexie-settings-repository'
 import type { SettingsRepository } from '@/repositories/settings-repository'
 
 export function useSettings() {
   const { socketManagerRef } = useSocketManager()
-  const db = inject(APP_DB_KEY)!
+  const db = inject(appDbKey)!
 
   const isOffline = isOfflineMode()
   const repository: SettingsRepository = isOffline

@@ -1,5 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { type Result, err, ok } from 'neverthrow'
+import { err, ok } from 'neverthrow'
 import { NetworkError } from '@/errors'
 import type { AppDb } from '@/database/app-db'
 import type { SettingsRepository } from './settings-repository'

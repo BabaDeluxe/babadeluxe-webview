@@ -2,7 +2,7 @@ import { ref, computed, onUnmounted, watch, readonly } from 'vue'
 import { type Result, err, ok, ResultAsync } from 'neverthrow'
 import type { AbstractLogger } from '@/logger'
 import type { SocketManager } from '@/socket-manager'
-import { LOGGER_KEY } from '@/injection-keys'
+import { loggerKey } from '@/injection-keys'
 import { NetworkError } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { socketTimeoutMs } from '@/constants'
@@ -289,7 +289,7 @@ export async function initializeModels(
 }
 export function useModelsSocket() {
   const { socketManagerRef } = useSocketManager()
-  const logger: AbstractLogger = safeInject(LOGGER_KEY)
+  const logger: AbstractLogger = safeInject(loggerKey)
   const { createTimeout, cancelTimeout } = useTrackedTimeouts()
   const timeouts: Timeouts = { createTimeout, cancelTimeout }
 

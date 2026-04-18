@@ -1,6 +1,6 @@
 import { computed, getCurrentScope, onScopeDispose, watch } from 'vue'
 import { err, ResultAsync, type Result } from 'neverthrow'
-import { LOGGER_KEY } from '@/injection-keys'
+import { loggerKey } from '@/injection-keys'
 import type { AbstractLogger } from '@/logger'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { ChatError, NetworkError, RateLimitError } from '@/errors'
@@ -129,7 +129,7 @@ export function resetChatSocketStateForTests(): void {
 export function useChatSocket() {
   const store = useChatSocketStore()
   const { socketManagerRef } = useSocketManager()
-  const logger = safeInject(LOGGER_KEY)
+  const logger = safeInject(loggerKey)
 
   const chatSocketRef = computed(() => socketManagerRef.value?.chatSocket)
 

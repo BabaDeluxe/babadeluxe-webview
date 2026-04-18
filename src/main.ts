@@ -13,15 +13,15 @@ import { AppDb } from '@/database/app-db'
 import { SearchService } from '@/search-service'
 import { KeyValueStore } from '@/database/key-value-store'
 import {
-  API_KEY_VALIDATOR_KEY,
-  ANALYTICS_MANAGER_KEY,
-  APP_DB_KEY,
-  ENV_CONFIG_KEY,
-  KEY_VALUE_STORE_KEY,
-  LOGGER_KEY,
-  SEARCH_SERVICE_KEY,
-  SOCKET_MANAGER_KEY,
-  SUPABASE_CLIENT_KEY,
+  apiKeyValidatorKey,
+  analyticsManagerKey,
+  appDbKey,
+  envConfigKey,
+  keyValueStoreKey,
+  loggerKey,
+  searchServiceKey,
+  socketManagerKey,
+  supabaseClientKey,
 } from '@/injection-keys'
 import { initializeModels } from '@/composables/use-models-socket'
 import { SocketManager } from '@/socket-manager'
@@ -83,9 +83,9 @@ class AppInitializer {
   }
 
   private _provideBaseDependencies(app: VueApp): void {
-    app.provide(ENV_CONFIG_KEY, this._envConfig)
-    app.provide(LOGGER_KEY, this._logger)
-    app.provide(SOCKET_MANAGER_KEY, this._socketManagerRef)
+    app.provide(envConfigKey, this._envConfig)
+    app.provide(loggerKey, this._logger)
+    app.provide(socketManagerKey, this._socketManagerRef)
 
     const isBackendless = isOfflineMode()
 
@@ -105,11 +105,11 @@ class AppInitializer {
       },
     })
 
-    app.provide(SUPABASE_CLIENT_KEY, this._supabase)
+    app.provide(supabaseClientKey, this._supabase)
 
     if (isBackendless) {
       const localApiKeyValidator: IApiKeyValidator = new LocalApiKeyValidator()
-      app.provide(API_KEY_VALIDATOR_KEY, localApiKeyValidator)
+      app.provide(apiKeyValidatorKey, localApiKeyValidator)
       return
     }
   }
@@ -129,7 +129,7 @@ class AppInitializer {
       )
     }
 
-    app.provide(ANALYTICS_MANAGER_KEY, analyticsManager)
+    app.provide(analyticsManagerKey, analyticsManager)
   }
 
   private _setupDatabaseAndSearch(app: VueApp): void {
@@ -138,9 +138,9 @@ class AppInitializer {
     const keyValueDb = new KeyValueDb()
     const keyValueStore = new KeyValueStore(keyValueDb, this._logger)
 
-    app.provide(APP_DB_KEY, appDb)
-    app.provide(SEARCH_SERVICE_KEY, searchService)
-    app.provide(KEY_VALUE_STORE_KEY, keyValueStore)
+    app.provide(appDbKey, appDb)
+    app.provide(searchServiceKey, searchService)
+    app.provide(keyValueStoreKey, keyValueStore)
   }
 
   private _setupRouter(app: VueApp): void {
@@ -188,7 +188,7 @@ class AppInitializer {
       this._logger,
       socketManager.validationSocket
     )
-    app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
+    app.provide(apiKeyValidatorKey, apiKeyValidator)
 
     window.addEventListener('beforeunload', () => {
       socketManager.disconnect()

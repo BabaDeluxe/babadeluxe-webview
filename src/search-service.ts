@@ -1,8 +1,7 @@
 import { ok, err, type Result } from 'neverthrow'
 import type { AbstractLogger } from '@/logger'
 import { damerauLevenshteinSimilarity } from '@babadeluxe/shared'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { Conversation, Message } from '@/database/types'
+// Removed unused imports
 import { type AppDb } from '@/database/app-db'
 import type { SearchResult } from '@/search-types'
 import { NetworkError } from '@/errors'

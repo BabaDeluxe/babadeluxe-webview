@@ -69,12 +69,12 @@ import type { AbstractLogger } from '@/logger'
 import { ok, err, type Result } from 'neverthrow'
 import BaseButton from '../components/BaseButton.vue'
 import type { SupabaseClientType } from '@/main'
-import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
+import { supabaseClientKey, loggerKey } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 import { AuthError, ValidationError } from '@/errors'
 
-const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
-const logger: AbstractLogger = safeInject(LOGGER_KEY)
+const supabase: SupabaseClientType = safeInject(supabaseClientKey)
+const logger: AbstractLogger = safeInject(loggerKey)
 const router = useRouter()
 
 const email = ref('')

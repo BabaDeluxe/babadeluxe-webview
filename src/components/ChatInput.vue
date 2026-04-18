@@ -47,7 +47,7 @@ import type { AbstractLogger } from '@/logger'
 import BaseTextField from '@/components/BaseTextField.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
-import { LOGGER_KEY } from '@/injection-keys'
+import { loggerKey } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 
 interface ChatInputProps {
@@ -81,7 +81,7 @@ const emit = defineEmits<{
   (event: 'abort'): void
 }>()
 
-const logger: AbstractLogger = safeInject(LOGGER_KEY)
+const logger: AbstractLogger = safeInject(loggerKey)
 
 const isDisabled = computed(
   () =>

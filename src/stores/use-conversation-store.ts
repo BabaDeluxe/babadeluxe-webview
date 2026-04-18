@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ResultAsync, type Result, err, ok } from 'neverthrow'
 import type { Message, Conversation, ContextReference } from '@/database/types'
-import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
+import { appDbKey, loggerKey } from '@/injection-keys'
 import { useChatSocket } from '@/composables/use-chat-socket'
 import type { ValidationError } from '@/errors'
 import {
@@ -37,8 +37,8 @@ type SendOptions = {
 type MessageMetadata = { model?: string; systemPrompt?: string }
 
 export const useConversationStore = defineStore('conversation', () => {
-  const logger = safeInject(LOGGER_KEY)
-  const appDb = safeInject(APP_DB_KEY)
+  const logger = safeInject(loggerKey)
+  const appDb = safeInject(appDbKey)
 
   const { sendMessage: sendChatSocket, resumeStreamingMessage } = useChatSocket()
   const { resolveFromReferences } = useFileContextResolver()

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useEventListener } from '@vueuse/core'
@@ -6,8 +5,6 @@ import { err, ok, type Result } from 'neverthrow'
 import type { ValidationError } from '@/errors'
 import type { NetworkError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { logger } from '@/logger'
 import type {
   VsCodeContextItem,
   LockedContextReference,
@@ -19,8 +16,6 @@ import type {
   SuggestedEntry,
 } from '@/vs-code/types'
 import {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  isResponseWithRequestId,
   isContextSnapshotMessage,
   isContextPinFileMessage,
   isContextPinSnippetMessage,
@@ -118,8 +113,8 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     const requestId = makeId()
     const result = await bridge.postAndAwait(
       { type: 'fileContext:resolve', requestId, filePaths: cleaned },
-      createTimeout as any,
-      cancelTimeout as any,
+      createTimeout,
+      cancelTimeout,
       timeoutMs
     )
     if (result.isErr()) return err(result.error)
@@ -208,8 +203,8 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     const requestId = makeId()
     const result = await bridge.postAndAwait(
       { type: 'autoContext:request', requestId, query: trimmed },
-      createTimeout as any,
-      cancelTimeout as any
+      createTimeout,
+      cancelTimeout
     )
 
     if (result.isErr()) {

@@ -10,7 +10,7 @@ import { usePromptsSocket } from '@/composables/use-prompts-socket'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { localStorageKeys } from '@/constants'
-import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { loggerKey, keyValueStoreKey, supabaseClientKey } from '@/injection-keys'
 import { finalizeStreamingMessage } from '@/streaming-helpers'
 import { safeInject } from '@/safe-inject'
 import { AuthError, InitializationError, ChatError, BaseError } from '@/errors'
@@ -31,9 +31,9 @@ type ModelItem = {
 }
 
 export function useChat() {
-  const logger = safeInject(LOGGER_KEY)
-  const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)
-  const supabase = safeInject(SUPABASE_CLIENT_KEY)
+  const logger = safeInject(loggerKey)
+  const keyValueStore = safeInject(keyValueStoreKey)
+  const supabase = safeInject(supabaseClientKey)
 
   const route = useRoute()
   const router = useRouter()

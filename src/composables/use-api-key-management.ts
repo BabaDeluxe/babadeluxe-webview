@@ -1,8 +1,7 @@
 import { type Ref, ref, onBeforeUnmount } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { ApiKeyValidator, IApiKeyValidator } from '@/api-key-validator'
+import type { IApiKeyValidator } from '@/api-key-validator'
 import type { AbstractLogger } from '@/logger'
 import { ValidationError, RateLimitError, NetworkError } from '@/errors'
 import { getApiProviders } from '@/settings-utils'

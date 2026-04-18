@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Result, ResultAsync, ok, err } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentScope, onScopeDispose, ref } from 'vue'
@@ -24,7 +22,7 @@ export function useVsCodeAuth() {
 
   const getStoredSessionFromExtension = (timeoutMs?: number) => {
     if (isOfflineMode()) return Promise.resolve(ok(undefined))
-    return gateway.getSession(createTimeout as any, cancelTimeout as any, timeoutMs)
+    return gateway.getSession(createTimeout, cancelTimeout, timeoutMs)
   }
 
   const setSupabaseSession = async (
@@ -35,7 +33,9 @@ export function useVsCodeAuth() {
 
     const setSessionResult = await ResultAsync.fromPromise(
       supabaseClient.auth.setSession({
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         access_token: sessionPayload.accessToken,
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         refresh_token: sessionPayload.refreshToken,
       }),
       (unknownError: unknown) => {

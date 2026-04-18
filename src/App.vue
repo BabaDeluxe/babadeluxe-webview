@@ -112,10 +112,10 @@ import BaseButton from '@/components/BaseButton.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
 import { useToastStore } from '@/stores/use-toast-store'
 import { safeInject } from '@/safe-inject'
-import { LOGGER_KEY } from '@/injection-keys'
+import { loggerKey } from '@/injection-keys'
 import { useAppLogic } from '@/composables/use-app-logic'
 
-const logger = safeInject(LOGGER_KEY)
+const logger = safeInject(loggerKey)
 const router = useRouter()
 const toasts = useToastStore()
 const { session, handleNewChat } = useAppLogic()

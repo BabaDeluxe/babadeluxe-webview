@@ -5,24 +5,21 @@ import type { Session, AuthChangeEvent } from '@supabase/supabase-js'
 import { useSettings } from '@/composables/use-settings'
 import { useTheme } from '@/composables/use-theme'
 import { useConversationStore } from '@/stores/use-conversation-store'
-import { useToastStore } from '@/stores/use-toast-store'
 import { useStorage } from '@vueuse/core'
 import { localStorageKeys } from '@/constants'
 import { safeInject } from '@/safe-inject'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { loggerKey, supabaseClientKey, socketManagerKey } from '@/injection-keys'
 import type { AbstractLogger } from '@/logger'
 import type { SocketManager } from '@/socket-manager'
 
 export function useAppLogic() {
-  const logger: AbstractLogger = safeInject(LOGGER_KEY)
-  const supabase = safeInject(SUPABASE_CLIENT_KEY)
-  const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(SOCKET_MANAGER_KEY)
+  const logger: AbstractLogger = safeInject(loggerKey)
+  const supabase = safeInject(supabaseClientKey)
+  const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(socketManagerKey)
 
   const session = ref<Session | null>(null)
   const router = useRouter()
   const conversationStore = useConversationStore()
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const toasts = useToastStore()
   const { settings, loadSettings } = useSettings()
   const { isDark } = useTheme()
   const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)

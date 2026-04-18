@@ -1,6 +1,6 @@
 import { defineComponent, h } from 'vue'
 import { type ComponentMountingOptions, mount } from '@vue/test-utils'
-import { LOGGER_KEY } from '@/injection-keys'
+import { loggerKey } from '@/injection-keys'
 import { mockLogger } from './mock-logger'
 
 export function mountComposable<T>(
@@ -22,7 +22,7 @@ export function mountComposable<T>(
       ...options?.global,
       provide: {
         ...options?.global?.provide,
-        [LOGGER_KEY as symbol]: mockLogger,
+        [loggerKey as symbol]: mockLogger,
       },
     },
   }

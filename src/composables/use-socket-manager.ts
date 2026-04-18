@@ -1,13 +1,13 @@
 import { type Ref, watch } from 'vue'
 import type { SocketManager } from '@/socket-manager'
 import { safeInject } from '@/safe-inject'
-import { SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { socketManagerKey } from '@/injection-keys'
 import { NetworkError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 
 export function useSocketManager() {
-  const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(SOCKET_MANAGER_KEY)
+  const socketManagerRef = safeInject<Ref<SocketManager | undefined>>(socketManagerKey)
 
   const { createTimeout } = useTrackedTimeouts()
 

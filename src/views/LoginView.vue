@@ -123,15 +123,15 @@ import BaseButton from '@/components/BaseButton.vue'
 import BaseInput from '@/components/BaseInput.vue'
 import { useVsCodeAuth } from '@/composables/use-vs-code-auth'
 import type { SupabaseClientType } from '@/main'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { loggerKey, supabaseClientKey } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 import { AuthError, NetworkError } from '@/errors'
 import { toUserMessage } from '@/error-mapper'
 import { useToastStore } from '@/stores/use-toast-store'
 import { watch } from 'vue'
 
-const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
-const logger: AbstractLogger = safeInject(LOGGER_KEY)
+const supabase: SupabaseClientType = safeInject(supabaseClientKey)
+const logger: AbstractLogger = safeInject(loggerKey)
 
 const router = useRouter()
 const vsCodeAuth = useVsCodeAuth()
