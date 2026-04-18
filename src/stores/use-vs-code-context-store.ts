@@ -3,9 +3,8 @@ import { defineStore } from 'pinia'
 import { useEventListener } from '@vueuse/core'
 import { err, ok, type Result } from 'neverthrow'
 import type { ValidationError } from '@/errors'
-import { NetworkError } from '@/errors'
+import type { NetworkError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
-import { logger } from '@/logger'
 import type {
   VsCodeContextItem,
   LockedContextReference,
@@ -16,13 +15,6 @@ import type {
   ContextPinFileMessage,
   SuggestedEntry,
 } from '@/vs-code/types'
-import {
-  isResponseWithRequestId,
-  isContextSnapshotMessage,
-  isContextPinFileMessage,
-  isContextPinSnippetMessage,
-  isTextRange,
-} from '@/vs-code/context-type-guards'
 import {
   normalizePath,
   compact,
@@ -36,8 +28,12 @@ import { useContextState } from '@/vs-code/context-state'
 import { useIsInVsCode } from '@/composables/use-is-in-vs-code'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { VsCodeBridge } from '@/services/vs-code-bridge'
-
-export type { VsCodeTextRange, VsCodeContextItem, LockedContextReference } from '@/vs-code/types'
+import {
+  isContextSnapshotMessage,
+  isContextPinFileMessage,
+  isContextPinSnippetMessage,
+  isTextRange,
+} from '@/vs-code/context-type-guards'
 
 export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
   let latestSuggestionSequence = 0
@@ -115,8 +111,8 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     const requestId = makeId()
     const result = await bridge.postAndAwait(
       { type: 'fileContext:resolve', requestId, filePaths: cleaned },
-      createTimeout as any,
-      cancelTimeout as any,
+      createTimeout,
+      cancelTimeout,
       timeoutMs
     )
     if (result.isErr()) return err(result.error)
@@ -205,8 +201,8 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     const requestId = makeId()
     const result = await bridge.postAndAwait(
       { type: 'autoContext:request', requestId, query: trimmed },
-      createTimeout as any,
-      cancelTimeout as any
+      createTimeout,
+      cancelTimeout
     )
 
     if (result.isErr()) {

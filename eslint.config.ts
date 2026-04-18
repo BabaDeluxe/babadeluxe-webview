@@ -22,6 +22,8 @@ export default defineConfigWithVueTs(
     '**/playwright-report/**',
     '**/node_modules/**',
     '**/.*/**',
+    '**/babadeluxe-*/**',
+    'agents.md',
   ]),
 
   pluginVue.configs['flat/recommended'],

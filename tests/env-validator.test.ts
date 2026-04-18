@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, test, beforeAll } from 'vitest'
-import { EnvConfigType, validateEnvConfig } from '../src/env-validator'
+import { describe, it, expect, afterEach, test, beforeAll } from 'vitest'
+import type { EnvConfigType } from '../src/env-validator'
+import { validateEnvConfig } from '../src/env-validator'
 
 type Writeable<T> = {
   -readonly [P in keyof T]: T[P]

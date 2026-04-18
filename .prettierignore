@@ -1,0 +1,7 @@
+agent-resources/
+babadeluxe-docs/
+dist/
+node_modules/
+playwright-report/
+public/
+test-results/

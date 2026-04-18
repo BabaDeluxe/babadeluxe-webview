@@ -68,12 +68,13 @@ import ContextPanel from '@/components/ContextPanel.vue'
 import ContextRootBar from '@/components/ContextRootBar.vue'
 import ChatInputControls from '@/components/ChatInputControls.vue'
 import type { DropdownItem, DropdownGroup } from '@/components/BaseDropdown.vue'
+import type { VsCodeContextItem } from '@/vs-code/types'
 
 defineProps<{
   modelValue: string
   isInVsCode: boolean
   isContextRootBarVisible: boolean
-  contextItems: any[]
+  contextItems: VsCodeContextItem[]
   hasContextError: boolean
   isLoadingContext: boolean
   isDisabled: boolean
@@ -100,7 +101,7 @@ const emit = defineEmits<{
   (event: 'abort'): void
   (event: 'hide-root-bar'): void
   (event: 'toggle-root-bar'): void
-  (event: 'remove-context-item', payload: any): void
+  (event: 'remove-context-item', payload: unknown): void
   (event: 'clear-all-context'): void
   (event: 'toggle-lock', filePath: string): void
 }>()

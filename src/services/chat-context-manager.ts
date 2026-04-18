@@ -1,17 +1,13 @@
-import type { Message, ContextReference } from '@/database/types'
+import type { Message } from '@/database/types'
 
 export type FormattedContextItem = { filePath: string; content: string }
 
 export class ChatContextManager {
-  static buildInjectedText(
-    systemPrompt?: string,
-    contextItems?: FormattedContextItem[]
-  ): string {
+  static buildInjectedText(systemPrompt?: string, contextItems?: FormattedContextItem[]): string {
+    systemPrompt = systemPrompt?.trim()
     const parts: string[] = []
-
-    const sp = systemPrompt?.trim()
-    if (sp) {
-      parts.push(`SYSTEM:\n${sp}`)
+    if (systemPrompt) {
+      parts.push(`SYSTEM:\n${systemPrompt}`)
     }
 
     const cleanedItems = (contextItems ?? []).filter(

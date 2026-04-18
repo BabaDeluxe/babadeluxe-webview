@@ -15,8 +15,8 @@
         <ChatInputBlock
           ref="chatInputTopRef"
           v-model="currentMessage"
-          v-model:prompt="currentPrompt"
-          v-model:model="currentModel"
+          v-model:current-prompt="currentPrompt"
+          v-model:current-model="currentModel"
           :is-in-vs-code="isInVsCode"
           :is-context-root-bar-visible="isContextRootBarVisible"
           :context-items="contextItems"
@@ -92,8 +92,8 @@
         <ChatInputBlock
           ref="chatInputBottomRef"
           v-model="currentMessage"
-          v-model:prompt="currentPrompt"
-          v-model:model="currentModel"
+          v-model:current-prompt="currentPrompt"
+          v-model:current-model="currentModel"
           :is-in-vs-code="isInVsCode"
           :is-context-root-bar-visible="isContextRootBarVisible"
           :context-items="contextItems"
@@ -130,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
@@ -175,8 +175,8 @@ const {
   handleToggleRootBar,
 } = useChat()
 
-const chatInputTopRef = ref<InstanceType<typeof ChatInputBlock>>()
-const chatInputBottomRef = ref<InstanceType<typeof ChatInputBlock>>()
+const chatInputTopRef = ref()
+const chatInputBottomRef = ref()
 
 // Sync the focusable ref
 watch([chatInputTopRef, chatInputBottomRef], () => {

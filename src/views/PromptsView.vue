@@ -172,12 +172,14 @@ defineOptions({ name: 'PromptsView' })
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = breakpoints.smaller('md')
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 const PromptEditor = defineAsyncComponent({
   loader: () => import('@/components/PromptEditor.vue'),
   loadingComponent: BaseSpinner,
   delay: 200,
 })
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 const BaseModal = defineAsyncComponent(() => import('@/components/BaseModal.vue'))
 
 const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)

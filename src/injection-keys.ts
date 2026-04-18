@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import type { InjectionKey, Ref } from 'vue'
 import type { SupabaseClientType } from '@/main'
 import type { AbstractLogger } from '@/logger'
