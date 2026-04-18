@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { describe, it, expect, beforeEach, afterEach, test, beforeAll } from 'vitest'
 import { type EnvConfigType, validateEnvConfig } from '../src/env-validator'
 

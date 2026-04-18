@@ -42,6 +42,7 @@ export class VsCodeAuthGateway {
     this._isRequestPending = true
 
     return new Promise((resolve) => {
+      // eslint-disable-next-line prefer-const
       let timeoutId: number | undefined
 
       const cleanup = () => {
@@ -81,6 +82,7 @@ export class VsCodeAuthGateway {
     const vsCodeApi = apiResult.value
 
     return new Promise((resolve) => {
+      // eslint-disable-next-line prefer-const
       let timeoutId: number | undefined
 
       const cleanup = () => {

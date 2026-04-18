@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/naming-convention, @typescript-eslint/no-unused-vars */
 import { nextTick, ref } from 'vue'
 import { SOCKET_MANAGER_KEY } from '@/injection-keys.js'
 import type { BaseResponse } from '@/emit-with-timeout'

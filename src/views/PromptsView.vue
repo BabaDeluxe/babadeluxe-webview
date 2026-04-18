@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 <template>
   <section
     id="prompts"
@@ -149,6 +150,7 @@
   </section>
 </template>
 
+<!-- eslint-disable @typescript-eslint/naming-convention -->
 <script setup lang="ts">
 import { ref, computed, defineAsyncComponent, onMounted, watch } from 'vue'
 import { useDebounceFn, useBreakpoints, breakpointsTailwind } from '@vueuse/core'

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/naming-convention */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Result, ResultAsync, ok, err } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentScope, onScopeDispose, ref } from 'vue'

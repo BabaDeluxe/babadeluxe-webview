@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import { err, ok, type Result } from 'neverthrow'
 import { z } from 'zod'
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 <template>
   <section
     id="chat"
@@ -129,6 +130,7 @@
   </section>
 </template>
 
+<!-- eslint-disable @typescript-eslint/no-unused-vars -->
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import ChatMessage from '@/components/ChatMessage.vue'

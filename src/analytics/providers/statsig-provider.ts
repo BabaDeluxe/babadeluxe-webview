@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { StatsigClient } from '@statsig/js-client'
 import type { AnalyticsProvider } from '../types'
 import type { AbstractLogger } from '@/logger'

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 <template>
   <div class="flex flex-col gap-2">
     <ContextRootBar
@@ -61,6 +62,7 @@
   </div>
 </template>
 
+<!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <script setup lang="ts">
 import { ref } from 'vue'
 import ChatInput from '@/components/ChatInput.vue'

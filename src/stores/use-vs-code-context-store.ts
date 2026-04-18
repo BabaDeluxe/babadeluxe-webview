@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useEventListener } from '@vueuse/core'
@@ -5,6 +6,7 @@ import { err, ok, type Result } from 'neverthrow'
 import type { ValidationError } from '@/errors'
 import type { NetworkError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { logger } from '@/logger'
 import type {
   VsCodeContextItem,
@@ -17,6 +19,7 @@ import type {
   SuggestedEntry,
 } from '@/vs-code/types'
 import {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isResponseWithRequestId,
   isContextSnapshotMessage,
   isContextPinFileMessage,

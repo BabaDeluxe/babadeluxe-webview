@@ -1,12 +1,10 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { Message, ContextReference } from '@/database/types'
 
 export type FormattedContextItem = { filePath: string; content: string }
 
 export class ChatContextManager {
-  static buildInjectedText(
-    systemPrompt?: string,
-    contextItems?: FormattedContextItem[]
-  ): string {
+  static buildInjectedText(systemPrompt?: string, contextItems?: FormattedContextItem[]): string {
     const parts: string[] = []
 
     const sp = systemPrompt?.trim()

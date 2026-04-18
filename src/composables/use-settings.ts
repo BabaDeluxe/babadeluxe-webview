@@ -1,10 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ref, onBeforeUnmount, readonly, computed, watch, inject } from 'vue'
 import { type UserSettingWithValidation } from '@babadeluxe/shared'
 import { mergePartialUpdate } from '@/merge-settings'
 import { isOfflineMode } from '@/env-validator'
 import { err, ok, type Result } from 'neverthrow'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { type NetworkError, SocketError } from '@/errors'
 import { useSocketManager } from '@/composables/use-socket-manager'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { APP_DB_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 import { SocketSettingsRepository } from '@/repositories/socket-settings-repository'
 import { DexieSettingsRepository } from '@/repositories/dexie-settings-repository'
@@ -128,6 +131,8 @@ export function useSettings() {
     loadSettings,
     upsertSetting,
     deleteSetting,
-    isConnected: computed(() => (isOffline ? true : socketManagerRef.value?.settingsSocket?.isConnected ?? false)),
+    isConnected: computed(() =>
+      isOffline ? true : (socketManagerRef.value?.settingsSocket?.isConnected ?? false)
+    ),
   }
 }

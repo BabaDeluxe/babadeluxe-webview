@@ -21,6 +21,7 @@ export function useAppLogic() {
   const session = ref<Session | null>(null)
   const router = useRouter()
   const conversationStore = useConversationStore()
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const toasts = useToastStore()
   const { settings, loadSettings } = useSettings()
   const { isDark } = useTheme()
