@@ -13,14 +13,14 @@ export class AnalyticsManager {
     this._providers.push(provider)
   }
 
-  trackEvent(event: string, properties?: Record<string, any>): void {
+  trackEvent(event: string, properties?: Record<string, unknown>): void {
     if (this._isOffline) return
     for (const provider of this._providers) {
       provider.trackEvent(event, properties)
     }
   }
 
-  identify(userId: string, traits?: Record<string, any>): void {
+  identify(userId: string, traits?: Record<string, unknown>): void {
     if (this._isOffline) return
     for (const provider of this._providers) {
       provider.identify(userId, traits)

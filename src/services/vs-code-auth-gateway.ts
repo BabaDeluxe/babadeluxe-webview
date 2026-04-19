@@ -27,8 +27,8 @@ export class VsCodeAuthGateway {
   }
 
   async requestLogin(
-    createTimeout: (cb: () => void, ms: number) => number,
-    cancelTimeout: (id: number) => void,
+    createTimeout: (cb: () => void, ms: number) => NodeJS.Timeout,
+    cancelTimeout: (id: NodeJS.Timeout) => void,
     timeoutMs = socketTimeoutMs.vsCodeAuthLogin
   ): Promise<Result<AuthSessionPayload, NetworkError | AuthError>> {
     if (this._isRequestPending) {
@@ -42,7 +42,8 @@ export class VsCodeAuthGateway {
     this._isRequestPending = true
 
     return new Promise((resolve) => {
-      let timeoutId: number | undefined
+      // eslint-disable-next-line prefer-const
+      let timeoutId: NodeJS.Timeout | undefined
 
       const cleanup = () => {
         this._isRequestPending = false
@@ -72,8 +73,8 @@ export class VsCodeAuthGateway {
   }
 
   async getSession(
-    createTimeout: (cb: () => void, ms: number) => number,
-    cancelTimeout: (id: number) => void,
+    createTimeout: (cb: () => void, ms: number) => NodeJS.Timeout,
+    cancelTimeout: (id: NodeJS.Timeout) => void,
     timeoutMs = socketTimeoutMs.vsCodeAuthSession
   ): Promise<Result<AuthSessionPayload | undefined, NetworkError>> {
     const apiResult = getVsCodeApi()
@@ -81,7 +82,8 @@ export class VsCodeAuthGateway {
     const vsCodeApi = apiResult.value
 
     return new Promise((resolve) => {
-      let timeoutId: number | undefined
+      // eslint-disable-next-line prefer-const
+      let timeoutId: NodeJS.Timeout | undefined
 
       const cleanup = () => {
         if (timeoutId !== undefined) cancelTimeout(timeoutId)

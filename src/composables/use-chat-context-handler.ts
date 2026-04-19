@@ -1,15 +1,13 @@
 import { storeToRefs } from 'pinia'
 import { type Ref } from 'vue'
-import {
-  useVsCodeContextStore,
-  type LockedContextReference,
-} from '@/stores/use-vs-code-context-store'
+import { useVsCodeContextStore } from '@/stores/use-vs-code-context-store'
 import type { ContextReference, Message } from '@/database/types'
 import { isVsCodeContextItem } from '@/vs-code/context-type-guards'
 import type { AbstractLogger } from '@/logger'
 import { createStreamingCommitHandler } from '@/streaming-helpers'
 import { streamingCommitIntervalMs } from '@/constants'
 import type { StreamingMessageComponent } from '@/streaming-helpers'
+import type { LockedContextReference } from '@/vs-code/types'
 
 type FormattedContextItem = { kind: 'file' | 'snippet'; filePath: string; content: string }
 

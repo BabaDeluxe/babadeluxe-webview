@@ -3,9 +3,9 @@ import { type UserSettingWithValidation } from '@babadeluxe/shared'
 import { mergePartialUpdate } from '@/merge-settings'
 import { isOfflineMode } from '@/env-validator'
 import { err, ok, type Result } from 'neverthrow'
-import { type NetworkError, SocketError } from '@/errors'
+import { type NetworkError } from '@/errors'
 import { useSocketManager } from '@/composables/use-socket-manager'
-import { APP_DB_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { APP_DB_KEY } from '@/injection-keys'
 import { SocketSettingsRepository } from '@/repositories/socket-settings-repository'
 import { DexieSettingsRepository } from '@/repositories/dexie-settings-repository'
 import type { SettingsRepository } from '@/repositories/settings-repository'
@@ -32,7 +32,12 @@ export function useSettings() {
   if (!isOffline) {
     const settingsSocketRef = computed(() => socketManagerRef.value?.settingsSocket)
 
-    const onUpdated = (updatedPartial: any) => {
+    const onUpdated = (updatedPartial: {
+      settingKey: string
+      settingValue: unknown
+      dataType: string
+      updatedAt: string
+    }) => {
       settings.value = mergePartialUpdate(settings.value, updatedPartial)
     }
 
@@ -128,6 +133,8 @@ export function useSettings() {
     loadSettings,
     upsertSetting,
     deleteSetting,
-    isConnected: computed(() => (isOffline ? true : socketManagerRef.value?.settingsSocket?.isConnected ?? false)),
+    isConnected: computed(() =>
+      isOffline ? true : (socketManagerRef.value?.settingsSocket?.isConnected ?? false)
+    ),
   }
 }

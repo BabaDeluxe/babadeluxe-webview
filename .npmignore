@@ -6,12 +6,9 @@ src/
 *.log
 *.local
 
-tsconfig.json
-.*
-example.npmrc
-test-package.sh
-package.json
-package-lock.json
-xo[.-]config.ts
-*.md
+./*.json
+./*.ts
+./*.sh
 .npmrc
+.env.local
+*.example

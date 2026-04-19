@@ -5,7 +5,6 @@ import type { Session, AuthChangeEvent } from '@supabase/supabase-js'
 import { useSettings } from '@/composables/use-settings'
 import { useTheme } from '@/composables/use-theme'
 import { useConversationStore } from '@/stores/use-conversation-store'
-import { useToastStore } from '@/stores/use-toast-store'
 import { useStorage } from '@vueuse/core'
 import { localStorageKeys } from '@/constants'
 import { safeInject } from '@/safe-inject'
@@ -21,7 +20,6 @@ export function useAppLogic() {
   const session = ref<Session | null>(null)
   const router = useRouter()
   const conversationStore = useConversationStore()
-  const toasts = useToastStore()
   const { settings, loadSettings } = useSettings()
   const { isDark } = useTheme()
   const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)

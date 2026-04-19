@@ -2,15 +2,16 @@ import { nextTick, ref } from 'vue'
 import { SOCKET_MANAGER_KEY } from '@/injection-keys.js'
 import type { BaseResponse } from '@/emit-with-timeout'
 
-type EventHandler = (...args: any[]) => void
+type EventHandler = (...args: unknown[]) => void
 
 export class MockSocket {
   public isConnected = true
   private readonly _handlers = new Map<string, EventHandler[]>()
 
+  // eslint-disable-next-line @typescript-eslint/naming-convention, @typescript-eslint/no-unused-vars
   timeout({ _ms }: { _ms: number }) {
     return {
-      emit(_event: string, ...args: any[]): { isOk: () => boolean; isErr: () => boolean } {
+      emit(_event: string, ...args: unknown[]): { isOk: () => boolean; isErr: () => boolean } {
         const callback = args.at(-1) as (error: unknown, response: BaseResponse) => void
         const response: BaseResponse = { success: true }
 
@@ -48,8 +49,8 @@ export class MockSocket {
 
   emit(
     _event: string,
-    _payload?: any,
-    callback?: (response: any) => void
+    _payload?: unknown,
+    callback?: (response: unknown) => void
   ): { isOk: () => boolean; isErr: () => boolean } {
     if (callback) {
       setTimeout(() => {
@@ -77,7 +78,7 @@ export class MockSocket {
     }
   }
 
-  trigger(event: string, payload?: any): void {
+  trigger(event: string, payload?: unknown): void {
     const handlers = this._handlers.get(event)
     if (!handlers) {
       return
@@ -133,7 +134,7 @@ export function createMockSocketManager(
   }
 }
 
-export async function trigger(socket: MockSocket, event: string, payload?: any): Promise<void> {
+export async function trigger(socket: MockSocket, event: string, payload?: unknown): Promise<void> {
   socket.trigger(event, payload)
   await nextTick()
 }

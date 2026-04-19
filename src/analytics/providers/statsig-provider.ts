@@ -29,12 +29,14 @@ export class StatsigProvider implements AnalyticsProvider {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trackEvent(event: string, properties?: Record<string, any>): void {
     if (!this._isInitialized || !this._client) return
     this._client.logEvent(event, undefined, properties)
     this._logger.debug(`[${this.name}] Tracked event: ${event}`, properties)
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   identify(userId: string, traits?: Record<string, any>): void {
     if (!this._isInitialized || !this._client) return
     // Note: In @statsig/js-client, updateUserAsync is used for updating user identity

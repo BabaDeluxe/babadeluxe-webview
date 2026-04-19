@@ -1,7 +1,6 @@
 import { ok, err, type Result } from 'neverthrow'
 import type { AbstractLogger } from '@/logger'
 import { damerauLevenshteinSimilarity } from '@babadeluxe/shared'
-import type { Conversation, Message } from '@/database/types'
 import { type AppDb } from '@/database/app-db'
 import type { SearchResult } from '@/search-types'
 import { NetworkError } from '@/errors'

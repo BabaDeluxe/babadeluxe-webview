@@ -82,8 +82,8 @@
 import { computed, ref } from 'vue'
 import BaseButton from '@/components/BaseButton.vue'
 import ContextBadge from '@/components/ContextBadge.vue'
-import type { VsCodeContextItem } from '@/stores/use-vs-code-context-store'
 import { getDisambiguatedPaths } from '@/path-disambiguation'
+import type { VsCodeContextItem } from '@/vs-code/types'
 
 const props = defineProps<{
   items: VsCodeContextItem[]

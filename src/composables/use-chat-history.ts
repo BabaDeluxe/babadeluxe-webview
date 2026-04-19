@@ -1,13 +1,11 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConversationStore } from '@/stores/use-conversation-store'
-import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
+import { LOGGER_KEY } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
-import type { Message } from '@/database/types'
 
 export function useChatHistory(currentConversationId: { value: number }) {
   const logger = safeInject(LOGGER_KEY)
-  const appDb = safeInject(APP_DB_KEY)
   const store = useConversationStore()
   const { messages } = storeToRefs(store)
   const { loadMessages } = store
