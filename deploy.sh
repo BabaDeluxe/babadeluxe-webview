@@ -66,28 +66,24 @@ deploy_one() {
 
   log "[webview:${name}] checking for changes on branch '${branch}'..."
 
-  if [ -n "$(git status --porcelain)" ]; then
-    log "[webview:${name}] deploy aborted: working tree is dirty in ${SCRIPT_DIR}"
+  DIRTY="$(git status --porcelain)"
+  if [ -n "$DIRTY" ]; then
+    log "[${name}] deploy BLOCKED: working tree is dirty in ${SCRIPT_DIR}"
+    log "[${name}] dirty files:"
+    while IFS= read -r dirty_line; do
+      log "[${name}]   $dirty_line"
+    done <<< "$DIRTY"
     return 1
   fi
 
   git fetch origin
-
-  local local_ref remote_ref
-  local_ref="$(git rev-parse HEAD)"
-  remote_ref="$(git rev-parse "origin/${branch}")"
-
-  if [ "$local_ref" = "$remote_ref" ]; then
-    log "[webview:${name}] up to date"
-    return 0
-  fi
 
   log "[webview:${name}] changes detected, deploying..."
 
   git pull --ff-only origin "${branch}"
 
   pnpm install --frozen-lockfile
-  pnpm run build
+  pnpm build
 
   mkdir -p "${target}"
   rsync -a --delete "${SCRIPT_DIR}/${BUILD_DIR}/" "${target}/"
