@@ -1,14 +1,50 @@
 #!/bin/bash
 set -euo pipefail
 
-pnpm type-check
-
 staged_list="$(mktemp)"
 trap 'rm -f "$staged_list"' EXIT
 
-git diff --cached --name-only --diff-filter=ACM -z >"$staged_list"
-pnpm format
+# Capture staged file paths as null-delimited stream to handle spaces in filenames
+git diff --cached --name-only --diff-filter=ACM -z > "$staged_list"
 
-if [[ -s "$staged_list" ]]; then
-  xargs -0 git add -- <"$staged_list"
+if [[ ! -s "$staged_list" ]]; then
+  echo "[pre-commit] no staged files found, skipping"
+  exit 0
 fi
+
+staged_files=()
+has_typeable_files=false
+while IFS= read -r -d '' file; do
+  # Track executable bit in git index so it survives clone/pull
+  [[ "$file" == *.sh ]] && git update-index --chmod=+x "$file"
+
+  # Flag if any file requires type checking
+  [[ "$file" =~ \.(ts|tsx|js|vue|html)$ ]] && has_typeable_files=true
+
+  # Collect all staged files
+  staged_files+=("$file")
+done < "$staged_list"
+
+# Only run type-check when TS/JS/Vue/HTML files are staged
+if [[ "$has_typeable_files" == true ]]; then
+  echo "[pre-commit] running type-check..."
+  pnpm type-check || { echo "[pre-commit] ABORT: type-check failed — fix type errors before committing"; exit 1; }
+  echo "[pre-commit] type-check passed"
+fi
+
+# Run eslint --fix and prettier --write scoped to staged files only
+echo "[pre-commit] running eslint --fix on ${#staged_files[@]} staged file(s)..."
+pnpm eslint --fix "${staged_files[@]}" || { echo "[pre-commit] ABORT: eslint failed — fix lint errors before committing"; exit 1; }
+echo "[pre-commit] eslint passed"
+
+echo "[pre-commit] running prettier --write on ${#staged_files[@]} staged file(s)..."
+pnpm prettier --write --ignore-unknown "${staged_files[@]}" || { echo "[pre-commit] ABORT: prettier failed"; exit 1; }
+echo "[pre-commit] prettier passed"
+
+# Re-stage originally staged files — guard against files deleted during auto-fix
+echo "[pre-commit] re-staging auto-fixed files..."
+while IFS= read -r -d '' file; do
+  [[ -f "$file" ]] && git add "$file"
+done < "$staged_list"
+
+echo "[pre-commit] all checks passed"
