@@ -2,7 +2,9 @@
 	path = babadeluxe-docs
 	url = https://github.com/babadeluxe/babadeluxe-docs
 	ignore = dirty
+	branch = master
 [submodule "agent-resources"]
 	path = agent-resources
 	url = https://github.com/simwai/agent-resources
 	ignore = dirty
+	branch = main
