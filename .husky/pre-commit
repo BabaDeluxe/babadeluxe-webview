@@ -18,15 +18,9 @@ has_typeable_files=false
 has_eslintable_files=false
 
 while IFS= read -r -d '' file; do
-  # Track executable bit in git index so it survives clone/pull
   [[ "$file" == *.sh ]] && git update-index --chmod=+x "$file"
-
-  # Flag if any file requires type checking
   [[ "$file" =~ \.(ts|tsx|js|vue|html)$ ]] && has_typeable_files=true
-
-  # Flag if any file is ESLint-supported
   [[ "$file" =~ $ESLINT_EXTS_PATTERN ]] && has_eslintable_files=true
-
   staged_files+=("$file")
 done < "$staged_list"
 
@@ -38,8 +32,15 @@ fi
 
 if [[ "$has_eslintable_files" == true ]]; then
   echo "[pre-commit] running eslint --fix on ${#staged_files[@]} staged file(s)..."
-  pnpm eslint --fix "${staged_files[@]}" --config "./eslint.config.ts" \
-    || { echo "[pre-commit] ABORT: eslint failed — fix lint errors before committing"; exit 1; }
+  eslint_exit=0
+  pnpm eslint --fix "${staged_files[@]}" --config "./eslint.config.ts" || eslint_exit=$?
+  if [[ $eslint_exit -eq 2 ]]; then
+    echo "[pre-commit] ABORT: eslint crashed (config/parse error, exit 2) — check eslint.config.ts"
+    exit 1
+  elif [[ $eslint_exit -eq 1 ]]; then
+    echo "[pre-commit] ABORT: eslint found unfixable errors — fix lint errors before committing"
+    exit 1
+  fi
   echo "[pre-commit] eslint passed"
 else
   echo "[pre-commit] no ESLint-supported files staged, skipping eslint"
@@ -52,7 +53,7 @@ echo "[pre-commit] prettier passed"
 
 echo "[pre-commit] re-staging auto-fixed files..."
 while IFS= read -r -d '' file; do
-  [[ -f "$file" ]] && git add "$file"
+  git add -- "$file"
 done < "$staged_list"
 
 echo "[pre-commit] all checks passed"

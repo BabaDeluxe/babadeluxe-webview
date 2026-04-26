@@ -3,12 +3,23 @@ src/
 .git/
 .vscode/
 .husky/
+
 *.log
 *.local
+*.txt
+*.yaml
+*.yml
+*.old
+*.example
 
 ./*.json
 ./*.ts
 ./*.sh
+
+.prettierrc
 .npmrc
 .env.local
-*.example
+
+backlog.md
+CONTRIBUTING.md
+

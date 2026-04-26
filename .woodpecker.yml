@@ -1,0 +1,112 @@
+when:
+  - event: push
+    branch:
+      - master
+      - dev
+
+steps:
+  deploy-webview-prod:
+    image: alpine
+    when:
+      - event: push
+        branch: master
+    environment:
+      SSH_HOST: 217.160.14.123
+      SSH_USER: babadeluxe_111
+      DEPLOY_BASE_DIR: /var/www/vhosts/babadeluxe.com
+      REPO_SLUG: BabaDeluxe/babadeluxe-webview
+      REPO_BRANCH: master
+      SOURCE_DIR: babadeluxe-webview-prod-src
+      PUBLIC_DIR: webview-prod
+      PNPM_VERSION: 10.33.0
+      DEPLOY_SSH_KEY:
+        from_secret: deploy_ssh_key
+      GITHUB_PAT:
+        from_secret: github_pat
+    commands:
+      - apk add --no-cache openssh-client bash rsync
+      - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+      - echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+      - ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+      - |
+        ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s <<ENDSSH
+          set -euo pipefail
+
+          source ~/.bash_profile
+          source ~/.nvm/nvm.sh
+
+          mkdir -p "$DEPLOY_BASE_DIR"
+          cd "$DEPLOY_BASE_DIR"
+
+          if [ ! -d "$SOURCE_DIR/.git" ]; then
+            gh repo clone "$REPO_SLUG" "$SOURCE_DIR" -- -b "$REPO_BRANCH"
+          fi
+
+          cd "$SOURCE_DIR"
+          git checkout "$REPO_BRANCH"
+          git reset --hard
+          git pull origin "$REPO_BRANCH"
+
+          corepack enable
+          corepack use "pnpm@$PNPM_VERSION"
+
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+          mkdir -p "$DEPLOY_BASE_DIR/$PUBLIC_DIR"
+          rsync -a --delete dist/ "$DEPLOY_BASE_DIR/$PUBLIC_DIR/"
+
+        ENDSSH
+
+  deploy-webview-staging:
+    image: alpine
+    when:
+      - event: push
+        branch: dev
+    environment:
+      SSH_HOST: 217.160.14.123
+      SSH_USER: babadeluxe_111
+      DEPLOY_BASE_DIR: /var/www/vhosts/babadeluxe.com
+      REPO_SLUG: BabaDeluxe/babadeluxe-webview
+      REPO_BRANCH: dev
+      SOURCE_DIR: babadeluxe-webview-staging-src
+      PUBLIC_DIR: webview-staging
+      PNPM_VERSION: 10.33.0
+      DEPLOY_SSH_KEY:
+        from_secret: deploy_ssh_key
+      GITHUB_PAT:
+        from_secret: github_pat
+    commands:
+      - apk add --no-cache openssh-client bash rsync
+      - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+      - echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+      - ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+      - |
+        ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s <<ENDSSH
+          set -euo pipefail
+
+          source ~/.bash_profile
+          source ~/.nvm/nvm.sh
+
+          mkdir -p "$DEPLOY_BASE_DIR"
+          cd "$DEPLOY_BASE_DIR"
+
+          if [ ! -d "$SOURCE_DIR/.git" ]; then
+            gh repo clone "$REPO_SLUG" "$SOURCE_DIR" -- -b "$REPO_BRANCH"
+          fi
+
+          cd "$SOURCE_DIR"
+          git checkout "$REPO_BRANCH"
+          git reset --hard
+          git pull origin "$REPO_BRANCH"
+
+          corepack enable
+          corepack use "pnpm@$PNPM_VERSION"
+
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+          mkdir -p "$DEPLOY_BASE_DIR/$PUBLIC_DIR"
+          rsync -a --delete dist/ "$DEPLOY_BASE_DIR/$PUBLIC_DIR/"
+
+        ENDSSH
