@@ -24,7 +24,7 @@ steps:
       REPO_BRANCH: master
       SOURCE_DIR: babadeluxe-webview-prod-src
       PUBLIC_DIR: webview-prod
-      PNPM_VERSION: 10.33.0
+      PNPM_VERSION: 9.15.0
       DEPLOY_SSH_KEY:
         from_secret: deploy_ssh_key
     commands:
@@ -77,7 +77,7 @@ steps:
       REPO_BRANCH: dev
       SOURCE_DIR: babadeluxe-webview-staging-src
       PUBLIC_DIR: webview-staging
-      PNPM_VERSION: 10.33.0
+      PNPM_VERSION: 9.15.0
       DEPLOY_SSH_KEY:
         from_secret: deploy_ssh_key
     commands:
