@@ -21,8 +21,6 @@ steps:
       PNPM_VERSION: 10.33.0
       DEPLOY_SSH_KEY:
         from_secret: deploy_ssh_key
-      GITHUB_PAT:
-        from_secret: github_pat
     commands:
       - apk add --no-cache openssh-client bash rsync
       - mkdir -p ~/.ssh && chmod 700 ~/.ssh
@@ -74,8 +72,6 @@ steps:
       PNPM_VERSION: 10.33.0
       DEPLOY_SSH_KEY:
         from_secret: deploy_ssh_key
-      GITHUB_PAT:
-        from_secret: github_pat
     commands:
       - apk add --no-cache openssh-client bash rsync
       - mkdir -p ~/.ssh && chmod 700 ~/.ssh
