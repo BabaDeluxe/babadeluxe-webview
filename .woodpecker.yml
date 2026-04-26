@@ -3,6 +3,10 @@ when:
     branch:
       - master
       - dev
+  - event: manual
+    branch:
+      - master
+      - dev
 
 steps:
   deploy-webview-prod:
