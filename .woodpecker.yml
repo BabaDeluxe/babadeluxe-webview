@@ -14,6 +14,8 @@ steps:
     when:
       - event: push
         branch: master
+      - event: manual
+        branch: master
     environment:
       SSH_HOST: 217.160.14.123
       SSH_USER: babadeluxe_111
@@ -64,6 +66,8 @@ steps:
     image: alpine
     when:
       - event: push
+        branch: dev
+      - event: manual
         branch: dev
     environment:
       SSH_HOST: 217.160.14.123
