@@ -1,59 +1,76 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-ESLINT_EXTS_PATTERN='\.(ts|tsx|js|jsx|mjs|cjs|vue|html)$'
+typecheck_trigger_pattern='\.(ts|tsx|js|vue|html)$'
+
+is_git_submodule_path() {
+  local file_path="$1"
+  local index_entry
+
+  index_entry="$(git ls-files --stage -- "$file_path" || true)"
+  [[ "$index_entry" == 160000\ * ]]
+}
 
 staged_list="$(mktemp)"
 trap 'rm -f "$staged_list"' EXIT
 
-git diff --cached --name-only --diff-filter=ACM -z > "$staged_list"
+git diff --cached --name-only --diff-filter=ACM -z >"$staged_list"
 
 if [[ ! -s "$staged_list" ]]; then
   echo "[pre-commit] no staged files found, skipping"
   exit 0
 fi
 
-staged_files=()
 has_typeable_files=false
-has_eslintable_files=false
+has_non_submodule_files=false
 
 while IFS= read -r -d '' file; do
-  [[ "$file" == *.sh ]] && git update-index --chmod=+x "$file"
-  [[ "$file" =~ \.(ts|tsx|js|vue|html)$ ]] && has_typeable_files=true
-  [[ "$file" =~ $ESLINT_EXTS_PATTERN ]] && has_eslintable_files=true
-  staged_files+=("$file")
-done < "$staged_list"
+  if is_git_submodule_path "$file"; then
+    echo "[pre-commit] skipping git submodule path: $file"
+    continue
+  fi
+
+  has_non_submodule_files=true
+
+  if [[ "$file" == *.sh ]]; then
+    git update-index --chmod=+x "$file"
+  fi
+
+  if [[ "$file" =~ $typecheck_trigger_pattern ]]; then
+    has_typeable_files=true
+  fi
+done <"$staged_list"
+
+if [[ "$has_non_submodule_files" != true ]]; then
+  echo "[pre-commit] only git submodule paths staged, skipping"
+  exit 0
+fi
 
 if [[ "$has_typeable_files" == true ]]; then
   echo "[pre-commit] running type-check..."
-  pnpm type-check || { echo "[pre-commit] ABORT: type-check failed — fix type errors before committing"; exit 1; }
+  pnpm type-check || {
+    echo "[pre-commit] ABORT: type-check failed — fix type errors before committing"
+    exit 1
+  }
   echo "[pre-commit] type-check passed"
-fi
-
-if [[ "$has_eslintable_files" == true ]]; then
-  echo "[pre-commit] running eslint --fix on ${#staged_files[@]} staged file(s)..."
-  eslint_exit=0
-  pnpm eslint --fix "${staged_files[@]}" --config "./eslint.config.ts" || eslint_exit=$?
-  if [[ $eslint_exit -eq 2 ]]; then
-    echo "[pre-commit] ABORT: eslint crashed (config/parse error, exit 2) — check eslint.config.ts"
-    exit 1
-  elif [[ $eslint_exit -eq 1 ]]; then
-    echo "[pre-commit] ABORT: eslint found unfixable errors — fix lint errors before committing"
-    exit 1
-  fi
-  echo "[pre-commit] eslint passed"
 else
-  echo "[pre-commit] no ESLint-supported files staged, skipping eslint"
+  echo "[pre-commit] no type-check-triggering files staged, skipping type-check"
 fi
 
-echo "[pre-commit] running prettier --write on ${#staged_files[@]} staged file(s)..."
-pnpm prettier --write --ignore-unknown "${staged_files[@]}" \
-  || { echo "[pre-commit] ABORT: prettier failed"; exit 1; }
-echo "[pre-commit] prettier passed"
+echo "[pre-commit] running pnpm format..."
+pnpm format || {
+  echo "[pre-commit] ABORT: format failed"
+  exit 1
+}
+echo "[pre-commit] format passed"
 
 echo "[pre-commit] re-staging auto-fixed files..."
 while IFS= read -r -d '' file; do
+  if is_git_submodule_path "$file"; then
+    continue
+  fi
+
   git add -- "$file"
-done < "$staged_list"
+done <"$staged_list"
 
 echo "[pre-commit] all checks passed"

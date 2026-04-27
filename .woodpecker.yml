@@ -8,109 +8,102 @@ when:
       - master
       - dev
 
+variables:
+  - &deploy_image alpine
+
+  - &deploy_commands
+    - apk add --no-cache openssh-client bash
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+    - ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+    - |
+      ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s -- \
+        "$NODE_ENV" \
+        "$DEPLOY_BASE_DIR" \
+        "$RELEASE_DIR" \
+        "$REPO_SLUG" \
+        "$REPO_BRANCH" \
+        "$PNPM_VERSION" \
+        "$PM2_APP_NAME" <<'ENDSSH'
+        set -euo pipefail
+
+        NODE_ENV="$1"
+        DEPLOY_BASE_DIR="$2"
+        RELEASE_DIR="$3"
+        REPO_SLUG="$4"
+        REPO_BRANCH="$5"
+        PNPM_VERSION="$6"
+        PM2_APP_NAME="$7"
+
+        source ~/.bash_profile
+        source ~/.nvm/nvm.sh
+
+        DEPLOY_PATH="$DEPLOY_BASE_DIR/$RELEASE_DIR"
+        mkdir -p "$DEPLOY_BASE_DIR"
+
+        if [ ! -d "$DEPLOY_PATH/.git" ]; then
+          gh repo clone "$REPO_SLUG" "$DEPLOY_PATH" -- -b "$REPO_BRANCH"
+        fi
+
+        cd "$DEPLOY_PATH"
+        echo "Current path (DEPLOY_PATH): $DEPLOY_PATH"
+        pwd
+        test -d .git
+
+        git fetch origin "$REPO_BRANCH"
+        git checkout "$REPO_BRANCH"
+        git reset --hard "origin/$REPO_BRANCH"
+
+        corepack enable
+        corepack use "pnpm@$PNPM_VERSION"
+
+        pnpm install --frozen-lockfile
+        rm -rf ./dist
+        pnpm build
+
+        test -f ./dist/index.html
+
+        pm2 stop "$PM2_APP_NAME" || true
+        pm2 delete "$PM2_APP_NAME" || true
+        pm2 start ecosystem.config.cjs --only "$PM2_APP_NAME" --env "$NODE_ENV"
+      ENDSSH
+
+  - &deploy_base_env
+    SSH_HOST: 217.160.14.123
+    SSH_USER: babadeluxe_111
+    DEPLOY_BASE_DIR: /var/www/vhosts/babadeluxe.com
+    REPO_SLUG: BabaDeluxe/babadeluxe-webview
+    PNPM_VERSION: 9.15.0
+    DEPLOY_SSH_KEY:
+      from_secret: deploy_ssh_key
+
 steps:
-  deploy-webview-prod:
-    image: alpine
+  deploy-prod:
+    image: *deploy_image
     when:
       - event: push
         branch: master
       - event: manual
         branch: master
     environment:
-      SSH_HOST: 217.160.14.123
-      SSH_USER: babadeluxe_111
-      DEPLOY_BASE_DIR: /var/www/vhosts/babadeluxe.com
-      REPO_SLUG: BabaDeluxe/babadeluxe-webview
+      <<: *deploy_base_env
+      NODE_ENV: production
       REPO_BRANCH: master
-      SOURCE_DIR: babadeluxe-webview-prod-src
-      PUBLIC_DIR: webview-prod
-      PNPM_VERSION: 9.15.0
-      DEPLOY_SSH_KEY:
-        from_secret: deploy_ssh_key
-    commands:
-      - apk add --no-cache openssh-client bash rsync
-      - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-      - echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
-      - ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
-      - |
-        ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s <<ENDSSH
-          set -euo pipefail
+      RELEASE_DIR: babadeluxe-webview-prod
+      PM2_APP_NAME: babadeluxe-webview-prod
+    commands: *deploy_commands
 
-          source ~/.bash_profile
-          source ~/.nvm/nvm.sh
-
-          mkdir -p "$DEPLOY_BASE_DIR"
-          cd "$DEPLOY_BASE_DIR"
-
-          if [ ! -d "$SOURCE_DIR/.git" ]; then
-            gh repo clone "$REPO_SLUG" "$SOURCE_DIR" -- -b "$REPO_BRANCH"
-          fi
-
-          cd "$SOURCE_DIR"
-          git checkout "$REPO_BRANCH"
-          git reset --hard
-          git pull origin "$REPO_BRANCH"
-
-          corepack enable
-          corepack use "pnpm@$PNPM_VERSION"
-
-          pnpm install --frozen-lockfile
-          pnpm run build
-
-          mkdir -p "$DEPLOY_BASE_DIR/$PUBLIC_DIR"
-          rsync -a --delete dist/ "$DEPLOY_BASE_DIR/$PUBLIC_DIR/"
-
-        ENDSSH
-
-  deploy-webview-staging:
-    image: alpine
+  deploy-staging:
+    image: *deploy_image
     when:
       - event: push
         branch: dev
       - event: manual
         branch: dev
     environment:
-      SSH_HOST: 217.160.14.123
-      SSH_USER: babadeluxe_111
-      DEPLOY_BASE_DIR: /var/www/vhosts/babadeluxe.com
-      REPO_SLUG: BabaDeluxe/babadeluxe-webview
+      <<: *deploy_base_env
+      NODE_ENV: staging
       REPO_BRANCH: dev
-      SOURCE_DIR: babadeluxe-webview-staging-src
-      PUBLIC_DIR: webview-staging
-      PNPM_VERSION: 9.15.0
-      DEPLOY_SSH_KEY:
-        from_secret: deploy_ssh_key
-    commands:
-      - apk add --no-cache openssh-client bash rsync
-      - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-      - echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
-      - ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
-      - |
-        ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s <<ENDSSH
-          set -euo pipefail
-
-          source ~/.bash_profile
-          source ~/.nvm/nvm.sh
-
-          mkdir -p "$DEPLOY_BASE_DIR"
-          cd "$DEPLOY_BASE_DIR"
-
-          if [ ! -d "$SOURCE_DIR/.git" ]; then
-            gh repo clone "$REPO_SLUG" "$SOURCE_DIR" -- -b "$REPO_BRANCH"
-          fi
-
-          cd "$SOURCE_DIR"
-          git checkout "$REPO_BRANCH"
-          git reset --hard
-          git pull origin "$REPO_BRANCH"
-
-          corepack enable
-          corepack use "pnpm@$PNPM_VERSION"
-
-          pnpm install --frozen-lockfile
-          pnpm run build
-
-          mkdir -p "$DEPLOY_BASE_DIR/$PUBLIC_DIR"
-          rsync -a --delete dist/ "$DEPLOY_BASE_DIR/$PUBLIC_DIR/"
-
-        ENDSSH
+      RELEASE_DIR: babadeluxe-webview-staging
+      PM2_APP_NAME: babadeluxe-webview-staging
+    commands: *deploy_commands
