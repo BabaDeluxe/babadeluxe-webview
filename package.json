@@ -135,7 +135,7 @@
     "vite-plugin-vue-devtools": "^8.0.0",
     "vitest": "^3.2.4",
     "vue-tsc": "^3.0.4",
-    "xo": "^1.2.2"
+    "xo": "1.2.2"
   },
   "publishConfig": {
     "registry": "https://npflared.simonwaiblinger.workers.dev"
