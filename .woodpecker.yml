@@ -20,7 +20,7 @@ variables:
       ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s -- \
         "$NODE_ENV" \
         "$DEPLOY_BASE_DIR" \
-        "$RELEASE_DIR" \
+        "$GIT_DIR" \
         "$REPO_SLUG" \
         "$REPO_BRANCH" \
         "$PNPM_VERSION" \
@@ -29,7 +29,7 @@ variables:
 
         NODE_ENV="$1"
         DEPLOY_BASE_DIR="$2"
-        RELEASE_DIR="$3"
+        GIT_DIR="$3"
         REPO_SLUG="$4"
         REPO_BRANCH="$5"
         PNPM_VERSION="$6"
@@ -38,7 +38,7 @@ variables:
         source ~/.bash_profile
         source ~/.nvm/nvm.sh
 
-        DEPLOY_PATH="$DEPLOY_BASE_DIR/$RELEASE_DIR"
+        DEPLOY_PATH="$DEPLOY_BASE_DIR/$GIT_DIR"
         mkdir -p "$DEPLOY_BASE_DIR"
 
         if [ ! -d "$DEPLOY_PATH/.git" ]; then
@@ -46,7 +46,7 @@ variables:
         fi
 
         cd "$DEPLOY_PATH"
-        echo "Current path (DEPLOY_PATH): $DEPLOY_PATH"
+
         pwd
         test -d .git
 
@@ -63,9 +63,7 @@ variables:
 
         test -f ./dist/index.html
 
-        pm2 stop "$PM2_APP_NAME" || true
-        pm2 delete "$PM2_APP_NAME" || true
-        pm2 start ecosystem.config.cjs --only "$PM2_APP_NAME" --env "$NODE_ENV"
+        rsync -r "$DEPLOY_PATH/dist" "$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
       ENDSSH
 
   - &deploy_base_env
@@ -89,8 +87,8 @@ steps:
       <<: *deploy_base_env
       NODE_ENV: production
       REPO_BRANCH: master
-      RELEASE_DIR: babadeluxe-webview-prod
-      PM2_APP_NAME: babadeluxe-webview-prod
+      GIT_DIR: babadeluxe-webview-prod
+      SUBDOMAIN_DIR: app.babadeluxe.com
     commands: *deploy_commands
 
   deploy-staging:
@@ -104,6 +102,6 @@ steps:
       <<: *deploy_base_env
       NODE_ENV: staging
       REPO_BRANCH: dev
-      RELEASE_DIR: babadeluxe-webview-staging
-      PM2_APP_NAME: babadeluxe-webview-staging
+      GIT_DIR: babadeluxe-webview-staging
+      SUBDOMAIN_DIR: app-staging.babadeluxe.com
     commands: *deploy_commands
