@@ -24,7 +24,8 @@ variables:
         "$REPO_SLUG" \
         "$REPO_BRANCH" \
         "$PNPM_VERSION" \
-        "$PM2_APP_NAME" <<'ENDSSH'
+        "$PM2_APP_NAME" \
+        "$SUBDOMAIN_DIR" <<'ENDSSH'
         set -euo pipefail
 
         NODE_ENV="$1"
@@ -34,6 +35,7 @@ variables:
         REPO_BRANCH="$5"
         PNPM_VERSION="$6"
         PM2_APP_NAME="$7"
+        SUBDOMAIN_DIR="$8"
 
         source ~/.bash_profile
         source ~/.nvm/nvm.sh
