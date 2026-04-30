@@ -1,124 +1,148 @@
 <template>
-  <section
-    id="login"
-    data-testid="login-view-container"
-  >
-    <div
-      class="flex flex-col items-center justify-center w-full h-full bg-slate text-deepText font-onest p-4"
-    >
-      <div class="flex flex-row justify-center items-center">
-        <IconBabaDeluxe class="flex flex-1" />
-
-        <div class="flex flex-2 justify-center items-center">
-          <h2 class="text-2xl font-bold text-accent">BabaDeluxe Login</h2>
+  <section class="min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr] bg-deepBg text-deepText font-sans selection:bg-accent selection:text-white dark overflow-hidden">
+    <!-- Left Pane: Login Form -->
+    <div class="flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-deepBg">
+      <div class="w-full max-w-md space-y-8 animate-fade-in">
+        <!-- Logo & Header -->
+        <div class="text-center">
+          <div class="inline-flex justify-center mb-6">
+            <IconBabaDeluxe class="zoom-1.2" />
+          </div>
+          <h2 class="text-4xl font-extrabold tracking-tight text-white mb-3">
+            {{ isSignUp ? 'Create an account' : 'Welcome back' }}
+          </h2>
+          <p class="text-subtleText text-lg">
+            {{ isSignUp ? 'Sign up to start your AI journey' : 'Sign in to your account to continue' }}
+          </p>
         </div>
-      </div>
 
-      <div
-        class="flex flex-col w-full max-w-md bg-panel rounded-lg shadow-lg p-6 my-4 border border-borderMuted"
-      >
-        <div class="flex flex-row gap-4">
+        <!-- Social Logins -->
+        <div class="grid grid-cols-1 gap-3">
           <BaseButton
-            variant="primary"
-            class="flex-1"
-            data-testid="login-github-button"
-            text="GitHub"
-            icon="i-simple-icons:github"
+            class="w-full justify-center gap-3 border border-borderMuted/30 bg-[#1a1e2d] hover:bg-[#252a3d] text-white transition-all duration-300 py-3 rounded-xl hover:border-accent/50 group"
+            data-testid="google-login-button"
             :disabled="isLoading"
-            type="button"
-            @click="handleGitHubLogin"
-          />
-
-          <BaseButton
-            variant="primary"
-            class="flex-1"
-            data-testid="login-google-button"
-            text="Google"
-            icon="i-simple-icons:google"
-            :disabled="isLoading"
-            type="button"
             @click="handleGoogleLogin"
-          />
+          >
+            <i class="i-simple-icons:google text-xl text-white group-hover:scale-110 transition-transform" />
+            <span class="font-bold text-white">Continue with Google</span>
+          </BaseButton>
+          <BaseButton
+            class="w-full justify-center gap-3 border border-borderMuted/30 bg-[#1a1e2d] hover:bg-[#252a3d] text-white transition-all duration-300 py-3 rounded-xl hover:border-accent/50 group"
+            data-testid="github-login-button"
+            :disabled="isLoading"
+            @click="handleGitHubLogin"
+          >
+            <i class="i-simple-icons:github text-xl text-white group-hover:scale-110 transition-transform" />
+            <span class="font-bold text-white">Continue with GitHub</span>
+          </BaseButton>
         </div>
 
-        <div class="text-center text-subtleText my-4">or</div>
+        <!-- Divider -->
+        <div class="relative py-2">
+          <div class="absolute inset-0 flex items-center" aria-hidden="true">
+            <div class="w-full border-t border-borderMuted/10"></div>
+          </div>
+          <div class="relative flex justify-center text-xs uppercase tracking-[0.3em]">
+            <span class="bg-deepBg px-6 text-subtleText/40 font-black">OR</span>
+          </div>
+        </div>
 
-        <form
-          class="flex flex-col gap-4"
-          autocomplete="on"
-          data-testid="login-form"
-          @submit.prevent="handleAuth"
-        >
+        <!-- Form -->
+        <form class="space-y-6" @submit.prevent="handleAuth">
           <BaseInput
-            data-testid="login-email-input"
-            aria-label="Email Address"
             :model-value="email"
             type="email"
-            placeholder="Email"
-            :is-disabled="isLoading"
-            :is-required="true"
+            label="Email address"
+            placeholder="name@company.com"
+            :disabled="isLoading"
             :error="emailError"
+            :is-required="true"
             @update:model-value="handleEmailChange"
           />
 
-          <BaseInput
-            data-testid="login-password-input"
-            aria-label="Password"
-            :model-value="password"
-            type="password"
-            placeholder="Password"
-            :is-disabled="isLoading"
-            :is-required="true"
-            :is-toggleable="true"
-            :error="passwordError"
-            @update:model-value="handlePasswordChange"
-          />
-
-          <router-link
-            v-if="!isSignUp"
-            to="/reset-password"
-            class="w-full flex"
-          >
-            <BaseButton
-              v-if="!isSignUp"
-              variant="primary"
-              class="w-full"
-              data-testid="login-forgot-password-button"
-              text="Forgot Password?"
+          <div class="space-y-1">
+            <BaseInput
+              :model-value="password"
+              type="password"
+              label="Password"
+              placeholder="••••••••"
               :disabled="isLoading"
-              type="button"
-              @click="handleForgotPassword"
+              :error="passwordError"
+              :is-toggleable="true"
+              :is-required="true"
+              @update:model-value="handlePasswordChange"
             />
-          </router-link>
+          </div>
+
+          <div class="flex items-center justify-between text-sm">
+            <label class="flex items-center gap-2 cursor-pointer group select-none">
+              <input
+                v-model="keepSignedIn"
+                type="checkbox"
+                class="w-4 h-4 rounded border-borderMuted bg-panel text-accent focus:ring-accent/20 transition-all cursor-pointer"
+              />
+              <span class="text-subtleText group-hover:text-white transition-colors">Keep me signed in</span>
+            </label>
+            <router-link
+              to="/reset-password"
+              class="text-accent hover:text-accent/80 font-bold transition-colors"
+            >
+              Forgot password?
+            </router-link>
+          </div>
 
           <BaseButton
             variant="primary"
             data-testid="login-submit-button"
             type="submit"
-            :text="isSignUp ? 'Sign Up' : 'Sign In'"
+            class="w-full justify-center h-12 text-lg font-bold shadow-[0_10px_20px_rgba(182,126,230,0.15)] hover:shadow-[0_10px_25px_rgba(182,126,230,0.25)] rounded-xl transition-all active:scale-[0.98]"
             :disabled="isLoading"
             :loading="isLoading"
-          />
-          <BaseButton
-            variant="primary"
-            data-testid="login-toggle-mode-button"
-            type="button"
-            :text="isSignUp ? 'Switch to Sign In' : 'Switch to Sign Up'"
-            :disabled="isLoading"
-            @click="toggleMode"
-          />
+          >
+            {{ isSignUp ? 'Create account' : 'Sign In' }}
+          </BaseButton>
+
+          <div class="text-center pt-2">
+            <button
+              type="button"
+              class="text-xs text-subtleText/40 hover:text-accent transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest font-bold group"
+              @click="handleSSOLogin"
+            >
+              <i class="i-ri:shield-keyhole-line text-sm group-hover:rotate-12 transition-transform" />
+              Sign in with SSO
+            </button>
+          </div>
         </form>
+
+        <!-- Footer -->
+        <div class="text-center text-sm text-subtleText border-t border-borderMuted/10 pt-8">
+          {{ isSignUp ? 'Already have an account?' : "Don't have an account?" }}
+          <button
+            type="button"
+            class="text-accent hover:text-accent/80 font-black ml-2 transition-all hover:underline"
+            @click="toggleMode"
+          >
+            {{ isSignUp ? 'Sign in' : 'Create account' }}
+          </button>
+        </div>
       </div>
+    </div>
+
+    <!-- Right Pane: Matrix Animation -->
+    <div class="hidden md:block relative overflow-hidden bg-black border-l border-borderMuted/10">
+      <MatrixRain />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { ResultAsync, ok, err, type Result } from 'neverthrow'
 import { useRouter } from 'vue-router'
 import type { AbstractLogger } from '@/logger'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
+import MatrixRain from '@/components/MatrixRain.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseInput from '@/components/BaseInput.vue'
 import { useVsCodeAuth } from '@/composables/use-vs-code-auth'
@@ -128,7 +152,6 @@ import { safeInject } from '@/safe-inject'
 import { AuthError, NetworkError } from '@/errors'
 import { toUserMessage } from '@/error-mapper'
 import { useToastStore } from '@/stores/use-toast-store'
-import { watch } from 'vue'
 
 const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
 const logger: AbstractLogger = safeInject(LOGGER_KEY)
@@ -140,6 +163,7 @@ const toasts = useToastStore()
 const email = ref('')
 const password = ref('')
 const isSignUp = ref(false)
+const keepSignedIn = ref(true)
 const error = ref<string | undefined>()
 const emailError = ref<string | undefined>()
 const passwordError = ref<string | undefined>()
@@ -177,7 +201,7 @@ const signUpWithEmail = async (
   emailAddress: string,
   userPassword: string,
   supabaseClient: SupabaseClientType
-): Promise<Result<void, AuthError>> => {
+): Promise<Result<{ needsConfirmation: boolean }, AuthError>> => {
   const result = await ResultAsync.fromPromise(
     supabaseClient.auth.signUp({
       email: emailAddress,
@@ -194,7 +218,8 @@ const signUpWithEmail = async (
   if (result.isErr()) return err(result.error)
   if (result.value.error) return err(new AuthError(result.value.error.message))
 
-  return ok(undefined)
+  const needsConfirmation = result.value.data.session === null
+  return ok({ needsConfirmation })
 }
 
 const signInWithEmail = async (
@@ -216,7 +241,13 @@ const signInWithEmail = async (
   )
 
   if (result.isErr()) return err(result.error)
-  if (result.value.error) return err(new AuthError(result.value.error.message))
+  if (result.value.error) {
+    const msg = result.value.error.message
+    if (msg.includes('Email not confirmed')) {
+      return err(new AuthError('Please confirm your email address before signing in.'))
+    }
+    return err(new AuthError(msg))
+  }
 
   return ok(undefined)
 }
@@ -257,26 +288,74 @@ const handleAuth = async (): Promise<void> => {
   emailError.value = undefined
   passwordError.value = undefined
 
-  const authAction = isSignUp.value ? 'sign up' : 'sign in'
-  const result = isSignUp.value
-    ? await signUpWithEmail(email.value, password.value, supabase)
-    : await signInWithEmail(email.value, password.value, supabase)
+  if (isSignUp.value) {
+    const result = await signUpWithEmail(email.value, password.value, supabase)
+    result.match(
+      (data) => {
+        if (data.needsConfirmation) {
+          toasts.success('Sign up successful! Please check your email to confirm your account.')
+          isSignUp.value = false
+        } else {
+          logger.log('User successfully signed up and logged in')
+          void navigateAfterLogin()
+        }
+      },
+      (authError) => {
+        logger.error('Email sign up failed', { email: email.value, error: authError })
+        error.value = toUserMessage(authError)
+      }
+    )
+  } else {
+    const result = await signInWithEmail(email.value, password.value, supabase)
+    await result.match(
+      async () => {
+        logger.log('User successfully signed in')
+        if (!keepSignedIn.value) {
+          window.addEventListener('beforeunload', () => {
+            void supabase.auth.signOut()
+          })
+        }
+        await navigateAfterLogin()
+      },
+      (authError) => {
+        logger.error('Email sign in failed', { email: email.value, error: authError })
+        error.value = toUserMessage(authError)
+        password.value = ''
+      }
+    )
+  }
 
-  await result.match(
-    async () => {
-      logger.log(`User successfully ${authAction === 'sign up' ? 'signed up' : 'signed in'}`)
-      await navigateAfterLogin()
-    },
-    (authError) => {
-      logger.error(`Email ${authAction} failed`, {
-        email: email.value,
-        error: authError,
-      })
-      error.value = toUserMessage(authError)
-      password.value = ''
-    }
+  isLoading.value = false
+}
+
+const handleSSOLogin = async (): Promise<void> => {
+  if (isLoading.value) return
+  isLoading.value = true
+  error.value = undefined
+
+  const domain = prompt('Enter your work email domain (e.g. company.com)')
+  if (!domain) {
+    isLoading.value = false
+    return
+  }
+
+  const result = await ResultAsync.fromPromise(
+    supabase.auth.signInWithSSO({ domain }),
+    (e: unknown) => new AuthError(e instanceof Error ? e.message : 'SSO failed', e)
   )
 
+  result.match(
+    (res) => {
+      if (res.data?.url) {
+        globalThis.location.href = res.data.url
+      } else if (res.error) {
+        error.value = toUserMessage(new AuthError(res.error.message))
+      }
+    },
+    (e) => {
+      error.value = toUserMessage(e)
+    }
+  )
   isLoading.value = false
 }
 
@@ -303,6 +382,8 @@ const navigateAfterLogin = async (): Promise<void> => {
 }
 
 onMounted(() => {
+  document.documentElement.classList.add('dark')
+
   void (async () => {
     if (!vsCodeAuth?.isRunningInsideVsCode() || hasAttemptedStoredSession.value) return
 
@@ -343,26 +424,6 @@ onMounted(() => {
     await navigateAfterLogin()
   })()
 })
-
-const handleForgotPassword = async (): Promise<void> => {
-  if (isLoading.value) return
-
-  const navigationResult = await ResultAsync.fromPromise(
-    router.push('/reset-password'),
-    (unknownError) => {
-      if (unknownError instanceof Error) {
-        return new NetworkError(unknownError.message, unknownError)
-      }
-      return new NetworkError('Navigation failed', unknownError)
-    }
-  )
-
-  if (navigationResult.isErr()) {
-    logger.error('Failed to navigate to password reset', {
-      error: navigationResult.error,
-    })
-  }
-}
 
 const handleGitHubLogin = async (): Promise<void> => {
   await handleOAuthLogin('github')
@@ -430,3 +491,14 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
   isLoading.value = false
 }
 </script>
+
+<style scoped>
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+</style>
