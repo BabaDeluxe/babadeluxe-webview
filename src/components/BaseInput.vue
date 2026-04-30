@@ -44,10 +44,11 @@
         type="button"
         :aria-label="showPassword ? 'Hide password' : 'Show password'"
         tabindex="-1"
-        class="absolute right-2 text-white/50 hover:text-white transition-colors"
+        class="absolute right-2 text-subtleText/50 hover:text-accent transition-colors"
         @click="togglePassword"
       >
-        {{ showPassword ? '🙈' : '👁️' }}
+        <span v-if="showPassword" class="i-ri:eye-off-line text-lg" />
+        <span v-else class="i-ri:eye-line text-lg" />
       </BaseButton>
 
       <!-- Validation Status Indicator -->
@@ -146,15 +147,15 @@ const computedType = computed(() => {
 
 const inputClasses = computed(() => {
   const base =
-    'w-full px-3 py-2.5 rounded-lg bg-panel text-white placeholder-subtleText/50 focus:outline-none transition-all'
+    'w-full px-3 py-2.5 rounded-lg bg-panel text-bodyText placeholder-subtleText/50 focus:outline-none transition-all'
 
   let borderClasses = ''
   if (props.validationState === 'invalid' || props.error) {
-    borderClasses = 'border border-error/50 focus:border-error shadow-[0_0_10px_rgba(231,76,92,0.1)]'
+    borderClasses = 'border border-error/50 focus:border-error shadow-sm'
   } else if (props.validationState === 'valid') {
     borderClasses = 'border border-accent/50 focus:border-accent'
   } else {
-    borderClasses = 'border border-borderMuted focus:border-accent focus:shadow-[0_0_15px_rgba(182,126,230,0.15)]'
+    borderClasses = 'border border-borderMuted focus:border-accent focus:shadow-sm'
   }
 
   const disabledClass = props.isDisabled ? 'opacity-50 cursor-not-allowed' : ''

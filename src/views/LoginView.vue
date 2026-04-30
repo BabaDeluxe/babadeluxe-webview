@@ -1,14 +1,14 @@
 <template>
-  <section class="min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr] bg-deepBg text-deepText font-sans selection:bg-accent selection:text-white dark overflow-hidden">
+  <section class="min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr] bg-slate text-bodyText font-sans selection:bg-accent selection:text-white overflow-hidden">
     <!-- Left Pane: Login Form -->
-    <div class="flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-deepBg">
+    <div class="flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-slate">
       <div class="w-full max-w-md space-y-8 animate-fade-in">
         <!-- Logo & Header -->
         <div class="text-center">
           <div class="inline-flex justify-center mb-6">
             <IconBabaDeluxe class="zoom-1.2" />
           </div>
-          <h2 class="text-4xl font-extrabold tracking-tight text-white mb-3">
+          <h2 class="text-4xl font-extrabold tracking-tight text-headingText mb-3">
             {{ isSignUp ? 'Create an account' : 'Welcome back' }}
           </h2>
           <p class="text-subtleText text-lg">
@@ -19,32 +19,32 @@
         <!-- Social Logins -->
         <div class="grid grid-cols-1 gap-3">
           <BaseButton
-            class="w-full justify-center gap-3 border border-borderMuted/30 bg-[#1a1e2d] hover:bg-[#252a3d] text-white transition-all duration-300 py-3 rounded-xl hover:border-accent/50 group"
+            class="w-full justify-center gap-3 border border-borderMuted/30 bg-panel hover:bg-slate text-bodyText transition-all duration-300 py-3 rounded-xl hover:border-accent/50 group"
             data-testid="google-login-button"
             :disabled="isLoading"
             @click="handleGoogleLogin"
           >
-            <i class="i-simple-icons:google text-xl text-white group-hover:scale-110 transition-transform" />
-            <span class="font-bold text-white">Continue with Google</span>
+            <i class="i-simple-icons:google text-xl group-hover:scale-110 transition-transform" />
+            <span class="font-bold">Continue with Google</span>
           </BaseButton>
           <BaseButton
-            class="w-full justify-center gap-3 border border-borderMuted/30 bg-[#1a1e2d] hover:bg-[#252a3d] text-white transition-all duration-300 py-3 rounded-xl hover:border-accent/50 group"
+            class="w-full justify-center gap-3 border border-borderMuted/30 bg-panel hover:bg-slate text-bodyText transition-all duration-300 py-3 rounded-xl hover:border-accent/50 group"
             data-testid="github-login-button"
             :disabled="isLoading"
             @click="handleGitHubLogin"
           >
-            <i class="i-simple-icons:github text-xl text-white group-hover:scale-110 transition-transform" />
-            <span class="font-bold text-white">Continue with GitHub</span>
+            <i class="i-simple-icons:github text-xl group-hover:scale-110 transition-transform" />
+            <span class="font-bold">Continue with GitHub</span>
           </BaseButton>
         </div>
 
         <!-- Divider -->
         <div class="relative py-2">
           <div class="absolute inset-0 flex items-center" aria-hidden="true">
-            <div class="w-full border-t border-borderMuted/10"></div>
+            <div class="w-full border-t border-borderMuted/30"></div>
           </div>
           <div class="relative flex justify-center text-xs uppercase tracking-[0.3em]">
-            <span class="bg-deepBg px-6 text-subtleText/40 font-black">OR</span>
+            <span class="bg-slate px-6 text-subtleText/60 font-black">OR</span>
           </div>
         </div>
 
@@ -82,7 +82,7 @@
                 type="checkbox"
                 class="w-4 h-4 rounded border-borderMuted bg-panel text-accent focus:ring-accent/20 transition-all cursor-pointer"
               />
-              <span class="text-subtleText group-hover:text-white transition-colors">Keep me signed in</span>
+              <span class="text-subtleText group-hover:text-headingText transition-colors">Keep me signed in</span>
             </label>
             <router-link
               to="/reset-password"
@@ -96,7 +96,7 @@
             variant="primary"
             data-testid="login-submit-button"
             type="submit"
-            class="w-full justify-center h-12 text-lg font-bold shadow-[0_10px_20px_rgba(182,126,230,0.15)] hover:shadow-[0_10px_25px_rgba(182,126,230,0.25)] rounded-xl transition-all active:scale-[0.98]"
+            class="w-full justify-center h-12 text-lg font-bold shadow-lg hover:shadow-xl rounded-xl transition-all active:scale-[0.98]"
             :disabled="isLoading"
             :loading="isLoading"
           >
@@ -106,7 +106,7 @@
           <div class="text-center pt-2">
             <button
               type="button"
-              class="text-xs text-subtleText/40 hover:text-accent transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest font-bold group"
+              class="text-xs text-subtleText/60 hover:text-accent transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest font-bold group"
               @click="handleSSOLogin"
             >
               <i class="i-ri:shield-keyhole-line text-sm group-hover:rotate-12 transition-transform" />
@@ -116,7 +116,7 @@
         </form>
 
         <!-- Footer -->
-        <div class="text-center text-sm text-subtleText border-t border-borderMuted/10 pt-8">
+        <div class="text-center text-sm text-subtleText border-t border-borderMuted/30 pt-8">
           {{ isSignUp ? 'Already have an account?' : "Don't have an account?" }}
           <button
             type="button"
@@ -130,7 +130,7 @@
     </div>
 
     <!-- Right Pane: Matrix Animation -->
-    <div class="hidden md:block relative overflow-hidden bg-black border-l border-borderMuted/10">
+    <div class="hidden md:block relative overflow-hidden bg-slate border-l border-borderMuted/10">
       <MatrixRain />
     </div>
   </section>
@@ -382,8 +382,6 @@ const navigateAfterLogin = async (): Promise<void> => {
 }
 
 onMounted(() => {
-  document.documentElement.classList.add('dark')
-
   void (async () => {
     if (!vsCodeAuth?.isRunningInsideVsCode() || hasAttemptedStoredSession.value) return
 

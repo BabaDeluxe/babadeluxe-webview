@@ -19,8 +19,11 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/naming-convention */
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useTheme } from '@/composables/use-theme'
 
+const { isDark } = useTheme()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let rafId: number | null = null
 
@@ -76,7 +79,9 @@ function draw() {
   const h = canvas.offsetHeight
 
   ctx.clearRect(0, 0, w, h)
-  ctx.fillStyle = '#06000e'
+
+  // Adaptive background
+  ctx.fillStyle = isDark.value ? '#06000e' : '#f8fafc'
   ctx.fillRect(0, 0, w, h)
 
   ctx.font = `${FONT_SIZE}px 'Share Tech Mono', monospace`
@@ -108,23 +113,35 @@ function draw() {
       const y = (col.head - t) * FONT_SIZE
       if (y < -FONT_SIZE * 2 || y > h) continue
 
-      if (t === 0) {
-        ctx.shadowBlur = 10
-        ctx.shadowColor = 'rgba(230, 160, 255, 0.9)'
-        ctx.fillStyle = 'rgba(255, 240, 255, 1.0)'
-      } else if (t === 1) {
-        ctx.shadowBlur = 6
-        ctx.shadowColor = 'rgba(180, 80, 255, 0.7)'
-        ctx.fillStyle = 'rgba(210, 120, 255, 0.92)'
+      const p = t / TRAIL_LEN
+      const inv = 1 - p
+
+      if (isDark.value) {
+        if (t === 0) {
+          ctx.shadowBlur = 10
+          ctx.shadowColor = 'rgba(230, 160, 255, 0.9)'
+          ctx.fillStyle = 'rgba(255, 240, 255, 1.0)'
+        } else if (t === 1) {
+          ctx.shadowBlur = 6
+          ctx.shadowColor = 'rgba(180, 80, 255, 0.7)'
+          ctx.fillStyle = 'rgba(210, 120, 255, 0.92)'
+        } else {
+          ctx.shadowBlur = 0
+          const r = Math.round(40 + 120 * Math.pow(inv, 1.6))
+          const g = Math.round(5 + 35 * Math.pow(inv, 2.0))
+          const b = Math.round(60 + 180 * Math.pow(inv, 1.3))
+          const a = Math.pow(inv, 0.9) * 0.9
+          ctx.fillStyle = `rgba(${r},${g},${b},${a})`
+        }
       } else {
-        const p = (t - 2) / (TRAIL_LEN - 2)
-        const inv = 1 - p
-        ctx.shadowBlur = 0
-        const r = Math.round(40 + 120 * Math.pow(inv, 1.6))
-        const g = Math.round(5 + 35 * Math.pow(inv, 2.0))
-        const b = Math.round(60 + 180 * Math.pow(inv, 1.3))
-        const a = Math.pow(inv, 0.9) * 0.9
-        ctx.fillStyle = `rgba(${r},${g},${b},${a})`
+        // Light mode colors (purple-ish but darker/more visible)
+        if (t === 0) {
+          ctx.shadowBlur = 0
+          ctx.fillStyle = 'rgba(136, 84, 192, 1.0)'
+        } else {
+          const a = Math.pow(inv, 1.2) * 0.6
+          ctx.fillStyle = `rgba(136, 84, 192, ${a})`
+        }
       }
 
       ctx.fillText(col.trail[t], col.x, y)
@@ -139,19 +156,23 @@ onMounted(() => {
   if (canvasRef.value) {
     resize(canvasRef.value)
     rafId = requestAnimationFrame(draw)
-    window.addEventListener('resize', () => canvasRef.value && resize(canvasRef.value))
+    window.addEventListener('resize', () => {
+      if (canvasRef.value) resize(canvasRef.value)
+    })
   }
 })
 
 onUnmounted(() => {
   if (rafId) cancelAnimationFrame(rafId)
-  window.removeEventListener('resize', () => canvasRef.value && resize(canvasRef.value))
+  window.removeEventListener('resize', () => {
+    if (canvasRef.value) resize(canvasRef.value)
+  })
 })
 </script>
 
 <style scoped>
 .matrix-container {
-  background: #06000e;
+  background: var(--color-slate);
 }
 
 .scanlines {
@@ -173,7 +194,7 @@ onUnmounted(() => {
   background: radial-gradient(
     circle,
     transparent 40%,
-    rgba(6, 0, 14, 0.7) 100%
+    rgba(var(--color-slate-rgb, 6, 0, 14), 0.3) 100%
   );
   pointer-events: none;
   z-index: 15;
@@ -185,7 +206,7 @@ onUnmounted(() => {
   bottom: 0;
   left: 0;
   width: 120px;
-  background: linear-gradient(to right, #06000e 0%, transparent 100%);
+  background: linear-gradient(to right, var(--color-slate) 0%, transparent 100%);
   z-index: 20;
 }
 
@@ -239,6 +260,11 @@ onUnmounted(() => {
   display: block;
   font-size: 14px;
   margin-top: 4px;
+  color: rgba(136, 84, 192, 0.8);
+  text-shadow: 0 0 8px rgba(180, 80, 255, 0.3);
+}
+
+.dark .cyber-tagline span {
   color: rgba(220, 160, 255, 0.8);
   text-shadow: 0 0 8px rgba(180, 80, 255, 0.5);
 }
