@@ -113,3 +113,8 @@ span {
 textarea {
   overflow: hidden;
 }
+
+/* Cyberpunk Login Background */
+.bg-deepBg {
+  background-color: #06000e;
+}
