@@ -19,7 +19,7 @@
     <div class="relative flex items-center gap-2">
       <!-- Main Input -->
       <input
-        :id="inputId"
+        :id="id || inputId"
         ref="inputRef"
         :type="computedType"
         :value="modelValue"
@@ -29,7 +29,7 @@
         :aria-required="isRequired"
         :aria-invalid="validationState === 'invalid'"
         :aria-describedby="errorId"
-        :data-testid="testId"
+        :data-testid="dataTestId"
         :class="inputClasses"
         v-bind="$attrs"
         @input="handleInput"
@@ -44,9 +44,11 @@
         type="button"
         :aria-label="showPassword ? 'Hide password' : 'Show password'"
         tabindex="-1"
+        class="absolute right-2 text-subtleText/50 hover:text-accent transition-colors"
         @click="togglePassword"
       >
-        {{ showPassword ? '🙈' : '👁️' }}
+        <span v-if="showPassword" class="i-ri:eye-off-line text-lg" />
+        <span v-else class="i-ri:eye-line text-lg" />
       </BaseButton>
 
       <!-- Validation Status Indicator -->
@@ -103,8 +105,9 @@ interface BaseInputProps {
   isRequired?: boolean
   maxlength?: number
   validationState?: ValidationState
-  isToggleable?: boolean // Show password toggle for password fields
-  testId?: string
+  isToggleable?: boolean
+  dataTestId?: string
+  id?: string
 }
 
 const props = withDefaults(defineProps<BaseInputProps>(), {
@@ -113,12 +116,13 @@ const props = withDefaults(defineProps<BaseInputProps>(), {
   placeholder: undefined,
   error: undefined,
   helperText: undefined,
-  disabled: false,
-  required: false,
+  isDisabled: false,
+  isRequired: false,
   maxlength: undefined,
   validationState: 'idle',
-  toggleable: true,
-  testId: undefined,
+  isToggleable: true,
+  dataTestId: undefined,
+  id: undefined,
 })
 
 defineOptions({
@@ -145,15 +149,15 @@ const computedType = computed(() => {
 
 const inputClasses = computed(() => {
   const base =
-    'w-full px-3 py-2 rounded-lg bg-panel text-deepText placeholder-subtleText focus:outline-none transition-colors'
+    'w-full px-3 py-2.5 rounded-lg bg-panel text-bodyText placeholder-subtleText/50 focus:outline-none transition-all'
 
   let borderClasses = ''
   if (props.validationState === 'invalid' || props.error) {
-    borderClasses = 'border border-error focus:border-error'
+    borderClasses = 'border border-error/50 focus:border-error shadow-sm'
   } else if (props.validationState === 'valid') {
-    borderClasses = 'border border-accent focus:border-accent'
+    borderClasses = 'border border-accent/50 focus:border-accent'
   } else {
-    borderClasses = 'border border-borderMuted focus:border-accent'
+    borderClasses = 'border border-borderMuted focus:border-accent focus:shadow-sm'
   }
 
   const disabledClass = props.isDisabled ? 'opacity-50 cursor-not-allowed' : ''

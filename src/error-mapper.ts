@@ -6,6 +6,9 @@ export function toUserMessage(error: unknown, fallback = 'An unexpected error oc
   if (error instanceof NetworkError)
     return 'Unable to connect to the server. Please check your connection.'
   if (error instanceof AuthError) {
+    if (error.message.includes('confirm your email') || error.message.includes('Confirm your email')) {
+        return error.message
+    }
     return 'Your session has expired or is invalid. Please sign in again.'
   }
 

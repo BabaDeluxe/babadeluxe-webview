@@ -1,7 +1,7 @@
 <template>
   <BaseDropdownMenu
-    trigger-test-id="message-menu-button"
-    menu-test-id="message-menu-dropdown"
+    trigger-data-testid="message-menu-button"
+    menu-data-testid="message-menu-dropdown"
   >
     <template #default="{ close }">
       <!-- Copy -->
