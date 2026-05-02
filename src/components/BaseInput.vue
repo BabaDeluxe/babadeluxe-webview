@@ -19,7 +19,7 @@
     <div class="relative flex items-center gap-2">
       <!-- Main Input -->
       <input
-        :id="inputId"
+        :id="id || inputId"
         ref="inputRef"
         :type="computedType"
         :value="modelValue"
@@ -29,7 +29,7 @@
         :aria-required="isRequired"
         :aria-invalid="validationState === 'invalid'"
         :aria-describedby="errorId"
-        :data-testid="testId"
+        :data-testid="dataTestId"
         :class="inputClasses"
         v-bind="$attrs"
         @input="handleInput"
@@ -106,7 +106,8 @@ interface BaseInputProps {
   maxlength?: number
   validationState?: ValidationState
   isToggleable?: boolean
-  testId?: string
+  dataTestId?: string
+  id?: string
 }
 
 const props = withDefaults(defineProps<BaseInputProps>(), {
@@ -120,7 +121,8 @@ const props = withDefaults(defineProps<BaseInputProps>(), {
   maxlength: undefined,
   validationState: 'idle',
   isToggleable: true,
-  testId: undefined,
+  dataTestId: undefined,
+  id: undefined,
 })
 
 defineOptions({
