@@ -51,6 +51,7 @@
         <!-- Form -->
         <form class="space-y-6" @submit.prevent="handleAuth">
           <BaseInput
+            id="login-email-input"
             :model-value="email"
             type="email"
             test-id="login-email-input"
@@ -64,6 +65,7 @@
 
           <div class="space-y-1">
             <BaseInput
+              id="login-password-input"
               :model-value="password"
               type="password"
               test-id="login-password-input"
