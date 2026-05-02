@@ -168,7 +168,7 @@
     <BaseModal
       v-model:is-shown="renameDialog['is-shown']"
       title="Rename Conversation"
-      data-data-testid="history-rename-modal"
+      data-testid="history-rename-modal"
       confirm-text="Rename"
       :confirm-disabled="!renameDialog.title.trim()"
       @confirm="confirmRename"

@@ -131,7 +131,7 @@
 
     <BaseModal
       v-model:is-shown="deleteModal.isShown"
-      data-data-testid="prompt-delete-modal"
+      data-testid="prompt-delete-modal"
       title="Delete Prompt"
       confirm-text="Delete"
       cancel-text="Cancel"
