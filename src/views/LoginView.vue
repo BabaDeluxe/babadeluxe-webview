@@ -53,6 +53,7 @@
           <BaseInput
             :model-value="email"
             type="email"
+            test-id="login-email-input"
             label="Email address"
             placeholder="name@company.com"
             :disabled="isLoading"
@@ -65,6 +66,7 @@
             <BaseInput
               :model-value="password"
               type="password"
+              test-id="login-password-input"
               label="Password"
               placeholder="••••••••"
               :disabled="isLoading"
@@ -80,12 +82,14 @@
               <input
                 v-model="keepSignedIn"
                 type="checkbox"
+                data-testid="login-keep-signed-in-checkbox"
                 class="w-4 h-4 rounded border-borderMuted bg-panel text-accent focus:ring-accent/20 transition-all cursor-pointer"
               />
               <span class="text-subtleText group-hover:text-headingText transition-colors">Keep me signed in</span>
             </label>
             <router-link
               to="/reset-password"
+              data-testid="login-forgot-password-link"
               class="text-accent hover:text-accent/80 font-bold transition-colors"
             >
               Forgot password?
@@ -107,6 +111,7 @@
             <button
               type="button"
               class="text-xs text-subtleText/60 hover:text-accent transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest font-bold group"
+              data-testid="login-sso-button"
               @click="handleSSOLogin"
             >
               <i class="i-ri:shield-keyhole-line text-sm group-hover:rotate-12 transition-transform" />
@@ -121,6 +126,7 @@
           <button
             type="button"
             class="text-accent hover:text-accent/80 font-black ml-2 transition-all hover:underline"
+            data-testid="login-toggle-mode-button"
             @click="toggleMode"
           >
             {{ isSignUp ? 'Sign in' : 'Create account' }}
