@@ -107,6 +107,10 @@ export default defineConfig({
           (await import('@iconify-json/ri/icons.json')).default as IconifyJSON,
         hugeicons: async (): Promise<IconifyJSON> =>
           (await import('@iconify-json/hugeicons/icons.json')).default as IconifyJSON,
+        'simple-icons': async (): Promise<IconifyJSON> =>
+          (await import('@iconify-json/simple-icons/icons.json')).default as IconifyJSON,
+        'svg-spinners': async (): Promise<IconifyJSON> =>
+          (await import('@iconify-json/svg-spinners/icons.json')).default as IconifyJSON,
       },
     }),
   ],
