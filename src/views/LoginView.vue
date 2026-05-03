@@ -391,7 +391,7 @@ const navigateAfterLogin = async (): Promise<void> => {
 
 onMounted(() => {
   void (async () => {
-    if (!vsCodeAuth?.isRunningInsideVsCode() || hasAttemptedStoredSession.value) return
+    if (!vsCodeAuth.isRunningInsideVsCode() || hasAttemptedStoredSession.value) return
 
     hasAttemptedStoredSession.value = true
 
@@ -447,7 +447,7 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
 
   const providerName = provider.charAt(0).toUpperCase() + provider.slice(1)
 
-  if (vsCodeAuth?.isRunningInsideVsCode()) {
+  if (vsCodeAuth.isRunningInsideVsCode()) {
     const oauthResult = await vsCodeAuth.requestOAuthLoginFromExtension(provider)
 
     if (oauthResult.isErr()) {
