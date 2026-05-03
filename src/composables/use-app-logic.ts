@@ -48,6 +48,22 @@ export function useAppLogic() {
     await router.push({ path: '/chat', query: { newConversation: 'true' } })
   }
 
+  const handleLogout = async () => {
+    logger.log('Logging out...')
+
+    if (socketManagerRef.value) {
+      socketManagerRef.value.disconnect()
+    }
+
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      logger.error('Failed to sign out from Supabase', { error })
+    }
+
+    session.value = null
+    await router.push('/')
+  }
+
   const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
     if (event === 'SIGNED_IN' && supabaseSession) {
       session.value = supabaseSession
@@ -100,5 +116,6 @@ export function useAppLogic() {
   return {
     session,
     handleNewChat,
+    handleLogout,
   }
 }
