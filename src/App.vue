@@ -18,13 +18,43 @@
             @click="handleNewChat"
           />
 
-          <BaseButton
-            data-testid="nav-settings-button"
-            variant="ghost"
-            icon="i-weui:setting-outlined"
-            class="zoom-1.2"
-            @click="router.push('/settings')"
-          />
+          <BaseDropdownMenu
+            trigger-test-id="nav-user-menu-button"
+            menu-test-id="nav-user-menu-dropdown"
+          >
+            <template #trigger>
+              <BaseAvatar
+                role="user"
+                size="xs"
+              />
+            </template>
+
+            <template #default="{ close }">
+              <div class="flex flex-col gap-1 p-1">
+                <BaseButton
+                  data-testid="nav-settings-button"
+                  variant="ghost"
+                  icon="i-weui:setting-outlined"
+                  class="w-full justify-start"
+                  @click="() => { router.push('/settings'); close(); }"
+                >
+                  Settings
+                </BaseButton>
+
+                <div class="border-t border-borderMuted my-1" />
+
+                <BaseButton
+                  data-testid="nav-logout-button"
+                  variant="ghost"
+                  icon="i-bi:box-arrow-right"
+                  class="w-full justify-start text-error"
+                  @click="() => { handleLogout(); close(); }"
+                >
+                  Logout
+                </BaseButton>
+              </div>
+            </template>
+          </BaseDropdownMenu>
         </div>
       </header>
 
@@ -109,6 +139,8 @@ import { onErrorCaptured } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
+import BaseAvatar from '@/components/BaseAvatar.vue'
+import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
 import { useToastStore } from '@/stores/use-toast-store'
 import { safeInject } from '@/safe-inject'
@@ -118,7 +150,7 @@ import { useAppLogic } from '@/composables/use-app-logic'
 const logger = safeInject(LOGGER_KEY)
 const router = useRouter()
 const toasts = useToastStore()
-const { session, handleNewChat } = useAppLogic()
+const { session, handleNewChat, handleLogout } = useAppLogic()
 
 onErrorCaptured((err, instance, info) => {
   logger.error('Something crashed', {
