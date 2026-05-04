@@ -25,6 +25,12 @@ export function createAppRouter(supabase: SupabaseClient): Router {
         meta: { layout: 'blank' },
       },
       {
+        path: '/auth/callback',
+        name: 'auth-callback',
+        component: async () => import('./views/AuthCallbackView.vue'),
+        meta: { requiresAuth: false, layout: 'blank' },
+      },
+      {
         path: '/chat',
         name: 'chat',
         component: async () => import('./views/ChatView.vue'),
@@ -53,7 +59,12 @@ export function createAppRouter(supabase: SupabaseClient): Router {
 
   router.beforeEach(async (to) => {
     if (offline) {
-      if (to.path === '/' || to.path === '/login' || to.path === '/reset-password') {
+      if (
+        to.path === '/' ||
+        to.path === '/login' ||
+        to.path === '/reset-password' ||
+        to.path === '/auth/callback'
+      ) {
         return { path: '/chat' }
       }
 
@@ -64,7 +75,11 @@ export function createAppRouter(supabase: SupabaseClient): Router {
       data: { session },
     } = await supabase.auth.getSession()
 
-    if (!to.meta.requiresAuth && (to.path === '/' || to.path === '/login') && session) {
+    if (
+      !to.meta.requiresAuth &&
+      (to.path === '/' || to.path === '/login' || to.path === '/auth/callback') &&
+      session
+    ) {
       return { path: '/chat' }
     }
 

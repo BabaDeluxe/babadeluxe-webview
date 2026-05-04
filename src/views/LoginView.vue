@@ -1,5 +1,7 @@
 <template>
-  <section class="min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr] bg-slate text-bodyText font-sans selection:bg-accent selection:text-white overflow-hidden">
+  <section
+    class="min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr] bg-slate text-bodyText font-sans selection:bg-accent selection:text-white overflow-hidden"
+  >
     <!-- Left Pane: Login Form -->
     <div class="flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-slate">
       <div class="w-full max-w-md space-y-8 animate-fade-in">
@@ -12,7 +14,9 @@
             {{ isSignUp ? 'Create an account' : 'Welcome back' }}
           </h2>
           <p class="text-subtleText text-lg">
-            {{ isSignUp ? 'Sign up to start your AI journey' : 'Sign in to your account to continue' }}
+            {{
+              isSignUp ? 'Sign up to start your AI journey' : 'Sign in to your account to continue'
+            }}
           </p>
         </div>
 
@@ -40,7 +44,10 @@
 
         <!-- Divider -->
         <div class="relative py-2">
-          <div class="absolute inset-0 flex items-center" aria-hidden="true">
+          <div
+            class="absolute inset-0 flex items-center"
+            aria-hidden="true"
+          >
             <div class="w-full border-t border-borderMuted/30"></div>
           </div>
           <div class="relative flex justify-center text-xs uppercase tracking-[0.3em]">
@@ -49,7 +56,10 @@
         </div>
 
         <!-- Form -->
-        <form class="space-y-6" @submit.prevent="handleAuth">
+        <form
+          class="space-y-6"
+          @submit.prevent="handleAuth"
+        >
           <BaseInput
             id="login-email-input"
             :model-value="email"
@@ -63,7 +73,10 @@
             @update:model-value="handleEmailChange"
           />
 
-          <div class="space-y-1">
+          <div
+            v-if="!showSSOInput"
+            class="space-y-1"
+          >
             <BaseInput
               id="login-password-input"
               :model-value="password"
@@ -79,7 +92,10 @@
             />
           </div>
 
-          <div class="flex items-center justify-between text-sm">
+          <div
+            v-if="!showSSOInput"
+            class="flex items-center justify-between text-sm"
+          >
             <label class="flex items-center gap-2 cursor-pointer group select-none">
               <input
                 v-model="keepSignedIn"
@@ -87,7 +103,9 @@
                 data-testid="login-keep-signed-in-checkbox"
                 class="w-4 h-4 rounded border-borderMuted bg-panel text-accent focus:ring-accent/20 transition-all cursor-pointer"
               />
-              <span class="text-subtleText group-hover:text-headingText transition-colors">Keep me signed in</span>
+              <span class="text-subtleText group-hover:text-headingText transition-colors"
+                >Keep me signed in</span
+              >
             </label>
             <router-link
               to="/reset-password"
@@ -99,6 +117,7 @@
           </div>
 
           <BaseButton
+            v-if="!showSSOInput"
             variant="primary"
             data-testid="login-submit-button"
             type="submit"
@@ -109,15 +128,43 @@
             {{ isSignUp ? 'Create account' : 'Sign In' }}
           </BaseButton>
 
-          <div class="text-center pt-2">
+          <BaseButton
+            v-if="showSSOInput"
+            variant="primary"
+            data-testid="login-sso-submit-button"
+            type="button"
+            class="w-full justify-center h-12 text-lg font-bold shadow-lg hover:shadow-xl rounded-xl transition-all active:scale-[0.98]"
+            :disabled="isLoading"
+            :loading="isLoading"
+            @click="handleSSOSubmit"
+          >
+            Continue with SSO
+          </BaseButton>
+
+          <div class="flex flex-col gap-3 text-center pt-2">
             <button
+              v-if="authConfig.passkeyEnabled && !isSignUp"
               type="button"
               class="text-xs text-subtleText/60 hover:text-accent transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest font-bold group"
-              data-testid="login-sso-button"
-              @click="handleSSOLogin"
+              data-testid="login-passkey-button"
+              @click="handlePasskeyLogin"
             >
-              <i class="i-ri:shield-keyhole-line text-sm group-hover:rotate-12 transition-transform" />
-              Sign in with SSO
+              <i class="i-ri:fingerprint-line text-sm group-hover:scale-110 transition-transform" />
+              Sign in with Passkey
+            </button>
+
+            <button
+              v-if="authConfig.ssoEnabled && !isSignUp"
+              type="button"
+              class="text-xs text-subtleText/60 hover:text-accent transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest font-bold group"
+              :class="{ 'text-accent': showSSOInput }"
+              data-testid="login-sso-button"
+              @click="showSSOInput = !showSSOInput"
+            >
+              <i
+                class="i-ri:shield-keyhole-line text-sm group-hover:rotate-12 transition-transform"
+              />
+              {{ showSSOInput ? 'Back to password' : 'Sign in with SSO' }}
             </button>
           </div>
         </form>
@@ -145,24 +192,26 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
-import { ResultAsync, ok, err, type Result } from 'neverthrow'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { AbstractLogger } from '@/logger'
+import { ResultAsync, ok, err, type Result } from 'neverthrow'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import MatrixRain from '@/components/MatrixRain.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseInput from '@/components/BaseInput.vue'
 import { useVsCodeAuth } from '@/composables/use-vs-code-auth'
-import type { SupabaseClientType } from '@/main'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import type { AbstractLogger } from '@/logger'
+import { LOGGER_KEY, SUPABASE_CLIENT_KEY, AUTH_PROVIDER_KEY } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 import { AuthError, NetworkError } from '@/errors'
 import { toUserMessage } from '@/error-mapper'
 import { useToastStore } from '@/stores/use-toast-store'
+import { authConfig } from '@/auth/auth-config'
+import type { SupabaseClientType } from '@/main'
 
 const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
 const logger: AbstractLogger = safeInject(LOGGER_KEY)
+const authProvider = safeInject(AUTH_PROVIDER_KEY)
 
 const router = useRouter()
 const vsCodeAuth = useVsCodeAuth()
@@ -177,6 +226,7 @@ const emailError = ref<string | undefined>()
 const passwordError = ref<string | undefined>()
 const isLoading = ref(false)
 const hasAttemptedStoredSession = ref(false)
+const showSSOInput = ref(false)
 
 watch(
   error,
@@ -203,6 +253,7 @@ const toggleMode = () => {
   error.value = undefined
   emailError.value = undefined
   passwordError.value = undefined
+  showSSOInput.value = false
 }
 
 const signUpWithEmail = async (
@@ -260,34 +311,6 @@ const signInWithEmail = async (
   return ok(undefined)
 }
 
-const signInWithSupabaseOAuth = async (
-  supabaseClient: SupabaseClientType,
-  provider: 'github' | 'google' = 'github'
-): Promise<Result<void, AuthError>> => {
-  const result = await ResultAsync.fromPromise(
-    supabaseClient.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${globalThis.location.origin}/auth/callback`,
-      },
-    }),
-    (unknownError) => {
-      if (unknownError instanceof Error) {
-        return new AuthError(unknownError.message, unknownError)
-      }
-      return new AuthError(
-        `${provider.charAt(0).toUpperCase() + provider.slice(1)} OAuth failed`,
-        unknownError
-      )
-    }
-  )
-
-  if (result.isErr()) return err(result.error)
-  if (result.value.error) return err(new AuthError(result.value.error.message))
-
-  return ok(undefined)
-}
-
 const handleAuth = async (): Promise<void> => {
   if (isLoading.value) return
 
@@ -336,29 +359,46 @@ const handleAuth = async (): Promise<void> => {
   isLoading.value = false
 }
 
-const handleSSOLogin = async (): Promise<void> => {
+const handleSSOSubmit = async (): Promise<void> => {
   if (isLoading.value) return
   isLoading.value = true
   error.value = undefined
 
-  const domain = prompt('Enter your work email domain (e.g. company.com)')
-  if (!domain) {
+  if (!email.value || !email.value.includes('@')) {
+    emailError.value = 'Valid email is required for SSO'
     isLoading.value = false
     return
   }
 
-  const result = await ResultAsync.fromPromise(
-    supabase.auth.signInWithSSO({ domain }),
-    (e: unknown) => new AuthError(e instanceof Error ? e.message : 'SSO failed', e)
-  )
+  const domain = email.value.split('@')[1]
+  const result = await authProvider.signInWithSSO(domain)
 
   result.match(
-    (res) => {
-      if (res.data?.url) {
-        globalThis.location.href = res.data.url
-      } else if (res.error) {
-        error.value = toUserMessage(new AuthError(res.error.message))
-      }
+    () => {
+      logger.log('SSO redirect initiated')
+    },
+    (e) => {
+      error.value = toUserMessage(e)
+    }
+  )
+  isLoading.value = false
+}
+
+const handlePasskeyLogin = async (): Promise<void> => {
+  if (isLoading.value) return
+  isLoading.value = true
+  error.value = undefined
+
+  if (!email.value) {
+    emailError.value = 'Email is required for passkey login'
+    isLoading.value = false
+    return
+  }
+
+  const result = await authProvider.signInWithPasskey(email.value)
+  result.match(
+    () => {
+      logger.log('Passkey login initiated')
     },
     (e) => {
       error.value = toUserMessage(e)
@@ -480,7 +520,7 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
     }
   }
 
-  const result = await signInWithSupabaseOAuth(supabase, provider)
+  const result = await authProvider.signInWithOAuth(provider)
 
   result.match(
     async () => {
@@ -500,8 +540,14 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
 
 <style scoped>
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {

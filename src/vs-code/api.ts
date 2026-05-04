@@ -8,7 +8,6 @@ export type VsCodeApi = Readonly<{
 }>
 
 declare global {
-  // eslint-disable-next-line no-var
   var acquireVsCodeApi: undefined | (() => VsCodeApi)
 }
 

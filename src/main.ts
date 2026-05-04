@@ -22,6 +22,7 @@ import {
   SEARCH_SERVICE_KEY,
   SOCKET_MANAGER_KEY,
   SUPABASE_CLIENT_KEY,
+  AUTH_PROVIDER_KEY,
 } from '@/injection-keys'
 import { initializeModels } from '@/composables/use-models-socket'
 import { SocketManager } from '@/socket-manager'
@@ -29,6 +30,7 @@ import { useToastStore } from '@/stores/use-toast-store'
 import { AnalyticsManager } from '@/analytics/analytics-manager'
 import { GoogleAnalyticsProvider } from '@/analytics/providers/google-analytics-provider'
 import { StatsigProvider } from '@/analytics/providers/statsig-provider'
+import { createAuthProvider } from '@/auth/create-auth-provider'
 
 export type SupabaseClientType = SupabaseClient
 
@@ -106,6 +108,9 @@ class AppInitializer {
     })
 
     app.provide(SUPABASE_CLIENT_KEY, this._supabase)
+
+    const authProvider = createAuthProvider(this._supabase)
+    app.provide(AUTH_PROVIDER_KEY, authProvider)
 
     if (isBackendless) {
       const localApiKeyValidator: IApiKeyValidator = new LocalApiKeyValidator()

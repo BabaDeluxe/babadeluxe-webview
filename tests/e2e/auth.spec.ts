@@ -38,6 +38,7 @@ test.describe('Auth E2E', () => {
     await page.click('button[type="submit"]')
 
     // Basic check for navigation or success state
-    await expect(page.url()).toContain('reset-password')
+    const url = page.url()
+    expect(url).toContain('reset-password')
   })
 })
