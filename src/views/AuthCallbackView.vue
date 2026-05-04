@@ -1,10 +1,20 @@
 <template>
   <div class="min-h-screen flex flex-col items-center justify-center bg-slate text-bodyText font-sans">
-    <div class="flex flex-col items-center gap-6 animate-fade-in">
+    <div v-if="!error" class="flex flex-col items-center gap-6 animate-fade-in">
       <BaseSpinner size="large" />
       <p class="text-xl font-medium tracking-tight">
         {{ statusMessage }}
       </p>
+    </div>
+    <div v-else class="flex flex-col items-center gap-6 animate-fade-in text-center p-6">
+      <div class="i-ri:error-warning-line text-6xl text-accent mb-2" />
+      <h1 class="text-3xl font-bold text-headingText">Authentication Failed</h1>
+      <p class="text-subtleText max-w-md">
+        {{ error }}
+      </p>
+      <BaseButton variant="primary" class="mt-4" @click="router.replace('/login')">
+        Back to login
+      </BaseButton>
     </div>
   </div>
 </template>
@@ -12,10 +22,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ResultAsync } from 'neverthrow'
 import { safeInject } from '@/safe-inject'
 import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
 import { useToastStore } from '@/stores/use-toast-store'
+import { isOfflineMode } from '@/env-validator'
 import BaseSpinner from '@/components/BaseSpinner.vue'
+import BaseButton from '@/components/BaseButton.vue'
 
 const router = useRouter()
 const supabase = safeInject(SUPABASE_CLIENT_KEY)
@@ -23,19 +36,25 @@ const logger = safeInject(LOGGER_KEY)
 const toastStore = useToastStore()
 
 const statusMessage = ref('Authenticating...')
+const error = ref<string | null>(null)
 
 onMounted(async () => {
+  if (isOfflineMode()) {
+    void router.replace('/chat')
+    return
+  }
+
   const hash = window.location.hash
   const query = new URLSearchParams(window.location.search)
   const hashParams = new URLSearchParams(hash.slice(1))
 
-  const error = hashParams.get('error') || query.get('error')
+  const errorCode = hashParams.get('error') || query.get('error')
   const errorDescription = hashParams.get('error_description') || query.get('error_description')
 
-  if (error) {
-    logger.error('Auth callback error', { error, errorDescription })
-    toastStore.error(errorDescription || 'Authentication failed. Please try again.')
-    void router.replace('/login')
+  if (errorCode) {
+    logger.error('Auth callback error', { error: errorCode, errorDescription })
+    error.value = errorDescription || 'Authentication failed. Please try again.'
+    toastStore.error(error.value)
     return
   }
 
@@ -45,25 +64,35 @@ onMounted(async () => {
 
   if (accessToken && refreshToken) {
     statusMessage.value = 'Setting up your session...'
-    const { error: setSessionError } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    })
 
-    if (setSessionError) {
-      logger.error('Failed to set session in callback', { error: setSessionError })
-      toastStore.error('Session setup failed. Please try again.')
-      void router.replace('/login')
+    const result = await ResultAsync.fromPromise(
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }),
+      (e: unknown) => new Error(e instanceof Error ? e.message : 'Session setup failed')
+    )
+
+    if (result.isErr() || result.value.error) {
+      const msg = result.isErr() ? result.error.message : result.value.error?.message
+      logger.error('Failed to set session in callback', { error: msg })
+      error.value = 'Session setup failed. Please try again.'
+      toastStore.error(error.value)
       return
     }
   } else if (code) {
     statusMessage.value = 'Exchanging code for session...'
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
-    if (exchangeError) {
-      logger.error('Failed to exchange code for session', { error: exchangeError })
-      toastStore.error('Authentication failed. Please try again.')
-      void router.replace('/login')
+    const result = await ResultAsync.fromPromise(
+      supabase.auth.exchangeCodeForSession(code),
+      (e: unknown) => new Error(e instanceof Error ? e.message : 'Code exchange failed')
+    )
+
+    if (result.isErr() || result.value.error) {
+      const msg = result.isErr() ? result.error.message : result.value.error?.message
+      logger.error('Failed to exchange code for session', { error: msg })
+      error.value = 'Authentication failed. Please try again.'
+      toastStore.error(error.value)
       return
     }
   } else {

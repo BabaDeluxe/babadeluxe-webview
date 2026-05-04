@@ -28,7 +28,7 @@ export function createAppRouter(supabase: SupabaseClient): Router {
         path: '/auth/callback',
         name: 'auth-callback',
         component: async () => import('./views/AuthCallbackView.vue'),
-        meta: { layout: 'blank' },
+        meta: { requiresAuth: false, layout: 'blank' },
       },
       {
         path: '/chat',

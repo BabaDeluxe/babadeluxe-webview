@@ -9,6 +9,7 @@ import type { KeyValueStore } from '@/database/key-value-store'
 import type { SocketManager } from '@/socket-manager'
 import type { AnalyticsManager } from '@/analytics/analytics-manager'
 import type { IApiKeyValidator } from '@/api-key-validator'
+import type { AuthProvider } from '@/auth/auth-provider'
 
 export const ENV_CONFIG_KEY: InjectionKey<EnvConfigType> = Symbol('ENV_CONFIG_KEY')
 export const LOGGER_KEY: InjectionKey<AbstractLogger> = Symbol('LOGGER_KEY')
@@ -20,3 +21,4 @@ export const SOCKET_MANAGER_KEY: InjectionKey<Ref<SocketManager | undefined>> =
   Symbol('SOCKET_MANAGER_KEY')
 export const ANALYTICS_MANAGER_KEY: InjectionKey<AnalyticsManager> = Symbol('ANALYTICS_MANAGER_KEY')
 export const API_KEY_VALIDATOR_KEY: InjectionKey<IApiKeyValidator> = Symbol('API_KEY_VALIDATOR_KEY')
+export const AUTH_PROVIDER_KEY: InjectionKey<AuthProvider> = Symbol('authProvider')

@@ -47,8 +47,9 @@ describe('AuthCallbackView', () => {
   })
 
   it('handles implicit flow (hash params)', async () => {
-    window.location.hash = '#access_token=abc&refresh_token=def'
-    mockSupabase.auth.setSession.mockResolvedValue({ error: null })
+    window.history.replaceState({}, '', '/auth/callback#access_token=abc&refresh_token=def')
+    await router.push('/auth/callback#access_token=abc&refresh_token=def')
+    mockSupabase.auth.setSession.mockResolvedValue({ data: {}, error: null })
 
     mount(AuthCallbackView, {
       global: {
@@ -60,8 +61,7 @@ describe('AuthCallbackView', () => {
       },
     })
 
-    // Small delay for onMounted async logic
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(mockSupabase.auth.setSession).toHaveBeenCalledWith({
       access_token: 'abc',
@@ -73,7 +73,7 @@ describe('AuthCallbackView', () => {
   it('handles PKCE flow (query params)', async () => {
     window.history.replaceState({}, '', '/auth/callback?code=123')
     await router.push('/auth/callback?code=123')
-    mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({ error: null })
+    mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({ data: {}, error: null })
 
     mount(AuthCallbackView, {
       global: {
@@ -85,16 +85,17 @@ describe('AuthCallbackView', () => {
       },
     })
 
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(mockSupabase.auth.exchangeCodeForSession).toHaveBeenCalledWith('123')
     expect(router.currentRoute.value.path).toBe('/chat')
   })
 
   it('handles error in hash', async () => {
-    window.location.hash = '#error=access_denied&error_description=User+denied+access'
+    window.history.replaceState({}, '', '/auth/callback#error=access_denied&error_description=User+denied+access')
+    await router.push('/auth/callback#error=access_denied&error_description=User+denied+access')
 
-    mount(AuthCallbackView, {
+    const wrapper = mount(AuthCallbackView, {
       global: {
         plugins: [router],
         provide: {
@@ -104,13 +105,20 @@ describe('AuthCallbackView', () => {
       },
     })
 
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(mockLogger.error).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('User denied access')
+
+    await wrapper.find('button').trigger('click')
+    // Wait for navigation
+    await new Promise(resolve => setTimeout(resolve, 50))
     expect(router.currentRoute.value.path).toBe('/login')
   })
 
   it('redirects to login if no session info and no active session', async () => {
+    window.history.replaceState({}, '', '/auth/callback')
+    await router.push('/auth/callback')
     mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
 
     mount(AuthCallbackView, {
@@ -123,7 +131,7 @@ describe('AuthCallbackView', () => {
       },
     })
 
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(router.currentRoute.value.path).toBe('/login')
   })
