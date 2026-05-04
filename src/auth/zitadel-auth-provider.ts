@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { type Result, ok, err } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { AuthError, type NetworkError } from '@/errors'
@@ -23,7 +24,9 @@ export class ZitadelAuthProvider implements AuthProvider {
     private readonly _clientId: string
   ) {}
 
-  async signInWithOAuth(_provider: 'github' | 'google'): Promise<Result<void, AuthError | NetworkError>> {
+  async signInWithOAuth(
+    _provider: 'github' | 'google'
+  ): Promise<Result<void, AuthError | NetworkError>> {
     if (isOfflineMode()) return ok(undefined)
     return err(new AuthError('Zitadel OAuth not implemented yet'))
   }

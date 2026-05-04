@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { type Result, ResultAsync, ok, err } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { AuthError, type NetworkError } from '@/errors'
@@ -5,13 +6,15 @@ import type { AuthProvider, AuthSession } from './auth-provider'
 import { isOfflineMode } from '@/env-validator'
 
 export class SupabaseAuthProvider implements AuthProvider {
-  constructor(private readonly supabase: SupabaseClient) {}
+  constructor(private readonly _supabase: SupabaseClient) {}
 
-  async signInWithOAuth(provider: 'github' | 'google'): Promise<Result<void, AuthError | NetworkError>> {
+  async signInWithOAuth(
+    provider: 'github' | 'google'
+  ): Promise<Result<void, AuthError | NetworkError>> {
     if (isOfflineMode()) return ok(undefined)
 
     const result = await ResultAsync.fromPromise(
-      this.supabase.auth.signInWithOAuth({
+      this._supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: `${globalThis.location.origin}/auth/callback`,
@@ -37,7 +40,7 @@ export class SupabaseAuthProvider implements AuthProvider {
   async signOut(): Promise<Result<void, AuthError>> {
     if (isOfflineMode()) return ok(undefined)
 
-    const { error } = await this.supabase.auth.signOut()
+    const { error } = await this._supabase.auth.signOut()
     if (error) return err(new AuthError(error.message))
     return ok(undefined)
   }
@@ -45,14 +48,17 @@ export class SupabaseAuthProvider implements AuthProvider {
   async getAccessToken(): Promise<string | null> {
     if (isOfflineMode()) return null
 
-    const { data } = await this.supabase.auth.getSession()
+    const { data } = await this._supabase.auth.getSession()
+
     return data.session?.access_token ?? null
   }
 
   onSessionChange(cb: (session: AuthSession | null) => void): () => void {
     if (isOfflineMode()) return () => {}
 
-    const { data: { subscription } } = this.supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = this._supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         cb(null)
         return
@@ -61,10 +67,13 @@ export class SupabaseAuthProvider implements AuthProvider {
       cb({
         userId: session.user.id,
         email: session.user.email ?? '',
+
         expiresAt: session.expires_at ?? 0,
       })
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+    }
   }
 }

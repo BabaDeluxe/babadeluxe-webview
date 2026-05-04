@@ -61,11 +61,13 @@ describe('AuthCallbackView', () => {
       },
     })
 
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     expect(mockSupabase.auth.setSession).toHaveBeenCalledWith({
+      /* eslint-disable @typescript-eslint/naming-convention */
       access_token: 'abc',
       refresh_token: 'def',
+      /* eslint-enable @typescript-eslint/naming-convention */
     })
     expect(router.currentRoute.value.path).toBe('/chat')
   })
@@ -85,14 +87,18 @@ describe('AuthCallbackView', () => {
       },
     })
 
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     expect(mockSupabase.auth.exchangeCodeForSession).toHaveBeenCalledWith('123')
     expect(router.currentRoute.value.path).toBe('/chat')
   })
 
   it('handles error in hash', async () => {
-    window.history.replaceState({}, '', '/auth/callback#error=access_denied&error_description=User+denied+access')
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/callback#error=access_denied&error_description=User+denied+access'
+    )
     await router.push('/auth/callback#error=access_denied&error_description=User+denied+access')
 
     const wrapper = mount(AuthCallbackView, {
@@ -105,14 +111,14 @@ describe('AuthCallbackView', () => {
       },
     })
 
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     expect(mockLogger.error).toHaveBeenCalled()
     expect(wrapper.text()).toContain('User denied access')
 
     await wrapper.find('button').trigger('click')
     // Wait for navigation
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
     expect(router.currentRoute.value.path).toBe('/login')
   })
 
@@ -131,7 +137,7 @@ describe('AuthCallbackView', () => {
       },
     })
 
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     expect(router.currentRoute.value.path).toBe('/login')
   })

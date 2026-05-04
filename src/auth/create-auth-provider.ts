@@ -7,11 +7,7 @@ import type { AuthProvider } from './auth-provider'
 export function createAuthProvider(supabase: SupabaseClient): AuthProvider {
   const mode = resolveAuthMode()
   if (mode === 'zitadel') {
-    return new ZitadelAuthProvider(
-      supabase,
-      authConfig.zitadelIssuer!,
-      authConfig.zitadelClientId!,
-    )
+    return new ZitadelAuthProvider(supabase, authConfig.zitadelIssuer!, authConfig.zitadelClientId!)
   }
   return new SupabaseAuthProvider(supabase)
 }

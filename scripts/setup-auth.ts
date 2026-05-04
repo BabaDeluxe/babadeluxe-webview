@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import dotenv from 'dotenv'
 import process from 'process'
 
@@ -69,8 +70,8 @@ async function setupAuth() {
     }
 
     console.log('Auth setup complete!')
-  } catch (e: any) {
-    console.error('Error during auth setup:', e.message)
+  } catch (e: unknown) {
+    console.error('Error during auth setup:', (e as Error).message)
     process.exit(1)
   }
 }

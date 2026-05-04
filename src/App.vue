@@ -36,7 +36,12 @@
                   variant="ghost"
                   icon="i-weui:setting-outlined"
                   class="w-full justify-start"
-                  @click="() => { router.push('/settings'); close(); }"
+                  @click="
+                    () => {
+                      router.push('/settings')
+                      close()
+                    }
+                  "
                 >
                   Settings
                 </BaseButton>
@@ -48,7 +53,12 @@
                   variant="ghost"
                   icon="i-bi:box-arrow-right"
                   class="w-full justify-start text-error"
-                  @click="() => { handleLogout(); close(); }"
+                  @click="
+                    () => {
+                      handleLogout()
+                      close()
+                    }
+                  "
                 >
                   Logout
                 </BaseButton>

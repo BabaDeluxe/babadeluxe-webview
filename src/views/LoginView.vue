@@ -1,5 +1,7 @@
 <template>
-  <section class="min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr] bg-slate text-bodyText font-sans selection:bg-accent selection:text-white overflow-hidden">
+  <section
+    class="min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr] bg-slate text-bodyText font-sans selection:bg-accent selection:text-white overflow-hidden"
+  >
     <!-- Left Pane: Login Form -->
     <div class="flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-slate">
       <div class="w-full max-w-md space-y-8 animate-fade-in">
@@ -12,7 +14,9 @@
             {{ isSignUp ? 'Create an account' : 'Welcome back' }}
           </h2>
           <p class="text-subtleText text-lg">
-            {{ isSignUp ? 'Sign up to start your AI journey' : 'Sign in to your account to continue' }}
+            {{
+              isSignUp ? 'Sign up to start your AI journey' : 'Sign in to your account to continue'
+            }}
           </p>
         </div>
 
@@ -40,7 +44,10 @@
 
         <!-- Divider -->
         <div class="relative py-2">
-          <div class="absolute inset-0 flex items-center" aria-hidden="true">
+          <div
+            class="absolute inset-0 flex items-center"
+            aria-hidden="true"
+          >
             <div class="w-full border-t border-borderMuted/30"></div>
           </div>
           <div class="relative flex justify-center text-xs uppercase tracking-[0.3em]">
@@ -49,7 +56,10 @@
         </div>
 
         <!-- Form -->
-        <form class="space-y-6" @submit.prevent="handleAuth">
+        <form
+          class="space-y-6"
+          @submit.prevent="handleAuth"
+        >
           <BaseInput
             id="login-email-input"
             :model-value="email"
@@ -63,7 +73,10 @@
             @update:model-value="handleEmailChange"
           />
 
-          <div v-if="!showSSOInput" class="space-y-1">
+          <div
+            v-if="!showSSOInput"
+            class="space-y-1"
+          >
             <BaseInput
               id="login-password-input"
               :model-value="password"
@@ -79,7 +92,10 @@
             />
           </div>
 
-          <div v-if="!showSSOInput" class="flex items-center justify-between text-sm">
+          <div
+            v-if="!showSSOInput"
+            class="flex items-center justify-between text-sm"
+          >
             <label class="flex items-center gap-2 cursor-pointer group select-none">
               <input
                 v-model="keepSignedIn"
@@ -87,7 +103,9 @@
                 data-testid="login-keep-signed-in-checkbox"
                 class="w-4 h-4 rounded border-borderMuted bg-panel text-accent focus:ring-accent/20 transition-all cursor-pointer"
               />
-              <span class="text-subtleText group-hover:text-headingText transition-colors">Keep me signed in</span>
+              <span class="text-subtleText group-hover:text-headingText transition-colors"
+                >Keep me signed in</span
+              >
             </label>
             <router-link
               to="/reset-password"
@@ -143,7 +161,9 @@
               data-testid="login-sso-button"
               @click="showSSOInput = !showSSOInput"
             >
-              <i class="i-ri:shield-keyhole-line text-sm group-hover:rotate-12 transition-transform" />
+              <i
+                class="i-ri:shield-keyhole-line text-sm group-hover:rotate-12 transition-transform"
+              />
               {{ showSSOInput ? 'Back to password' : 'Sign in with SSO' }}
             </button>
           </div>
@@ -520,8 +540,14 @@ const handleOAuthLogin = async (provider: 'github' | 'google'): Promise<void> =>
 
 <style scoped>
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {
