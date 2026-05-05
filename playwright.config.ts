@@ -114,7 +114,7 @@ export default defineConfig<TestOptions>({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'npm run dev',
+    command: 'pnpm dev',
     url: 'http://127.0.0.1:5100',
     reuseExistingServer: true,
     timeout: 120000,

@@ -15,18 +15,18 @@ This guide is designed to help you get started comfortably and effectively. We a
 Ensure you have the following installed:
 
 - **Node.js**: v20.19.0+ or v22.12.0+ (We are strict about engines!)
-- **NPM**: v9+
+- **PNPM**: v9+
 
 ### Setting Up Your Environment
 
 1. **Fork & Clone** the repository.
 2. **Install Dependencies**:
    ```bash
-   npm install
+   pnpm install
    ```
 3. **Start Development**:
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 ---
@@ -64,8 +64,8 @@ We take pride in our codebase. To keep it clean and maintainable, please adhere 
 Before submitting, please run:
 
 ```bash
-npm run format
-npm run type-check
+pnpm format
+pnpm type-check
 ```
 
 ---
@@ -80,7 +80,7 @@ Quality is non-negotiable at BabaDeluxe.
 Run tests locally:
 
 ```bash
-npm test
+pnpm test
 ```
 
 ---

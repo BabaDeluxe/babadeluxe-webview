@@ -259,7 +259,7 @@ VITE_SOCKET_URL=http://localhost:3000
 Ensure your development environment meets the following criteria:
 
 - **Node.js:** v20.19.0+ or v22.12.0+ (strictly enforced via engines)
-- **Package Manager:** NPM v9+
+- **Package Manager:** PNPM v9+
 
 ## Getting Started
 
@@ -268,7 +268,7 @@ Ensure your development environment meets the following criteria:
 Clone the repository and install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 2. Development
@@ -276,13 +276,13 @@ npm install
 Start the development server with HMR enabled:
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 For performance profiling during development:
 
 ```bash
-npm run dev-performance
+pnpm dev-performance
 ```
 
 ### 3. Quality Assurance
@@ -290,13 +290,13 @@ npm run dev-performance
 We maintain rigorous code quality standards. Run the full test suite before pushing:
 
 ```bash
-npm test
+pnpm test
 ```
 
-- **Unit Tests:** `npm run test-unit`
-- **E2E Tests:** `npm run test-e2e`
-- **Type Checking:** `npm run type-check`
-- **Linting & Formatting:** `npm run format`
+- **Unit Tests:** `pnpm test-unit`
+- **E2E Tests:** `pnpm test-e2e`
+- **Type Checking:** `pnpm type-check`
+- **Linting & Formatting:** `pnpm format`
 
 ## Scripts
 
