@@ -15,7 +15,7 @@ variables:
         "$REPO_BRANCH" \
         "$PNPM_VERSION" \
         "$SUBDOMAIN_DIR" <<'ENDSSH'
-        set -uo pipefail
+        set -euo pipefail
 
         NODE_ENV="$1"
         DEPLOY_BASE_DIR="$2"
@@ -29,6 +29,8 @@ variables:
         source ~/.nvm/nvm.sh
 
         DEPLOY_PATH="$DEPLOY_BASE_DIR/$GIT_DIR"
+        TARGET_PATH="$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
+
         mkdir -p "$DEPLOY_BASE_DIR"
 
         if [ ! -d "$DEPLOY_PATH/.git" ]; then
@@ -44,18 +46,15 @@ variables:
         corepack enable
         corepack use "pnpm@$PNPM_VERSION"
 
-        pnpm install --frozen-lockfile
+        pnpm install --frozen-lockfile < /dev/null
         rm -rf ./dist
-        pnpm build
+        pnpm build < /dev/null
 
-        ls -lsah ./dist
+        test -d ./dist
         test -f ./dist/index.html
 
-        TARGET_PATH="$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
-        echo "TARGET_PATH=$TARGET_PATH"
         mkdir -p "$TARGET_PATH"
-
-        rsync -avz --delete "$DEPLOY_PATH/dist/" "$TARGET_PATH/"
+        rsync -avz --delete ./dist/ "$TARGET_PATH/"
       ENDSSH
 
   - &deploy_base_env
@@ -73,9 +72,7 @@ steps:
   deploy-prod:
     image: *deploy_image
     when:
-      - event: push
-        branch: master
-      - event: manual
+      - event: [ push, manual ]
         branch: master
     environment:
       <<: *deploy_base_env
@@ -88,9 +85,7 @@ steps:
   deploy-staging:
     image: *deploy_image
     when:
-      - event: push
-        branch: dev
-      - event: manual
+      - event: [ push, manual ]
         branch: dev
     environment:
       <<: *deploy_base_env
