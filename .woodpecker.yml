@@ -15,8 +15,7 @@ variables:
         "$REPO_BRANCH" \
         "$PNPM_VERSION" \
         "$SUBDOMAIN_DIR" <<'ENDSSH'
-        set -euo pipefail
-        set -x
+        set -uo pipefail
 
         NODE_ENV="$1"
         DEPLOY_BASE_DIR="$2"
@@ -38,9 +37,6 @@ variables:
 
         cd "$DEPLOY_PATH"
 
-        pwd
-        test -d .git
-
         git fetch origin "$REPO_BRANCH"
         git checkout "$REPO_BRANCH"
         git reset --hard "origin/$REPO_BRANCH"
@@ -52,14 +48,12 @@ variables:
         rm -rf ./dist
         pnpm build
 
-        ls -la ./dist
+        ls -lsah ./dist
         test -f ./dist/index.html
 
         TARGET_PATH="$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
         echo "TARGET_PATH=$TARGET_PATH"
         mkdir -p "$TARGET_PATH"
-        command -v rsync
-        rsync --version
 
         rsync -avz --delete "$DEPLOY_PATH/dist/" "$TARGET_PATH/"
       ENDSSH
