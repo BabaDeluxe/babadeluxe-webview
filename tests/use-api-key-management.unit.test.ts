@@ -10,8 +10,7 @@ import { useApiKeyManagement } from '@/composables/use-api-key-management'
 import type { IApiKeyValidator } from '@/api-key-validator'
 import { ok, err } from 'neverthrow'
 import { ValidationError } from '@/errors'
-
-const makeLogger = () => ({ log: vi.fn(), warn: vi.fn(), error: vi.fn() })
+import { createMockLogger } from './helpers/create-mock-logger'
 
 const makeSettings = () =>
   ref([
@@ -31,7 +30,7 @@ const mountComposable = (validator: IApiKeyValidator) => {
   const validatorRef = computed(() => validator)
   return useApiKeyManagement(
     validatorRef,
-    makeLogger(),
+    createMockLogger(),
     vi.fn().mockResolvedValue(undefined),
     vi.fn().mockResolvedValue(ok([])),
     () => 'test-user',
