@@ -19,6 +19,20 @@
     </div>
 
     <div
+      v-else-if="loadError"
+      data-testid="load-error-state"
+      class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
+    >
+      <p class="text-error text-lg">{{ loadError }}</p>
+      <BaseButton
+        variant="secondary"
+        @click="handleRetryLoad"
+      >
+        Retry
+      </BaseButton>
+    </div>
+
+    <div
       v-else-if="!apiKeyValidator.isReady.value || isLoadingSettings"
       data-testid="loading-state"
       class="flex-1 flex items-center justify-center"
@@ -29,7 +43,7 @@
       />
     </div>
 
-    <template v-else>
+    <template v-else-if="isReady">
       <section
         data-testid="appearance-section"
         class="flex flex-col gap-4"
@@ -145,12 +159,19 @@ const upsertSettingWrapper = async (
   await upsertSetting(key, value, dataType)
 }
 
-// Safe to non-null assert inside the computed — this is only evaluated
-// after apiKeyValidator.isReady is true, which gates the entire template.
-const resolvedValidator = computed(() => apiKeyValidator.value.value!)
+// Guard against the inner value being undefined before isReady is true.
+// The non-null assertion was previously here; it is replaced by a conditional
+// so that useApiKeyManagement is only called once the validator is fully resolved.
+const resolvedValidator = computed(() => apiKeyValidator.value.value ?? null)
+
+const isReady = computed(
+  () => apiKeyValidator.isReady.value && resolvedValidator.value !== null
+)
 
 const { apiProviders, fieldStates, modelsReloadWarning, hydrateFieldStates, handleApiKeyInput } =
   useApiKeyManagement(
+    // Typed as a computed that can be null; useApiKeyManagement must handle null gracefully.
+    // When isReady is false the template gates rendering so fieldStates are never accessed.
     resolvedValidator,
     logger,
     upsertSettingWrapper,
@@ -177,18 +198,32 @@ const handleReload = () => {
   window.location.reload()
 }
 
+const handleRetryLoad = async () => {
+  loadError.value = undefined
+  isLoadingSettings.value = true
+
+  const result = await ResultAsync.fromPromise(loadSettings(), (unknownError) => {
+    if (unknownError instanceof Error) {
+      return new InitializationError(unknownError.message, unknownError)
+    }
+    return new InitializationError('Failed to load settings', unknownError)
+  })
+
+  result.match(
+    () => {
+      hydrateFieldStates()
+      isLoadingSettings.value = false
+    },
+    (loadErr) => {
+      logger.error('Failed to reload settings', { userId: currentUserId.value, error: loadErr })
+      loadError.value = 'Settings could not be loaded. Please try again.'
+      isLoadingSettings.value = false
+    }
+  )
+}
+
 const generalSettings = computed(() =>
   settings.value.filter((setting) => !setting.settingKey.startsWith('apiKey'))
-)
-
-watch(
-  loadError,
-  (val) => {
-    if (val) {
-      toasts.error(toUserMessage(val))
-    }
-  },
-  { immediate: true }
 )
 
 watch(
@@ -234,7 +269,6 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
 const handleThemeToggle = async () => {
   toggleDark()
   const newValue = isDark.value ? 'dark' : 'light'
-  // We optimistically toggle, then save to DB
   await upsertSetting('theme', newValue, 'string')
 }
 
@@ -285,7 +319,7 @@ onMounted(async () => {
         userId: currentUserId.value,
         error: loadErr,
       })
-      loadError.value = 'Settings could not be loaded. Please refresh the page.'
+      loadError.value = 'Settings could not be loaded. Please try again.'
       isLoadingSettings.value = false
     }
   )
