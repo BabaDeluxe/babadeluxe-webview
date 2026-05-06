@@ -17,7 +17,8 @@ variables:
         "$REPO_BRANCH" \
         "$PNPM_VERSION" \
         "$SUBDOMAIN_DIR" \
-        "$VITE_APP_URL" <<'ENDSSH'
+        "$VITE_APP_URL" \
+        "$VITE_BUILD_MODE" <<'ENDSSH'
         set -euo pipefail
 
         NODE_ENV="$1"
@@ -28,6 +29,7 @@ variables:
         PNPM_VERSION="$6"
         SUBDOMAIN_DIR="$7"
         VITE_APP_URL="$8"
+        VITE_BUILD_MODE="$9"
 
         source ~/.bash_profile
         source ~/.nvm/nvm.sh
@@ -52,7 +54,7 @@ variables:
 
         pnpm install --frozen-lockfile < /dev/null
         rm -rf ./dist
-        VITE_APP_URL="$VITE_APP_URL" pnpm build < /dev/null
+        VITE_APP_URL="$VITE_APP_URL" pnpm build --mode "$VITE_BUILD_MODE" < /dev/null
 
         test -d ./dist
         test -f ./dist/index.html
@@ -81,6 +83,7 @@ steps:
     environment:
       <<: *deploy_base_env
       NODE_ENV: production
+      VITE_BUILD_MODE: production
       REPO_BRANCH: master
       GIT_DIR: babadeluxe-webview-prod
       SUBDOMAIN_DIR: app.babadeluxe.com
@@ -95,6 +98,7 @@ steps:
     environment:
       <<: *deploy_base_env
       NODE_ENV: staging
+      VITE_BUILD_MODE: staging
       REPO_BRANCH: dev
       GIT_DIR: babadeluxe-webview-staging
       SUBDOMAIN_DIR: app-staging.babadeluxe.com
