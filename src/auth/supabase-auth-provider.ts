@@ -13,11 +13,15 @@ export class SupabaseAuthProvider implements AuthProvider {
   ): Promise<Result<void, AuthError | NetworkError>> {
     if (isOfflineMode()) return ok(undefined)
 
+    // VITE_APP_URL is the canonical deployment origin set at build time per environment.
+    // Fallback to window.location.origin for local dev without the env var set.
+    const appUrl = import.meta.env.VITE_APP_URL ?? globalThis.location.origin
+
     const result = await ResultAsync.fromPromise(
       this._supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${globalThis.location.origin}/auth/callback`,
+          redirectTo: `${appUrl}/auth/callback`,
         },
       }),
       (e: unknown) => new AuthError(e instanceof Error ? e.message : 'OAuth failed', e)
@@ -67,7 +71,6 @@ export class SupabaseAuthProvider implements AuthProvider {
       cb({
         userId: session.user.id,
         email: session.user.email ?? '',
-
         expiresAt: session.expires_at ?? 0,
       })
     })
