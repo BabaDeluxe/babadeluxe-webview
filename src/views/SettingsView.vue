@@ -151,14 +151,6 @@ const { isDark, toggleDark } = useTheme()
 
 const currentUserId = ref<string>()
 
-const upsertSettingWrapper = async (
-  key: string,
-  value: unknown,
-  dataType: 'string' | 'number' | 'boolean'
-): Promise<void> => {
-  await upsertSetting(key, value, dataType)
-}
-
 // Guard against the inner value being undefined before isReady is true.
 // The non-null assertion was previously here; it is replaced by a conditional
 // so that useApiKeyManagement is only called once the validator is fully resolved.
@@ -261,14 +253,37 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
     return
   }
 
+  updateFieldStatus(fieldName, 'validating')
+
+  const saveResult = await upsertSetting(fieldName, value, setting.dataType)
+
+  if (saveResult.isErr()) {
+    updateFieldStatus(fieldName, 'invalid', 'Failed to save. Please try again.')
+    logger.error('Failed to save setting', { fieldName, error: saveResult.error })
+    return
+  }
+
   updateFieldStatus(fieldName, 'valid')
-  await upsertSetting(fieldName, value, setting.dataType)
   toasts.success('Setting saved')
+}
+
+async function upsertSettingWrapper(
+  key: string,
+  value: unknown,
+  dataType: 'string' | 'number' | 'boolean'
+): Promise<void> {
+  const result = await upsertSetting(key, value, dataType)
+
+  if (result.isErr()) {
+    logger.error('Failed to save setting via API key management', { key, error: result.error })
+    toasts.error(toUserMessage(result.error.message))
+  }
 }
 
 const handleThemeToggle = async () => {
   toggleDark()
   const newValue = isDark.value ? 'dark' : 'light'
+  // Optimistic — visual state is already applied; persist in background without blocking.
   await upsertSetting('theme', newValue, 'string')
 }
 
