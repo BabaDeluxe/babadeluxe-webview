@@ -4,10 +4,11 @@ import { mergeConfig, defineConfig, configDefaults } from 'vitest/config'
 import { loadEnv } from 'vite'
 import viteConfig from './vite.config'
 
-const myExport = (context: { mode: string }) => {
+export default defineConfig((context) => {
   const mode = context.mode || process.env.NODE_ENV || 'development'
-  const mergedConfig = mergeConfig(
-    viteConfig,
+
+  return mergeConfig(
+    viteConfig(context),
     defineConfig({
       test: {
         env: {
@@ -24,7 +25,4 @@ const myExport = (context: { mode: string }) => {
       },
     })
   )
-  return mergedConfig
-}
-
-export default myExport
+})
