@@ -2,21 +2,74 @@
   <div
     class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText overflow-x-hidden"
   >
-    <div v-if="session && $route.path !== '/'">
+    <div v-if="session && $route.meta.layout === 'default'">
       <header
-        class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20"
+        class="flex flex-row items-center justify-between p-2 bg-panel border-b border-borderMuted/20 h-14"
         data-testid="app-header"
       >
-        <IconBabaDeluxe />
+        <div class="flex-1 flex justify-start"><IconBabaDeluxe /></div>
 
-        <div class="flex flex-row gap-2 justify-end items-center">
+        <nav
+          class="flex md:hidden flex-row gap-1 items-center mx-auto bg-slate/40 p-1 rounded-xl border border-borderMuted/15"
+          data-testid="mobile-nav"
+        >
+          <RouterLink
+            v-slot="{ navigate, isExactActive }"
+            to="/chat"
+            custom
+          >
+            <BaseButton
+              variant="menu"
+              icon="i-bi:chat-dots"
+              title="Chat"
+              class="w-10 h-10 p-0"
+              :is-selected="isExactActive"
+              @click="navigate"
+            />
+          </RouterLink>
+
+          <RouterLink
+            v-slot="{ navigate, isExactActive }"
+            to="/history"
+            custom
+          >
+            <BaseButton
+              variant="menu"
+              icon="i-bi:clock-history"
+              title="History"
+              class="w-10 h-10 p-0"
+              :is-selected="isExactActive"
+              @click="navigate"
+            />
+          </RouterLink>
+
+          <RouterLink
+            v-slot="{ navigate, isExactActive }"
+            to="/prompts"
+            custom
+          >
+            <BaseButton
+              variant="menu"
+              icon="i-bi:terminal"
+              title="Prompts"
+              class="w-10 h-10 p-0"
+              :is-selected="isExactActive"
+              @click="navigate"
+            />
+          </RouterLink>
+        </nav>
+
+        <div class="flex-1 flex flex-row gap-2 justify-end items-center">
           <BaseButton
             data-testid="nav-new-chat-button"
             variant="primary"
-            icon="i-weui:pencil-outlined"
-            text="New Chat"
+            icon="i-bi:plus-lg"
+            title="New Chat"
+            class="md:w-auto w-9 h-9 md:h-auto"
             @click="handleNewChat"
-          />
+          >
+            <span class="hidden md:inline-block">New Chat</span>
+          </BaseButton>
 
           <BaseDropdownMenu
             trigger-test-id="nav-user-menu-button"
@@ -34,7 +87,7 @@
                 <BaseButton
                   data-testid="nav-settings-button"
                   variant="ghost"
-                  icon="i-weui:setting-outlined"
+                  icon="i-bi:gear"
                   class="w-full justify-start"
                   @click="
                     () => {
@@ -68,7 +121,7 @@
         </div>
       </header>
 
-      <div class="flex justify-start items-center bg-panel">
+      <div class="hidden md:flex justify-start items-center bg-panel">
         <nav
           class="flex flex-row gap-2 text-deepText p-2"
           data-testid="app-nav"
@@ -80,6 +133,7 @@
           >
             <BaseButton
               variant="menu"
+              icon="i-bi:chat-dots"
               data-testid="nav-chat-link"
               :is-selected="isExactActive"
               @click="navigate"
@@ -95,6 +149,7 @@
           >
             <BaseButton
               variant="menu"
+              icon="i-bi:clock-history"
               data-testid="nav-history-link"
               :is-selected="isExactActive"
               @click="navigate"
@@ -110,6 +165,7 @@
           >
             <BaseButton
               variant="menu"
+              icon="i-bi:terminal"
               data-testid="nav-prompts-link"
               :is-selected="isExactActive"
               @click="navigate"
