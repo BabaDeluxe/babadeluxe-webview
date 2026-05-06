@@ -3,8 +3,9 @@
     class="min-h-screen flex flex-col md:flex-row bg-slate text-bodyText font-sans selection:bg-accent selection:text-white overflow-hidden"
   >
     <!-- Left Pane: Login Form -->
-    <div class="flex-[1.1] flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-slate">
-
+    <div
+      class="flex-[1.1] flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-slate"
+    >
       <div class="w-full max-w-md space-y-6 animate-fade-in">
         <!-- Logo & Header -->
         <div class="text-center">
@@ -46,7 +47,9 @@
         <!-- Divider -->
         <div class="flex items-center gap-4 py-2">
           <div class="flex-1 h-[1px] bg-gradient-to-r from-transparent to-borderMuted/40"></div>
-          <span class="text-xs uppercase tracking-[0.3em] text-subtleText/60 font-black select-none">OR</span>
+          <span class="text-xs uppercase tracking-[0.3em] text-subtleText/60 font-black select-none"
+            >OR</span
+          >
           <div class="flex-1 h-[1px] bg-gradient-to-l from-transparent to-borderMuted/40"></div>
         </div>
 
@@ -180,8 +183,9 @@
     </div>
 
     <!-- Right Pane: Matrix Animation -->
-    <div class="flex-1 hidden md:block relative overflow-hidden bg-slate border-l border-borderMuted/10">
-
+    <div
+      class="flex-1 hidden md:block relative overflow-hidden bg-slate border-l border-borderMuted/10"
+    >
       <MatrixRain />
     </div>
   </section>
