@@ -5,7 +5,7 @@
     class="flex-1 flex flex-col gap-6 p-4 sm:p-6 max-w-4xl mx-auto w-full"
   >
     <div
-      v-if="hasComponentError"
+      v-if="apiKeyValidator.hasError.value"
       data-testid="component-error"
       class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
     >
@@ -19,7 +19,7 @@
     </div>
 
     <div
-      v-else-if="isLoadingSettings"
+      v-else-if="!apiKeyValidator.isReady.value || isLoadingSettings"
       data-testid="loading-state"
       class="flex-1 flex items-center justify-center"
     >
@@ -127,7 +127,7 @@ import { safeInject } from '@/safe-inject'
 import { isOfflineMode } from '@/env-validator'
 
 const logger = safeInject(LOGGER_KEY)
-const validator = safeInject(API_KEY_VALIDATOR_KEY)
+const apiKeyValidator = safeInject(API_KEY_VALIDATOR_KEY)
 const supabase = safeInject(SUPABASE_CLIENT_KEY)
 const toasts = useToastStore()
 
@@ -145,9 +145,13 @@ const upsertSettingWrapper = async (
   await upsertSetting(key, value, dataType)
 }
 
+// Safe to non-null assert inside the computed — this is only evaluated
+// after apiKeyValidator.isReady is true, which gates the entire template.
+const resolvedValidator = computed(() => apiKeyValidator.value.value!)
+
 const { apiProviders, fieldStates, modelsReloadWarning, hydrateFieldStates, handleApiKeyInput } =
   useApiKeyManagement(
-    validator,
+    resolvedValidator,
     logger,
     upsertSettingWrapper,
     reloadModels,
@@ -169,7 +173,6 @@ const updateFieldStatus = (
 const isLoadingSettings = ref(true)
 const loadError = ref<string | undefined>()
 
-const hasComponentError = ref(false)
 const handleReload = () => {
   window.location.reload()
 }
