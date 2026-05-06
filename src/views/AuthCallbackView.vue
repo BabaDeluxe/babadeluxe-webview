@@ -50,6 +50,21 @@ const toastStore = useToastStore()
 const statusMessage = ref('Authenticating...')
 const error = ref<string | null>(null)
 
+async function verifySession(): Promise<boolean> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session) {
+    logger.error('Session not readable after auth flow completed')
+    error.value = 'Session could not be verified. Please try again.'
+    toastStore.error(error.value)
+    return false
+  }
+
+  return true
+}
+
 onMounted(async () => {
   if (isOfflineMode()) {
     void router.replace('/chat')
@@ -61,7 +76,6 @@ onMounted(async () => {
   const hashParams = new URLSearchParams(hash.slice(1))
 
   const errorCode = hashParams.get('error') || query.get('error')
-
   const errorDescription = hashParams.get('error_description') || query.get('error_description')
 
   if (errorCode) {
@@ -73,7 +87,6 @@ onMounted(async () => {
 
   const accessToken = hashParams.get('access_token')
   const refreshToken = hashParams.get('refresh_token')
-
   const code = query.get('code')
 
   if (accessToken && refreshToken) {
@@ -96,6 +109,8 @@ onMounted(async () => {
       toastStore.error(error.value)
       return
     }
+
+    if (!(await verifySession())) return
   } else if (code) {
     statusMessage.value = 'Exchanging code for session...'
 
@@ -111,8 +126,10 @@ onMounted(async () => {
       toastStore.error(error.value)
       return
     }
+
+    if (!(await verifySession())) return
   } else {
-    // If no session info is present, we might already have a session due to detectSessionInUrl
+    // detectSessionInUrl may have already consumed the tokens
     const {
       data: { session },
     } = await supabase.auth.getSession()
