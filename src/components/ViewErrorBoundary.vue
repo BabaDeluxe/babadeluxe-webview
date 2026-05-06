@@ -4,7 +4,7 @@
       class="flex-1 min-h-0 flex flex-col items-center justify-center p-6 gap-4 overflow-auto"
       data-testid="view-error-boundary"
     >
-      <template v-if="isDev">
+      <template v-if="isNotProd">
         <div class="w-full max-w-2xl flex flex-col gap-3">
           <p class="text-error font-semibold text-sm tracking-wide uppercase">View crashed</p>
 
@@ -63,7 +63,7 @@ import BaseButton from '@/components/BaseButton.vue'
 import { safeInject } from '@/safe-inject'
 import { LOGGER_KEY } from '@/injection-keys'
 
-const isDev = import.meta.env.DEV
+const isNotProd = import.meta.env.MODE !== 'production'
 
 const capturedError = ref<Error | undefined>(undefined)
 const capturedVueInfo = ref<string | undefined>(undefined)
