@@ -17,13 +17,14 @@ export class SocketManager {
     private readonly _authToken: string
   ) {
     const socketOptions: Partial<ManagerOptions & SocketOptions> = {
+      path: Root.path,
       transports: ['websocket', 'polling'],
       withCredentials: true,
       autoConnect: false,
       auth: { token: this._authToken },
     }
 
-    this._socket = io(Root.path, socketOptions)
+    this._socket = io(this._baseUrl, socketOptions)
   }
 
   get chatSocket(): SocketManager {
