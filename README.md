@@ -240,19 +240,13 @@ The codebase is organized to promote separation of concerns and discoverability:
 
 We enforce strict runtime validation of environment variables using `Zod`. The application will fail to boot if the configuration schema is not met.
 
-Create a `.env` file in the root directory:
+Create a `.env.local` file from the provided template:
 
-```properties
-# App Environment (development | production | test)
-VITE_NODE_ENV=development
-
-# Supabase Configuration (Auth & Database)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-
-# Real-time Service
-VITE_SOCKET_URL=http://localhost:3000
+```bash
+cp .env.local.example .env.local
 ```
+
+For a full breakdown of how env files, Vite modes, and the CI pipeline interact across all deployment stages, see **[docs/CI_CD_ENV.md](docs/CI_CD_ENV.md)**.
 
 ## Prerequisites
 
