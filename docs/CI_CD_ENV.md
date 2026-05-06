@@ -1,6 +1,6 @@
 # CI/CD & Environment Variable Handling
 
-This document describes how environment variables are structured, loaded, and overridden across all deployment stages — local development, staging, and production.
+This document describes how environment variables are structured, loaded, and overridden across all deployment stages — local development, staging, and production. It also covers the full deployment prerequisites: what must exist on the server, which secrets must be registered in Woodpecker, and where each value comes from.
 
 ---
 
@@ -46,6 +46,79 @@ const isNotProd = import.meta.env.MODE !== 'production'
 
 // ❌ Unreliable — Vite overwrites NODE_ENV to 'production' on every build
 const isNotProd = process.env.NODE_ENV !== 'production'
+```
+
+---
+
+## Deployment Prerequisites
+
+Before the pipeline can run successfully, the following must be in place.
+
+### 1. Woodpecker CI Secrets
+
+Register these in the Woodpecker repository settings under **Secrets**. They are injected at runtime and are never stored in the repository.
+
+| Secret name | What it is | Where to get it |
+| :--- | :--- | :--- |
+| `ssh_user` | SSH username on the deploy server | Server admin / hosting provider |
+| `deploy_ssh_key` | Private SSH key (ed25519 PEM) used to authenticate against the server | Generate with `ssh-keygen -t ed25519`; add the public key to `~/.ssh/authorized_keys` on the server |
+| `deploy_base_dir` | Absolute base path on the server (e.g. `/var/www/vhosts/babadeluxe.com`) | Server admin |
+
+> `SSH_HOST` (`217.160.14.123`) is hardcoded in `.woodpecker.yml` — update it there directly if the server IP changes.
+
+### 2. Server Requirements
+
+The deploy script runs **on the remote server via SSH**. The following must be present before the first deploy:
+
+| Requirement | Notes |
+| :--- | :--- |
+| Node.js v20.19.0+ or v22.12.0+ via **nvm** | Must be loadable via `source ~/.nvm/nvm.sh` from `~/.bash_profile` |
+| pnpm v9.15.0 via **corepack** | Activated by `corepack enable && corepack use pnpm@9.15.0` |
+| **GitHub CLI** (`gh`) | Used for the initial `gh repo clone` on first deploy |
+| **rsync** | Used to sync `dist/` into the docroot |
+| **nginx / Apache** | Must serve both docroots as static SPA (see config below) |
+
+### 3. GitHub CLI Authentication on the Server
+
+The first deploy uses `gh repo clone`. Authenticate once on the server:
+
+```bash
+gh auth login
+# Choose: GitHub.com → HTTPS → Login with a web browser (or paste token)
+```
+
+For non-interactive / headless environments, add to `~/.bash_profile`:
+
+```bash
+export GITHUB_TOKEN=ghp_your_token_here
+```
+
+### 4. Server Directory Structure
+
+The pipeline creates all subdirectories via `mkdir -p` automatically. Only `$DEPLOY_BASE_DIR` itself must exist and be writable by `$SSH_USER`:
+
+| Path | Purpose |
+| :--- | :--- |
+| `$DEPLOY_BASE_DIR/babadeluxe-webview-staging` | Git working directory for staging builds |
+| `$DEPLOY_BASE_DIR/babadeluxe-webview-prod` | Git working directory for production builds |
+| `$DEPLOY_BASE_DIR/app-staging.babadeluxe.com` | Docroot served by the web server for staging |
+| `$DEPLOY_BASE_DIR/app.babadeluxe.com` | Docroot served by the web server for production |
+
+### 5. Web Server SPA Fallback
+
+Because the app uses client-side routing, the web server must return `index.html` for all unknown paths. Example nginx config (repeat for staging docroot):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name app.babadeluxe.com;
+    root /var/www/vhosts/babadeluxe.com/app.babadeluxe.com;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
 ```
 
 ---
