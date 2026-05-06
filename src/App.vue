@@ -9,14 +9,63 @@
       >
         <IconBabaDeluxe />
 
+        <nav
+          class="flex md:hidden flex-row gap-1 items-center mx-2"
+          data-testid="mobile-nav"
+        >
+          <RouterLink
+            v-slot="{ navigate, isExactActive }"
+            to="/chat"
+            custom
+          >
+            <BaseButton
+              variant="icon"
+              icon="i-bi:chat-dots"
+              title="Chat"
+              :is-selected="isExactActive"
+              @click="navigate"
+            />
+          </RouterLink>
+
+          <RouterLink
+            v-slot="{ navigate, isExactActive }"
+            to="/history"
+            custom
+          >
+            <BaseButton
+              variant="icon"
+              icon="i-bi:clock-history"
+              title="History"
+              :is-selected="isExactActive"
+              @click="navigate"
+            />
+          </RouterLink>
+
+          <RouterLink
+            v-slot="{ navigate, isExactActive }"
+            to="/prompts"
+            custom
+          >
+            <BaseButton
+              variant="icon"
+              icon="i-bi:terminal"
+              title="Prompts"
+              :is-selected="isExactActive"
+              @click="navigate"
+            />
+          </RouterLink>
+        </nav>
+
         <div class="flex flex-row gap-2 justify-end items-center">
           <BaseButton
             data-testid="nav-new-chat-button"
             variant="primary"
-            icon="i-weui:pencil-outlined"
-            text="New Chat"
+            icon="i-bi:plus-lg"
+            title="New Chat"
             @click="handleNewChat"
-          />
+          >
+            <span class="hidden md:inline-block">New Chat</span>
+          </BaseButton>
 
           <BaseDropdownMenu
             trigger-test-id="nav-user-menu-button"
@@ -34,7 +83,7 @@
                 <BaseButton
                   data-testid="nav-settings-button"
                   variant="ghost"
-                  icon="i-weui:setting-outlined"
+                  icon="i-bi:gear"
                   class="w-full justify-start"
                   @click="
                     () => {
@@ -68,7 +117,7 @@
         </div>
       </header>
 
-      <div class="flex justify-start items-center bg-panel">
+      <div class="hidden md:flex justify-start items-center bg-panel">
         <nav
           class="flex flex-row gap-2 text-deepText p-2"
           data-testid="app-nav"
@@ -80,6 +129,7 @@
           >
             <BaseButton
               variant="menu"
+              icon="i-bi:chat-dots"
               data-testid="nav-chat-link"
               :is-selected="isExactActive"
               @click="navigate"
@@ -95,6 +145,7 @@
           >
             <BaseButton
               variant="menu"
+              icon="i-bi:clock-history"
               data-testid="nav-history-link"
               :is-selected="isExactActive"
               @click="navigate"
@@ -110,6 +161,7 @@
           >
             <BaseButton
               variant="menu"
+              icon="i-bi:terminal"
               data-testid="nav-prompts-link"
               :is-selected="isExactActive"
               @click="navigate"
