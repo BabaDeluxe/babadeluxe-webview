@@ -260,7 +260,7 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
   const saveResult = await upsertSetting(fieldName, value, setting.dataType)
 
   if (saveResult.isErr()) {
-    updateFieldStatus(fieldName, 'invalid', 'Failed to save. Please try again.')
+    updateFieldStatus(fieldName, 'invalid', toUserMessage(saveResult.error))
     logger.error('Failed to save setting', { fieldName, error: saveResult.error })
     return
   }
@@ -278,7 +278,7 @@ async function upsertSettingWrapper(
 
   if (result.isErr()) {
     logger.error('Failed to save setting via API key management', { key, error: result.error })
-    toasts.error(toUserMessage(result.error.message))
+    toasts.error(toUserMessage(result.error))
   }
 }
 
