@@ -1,9 +1,10 @@
 <template>
   <section
-    class="min-h-screen grid grid-cols-1 md:grid-cols-[1.1fr_1fr] bg-slate text-bodyText font-sans selection:bg-accent selection:text-white overflow-hidden"
+    class="min-h-screen flex flex-col md:flex-row bg-slate text-bodyText font-sans selection:bg-accent selection:text-white overflow-hidden"
   >
     <!-- Left Pane: Login Form -->
-    <div class="flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-slate">
+    <div class="flex-[1.1] flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-slate">
+
       <div class="w-full max-w-md space-y-6 animate-fade-in">
         <!-- Logo & Header -->
         <div class="text-center">
@@ -21,7 +22,7 @@
         </div>
 
         <!-- Social Logins -->
-        <div class="grid grid-cols-1 gap-3">
+        <div class="flex flex-col gap-3">
           <BaseButton
             class="w-full justify-center gap-3 border border-borderMuted/30 bg-panel hover:bg-slate text-bodyText transition-all duration-300 py-3 rounded-xl hover:border-accent/50 group"
             data-testid="google-login-button"
@@ -179,7 +180,8 @@
     </div>
 
     <!-- Right Pane: Matrix Animation -->
-    <div class="hidden md:block relative overflow-hidden bg-slate border-l border-borderMuted/10">
+    <div class="flex-1 hidden md:block relative overflow-hidden bg-slate border-l border-borderMuted/10">
+
       <MatrixRain />
     </div>
   </section>

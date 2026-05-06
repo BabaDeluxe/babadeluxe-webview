@@ -2,12 +2,12 @@
   <div
     class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText overflow-x-hidden"
   >
-    <div v-if="session && $route.path !== '/'">
+    <div v-if="session && $route.meta.layout === 'default'">
       <header
-        class="grid grid-cols-3 items-center p-2 bg-panel border-b border-borderMuted/20 h-14"
+        class="flex flex-row items-center justify-between p-2 bg-panel border-b border-borderMuted/20 h-14"
         data-testid="app-header"
       >
-        <div class="flex justify-start"><IconBabaDeluxe /></div>
+        <div class="flex-1 flex justify-start"><IconBabaDeluxe /></div>
 
         <nav
           class="flex md:hidden flex-row gap-1 items-center mx-auto bg-slate/40 p-1 rounded-xl border border-borderMuted/15"
@@ -59,7 +59,7 @@
           </RouterLink>
         </nav>
 
-        <div class="flex flex-row gap-2 justify-end items-center">
+        <div class="flex-1 flex flex-row gap-2 justify-end items-center">
           <BaseButton
             data-testid="nav-new-chat-button"
             variant="primary"
