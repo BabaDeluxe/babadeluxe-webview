@@ -139,6 +139,7 @@ import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/inject
 import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { isOfflineMode } from '@/env-validator'
+import type { IApiKeyValidator } from '@/api-key-validator'
 
 const logger = safeInject(LOGGER_KEY)
 const apiKeyValidator = safeInject(API_KEY_VALIDATOR_KEY)
@@ -151,19 +152,20 @@ const { isDark, toggleDark } = useTheme()
 
 const currentUserId = ref<string>()
 
-// Guard against the inner value being undefined before isReady is true.
-// The non-null assertion was previously here; it is replaced by a conditional
-// so that useApiKeyManagement is only called once the validator is fully resolved.
-const resolvedValidator = computed(() => apiKeyValidator.value.value ?? null)
-
+// isReady is the single runtime gate: true only after apiKeyValidator.value.value
+// is fully resolved (non-undefined). The `as IApiKeyValidator` assertion below is
+// therefore safe — useApiKeyManagement and every template branch that consumes
+// resolvedValidator are unreachable while isReady is false.
 const isReady = computed(
-  () => apiKeyValidator.isReady.value && resolvedValidator.value !== null
+  () => apiKeyValidator.isReady.value && apiKeyValidator.value.value !== undefined
+)
+
+const resolvedValidator = computed(
+  () => apiKeyValidator.value.value as IApiKeyValidator
 )
 
 const { apiProviders, fieldStates, modelsReloadWarning, hydrateFieldStates, handleApiKeyInput } =
   useApiKeyManagement(
-    // Typed as a computed that can be null; useApiKeyManagement must handle null gracefully.
-    // When isReady is false the template gates rendering so fieldStates are never accessed.
     resolvedValidator,
     logger,
     upsertSettingWrapper,
