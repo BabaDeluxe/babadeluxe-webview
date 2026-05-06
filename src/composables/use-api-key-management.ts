@@ -1,4 +1,4 @@
-import { type Ref, ref, onBeforeUnmount } from 'vue'
+import { type ComputedRef, type Ref, ref, onBeforeUnmount } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { getSettingDefinition, validateSetting } from '@babadeluxe/shared'
 import type { IApiKeyValidator } from '@/api-key-validator'
@@ -16,7 +16,7 @@ export type FieldState = {
 }
 
 export function useApiKeyManagement<T, E>(
-  validator: IApiKeyValidator,
+  validator: ComputedRef<IApiKeyValidator>,
   logger: AbstractLogger,
   upsertSetting: (
     key: string,
@@ -111,7 +111,7 @@ export function useApiKeyManagement<T, E>(
     updateFieldStatus(provider, 'validating')
 
     const providerName = provider.replace('apiKey', '').toLowerCase()
-    const result = await validator.validate(providerName, apiKey)
+    const result = await validator.value.validate(providerName, apiKey)
 
     if (!result || result.isErr()) {
       const error = result?.error

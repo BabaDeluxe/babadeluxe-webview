@@ -1,4 +1,4 @@
-import { type App as VueApp, type Ref, createApp, ref } from 'vue'
+import { type App as VueApp, type Ref, createApp, ref, readonly } from 'vue'
 import { createPinia } from 'pinia'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createColorino, themePalettes } from 'colorino'
@@ -23,6 +23,7 @@ import {
   SOCKET_MANAGER_KEY,
   SUPABASE_CLIENT_KEY,
   AUTH_PROVIDER_KEY,
+  type AsyncInjectable,
 } from '@/injection-keys'
 import { initializeModels } from '@/composables/use-models-socket'
 import { SocketManager } from '@/socket-manager'
@@ -37,6 +38,17 @@ export type SupabaseClientType = SupabaseClient
 class AppInitializer {
   private readonly _logger = createColorino(themePalettes['catppuccin-mocha'])
   private readonly _socketManagerRef: Ref<SocketManager | undefined> = ref(undefined)
+
+  // Mutable source refs — only AppInitializer can resolve or reject this injectable.
+  // Consumers receive a readonly AsyncInjectable<IApiKeyValidator> via provide/inject.
+  private readonly _apiKeyValidatorIsReady = ref(false)
+  private readonly _apiKeyValidatorHasError = ref(false)
+  private readonly _apiKeyValidatorValue = ref<IApiKeyValidator | undefined>(undefined)
+  private readonly _apiKeyValidatorInjectable: AsyncInjectable<IApiKeyValidator> = {
+    isReady: readonly(this._apiKeyValidatorIsReady),
+    hasError: readonly(this._apiKeyValidatorHasError),
+    value: readonly(this._apiKeyValidatorValue),
+  }
 
   private _envConfig!: EnvConfigType
   private _supabase!: SupabaseClientType
@@ -113,10 +125,12 @@ class AppInitializer {
     app.provide(AUTH_PROVIDER_KEY, authProvider)
 
     if (isBackendless) {
-      const localApiKeyValidator: IApiKeyValidator = new LocalApiKeyValidator()
-      app.provide(API_KEY_VALIDATOR_KEY, localApiKeyValidator)
-      return
+      this._apiKeyValidatorValue.value = new LocalApiKeyValidator()
+      this._apiKeyValidatorIsReady.value = true
     }
+
+    // Always provide before mount so safeInject never throws on async-resolved deps.
+    app.provide(API_KEY_VALIDATOR_KEY, this._apiKeyValidatorInjectable)
   }
 
   private _provideAnalytics(app: VueApp): void {
@@ -171,6 +185,7 @@ class AppInitializer {
     const socketUrl = this._envConfig.VITE_SOCKET_URL
     if (!socketUrl) {
       this._logger.error('Socket initialization skipped because VITE_SOCKET_URL is missing.')
+      this._apiKeyValidatorHasError.value = true
       return
     }
 
@@ -184,6 +199,7 @@ class AppInitializer {
         socketUrl,
         error: initResult.error,
       })
+      this._apiKeyValidatorHasError.value = true
       return
     }
 
@@ -193,7 +209,8 @@ class AppInitializer {
       this._logger,
       socketManager.validationSocket
     )
-    app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
+    this._apiKeyValidatorValue.value = apiKeyValidator
+    this._apiKeyValidatorIsReady.value = true
 
     window.addEventListener('beforeunload', () => {
       socketManager.disconnect()
