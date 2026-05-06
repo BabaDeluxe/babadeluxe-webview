@@ -128,10 +128,12 @@
             <RouterView v-slot="{ Component }">
               <Transition mode="out-in">
                 <KeepAlive :include="['ChatView', 'HistoryView', 'PromptsView']">
-                  <component
-                    :is="Component"
-                    class="flex-1 min-h-0 flex flex-col animate-fade-in animate-duration-150 animate-ease-out"
-                  />
+                  <ViewErrorBoundary>
+                    <component
+                      :is="Component"
+                      class="flex-1 min-h-0 flex flex-col animate-fade-in animate-duration-150 animate-ease-out"
+                    />
+                  </ViewErrorBoundary>
                 </KeepAlive>
               </Transition>
             </RouterView>
@@ -145,13 +147,13 @@
 </template>
 
 <script setup lang="ts">
-import { onErrorCaptured } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
 import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
+import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
 import { useToastStore } from '@/stores/use-toast-store'
 import { safeInject } from '@/safe-inject'
 import { LOGGER_KEY } from '@/injection-keys'
@@ -161,15 +163,4 @@ const logger = safeInject(LOGGER_KEY)
 const router = useRouter()
 const toasts = useToastStore()
 const { session, handleNewChat, handleLogout } = useAppLogic()
-
-onErrorCaptured((err, instance, info) => {
-  logger.error('Something crashed', {
-    vueInfo: info,
-    componentName: instance?.$options?.name,
-    error: err,
-  })
-
-  toasts.error('Something crashed. Please reload.')
-  return false
-})
 </script>
