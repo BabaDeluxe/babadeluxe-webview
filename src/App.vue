@@ -4,13 +4,13 @@
   >
     <div v-if="session && $route.path !== '/'">
       <header
-        class="flex items-center justify-between p-2 bg-panel border-b border-borderMuted/20"
+        class="grid grid-cols-3 items-center p-2 bg-panel border-b border-borderMuted/20 h-14"
         data-testid="app-header"
       >
-        <IconBabaDeluxe />
+        <div class="flex justify-start"><IconBabaDeluxe /></div>
 
         <nav
-          class="flex md:hidden flex-row gap-1 items-center mx-2"
+          class="flex md:hidden flex-row gap-1 items-center mx-auto bg-slate/40 p-1 rounded-xl border border-borderMuted/15"
           data-testid="mobile-nav"
         >
           <RouterLink
@@ -19,9 +19,10 @@
             custom
           >
             <BaseButton
-              variant="icon"
+              variant="menu"
               icon="i-bi:chat-dots"
               title="Chat"
+              class="w-10 h-10 p-0"
               :is-selected="isExactActive"
               @click="navigate"
             />
@@ -33,9 +34,10 @@
             custom
           >
             <BaseButton
-              variant="icon"
+              variant="menu"
               icon="i-bi:clock-history"
               title="History"
+              class="w-10 h-10 p-0"
               :is-selected="isExactActive"
               @click="navigate"
             />
@@ -47,9 +49,10 @@
             custom
           >
             <BaseButton
-              variant="icon"
+              variant="menu"
               icon="i-bi:terminal"
               title="Prompts"
+              class="w-10 h-10 p-0"
               :is-selected="isExactActive"
               @click="navigate"
             />
@@ -62,6 +65,7 @@
             variant="primary"
             icon="i-bi:plus-lg"
             title="New Chat"
+            class="md:w-auto w-9 h-9 md:h-auto"
             @click="handleNewChat"
           >
             <span class="hidden md:inline-block">New Chat</span>

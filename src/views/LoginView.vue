@@ -4,13 +4,13 @@
   >
     <!-- Left Pane: Login Form -->
     <div class="flex flex-col justify-center items-center p-6 md:p-12 relative z-10 bg-slate">
-      <div class="w-full max-w-md space-y-8 animate-fade-in">
+      <div class="w-full max-w-md space-y-6 animate-fade-in">
         <!-- Logo & Header -->
         <div class="text-center">
-          <div class="inline-flex justify-center mb-6">
+          <div class="inline-flex justify-center mb-4">
             <IconBabaDeluxe class="zoom-1.2" />
           </div>
-          <h2 class="text-4xl font-extrabold tracking-tight text-headingText mb-3">
+          <h2 class="text-4xl font-extrabold tracking-tight text-headingText mb-2">
             {{ isSignUp ? 'Create an account' : 'Welcome back' }}
           </h2>
           <p class="text-subtleText text-lg">
@@ -43,21 +43,15 @@
         </div>
 
         <!-- Divider -->
-        <div class="relative py-2">
-          <div
-            class="absolute inset-0 flex items-center"
-            aria-hidden="true"
-          >
-            <div class="w-full border-t border-borderMuted/30"></div>
-          </div>
-          <div class="relative flex justify-center text-xs uppercase tracking-[0.3em]">
-            <span class="bg-slate px-6 text-subtleText/60 font-black">OR</span>
-          </div>
+        <div class="flex items-center gap-4 py-2">
+          <div class="flex-1 h-[1px] bg-gradient-to-r from-transparent to-borderMuted/40"></div>
+          <span class="text-xs uppercase tracking-[0.3em] text-subtleText/60 font-black select-none">OR</span>
+          <div class="flex-1 h-[1px] bg-gradient-to-l from-transparent to-borderMuted/40"></div>
         </div>
 
         <!-- Form -->
         <form
-          class="space-y-6"
+          class="space-y-4"
           @submit.prevent="handleAuth"
         >
           <BaseInput
@@ -170,7 +164,7 @@
         </form>
 
         <!-- Footer -->
-        <div class="text-center text-sm text-subtleText border-t border-borderMuted/30 pt-8">
+        <div class="text-center text-sm text-subtleText border-t border-borderMuted/30 pt-6">
           {{ isSignUp ? 'Already have an account?' : "Don't have an account?" }}
           <button
             type="button"
