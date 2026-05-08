@@ -25,13 +25,14 @@ This repo contains the frontend that runs inside the VS Code webview panel. It c
 - **Testing:** Vitest (unit) + Playwright (E2E)
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'clusterBkg': '#1a1030', 'clusterBorder': '#4c1d95', 'titleColor': '#e2d9f3', 'nodeBorder': '#7c3aed', 'mainBkg': '#2a1758', 'fontFamily': 'monospace'}}}%%
 graph TD
-    classDef client fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1
-    classDef backend fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20
-    classDef storage fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#e65100
-    classDef ext fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#4a148c
+    classDef client fill:#2a1758,stroke:#7c3aed,stroke-width:2px,color:#e2d9f3
+    classDef backend fill:#1a0f3a,stroke:#4c1d95,stroke-width:2px,color:#c4b5fd
+    classDef storage fill:#1a1a0a,stroke:#d97706,stroke-width:2px,color:#fcd34d
+    classDef ext fill:#0f1a2a,stroke:#0891b2,stroke-width:2px,color:#67e8f9
 
-    subgraph ClientLayer ["Client Layer (Browser / VS Code Webview)"]
+    subgraph ClientLayer ["Client Layer — Browser / VS Code Webview"]
         direction TB
         VueApp[Vue 3 Application]:::client
         DexieDB[(IndexedDB / Dexie)]:::storage
@@ -60,6 +61,7 @@ graph TD
 A typed message bridge handles all communication between the Vue app and the extension host. File contents are resolved asynchronously via request/response pairs keyed by a unique `requestId`:
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'actorBkg': '#2a1758', 'actorBorder': '#7c3aed', 'actorTextColor': '#e2d9f3', 'actorLineColor': '#7c3aed', 'signalColor': '#c4b5fd', 'signalTextColor': '#e2d9f3', 'labelBoxBkgColor': '#1a0f3a', 'labelBoxBorderColor': '#4c1d95', 'labelTextColor': '#c4b5fd', 'loopTextColor': '#e2d9f3', 'noteBkgColor': '#1a0f3a', 'noteTextColor': '#c4b5fd', 'noteBorderColor': '#4c1d95', 'activationBkgColor': '#4c1d95', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
 sequenceDiagram
     participant Store as Pinia Store
     participant Resolver as Context Resolver
@@ -83,23 +85,24 @@ sequenceDiagram
 Pinia stores are the single source of truth for all domain state. The Dexie layer adds custom `SafeCollection`/`SafeTable` wrappers for type-safe IndexedDB access and a `KeyValueDb` store with automatic `updatedAt` tracking.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'edgeLabelBackground': '#1a1030', 'clusterBkg': '#1a1030', 'clusterBorder': '#4c1d95', 'titleColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
 flowchart LR
-    classDef view fill:#e1bee7,stroke:#4a148c,color:#000
-    classDef logic fill:#bbdefb,stroke:#0d47a1,color:#000
-    classDef state fill:#c8e6c9,stroke:#1b5e20,color:#000
-    classDef infra fill:#ffecb3,stroke:#ff6f00,color:#000
+    classDef view fill:#2a1758,stroke:#7c3aed,stroke-width:2px,color:#e2d9f3
+    classDef logic fill:#1a0f3a,stroke:#4c1d95,stroke-width:2px,color:#c4b5fd
+    classDef state fill:#0f2a1a,stroke:#059669,stroke-width:2px,color:#6ee7b7
+    classDef infra fill:#1a1a0a,stroke:#d97706,stroke-width:2px,color:#fcd34d
 
     View[Vue Component]:::view
     Composable[Composable Logic]:::logic
     Store[Pinia Store]:::state
-    Service[Socket/DB Service]:::infra
+    Service[Socket / DB Service]:::infra
 
     View -->|User Action| Composable
     Composable -->|Dispatch Action| Store
     Store -->|Async Operation| Service
-    Service -->|Result/Stream| Store
+    Service -->|Result / Stream| Store
     Store -->|Reactive State Update| Composable
-    Composable -->|Ref/Computed| View
+    Composable -->|Ref / Computed| View
 ```
 
 ### Error Handling
@@ -114,6 +117,7 @@ Two strategies depending on where the webview runs:
 - **Standalone browser** — standard Supabase PKCE OAuth flow (GitHub / Email)
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'actorBkg': '#2a1758', 'actorBorder': '#7c3aed', 'actorTextColor': '#e2d9f3', 'actorLineColor': '#7c3aed', 'signalColor': '#c4b5fd', 'signalTextColor': '#e2d9f3', 'labelBoxBkgColor': '#1a0f3a', 'labelBoxBorderColor': '#4c1d95', 'labelTextColor': '#c4b5fd', 'loopTextColor': '#e2d9f3', 'noteBkgColor': '#1a0f3a', 'noteTextColor': '#c4b5fd', 'noteBorderColor': '#4c1d95', 'activationBkgColor': '#4c1d95', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
 sequenceDiagram
     autonumber
     participant User
@@ -122,17 +126,17 @@ sequenceDiagram
     participant Supabase as Supabase Auth
     participant Socket as Socket Server
 
-    rect rgb(30, 30, 40)
-        note right of User: Scenario 1: Embedded in VS Code
+    rect rgb(26, 15, 58)
+        note right of User: Scenario 1 — Embedded in VS Code
         User->>Webview: Opens Extension
         Webview->>Bridge: Request Session (postMessage)
-        Bridge-->>Webview: Return Github Session
+        Bridge-->>Webview: Return GitHub Session
         Webview->>Supabase: Set Session (Refresh Token)
         Supabase-->>Webview: Valid Session & Access Token
     end
 
-    rect rgb(30, 35, 40)
-        note right of User: Scenario 2: Standalone Browser
+    rect rgb(15, 26, 42)
+        note right of User: Scenario 2 — Standalone Browser
         User->>Webview: Clicks Login
         Webview->>Supabase: OAuth Flow (PKCE)
         Supabase-->>Webview: Session & Access Token
@@ -151,10 +155,11 @@ Socket.io token events are committed to the store on a throttled interval (`stre
 Client-side conversation search uses Damerau-Levenshtein distance for fuzzy matching, running entirely in the browser against the local IndexedDB.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'edgeLabelBackground': '#1a1030', 'clusterBkg': '#1a1030', 'clusterBorder': '#4c1d95', 'titleColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
 graph TD
-    classDef input fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef process fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    classDef store fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef input fill:#2a1758,stroke:#7c3aed,stroke-width:2px,color:#e2d9f3
+    classDef process fill:#1a0f3a,stroke:#4c1d95,stroke-width:2px,color:#c4b5fd
+    classDef store fill:#1a1a0a,stroke:#d97706,stroke-width:2px,color:#fcd34d
 
     UserInput[User Query]:::input --> SearchService
     SearchService[Search Service]:::process -->|Fetch All| DB[(IndexedDB)]:::store
