@@ -38,7 +38,7 @@
               <BaseButton
                 variant="secondary"
                 text="Cancel"
-                @click="$emit('close')"
+                @click="emit('close')"
               />
             </slot>
           </div>
@@ -65,7 +65,7 @@ const props = withDefaults(defineProps<BaseModalProps>(), {
   closeOnBackdrop: true,
 })
 
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
 
 const modalRef = ref<HTMLElement | undefined>(undefined)
 const titleId = useId()
@@ -93,6 +93,4 @@ watch(
 function handleBackdropClick() {
   if (props.closeOnBackdrop) emit('close')
 }
-
-const emit = defineEmits<{ close: [] }>()
 </script>
