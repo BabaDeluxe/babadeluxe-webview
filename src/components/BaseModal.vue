@@ -16,6 +16,7 @@
           ]"
           role="dialog"
           aria-modal="true"
+          tabindex="-1"
           :aria-labelledby="titleId"
         >
           <h3
@@ -36,17 +37,9 @@
             <slot name="actions">
               <BaseButton
                 variant="secondary"
-                @click="handleCancel"
-              >
-                {{ cancelText }}
-              </BaseButton>
-              <BaseButton
-                variant="primary"
-                :is-disabled="confirmDisabled"
-                @click="handleConfirm"
-              >
-                {{ confirmText }}
-              </BaseButton>
+                text="Cancel"
+                @click="$emit('close')"
+              />
             </slot>
           </div>
         </div>
@@ -56,85 +49,39 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, nextTick, ref } from 'vue'
-import { onKeyStroke } from '@vueuse/core'
+import { computed, ref, watch, nextTick, useId } from 'vue'
 import BaseButton from '@/components/BaseButton.vue'
 
 interface BaseModalProps {
-  isShown?: boolean
+  isShown: boolean
   title?: string
-  confirmText?: string
-  cancelText?: string
-  confirmDisabled?: boolean
-  closeOnBackdrop?: boolean
-  closeOnEscape?: boolean
-  size?: 'small' | 'medium' | 'large'
   dataTestId?: string
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  closeOnBackdrop?: boolean
 }
 
 const props = withDefaults(defineProps<BaseModalProps>(), {
-  isShown: false,
-  title: undefined,
-  confirmText: 'Confirm',
-  cancelText: 'Cancel',
-  confirmDisabled: false,
+  size: 'md',
   closeOnBackdrop: true,
-  closeOnEscape: true,
-  size: 'medium',
-  dataTestId: undefined,
 })
 
-interface BaseModalEmits {
-  (event: 'update:is-shown', value: boolean): void
-  (event: 'confirm'): void
-  (event: 'cancel'): void
-}
+defineEmits<{ close: [] }>()
 
-const emit = defineEmits<BaseModalEmits>()
-
-const modalRef = ref<HTMLElement>()
-
-const isShown = computed(() => props.isShown)
-const dataTestId = computed(() => props.dataTestId)
-
-const titleId = computed(() => `modal-title-${Math.random().toString(36).slice(2, 9)}`)
+const modalRef = ref<HTMLElement | undefined>(undefined)
+const titleId = useId()
 
 const sizeClasses = computed(() => {
-  return {
-    small: 'max-w-sm',
-    medium: 'max-w-md',
-    large: 'max-w-2xl',
-  }[props.size]
-})
-
-const closeModal = () => {
-  emit('update:is-shown', false)
-}
-
-const handleConfirm = () => {
-  emit('confirm')
-}
-
-const handleCancel = () => {
-  emit('cancel')
-  closeModal()
-}
-
-const handleBackdropClick = () => {
-  if (props.closeOnBackdrop) {
-    handleCancel()
+  const sizes = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
   }
-}
-
-onKeyStroke('Escape', (event) => {
-  if (isShown.value && props.closeOnEscape) {
-    event.preventDefault()
-    handleCancel()
-  }
+  return sizes[props.size]
 })
 
 watch(
-  () => isShown.value,
+  () => props.isShown,
   async (shown) => {
     if (shown) {
       await nextTick()
@@ -142,4 +89,10 @@ watch(
     }
   }
 )
+
+function handleBackdropClick() {
+  if (props.closeOnBackdrop) emit('close')
+}
+
+const emit = defineEmits<{ close: [] }>()
 </script>

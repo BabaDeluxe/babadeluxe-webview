@@ -4,6 +4,7 @@
       :data-testid="`message-${id}`"
       :variant="role === 'user' ? 'primary' : 'secondary'"
       :align="role === 'user' ? 'right' : 'left'"
+      :aria-label="role === 'user' ? 'Your message' : 'Assistant message'"
     >
       <template #avatar>
         <BaseAvatar :role="role" />
