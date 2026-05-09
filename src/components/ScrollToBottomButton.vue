@@ -25,7 +25,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 interface ScrollToBottomButtonProps {
-  scrollEl?: HTMLElement | null
+  scrollEl?: HTMLElement
   bottomOffsetPx?: number
   rightOffsetPx?: number
   showAfterPx?: number
@@ -33,7 +33,6 @@ interface ScrollToBottomButtonProps {
 }
 
 const props = withDefaults(defineProps<ScrollToBottomButtonProps>(), {
-  scrollEl: null,
   bottomOffsetPx: 16,
   rightOffsetPx: 16,
   showAfterPx: 120,
@@ -85,15 +84,13 @@ const buttonStyle = computed(() => ({
   minHeight: '44px',
 }))
 
-let _target: HTMLElement | Window | null = null
-
 onMounted(() => {
-  _target = getTarget()
-  _target.addEventListener('scroll', updateVisibility, { passive: true })
+  const target = getTarget()
+  target.addEventListener('scroll', updateVisibility, { passive: true })
   updateVisibility()
-})
 
-onUnmounted(() => {
-  _target?.removeEventListener('scroll', updateVisibility)
+  onUnmounted(() => {
+    target.removeEventListener('scroll', updateVisibility)
+  })
 })
 </script>
