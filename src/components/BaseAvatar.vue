@@ -1,43 +1,37 @@
 <template>
-  <div
-    class="flex items-center justify-center shrink-0"
-    :class="containerSizeClasses"
-  >
+  <div class="flex items-center justify-center shrink-0">
     <!-- User Avatar -->
     <img
       v-if="role === 'user' && avatarUrl"
       :src="avatarUrl"
       alt="User Avatar"
-      class="object-cover rounded-full"
-      :class="imageSizeClasses"
+      class="w-14 h-14 object-cover rounded-full"
       loading="lazy"
     />
 
     <!-- User Placeholder -->
     <div
       v-else-if="role === 'user'"
-      class="flex items-center justify-center text-subtleText rounded-full"
-      :class="imageSizeClasses"
+      class="w-14 h-14 flex items-center justify-center text-subtleText rounded-full"
+      role="img"
+      aria-label="User avatar"
     >
-      <i
-        class="i-bi:person-circle"
-        :class="iconSizeClasses"
-      />
+      <i class="i-bi:person-circle w-8 h-8" aria-hidden="true" />
     </div>
 
     <!-- Assistant Robot -->
     <div
       v-else
-      class="flex items-center justify-center text-accent"
-      :class="imageSizeClasses"
+      class="w-14 h-14 flex items-center justify-center text-accent"
+      role="img"
+      aria-label="Assistant avatar"
     >
-      <IconRobot :class="iconSizeClasses" />
+      <IconRobot />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { EnvConfigType } from '@/env-validator'
 import { ENV_CONFIG_KEY, LOGGER_KEY } from '@/injection-keys'
 import IconRobot from '@/components/IconRobot.vue'
@@ -52,57 +46,9 @@ if (!projectRef) {
   logger.warn('ProjectRef is unset in during base avatar component init')
 }
 
-interface BaseAvatarProps {
+defineProps<{
   role?: 'user' | 'assistant'
-  size?: 'xs' | 'sm' | 'md' | 'lg'
-}
-
-const props = withDefaults(defineProps<BaseAvatarProps>(), {
-  role: 'assistant',
-  size: 'lg',
-})
-
-const containerSizeClasses = computed(() => {
-  switch (props.size) {
-    case 'xs':
-      return 'w-6 h-6'
-    case 'sm':
-      return 'w-8 h-8'
-    case 'md':
-      return 'w-10 h-10'
-    case 'lg':
-    default:
-      return 'w-14 h-14'
-  }
-})
-
-const imageSizeClasses = computed(() => {
-  switch (props.size) {
-    case 'xs':
-      return 'w-6 h-6'
-    case 'sm':
-      return 'w-8 h-8'
-    case 'md':
-      return 'w-10 h-10'
-    case 'lg':
-    default:
-      return 'w-14 h-14'
-  }
-})
-
-const iconSizeClasses = computed(() => {
-  switch (props.size) {
-    case 'xs':
-      return 'w-4 h-4'
-    case 'sm':
-      return 'w-5 h-5'
-    case 'md':
-      return 'w-6 h-6'
-    case 'lg':
-    default:
-      return 'w-8 h-8'
-  }
-})
+}>()
 
 const avatarUrlRef = useUserAvatar(projectRef)?.avatarUrl
 const avatarUrl = avatarUrlRef ? avatarUrlRef.value : undefined

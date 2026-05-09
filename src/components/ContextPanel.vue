@@ -10,10 +10,8 @@
           :is-disabled="items.length === 0"
           :aria-expanded="!isCollapsed"
           aria-label="Toggle context visibility"
-          aria-hidden="true"
           @click="isCollapsed = !isCollapsed"
-        >
-        </BaseButton>
+        />
 
         <span class="text-xs font-onest font-semibold text-deepText tracking-wide">
           BabaContext™
@@ -26,7 +24,6 @@
           :class="isRootBarVisible ? 'text-accent bg-accent/10' : ''"
           :aria-pressed="isRootBarVisible"
           aria-label="Toggle context root path"
-          aria-hidden="true"
           @click="$emit('toggleRootBar')"
         />
       </div>
