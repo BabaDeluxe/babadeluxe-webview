@@ -66,7 +66,8 @@
       <!-- Messages -->
       <div
         v-if="messages.length > 0"
-        class="flex flex-col flex-1 min-h-0 w-full overflow-y-auto"
+        ref="messagesScrollRef"
+        class="relative flex flex-col flex-1 min-h-0 w-full overflow-y-auto"
       >
         <div class="flex flex-col gap-0">
           <ChatMessage
@@ -81,6 +82,11 @@
             @rewrite="handleRewriteMessage"
           />
         </div>
+
+        <ScrollToBottomButton
+          :is-visible="isScrollToBottomVisible"
+          @click="scrollToBottom"
+        />
       </div>
 
       <!-- Message list input section -->
@@ -130,13 +136,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import SubscriptionModal from '@/components/SubscriptionModal.vue'
 import ChatInputBlock from '@/components/ChatInputBlock.vue'
+import ScrollToBottomButton from '@/components/ScrollToBottomButton.vue'
 import { useChat } from '@/composables/use-chat'
+import { useScrollToBottom } from '@/composables/use-scroll-to-bottom'
 
 defineOptions({ name: 'ChatView' })
 
@@ -177,9 +185,22 @@ const {
 
 const chatInputTopRef = ref()
 const chatInputBottomRef = ref()
+const messagesScrollRef = ref<HTMLElement>()
+
+const {
+  isVisible: isScrollToBottomVisible,
+  scrollToBottom,
+  updateVisibility,
+} = useScrollToBottom(messagesScrollRef)
 
 // Sync the focusable ref
 watch([chatInputTopRef, chatInputBottomRef], () => {
   chatInputRef.value = chatInputTopRef.value || chatInputBottomRef.value
 })
+
+// Re-check scroll visibility when streaming appends new content
+watch(
+  () => messages.value.length,
+  () => nextTick(updateVisibility)
+)
 </script>

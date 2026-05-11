@@ -1,6 +1,12 @@
 <template>
-  <div class="matrix-container h-full w-full relative overflow-hidden" aria-hidden="true">
-    <canvas ref="canvasRef" class="matrix-canvas w-full h-full block"></canvas>
+  <div
+    class="matrix-container h-full w-full relative overflow-hidden"
+    aria-hidden="true"
+  >
+    <canvas
+      ref="canvasRef"
+      class="matrix-canvas w-full h-full block"
+    ></canvas>
     <div class="scanlines"></div>
     <div class="vignette"></div>
     <div class="right-edge-fade"></div>
@@ -27,7 +33,8 @@ const { isDark } = useTheme()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let rafId: number | null = null
 
-const CHARS = '日本語文字電脳未来世界機械人工知能量子暗号解読侵入防衛端末接続通信情報デジタルサイバーネット力夢幻影血炎光風水地天神鬼龍虎狐狼鳳凰玄武朱雀青龍白虎ΔΩΨλφ∞∑∫≈≡∈⊕⊗□△○◆◇▲▼░▒▓01'
+const CHARS =
+  '日本語文字電脳未来世界機械人工知能量子暗号解読侵入防衛端末接続通信情報デジタルサイバーネット力夢幻影血炎光風水地天神鬼龍虎狐狼鳳凰玄武朱雀青龍白虎ΔΩΨλφ∞∑∫≈≡∈⊕⊗□△○◆◇▲▼░▒▓01'
 const FONT_SIZE = 16
 const TRAIL_LEN = 22
 
@@ -178,11 +185,7 @@ onUnmounted(() => {
 .scanlines {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to bottom,
-    transparent 50%,
-    rgba(180, 80, 255, 0.04) 50%
-  );
+  background: linear-gradient(to bottom, transparent 50%, rgba(180, 80, 255, 0.04) 50%);
   background-size: 100% 4px;
   pointer-events: none;
   z-index: 10;
@@ -221,10 +224,22 @@ onUnmounted(() => {
 }
 
 @keyframes glitch-v {
-  0%, 100% { transform: translateY(0); opacity: 0; }
-  10% { opacity: 0.2; }
-  11% { transform: translateY(400%); opacity: 0; }
-  50% { transform: translateY(100%); opacity: 0.1; }
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.2;
+  }
+  11% {
+    transform: translateY(400%);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(100%);
+    opacity: 0.1;
+  }
 }
 
 .corner {
@@ -234,10 +249,30 @@ onUnmounted(() => {
   border: 2px solid rgba(180, 80, 255, 0.3);
   z-index: 30;
 }
-.corner-tl { top: 30px; left: 30px; border-right: 0; border-bottom: 0; }
-.corner-tr { top: 30px; right: 30px; border-left: 0; border-bottom: 0; }
-.corner-bl { bottom: 30px; left: 30px; border-right: 0; border-top: 0; }
-.corner-br { bottom: 30px; right: 30px; border-left: 0; border-top: 0; }
+.corner-tl {
+  top: 30px;
+  left: 30px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.corner-tr {
+  top: 30px;
+  right: 30px;
+  border-left: 0;
+  border-bottom: 0;
+}
+.corner-bl {
+  bottom: 30px;
+  left: 30px;
+  border-right: 0;
+  border-top: 0;
+}
+.corner-br {
+  bottom: 30px;
+  right: 30px;
+  border-left: 0;
+  border-top: 0;
+}
 
 .cyber-overlay {
   position: absolute;

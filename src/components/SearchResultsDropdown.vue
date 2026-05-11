@@ -1,6 +1,7 @@
 <template>
   <div
     ref="dropdownRef"
+    role="listbox"
     aria-label="Search results dropdown"
     class="absolute top-14 left-3 right-4 bg-panel border border-borderMuted rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto"
   >
@@ -23,14 +24,18 @@
       </div>
       <div v-else>
         <div
+          role="status"
+          aria-live="polite"
           class="px-3 py-2 text-xs text-subtleText border-b border-borderMuted"
-          aria-label="Search result count"
         >
           {{ results.length }} {{ results.length === 1 ? 'result' : 'results' }}
         </div>
         <div
           v-for="(result, index) in results"
           :key="getResultKey(result, index)"
+          role="option"
+          :tabindex="0"
+          :aria-selected="index === highlightedIndex"
           :data-result-type="result.resultType"
           :class="[
             'p-3 cursor-pointer border-b border-borderMuted last:border-b-0 transition-colors',
@@ -38,6 +43,8 @@
           ]"
           @click="handleResultClick(result)"
           @mouseenter="handleResultHover(index)"
+          @keydown.enter.prevent="handleResultClick(result)"
+          @keydown.space.prevent="handleResultClick(result)"
         >
           <slot
             name="result"
@@ -48,6 +55,7 @@
               <i
                 :class="getResultIcon(result)"
                 class="text-accent mt-1 flex-shrink-0"
+                aria-hidden="true"
               />
               <div class="flex-1 min-w-0">
                 <div class="text-xs text-subtleText mb-1">
@@ -107,11 +115,11 @@ const emit = defineEmits<SearchResultsDropdownEmits<T>>()
 
 const dropdownRef = ref<HTMLElement>()
 
-const handleResultClick = (result: T) => {
+function handleResultClick(result: T) {
   emit('result-click', result)
 }
 
-const handleResultHover = (index: number) => {
+function handleResultHover(index: number) {
   emit('result-hover', index)
 }
 

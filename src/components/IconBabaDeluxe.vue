@@ -3,7 +3,7 @@
     <img
       src="@/assets/babadeluxe-3d-icon-without-text.png"
       alt="BabaDeluxe Logo"
-      class="logo w-12 h-12 object-contain"
+      class="logo w-9 h-9 object-contain"
     />
   </div>
 </template>

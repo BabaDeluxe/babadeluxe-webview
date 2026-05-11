@@ -1,93 +1,48 @@
 <template>
   <div
-    class="flex items-center justify-between p-3 border border-borderMuted rounded-lg hover:bg-panel cursor-pointer transition-colors"
-    :class="{ 'bg-accent/10 border-accent': isSelected }"
-    :data-testid="rootTestId"
+    class="group flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors hover:bg-slate"
+    :class="isActive ? 'bg-slate' : ''"
+    role="button"
+    :tabindex="0"
+    :aria-current="isActive ? 'page' : undefined"
     @click="handleClick"
+    @keydown.enter.prevent="handleClick"
+    @keydown.space.prevent="handleClick"
   >
-    <div class="flex-1">
-      <div class="font-medium text-deepText">
-        {{ conversation.title }}
-      </div>
-      <div class="text-sm text-subtleText">
-        {{ messageCount }} messages •
-        {{ formattedDate }}
-      </div>
+    <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+      <span class="text-xs font-medium text-deepText truncate leading-snug">
+        {{ title }}
+      </span>
+      <span
+        v-if="subtitle"
+        class="text-xs text-subtleText truncate leading-snug"
+      >
+        {{ subtitle }}
+      </span>
     </div>
-    <div class="flex items-center gap-2">
-      <BaseButton
-        :data-testid="renameTestId"
-        variant="ghost"
-        icon="i-weui:pencil-outlined"
-        @click.stop="handleRename"
-      />
-      <BaseButton
-        :data-testid="deleteTestId"
-        variant="ghost"
-        icon="i-weui:delete-outlined"
-        class="hover:text-error"
-        @click.stop="handleDelete"
-      />
+
+    <div
+      class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0 transition-opacity"
+    >
+      <slot name="actions" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { type Conversation } from '@/database/types'
-import { useDateFormatter } from '@/composables/use-date-formatter'
-import BaseButton from '@/components/BaseButton.vue'
-
 interface ConversationListItemProps {
-  conversation: Conversation
-  messageCount: number
-  isSelected?: boolean
-  testIdPrefix?: string
+  title: string
+  subtitle?: string
+  isActive?: boolean
 }
 
-interface ConversationListItemEmits {
-  (event: 'click', conversation: Conversation): void
-  (event: 'rename', conversation: Conversation): void
-  (event: 'delete', conversation: Conversation): void
-}
+defineProps<ConversationListItemProps>()
 
-const props = withDefaults(defineProps<ConversationListItemProps>(), {
-  isSelected: false,
-  testIdPrefix: '',
-})
+const emit = defineEmits<{
+  click: []
+}>()
 
-const emit = defineEmits<ConversationListItemEmits>()
-
-const { formatRelativeDate } = useDateFormatter()
-
-const formattedDate = computed(() => formatRelativeDate(props.conversation.updatedAt))
-
-const idSuffix = computed(() => props.conversation.id ?? 'unknown')
-
-const rootTestId = computed(() => {
-  if (!props.testIdPrefix) return undefined
-  return `${props.testIdPrefix}-conversation-${idSuffix.value}`
-})
-
-const renameTestId = computed(() => {
-  if (!props.testIdPrefix) return undefined
-  return `${props.testIdPrefix}-conversation-${idSuffix.value}-rename`
-})
-
-const deleteTestId = computed(() => {
-  if (!props.testIdPrefix) return undefined
-  return `${props.testIdPrefix}-conversation-${idSuffix.value}-delete`
-})
-
-const handleClick = () => {
-  emit('click', props.conversation)
-}
-
-const handleRename = () => {
-  emit('rename', props.conversation)
-}
-
-const handleDelete = () => {
-  emit('delete', props.conversation)
+function handleClick() {
+  emit('click')
 }
 </script>

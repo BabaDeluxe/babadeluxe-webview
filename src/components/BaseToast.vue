@@ -1,23 +1,35 @@
 <template>
   <div
-    class="flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border animate-fade-in-up min-w-[300px] max-w-[400px]"
-    :class="classes"
-    role="status"
-    aria-live="polite"
+    :role="type === 'error' ? 'alert' : 'status'"
+    :aria-live="type === 'error' ? 'assertive' : 'polite'"
+    class="flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg min-w-64 max-w-sm animate-fade-in animate-duration-200 animate-ease-out"
+    :class="toastClass"
   >
     <i
       :class="iconClass"
-      class="text-lg shrink-0"
+      class="text-lg shrink-0 mt-0.5"
       aria-hidden="true"
     />
-    <span class="text-sm font-medium flex-1 break-words">{{ message }}</span>
+    <div class="flex flex-col gap-0.5 min-w-0">
+      <span
+        v-if="title"
+        class="text-sm font-medium leading-snug"
+      >
+        {{ title }}
+      </span>
+      <span class="text-xs text-subtleText leading-snug">
+        {{ message }}
+      </span>
+    </div>
     <button
-      class="ml-auto opacity-70 hover:opacity-100 p-1"
-      aria-label="Close"
-      @click="$emit('close')"
+      v-if="isDismissable"
+      type="button"
+      aria-label="Dismiss notification"
+      class="ml-auto shrink-0 text-subtleText hover:text-deepText transition-colors"
+      @click="$emit('dismiss')"
     >
       <i
-        class="i-weui:close-outlined"
+        class="i-bi:x-lg text-xs"
         aria-hidden="true"
       />
     </button>
@@ -26,57 +38,43 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ToastType } from '@/stores/use-toast-store'
 
-const props = defineProps<{
+type ToastType = 'info' | 'success' | 'warning' | 'error'
+
+interface BaseToastProps {
+  type?: ToastType
+  title?: string
   message: string
-  type: ToastType
-}>()
+  isDismissable?: boolean
+}
+
+const props = withDefaults(defineProps<BaseToastProps>(), {
+  title: '',
+  type: 'info',
+  isDismissable: true,
+})
 
 defineEmits<{
-  close: []
+  dismiss: []
 }>()
 
-const classes = computed(() => {
-  switch (props.type) {
-    case 'success':
-      return 'bg-panel border-accent text-deepText'
-    case 'error':
-      return 'bg-error/10 border-error text-error'
-    case 'warning':
-      return 'bg-warning/10 border-warning text-warning'
-    default:
-      return 'bg-panel border-borderMuted text-deepText'
+const toastClass = computed(() => {
+  const classes: Record<ToastType, string> = {
+    info: 'bg-panel border-borderMuted text-deepText',
+    success: 'bg-panel border-borderMuted text-deepText',
+    warning: 'bg-panel border-borderMuted text-deepText',
+    error: 'bg-panel border-error/40 text-deepText',
   }
+  return classes[props.type]
 })
 
 const iconClass = computed(() => {
-  switch (props.type) {
-    case 'success':
-      return 'i-bi:check-circle-fill text-accent'
-    case 'error':
-      return 'i-bi:exclamation-circle-fill'
-    case 'warning':
-      return 'i-bi:exclamation-triangle-fill'
-    default:
-      return 'i-bi:info-circle-fill text-accent'
+  const icons: Record<ToastType, string> = {
+    info: 'i-bi:info-circle text-accent',
+    success: 'i-bi:check-circle text-success',
+    warning: 'i-bi:exclamation-triangle text-warning',
+    error: 'i-bi:x-circle text-error',
   }
+  return icons[props.type]
 })
 </script>
-
-<style scoped>
-.animate-fade-in-up {
-  animation: fadeInUp 0.3s ease-out forwards;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-</style>

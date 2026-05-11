@@ -2,6 +2,7 @@
   <div class="flex flex-col gap-2">
     <ContextRootBar
       v-if="isInVsCode && isContextRootBarVisible"
+      :context-root-path="contextRootPath"
       @hide="emit('hide-root-bar')"
     />
 
@@ -19,7 +20,7 @@
 
     <ChatInput
       ref="chatInputRef"
-      :model-value="modelValue"
+      :value="modelValue"
       :is-disabled="isDisabled"
       :is-loading="isLoading"
       :is-submitting="isSubmitting"
@@ -27,7 +28,7 @@
       :data-testid="testId"
       :submit-button-data-testid="submitButtonTestId"
       :abort-button-data-testid="abortButtonTestId"
-      @update:model-value="emit('update:modelValue', $event)"
+      @update:value="emit('update:modelValue', $event)"
       @submit="emit('submit')"
       @abort="emit('abort')"
     >
@@ -74,6 +75,7 @@ defineProps<{
   modelValue: string
   isInVsCode: boolean
   isContextRootBarVisible: boolean
+  contextRootPath: string | undefined
   contextItems: VsCodeContextItem[]
   hasContextError: boolean
   isLoadingContext: boolean

@@ -13,14 +13,21 @@
     <div
       v-else-if="role === 'user'"
       class="w-14 h-14 flex items-center justify-center text-subtleText rounded-full"
+      role="img"
+      aria-label="User avatar"
     >
-      <i class="i-bi:person-circle w-8 h-8" />
+      <i
+        class="i-bi:person-circle w-8 h-8"
+        aria-hidden="true"
+      />
     </div>
 
     <!-- Assistant Robot -->
     <div
       v-else
       class="w-14 h-14 flex items-center justify-center text-accent"
+      role="img"
+      aria-label="Assistant avatar"
     >
       <IconRobot />
     </div>

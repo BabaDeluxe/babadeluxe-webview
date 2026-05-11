@@ -1,4 +1,4 @@
-import { type App as VueApp, type Ref, createApp, ref } from 'vue'
+import { type App as VueApp, type Ref, createApp, ref, readonly } from 'vue'
 import { createPinia } from 'pinia'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createColorino, themePalettes } from 'colorino'
@@ -22,6 +22,9 @@ import {
   SEARCH_SERVICE_KEY,
   SOCKET_MANAGER_KEY,
   SUPABASE_CLIENT_KEY,
+  AUTH_PROVIDER_KEY,
+  VSCODE_BRIDGE_KEY,
+  type AsyncInjectable,
 } from '@/injection-keys'
 import { initializeModels } from '@/composables/use-models-socket'
 import { SocketManager } from '@/socket-manager'
@@ -29,12 +32,25 @@ import { useToastStore } from '@/stores/use-toast-store'
 import { AnalyticsManager } from '@/analytics/analytics-manager'
 import { GoogleAnalyticsProvider } from '@/analytics/providers/google-analytics-provider'
 import { StatsigProvider } from '@/analytics/providers/statsig-provider'
+import { createAuthProvider } from '@/auth/create-auth-provider'
+import { VsCodeBridge } from '@/services/vs-code-bridge'
 
 export type SupabaseClientType = SupabaseClient
 
 class AppInitializer {
   private readonly _logger = createColorino(themePalettes['catppuccin-mocha'])
   private readonly _socketManagerRef: Ref<SocketManager | undefined> = ref(undefined)
+
+  // Mutable source refs — only AppInitializer can resolve or reject this injectable.
+  // Consumers receive a readonly AsyncInjectable<IApiKeyValidator> via provide/inject.
+  private readonly _apiKeyValidatorIsReady = ref(false)
+  private readonly _apiKeyValidatorHasError = ref(false)
+  private readonly _apiKeyValidatorValue = ref<IApiKeyValidator | undefined>(undefined)
+  private readonly _apiKeyValidatorInjectable: AsyncInjectable<IApiKeyValidator> = {
+    isReady: readonly(this._apiKeyValidatorIsReady),
+    hasError: readonly(this._apiKeyValidatorHasError),
+    value: readonly(this._apiKeyValidatorValue),
+  }
 
   private _envConfig!: EnvConfigType
   private _supabase!: SupabaseClientType
@@ -50,7 +66,7 @@ class AppInitializer {
 
     app.mount('#app')
 
-    await this._initializeAsyncDependencies(app)
+    await this._initializeAsyncDependencies()
   }
 
   private _validateEnv(): void {
@@ -107,11 +123,17 @@ class AppInitializer {
 
     app.provide(SUPABASE_CLIENT_KEY, this._supabase)
 
+    const authProvider = createAuthProvider(this._supabase)
+    app.provide(AUTH_PROVIDER_KEY, authProvider)
+    app.provide(VSCODE_BRIDGE_KEY, VsCodeBridge.getInstance())
+
     if (isBackendless) {
-      const localApiKeyValidator: IApiKeyValidator = new LocalApiKeyValidator()
-      app.provide(API_KEY_VALIDATOR_KEY, localApiKeyValidator)
-      return
+      this._apiKeyValidatorValue.value = new LocalApiKeyValidator()
+      this._apiKeyValidatorIsReady.value = true
     }
+
+    // Always provide before mount so safeInject never throws on async-resolved deps.
+    app.provide(API_KEY_VALIDATOR_KEY, this._apiKeyValidatorInjectable)
   }
 
   private _provideAnalytics(app: VueApp): void {
@@ -148,7 +170,7 @@ class AppInitializer {
     app.use(router)
   }
 
-  private async _initializeAsyncDependencies(app: VueApp): Promise<void> {
+  private async _initializeAsyncDependencies(): Promise<void> {
     if (isOfflineMode()) {
       this._logger.warn('Running in backendless mode. Backend services disabled.')
       return
@@ -166,6 +188,7 @@ class AppInitializer {
     const socketUrl = this._envConfig.VITE_SOCKET_URL
     if (!socketUrl) {
       this._logger.error('Socket initialization skipped because VITE_SOCKET_URL is missing.')
+      this._apiKeyValidatorHasError.value = true
       return
     }
 
@@ -179,6 +202,7 @@ class AppInitializer {
         socketUrl,
         error: initResult.error,
       })
+      this._apiKeyValidatorHasError.value = true
       return
     }
 
@@ -188,7 +212,8 @@ class AppInitializer {
       this._logger,
       socketManager.validationSocket
     )
-    app.provide(API_KEY_VALIDATOR_KEY, apiKeyValidator)
+    this._apiKeyValidatorValue.value = apiKeyValidator
+    this._apiKeyValidatorIsReady.value = true
 
     window.addEventListener('beforeunload', () => {
       socketManager.disconnect()

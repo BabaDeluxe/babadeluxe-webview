@@ -5,7 +5,7 @@
     class="flex-1 flex flex-col gap-6 p-4 sm:p-6 max-w-4xl mx-auto w-full"
   >
     <div
-      v-if="hasComponentError"
+      v-if="apiKeyValidator.hasError.value"
       data-testid="component-error"
       class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
     >
@@ -19,7 +19,21 @@
     </div>
 
     <div
-      v-else-if="isLoadingSettings"
+      v-else-if="loadError"
+      data-testid="load-error-state"
+      class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
+    >
+      <p class="text-error text-lg">{{ loadError }}</p>
+      <BaseButton
+        variant="secondary"
+        @click="handleRetryLoad"
+      >
+        Retry
+      </BaseButton>
+    </div>
+
+    <div
+      v-else-if="!apiKeyValidator.isReady.value || isLoadingSettings"
       data-testid="loading-state"
       class="flex-1 flex items-center justify-center"
     >
@@ -29,7 +43,7 @@
       />
     </div>
 
-    <template v-else>
+    <template v-else-if="isReady">
       <section
         data-testid="appearance-section"
         class="flex flex-col gap-4"
@@ -125,9 +139,10 @@ import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/inject
 import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { isOfflineMode } from '@/env-validator'
+import type { IApiKeyValidator } from '@/api-key-validator'
 
 const logger = safeInject(LOGGER_KEY)
-const validator = safeInject(API_KEY_VALIDATOR_KEY)
+const apiKeyValidator = safeInject(API_KEY_VALIDATOR_KEY)
 const supabase = safeInject(SUPABASE_CLIENT_KEY)
 const toasts = useToastStore()
 
@@ -137,17 +152,19 @@ const { isDark, toggleDark } = useTheme()
 
 const currentUserId = ref<string>()
 
-const upsertSettingWrapper = async (
-  key: string,
-  value: unknown,
-  dataType: 'string' | 'number' | 'boolean'
-): Promise<void> => {
-  await upsertSetting(key, value, dataType)
-}
+// isReady is the single runtime gate: true only after apiKeyValidator.value.value
+// is fully resolved (non-undefined). The `as IApiKeyValidator` assertion below is
+// therefore safe — useApiKeyManagement and every template branch that consumes
+// resolvedValidator are unreachable while isReady is false.
+const isReady = computed(
+  () => apiKeyValidator.isReady.value && apiKeyValidator.value.value !== undefined
+)
+
+const resolvedValidator = computed(() => apiKeyValidator.value.value as IApiKeyValidator)
 
 const { apiProviders, fieldStates, modelsReloadWarning, hydrateFieldStates, handleApiKeyInput } =
   useApiKeyManagement(
-    validator,
+    resolvedValidator,
     logger,
     upsertSettingWrapper,
     reloadModels,
@@ -169,23 +186,36 @@ const updateFieldStatus = (
 const isLoadingSettings = ref(true)
 const loadError = ref<string | undefined>()
 
-const hasComponentError = ref(false)
 const handleReload = () => {
   window.location.reload()
 }
 
+const handleRetryLoad = async () => {
+  loadError.value = undefined
+  isLoadingSettings.value = true
+
+  const result = await ResultAsync.fromPromise(loadSettings(), (unknownError) => {
+    if (unknownError instanceof Error) {
+      return new InitializationError(unknownError.message, unknownError)
+    }
+    return new InitializationError('Failed to load settings', unknownError)
+  })
+
+  result.match(
+    () => {
+      hydrateFieldStates()
+      isLoadingSettings.value = false
+    },
+    (loadErr) => {
+      logger.error('Failed to reload settings', { userId: currentUserId.value, error: loadErr })
+      loadError.value = 'Settings could not be loaded. Please try again.'
+      isLoadingSettings.value = false
+    }
+  )
+}
+
 const generalSettings = computed(() =>
   settings.value.filter((setting) => !setting.settingKey.startsWith('apiKey'))
-)
-
-watch(
-  loadError,
-  (val) => {
-    if (val) {
-      toasts.error(toUserMessage(val))
-    }
-  },
-  { immediate: true }
 )
 
 watch(
@@ -223,15 +253,37 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
     return
   }
 
+  updateFieldStatus(fieldName, 'validating')
+
+  const saveResult = await upsertSetting(fieldName, value, setting.dataType)
+
+  if (saveResult.isErr()) {
+    updateFieldStatus(fieldName, 'invalid', toUserMessage(saveResult.error))
+    logger.error('Failed to save setting', { fieldName, error: saveResult.error })
+    return
+  }
+
   updateFieldStatus(fieldName, 'valid')
-  await upsertSetting(fieldName, value, setting.dataType)
   toasts.success('Setting saved')
+}
+
+async function upsertSettingWrapper(
+  key: string,
+  value: unknown,
+  dataType: 'string' | 'number' | 'boolean'
+): Promise<void> {
+  const result = await upsertSetting(key, value, dataType)
+
+  if (result.isErr()) {
+    logger.error('Failed to save setting via API key management', { key, error: result.error })
+    toasts.error(toUserMessage(result.error))
+  }
 }
 
 const handleThemeToggle = async () => {
   toggleDark()
   const newValue = isDark.value ? 'dark' : 'light'
-  // We optimistically toggle, then save to DB
+  // Optimistic — visual state is already applied; persist in background without blocking.
   await upsertSetting('theme', newValue, 'string')
 }
 
@@ -282,7 +334,7 @@ onMounted(async () => {
         userId: currentUserId.value,
         error: loadErr,
       })
-      loadError.value = 'Settings could not be loaded. Please refresh the page.'
+      loadError.value = 'Settings could not be loaded. Please try again.'
       isLoadingSettings.value = false
     }
   )

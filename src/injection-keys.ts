@@ -9,6 +9,18 @@ import type { KeyValueStore } from '@/database/key-value-store'
 import type { SocketManager } from '@/socket-manager'
 import type { AnalyticsManager } from '@/analytics/analytics-manager'
 import type { IApiKeyValidator } from '@/api-key-validator'
+import type { AuthProvider } from '@/auth/auth-provider'
+
+/**
+ * Wraps a dependency that is provided before app.mount() but resolved asynchronously
+ * (e.g. after socket init). Consumers use isReady/hasError to gate rendering instead
+ * of crashing during setup when the value is not yet available.
+ */
+export type AsyncInjectable<T> = {
+  readonly isReady: Readonly<Ref<boolean>>
+  readonly hasError: Readonly<Ref<boolean>>
+  readonly value: Readonly<Ref<T | undefined>>
+}
 
 export const ENV_CONFIG_KEY: InjectionKey<EnvConfigType> = Symbol('ENV_CONFIG_KEY')
 export const LOGGER_KEY: InjectionKey<AbstractLogger> = Symbol('LOGGER_KEY')
@@ -19,4 +31,9 @@ export const SUPABASE_CLIENT_KEY: InjectionKey<SupabaseClientType> = Symbol('SUP
 export const SOCKET_MANAGER_KEY: InjectionKey<Ref<SocketManager | undefined>> =
   Symbol('SOCKET_MANAGER_KEY')
 export const ANALYTICS_MANAGER_KEY: InjectionKey<AnalyticsManager> = Symbol('ANALYTICS_MANAGER_KEY')
-export const API_KEY_VALIDATOR_KEY: InjectionKey<IApiKeyValidator> = Symbol('API_KEY_VALIDATOR_KEY')
+export const API_KEY_VALIDATOR_KEY: InjectionKey<AsyncInjectable<IApiKeyValidator>> =
+  Symbol('API_KEY_VALIDATOR_KEY')
+export const AUTH_PROVIDER_KEY: InjectionKey<AuthProvider> = Symbol('authProvider')
+
+import type { VsCodeBridge } from '@/services/vs-code-bridge'
+export const VSCODE_BRIDGE_KEY: InjectionKey<VsCodeBridge> = Symbol('VSCODE_BRIDGE_KEY')

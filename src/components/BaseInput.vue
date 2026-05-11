@@ -47,8 +47,14 @@
         class="absolute right-2 text-subtleText/50 hover:text-accent transition-colors"
         @click="togglePassword"
       >
-        <span v-if="showPassword" class="i-ri:eye-off-line text-lg" />
-        <span v-else class="i-ri:eye-line text-lg" />
+        <span
+          v-if="showPassword"
+          class="i-ri:eye-off-line text-lg"
+        />
+        <span
+          v-else
+          class="i-ri:eye-line text-lg"
+        />
       </BaseButton>
 
       <!-- Validation Status Indicator -->

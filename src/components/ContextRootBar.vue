@@ -9,7 +9,6 @@
       class="absolute top-2.5 right-2.5 hover:bg-borderMuted/30 text-sm"
       aria-label="Hide context root bar"
       data-testid="context-root-bar-close"
-      aria-hidden="true"
       @click="$emit('hide')"
     />
 
@@ -42,10 +41,9 @@
       </span>
       <div class="flex-1 min-w-0 rounded-lg border border-borderMuted/50 bg-codeBg overflow-hidden">
         <div
-          class="px-2 py-1 text-xs font-mono text-subtleText overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-borderMuted scrollbar-track-transparent"
-          :title="displayRoot"
+          class="px-2 py-1 text-xs font-mono text-subtleText overflow-x-auto whitespace-nowrap scrollbar-none"
         >
-          {{ displayRoot }}
+          {{ contextRootPath ?? 'Not set' }}
         </div>
       </div>
     </div>
@@ -53,52 +51,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useEventListener } from '@vueuse/core'
 import BaseButton from '@/components/BaseButton.vue'
-import { useVsCodeContextStore } from '@/stores/use-vs-code-context-store'
-import { getVsCodeApi } from '@/vs-code/api'
-import { storeToRefs } from 'pinia'
+import { VSCODE_BRIDGE_KEY } from '@/injection-keys'
+import { safeInject } from '@/safe-inject'
 
-type IncomingMessage =
-  | { type: 'contextRoot.current'; root: string | null }
-  | { type: string; [key: string]: unknown }
+defineProps<{
+  contextRootPath: string | undefined
+}>()
 
 defineEmits<{
   hide: []
 }>()
 
-const contextRoot = ref<string | null>(null)
-const vsCodeContext = useVsCodeContextStore()
-const { isInVsCode } = storeToRefs(vsCodeContext)
+const bridge = safeInject(VSCODE_BRIDGE_KEY)
 
-const displayRoot = computed(() => contextRoot.value ?? 'Not set')
-
-function handleVsCodeMessage(event: MessageEvent): void {
-  const message = event.data as IncomingMessage
-  if (message?.type === 'contextRoot.current') contextRoot.value = message.root as string | null
+function pickContextRoot() {
+  bridge.post({ command: 'pickContextRoot' })
 }
-
-function pickContextRoot(): void {
-  const apiResult = getVsCodeApi()
-  if (apiResult.isErr()) return
-  apiResult.value.postMessage({ type: 'contextRoot.pick' })
-}
-
-function requestCurrentContextRoot(): void {
-  const apiResult = getVsCodeApi()
-  if (apiResult.isErr()) return
-  apiResult.value.postMessage({ type: 'contextRoot.getCurrent' })
-}
-
-useEventListener(window, 'message', handleVsCodeMessage)
-
-watch(
-  isInVsCode,
-  (value) => {
-    if (!value) return
-    requestCurrentContextRoot()
-  },
-  { immediate: true }
-)
 </script>

@@ -223,8 +223,4 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full breakdown of env fil
 
 ## License
 
-This project is licensed under the **European Union Public License 1.2 (EUPL-1.2)**.
-
----
-
-**BabaDeluxe** — _Redefining the Future of Software Development._
+[EUPL 1.2](LICENSE.md)

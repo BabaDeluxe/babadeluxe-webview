@@ -1,34 +1,36 @@
 <template>
   <Teleport to="body">
-    <Transition mode="out-in">
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-150"
+      leave-to-class="opacity-0"
+    >
       <div
         v-if="isShown"
-        class="fixed inset-0 bg-slate/80 flex items-center justify-center z-50 animate-fade-in animate-duration-200 animate-ease-out"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
         @click.self="handleBackdropClick"
       >
         <div
           ref="modalRef"
-          :data-testid="dataTestId"
           :class="[
+            'bg-panel border border-borderMuted rounded-xl shadow-xl w-full flex flex-col gap-4 p-6 focus:outline-none',
             sizeClasses,
-            'bg-panel border border-borderMuted rounded-lg p-6 w-full',
-            'animate-fade-in animate-duration-200 animate-ease-out',
           ]"
           role="dialog"
           aria-modal="true"
+          tabindex="-1"
           :aria-labelledby="titleId"
         >
           <h3
             v-if="title"
             :id="titleId"
-            class="text-lg font-medium mb-4 text-deepText"
+            class="text-base font-semibold text-deepText"
           >
             {{ title }}
           </h3>
 
-          <slot name="title" />
-
-          <div class="mb-4">
+          <div class="text-sm text-subtleText">
             <slot />
           </div>
 
@@ -36,17 +38,16 @@
             <slot name="actions">
               <BaseButton
                 variant="secondary"
+                :text="cancelText"
                 @click="handleCancel"
-              >
-                {{ cancelText }}
-              </BaseButton>
+              />
               <BaseButton
+                v-if="confirmText"
                 variant="primary"
+                :text="confirmText"
                 :is-disabled="confirmDisabled"
                 @click="handleConfirm"
-              >
-                {{ confirmText }}
-              </BaseButton>
+              />
             </slot>
           </div>
         </div>
@@ -56,85 +57,59 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, nextTick, ref } from 'vue'
-import { onKeyStroke } from '@vueuse/core'
+import { computed, ref, watch, nextTick, useId } from 'vue'
 import BaseButton from '@/components/BaseButton.vue'
 
 interface BaseModalProps {
-  isShown?: boolean
+  isShown: boolean
   title?: string
   confirmText?: string
   cancelText?: string
   confirmDisabled?: boolean
   closeOnBackdrop?: boolean
-  closeOnEscape?: boolean
-  size?: 'small' | 'medium' | 'large'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   dataTestId?: string
 }
 
 const props = withDefaults(defineProps<BaseModalProps>(), {
-  isShown: false,
-  title: undefined,
-  confirmText: 'Confirm',
+  size: 'md',
+  title: '',
+  confirmText: '',
+  dataTestId: '',
   cancelText: 'Cancel',
   confirmDisabled: false,
   closeOnBackdrop: true,
-  closeOnEscape: true,
-  size: 'medium',
-  dataTestId: undefined,
 })
 
-interface BaseModalEmits {
-  (event: 'update:is-shown', value: boolean): void
-  (event: 'confirm'): void
-  (event: 'cancel'): void
-}
+const emit = defineEmits<{
+  close: []
+  confirm: []
+  cancel: []
+}>()
 
-const emit = defineEmits<BaseModalEmits>()
-
-const modalRef = ref<HTMLElement>()
-
-const isShown = computed(() => props.isShown)
-const dataTestId = computed(() => props.dataTestId)
-
-const titleId = computed(() => `modal-title-${Math.random().toString(36).slice(2, 9)}`)
+const modalRef = ref<HTMLElement | undefined>(undefined)
+const titleId = useId()
 
 const sizeClasses = computed(() => {
-  return {
-    small: 'max-w-sm',
-    medium: 'max-w-md',
-    large: 'max-w-2xl',
-  }[props.size]
+  const sizes = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl' }
+  return sizes[props.size]
 })
 
-const closeModal = () => {
-  emit('update:is-shown', false)
-}
-
-const handleConfirm = () => {
+function handleConfirm() {
   emit('confirm')
 }
 
-const handleCancel = () => {
+function handleCancel() {
   emit('cancel')
-  closeModal()
+  emit('close')
 }
 
-const handleBackdropClick = () => {
-  if (props.closeOnBackdrop) {
-    handleCancel()
-  }
+function handleBackdropClick() {
+  if (props.closeOnBackdrop) handleCancel()
 }
-
-onKeyStroke('Escape', (event) => {
-  if (isShown.value && props.closeOnEscape) {
-    event.preventDefault()
-    handleCancel()
-  }
-})
 
 watch(
-  () => isShown.value,
+  () => props.isShown,
   async (shown) => {
     if (shown) {
       await nextTick()

@@ -2,6 +2,7 @@
   <article
     class="flex flex-col w-full sm:flex-row flex-1 gap-3 py-2 px-2 items-start rounded-lg h-auto w-full"
     :class="alignmentClass"
+    :aria-label="ariaLabel"
   >
     <slot name="avatar" />
 
@@ -28,11 +29,13 @@ import { computed } from 'vue'
 interface BaseMessageBubbleProps {
   variant?: 'primary' | 'secondary'
   align?: 'left' | 'right'
+  ariaLabel?: string
 }
 
 const props = withDefaults(defineProps<BaseMessageBubbleProps>(), {
   variant: 'primary',
   align: 'left',
+  ariaLabel: 'Message',
 })
 
 const bubbleClass = computed(() => {

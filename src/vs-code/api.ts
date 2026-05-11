@@ -16,13 +16,12 @@ let cached: VsCodeApi | null = null
 export function getVsCodeApi(): Result<VsCodeApi, VsCodeAcquireError> {
   if (cached) return ok(cached)
 
-  const acquireFunction = globalThis.acquireVsCodeApi
-  if (typeof acquireFunction !== 'function') {
+  if (typeof globalThis.acquireVsCodeApi !== 'function') {
     return err(new VsCodeAcquireError('Not running inside VS Code webview'))
   }
 
   const acquireResult = Result.fromThrowable(
-    () => acquireFunction(),
+    () => globalThis.acquireVsCodeApi!(),
     (unknownError: unknown) => new VsCodeAcquireError('Failed to acquire VS Code API', unknownError)
   )()
 
