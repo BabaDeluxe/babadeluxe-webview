@@ -23,6 +23,7 @@ import {
   SOCKET_MANAGER_KEY,
   SUPABASE_CLIENT_KEY,
   AUTH_PROVIDER_KEY,
+  VSCODE_BRIDGE_KEY,
   type AsyncInjectable,
 } from '@/injection-keys'
 import { initializeModels } from '@/composables/use-models-socket'
@@ -32,6 +33,7 @@ import { AnalyticsManager } from '@/analytics/analytics-manager'
 import { GoogleAnalyticsProvider } from '@/analytics/providers/google-analytics-provider'
 import { StatsigProvider } from '@/analytics/providers/statsig-provider'
 import { createAuthProvider } from '@/auth/create-auth-provider'
+import { VsCodeBridge } from '@/services/vs-code-bridge'
 
 export type SupabaseClientType = SupabaseClient
 
@@ -64,7 +66,7 @@ class AppInitializer {
 
     app.mount('#app')
 
-    await this._initializeAsyncDependencies(app)
+    await this._initializeAsyncDependencies()
   }
 
   private _validateEnv(): void {
@@ -123,6 +125,7 @@ class AppInitializer {
 
     const authProvider = createAuthProvider(this._supabase)
     app.provide(AUTH_PROVIDER_KEY, authProvider)
+    app.provide(VSCODE_BRIDGE_KEY, VsCodeBridge.getInstance())
 
     if (isBackendless) {
       this._apiKeyValidatorValue.value = new LocalApiKeyValidator()
@@ -167,7 +170,7 @@ class AppInitializer {
     app.use(router)
   }
 
-  private async _initializeAsyncDependencies(app: VueApp): Promise<void> {
+  private async _initializeAsyncDependencies(): Promise<void> {
     if (isOfflineMode()) {
       this._logger.warn('Running in backendless mode. Backend services disabled.')
       return

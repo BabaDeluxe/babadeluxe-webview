@@ -1,9 +1,9 @@
 import { onMounted, onUnmounted, ref, type Ref } from 'vue'
 
-const SCROLL_THRESHOLD_PX = 120
-const AT_BOTTOM_TOLERANCE_PX = 24
+const scrollThresholdPx = 120
+const atBottomTolerancePx = 24
 
-export function useScrollToBottom(scrollContainer: Ref<HTMLElement | undefined>) {
+export function useScrollToBottom(scrollContainer: Ref<HTMLElement | undefined | null>) {
   const isVisible = ref(false)
 
   function updateVisibility() {
@@ -11,7 +11,7 @@ export function useScrollToBottom(scrollContainer: Ref<HTMLElement | undefined>)
     if (!el) return
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    isVisible.value = el.scrollTop > SCROLL_THRESHOLD_PX && distanceFromBottom > AT_BOTTOM_TOLERANCE_PX
+    isVisible.value = el.scrollTop > scrollThresholdPx && distanceFromBottom > atBottomTolerancePx
   }
 
   function scrollToBottom() {

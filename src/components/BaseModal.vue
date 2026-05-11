@@ -13,7 +13,10 @@
       >
         <div
           ref="modalRef"
-          :class="['bg-panel border border-borderMuted rounded-xl shadow-xl w-full flex flex-col gap-4 p-6 focus:outline-none', sizeClasses]"
+          :class="[
+            'bg-panel border border-borderMuted rounded-xl shadow-xl w-full flex flex-col gap-4 p-6 focus:outline-none',
+            sizeClasses,
+          ]"
           role="dialog"
           aria-modal="true"
           tabindex="-1"
@@ -70,6 +73,9 @@ interface BaseModalProps {
 
 const props = withDefaults(defineProps<BaseModalProps>(), {
   size: 'md',
+  title: '',
+  confirmText: '',
+  dataTestId: '',
   cancelText: 'Cancel',
   confirmDisabled: false,
   closeOnBackdrop: true,

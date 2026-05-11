@@ -21,7 +21,9 @@
       </span>
     </div>
 
-    <div class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0 transition-opacity">
+    <div
+      class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0 transition-opacity"
+    >
       <slot name="actions" />
     </div>
   </div>
@@ -34,7 +36,7 @@ interface ConversationListItemProps {
   isActive?: boolean
 }
 
-const props = defineProps<ConversationListItemProps>()
+defineProps<ConversationListItemProps>()
 
 const emit = defineEmits<{
   click: []

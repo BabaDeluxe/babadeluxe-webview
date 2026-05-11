@@ -34,3 +34,6 @@ export const ANALYTICS_MANAGER_KEY: InjectionKey<AnalyticsManager> = Symbol('ANA
 export const API_KEY_VALIDATOR_KEY: InjectionKey<AsyncInjectable<IApiKeyValidator>> =
   Symbol('API_KEY_VALIDATOR_KEY')
 export const AUTH_PROVIDER_KEY: InjectionKey<AuthProvider> = Symbol('authProvider')
+
+import type { VsCodeBridge } from '@/services/vs-code-bridge'
+export const VSCODE_BRIDGE_KEY: InjectionKey<VsCodeBridge> = Symbol('VSCODE_BRIDGE_KEY')

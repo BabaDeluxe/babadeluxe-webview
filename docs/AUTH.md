@@ -4,10 +4,10 @@ The webview supports two authentication strategies depending on where it runs.
 
 ## Strategies
 
-| Strategy | When | Composable |
-| :--- | :--- | :--- |
-| VS Code token bridge | Embedded in the extension | `useVsCodeAuth` |
-| Supabase PKCE OAuth | Standalone browser / dev | Supabase JS client |
+| Strategy             | When                      | Composable         |
+| :------------------- | :------------------------ | :----------------- |
+| VS Code token bridge | Embedded in the extension | `useVsCodeAuth`    |
+| Supabase PKCE OAuth  | Standalone browser / dev  | Supabase JS client |
 
 ## VS Code Bridge Auth
 

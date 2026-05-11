@@ -16,7 +16,10 @@
       :style="buttonStyle"
       @click="emit('click')"
     >
-      <i class="i-bi:chevron-double-down text-base" aria-hidden="true" />
+      <i
+        class="i-bi:chevron-double-down text-base"
+        aria-hidden="true"
+      />
     </button>
   </Transition>
 </template>

@@ -28,7 +28,10 @@
       class="ml-auto shrink-0 text-subtleText hover:text-deepText transition-colors"
       @click="$emit('dismiss')"
     >
-      <i class="i-bi:x-lg text-xs" aria-hidden="true" />
+      <i
+        class="i-bi:x-lg text-xs"
+        aria-hidden="true"
+      />
     </button>
   </div>
 </template>
@@ -46,6 +49,7 @@ interface BaseToastProps {
 }
 
 const props = withDefaults(defineProps<BaseToastProps>(), {
+  title: '',
   type: 'info',
   isDismissable: true,
 })
