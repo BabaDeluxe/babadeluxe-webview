@@ -6,7 +6,13 @@
       isDisabled ? 'opacity-60 cursor-default' : 'cursor-pointer',
       itemClass,
     ]"
+    role="option"
+    :tabindex="isDisabled ? -1 : 0"
+    :aria-selected="isActive ?? false"
+    :aria-disabled="isDisabled || undefined"
     @click="handleClick"
+    @keydown.enter.prevent="handleClick"
+    @keydown.space.prevent="handleClick"
   >
     <i
       v-if="icon"

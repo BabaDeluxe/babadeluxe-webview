@@ -37,7 +37,7 @@
       class="bg-panel border border-borderMuted hover:bg-borderMuted/80"
       :class="savingClass"
       :is-disabled="isSaving"
-      :title="saveHint"
+      :aria-label="saveHint"
       data-testid="editable-save-button"
       @click="handleSave"
     >
@@ -57,7 +57,7 @@
       class="bg-panel border border-borderMuted hover:bg-borderMuted/80"
       :class="savingClass"
       :is-disabled="isSaving"
-      :title="cancelHint"
+      :aria-label="cancelHint"
       data-testid="editable-cancel-button"
       @click="handleCancel"
     />
