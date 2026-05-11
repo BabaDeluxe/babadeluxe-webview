@@ -47,27 +47,28 @@ export async function emitWithTimeout<K extends keyof Root.Actions>({
   const socketInstance = socket.value
   const timeout: number | undefined = timeoutMs ?? socketTimeoutMs.emit
 
-  const emitPromise = () =>
-    new Promise<SuccessData<K>>((resolve, reject) => {
-      socketInstance
-        .timeout(timeout)
-        .emit(
-          actionName,
-          ...(payload !== undefined ? [payload] : []),
-          (error: unknown, response: unknown) => {
-            if (error) reject(error)
-            else {
-              const res = response as BaseResponse
-              if (res.success) resolve(res.data as SuccessData<K>)
-              else reject(res.error || new SocketError('Unknown server error'))
-            }
+  const emitPromise = new Promise<SuccessData<K>>((resolve, reject) => {
+    socketInstance
+      .timeout(timeout)
+      .emit(
+        actionName,
+        ...(payload !== undefined ? [payload] : []),
+        (error: unknown, response: unknown) => {
+          if (error) reject(error)
+          else {
+            const res = response as BaseResponse
+            if (res.success) resolve(res.data as SuccessData<K>)
+            else reject(res.error ?? new SocketError('Unknown server error'))
           }
-        )
-    })
+        }
+      )
+  })
 
-  const result = await ResultAsync.fromThrowable(emitPromise, (error) =>
-    error instanceof Error ? error : new SocketError('Socket.io uses Errors without Error as base.')
-  )()
-
-  return result
+  // ResultAsync.fromPromise — correct usage for an already-constructed Promise.
+  // fromThrowable is for sync functions; using it on an async fn silently wraps
+  // the Promise itself as the success value instead of awaiting it.
+  return ResultAsync.fromPromise(
+    emitPromise,
+    (error) => error instanceof Error ? error : new SocketError('Socket.io emitted a non-Error rejection')
+  )
 }

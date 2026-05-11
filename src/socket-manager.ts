@@ -11,6 +11,30 @@ export class SocketManager {
   private readonly _trackedEvents = new Set<string>()
   private _internalHandlersRegistered = false
 
+  // Named references so disconnect() can remove them specifically, not in bulk.
+  private readonly _onConnect = (): void => {
+    this._isConnectedInternal = true
+    this._logger.log(`Connected to socket: ${this._socket.id}`)
+  }
+
+  private readonly _onDisconnect = (reason: string): void => {
+    this._isConnectedInternal = false
+    this._logger.log(`Socket disconnected: ${reason}`)
+  }
+
+  private readonly _onConnectError = (unknownError: unknown): void => {
+    const error =
+      unknownError instanceof Error ? unknownError : new SocketError('Socket connect error')
+
+    this._logger.warn('Socket connection attempt failed, retrying', {
+      baseUrl: this._baseUrl,
+      error,
+    })
+  }
+
+  // Shared promise used to coalesce concurrent waitForConnection callers.
+  private _connectingPromise: Promise<Result<void, SocketError>> | undefined
+
   constructor(
     private readonly _logger: AbstractLogger,
     private readonly _baseUrl: string,
@@ -25,30 +49,6 @@ export class SocketManager {
     }
 
     this._socket = io(this._baseUrl, socketOptions)
-  }
-
-  get chatSocket(): SocketManager {
-    return this
-  }
-
-  get settingsSocket(): SocketManager {
-    return this
-  }
-
-  get modelsSocket(): SocketManager {
-    return this
-  }
-
-  get promptsSocket(): SocketManager {
-    return this
-  }
-
-  get validationSocket(): SocketManager {
-    return this
-  }
-
-  get subscriptionSocket(): SocketManager {
-    return this
   }
 
   get isConnected(): boolean {
@@ -84,25 +84,9 @@ export class SocketManager {
   }
 
   private _registerInternalHandlers(): void {
-    this._socket.on('connect', () => {
-      this._isConnectedInternal = true
-      this._logger.log(`Connected to socket: ${this._socket.id}`)
-    })
-
-    this._socket.on('disconnect', (reason: string) => {
-      this._isConnectedInternal = false
-      this._logger.log(`Socket disconnected: ${reason}`)
-    })
-
-    this._socket.on('connect_error', (unknownError: unknown) => {
-      const error =
-        unknownError instanceof Error ? unknownError : new SocketError('Socket connect error')
-
-      this._logger.warn('Socket connection attempt failed, retrying', {
-        baseUrl: this._baseUrl,
-        error,
-      })
-    })
+    this._socket.on('connect', this._onConnect)
+    this._socket.on('disconnect', this._onDisconnect)
+    this._socket.on('connect_error', this._onConnectError)
 
     this._trackedEvents.add('connect')
     this._trackedEvents.add('disconnect')
@@ -151,14 +135,18 @@ export class SocketManager {
    * This ensures that subsequent reconnections use a valid, fresh token.
    */
   updateAuthToken(token: string): void {
-    // Socket.io client allows updating auth options at runtime
     this._socket.auth = { token }
   }
 
   async waitForConnection(timeoutMilliseconds = 10_000): Promise<Result<void, SocketError>> {
     if (this._isConnectedInternal) return ok(undefined)
 
-    return ResultAsync.fromPromise(
+    // Coalesce concurrent callers onto a single promise so only one timeout races.
+    if (this._connectingPromise !== undefined) {
+      return this._connectingPromise
+    }
+
+    this._connectingPromise = ResultAsync.fromPromise(
       new Promise<void>((resolve, reject) => {
         const onConnect = () => {
           clearTimeout(timeoutId)
@@ -177,11 +165,24 @@ export class SocketManager {
           unknownError instanceof Error ? unknownError.message : 'Socket connection timeout',
           unknownError instanceof Error ? unknownError : undefined
         )
-    )
+    ).finally(() => {
+      this._connectingPromise = undefined
+    })
+
+    return this._connectingPromise
   }
 
   disconnect(): void {
     if (!this._isConnectedInternal) return
+
+    // Remove internal handlers by reference to avoid disturbing app-registered handlers.
+    this._socket.off('connect', this._onConnect)
+    this._socket.off('disconnect', this._onDisconnect)
+    this._socket.off('connect_error', this._onConnectError)
+
+    this._trackedEvents.delete('connect')
+    this._trackedEvents.delete('disconnect')
+    this._trackedEvents.delete('connect_error')
 
     for (const eventName of this._trackedEvents) {
       this._socket.off(eventName)
@@ -189,8 +190,8 @@ export class SocketManager {
 
     this._trackedEvents.clear()
     this._internalHandlersRegistered = false
-    this._socket.disconnect()
     this._isConnectedInternal = false
+    this._socket.disconnect()
     this._logger.log('Socket disconnected and listeners cleared')
   }
 
