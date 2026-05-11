@@ -1,19 +1,19 @@
 <template>
   <Teleport to="body">
-    <Transition mode="out-in">
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-150"
+      leave-to-class="opacity-0"
+    >
       <div
         v-if="isShown"
-        class="fixed inset-0 bg-slate/80 flex items-center justify-center z-50 animate-fade-in animate-duration-200 animate-ease-out"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
         @click.self="handleBackdropClick"
       >
         <div
           ref="modalRef"
-          :data-testid="dataTestId"
-          :class="[
-            sizeClasses,
-            'bg-panel border border-borderMuted rounded-lg p-6 w-full',
-            'animate-fade-in animate-duration-200 animate-ease-out',
-          ]"
+          :class="['bg-panel border border-borderMuted rounded-xl shadow-xl w-full flex flex-col gap-4 p-6 focus:outline-none', sizeClasses]"
           role="dialog"
           aria-modal="true"
           tabindex="-1"
@@ -22,14 +22,12 @@
           <h3
             v-if="title"
             :id="titleId"
-            class="text-lg font-medium mb-4 text-deepText"
+            class="text-base font-semibold text-deepText"
           >
             {{ title }}
           </h3>
 
-          <slot name="title" />
-
-          <div class="mb-4">
+          <div class="text-sm text-subtleText">
             <slot />
           </div>
 
@@ -37,8 +35,15 @@
             <slot name="actions">
               <BaseButton
                 variant="secondary"
-                text="Cancel"
-                @click="emit('close')"
+                :text="cancelText"
+                @click="handleCancel"
+              />
+              <BaseButton
+                v-if="confirmText"
+                variant="primary"
+                :text="confirmText"
+                :is-disabled="confirmDisabled"
+                @click="handleConfirm"
               />
             </slot>
           </div>
@@ -55,30 +60,47 @@ import BaseButton from '@/components/BaseButton.vue'
 interface BaseModalProps {
   isShown: boolean
   title?: string
-  dataTestId?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  confirmText?: string
+  cancelText?: string
+  confirmDisabled?: boolean
   closeOnBackdrop?: boolean
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  dataTestId?: string
 }
 
 const props = withDefaults(defineProps<BaseModalProps>(), {
   size: 'md',
+  cancelText: 'Cancel',
+  confirmDisabled: false,
   closeOnBackdrop: true,
 })
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{
+  close: []
+  confirm: []
+  cancel: []
+}>()
 
 const modalRef = ref<HTMLElement | undefined>(undefined)
 const titleId = useId()
 
 const sizeClasses = computed(() => {
-  const sizes = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
-  }
+  const sizes = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl' }
   return sizes[props.size]
 })
+
+function handleConfirm() {
+  emit('confirm')
+}
+
+function handleCancel() {
+  emit('cancel')
+  emit('close')
+}
+
+function handleBackdropClick() {
+  if (props.closeOnBackdrop) handleCancel()
+}
 
 watch(
   () => props.isShown,
@@ -89,8 +111,4 @@ watch(
     }
   }
 )
-
-function handleBackdropClick() {
-  if (props.closeOnBackdrop) emit('close')
-}
 </script>

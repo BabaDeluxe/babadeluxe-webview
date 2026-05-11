@@ -11,16 +11,12 @@ export function useScrollToBottom(scrollContainer: Ref<HTMLElement | undefined>)
     if (!el) return
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    const hasScrolledEnough = el.scrollTop > SCROLL_THRESHOLD_PX
-    const isAtBottom = distanceFromBottom <= AT_BOTTOM_TOLERANCE_PX
-
-    isVisible.value = hasScrolledEnough && !isAtBottom
+    isVisible.value = el.scrollTop > SCROLL_THRESHOLD_PX && distanceFromBottom > AT_BOTTOM_TOLERANCE_PX
   }
 
   function scrollToBottom() {
     const el = scrollContainer.value
     if (!el) return
-
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }
 
@@ -31,6 +27,7 @@ export function useScrollToBottom(scrollContainer: Ref<HTMLElement | undefined>)
     updateVisibility()
   })
 
+  // Top-level — NOT inside onMounted. Nested onUnmounted is a Vue no-op.
   onUnmounted(() => {
     scrollContainer.value?.removeEventListener('scroll', updateVisibility)
   })

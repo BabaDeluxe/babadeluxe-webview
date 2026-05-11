@@ -5,13 +5,18 @@
     data-testid="message-list"
   >
     <slot />
-    <ScrollToBottomButton :scroll-el="listRef ?? undefined" />
+    <ScrollToBottomButton
+      :is-visible="isVisible"
+      @click="scrollToBottom"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useTemplateRef } from 'vue'
 import ScrollToBottomButton from '@/components/ScrollToBottomButton.vue'
+import { useScrollToBottom } from '@/composables/use-scroll-to-bottom'
 
 const listRef = useTemplateRef<HTMLElement>('listRef')
+const { isVisible, scrollToBottom } = useScrollToBottom(listRef)
 </script>
