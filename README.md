@@ -190,8 +190,11 @@ Our UI is built on a sophisticated, accessible-first design system (`src/compone
 
 The application implements a dual-strategy authentication system to ensure seamless operation across environments:
 
-- **VS Code Tunneling:** When embedded in VS Code, auth tokens are securely bridged from the extension host to the webview. The `useVsCodeAuth` composable manages session synchronization, eliminating the need for repeated logins within the IDE.
-- **Standard OAuth/Email:** For standalone development, we utilize Supabase Auth with PKCE flows (GitHub/Email), fully decoupled from the VS Code context.
+- **VS Code Token Bridge:** When embedded in VS Code, auth tokens are securely bridged from the extension host to the webview via `postMessage`. The `useVsCodeAuth` composable manages session synchronization, eliminating the need for repeated logins within the IDE.
+- **Standard OAuth / Email:** For browser access, Supabase Auth handles GitHub OAuth (PKCE and implicit flows) and email/password — fully decoupled from the VS Code context.
+- **Session Verification:** After every auth call (`setSession`, `exchangeCodeForSession`), the app explicitly calls `getSession()` to confirm the session is readable before navigating. This guards against a race condition where Supabase's internal state cache is not yet populated when `router.beforeEach` fires.
+
+For full details on every flow, edge cases, and the session race condition fix, see **[docs/AUTH_FLOWS.md](docs/AUTH_FLOWS.md)**.
 
 ```mermaid
 sequenceDiagram
@@ -207,14 +210,18 @@ sequenceDiagram
         User->>Webview: Opens Extension
         Webview->>Bridge: Request Session (postMessage)
         Bridge-->>Webview: Return Github Session
-        Webview->>Supabase: Set Session (Refresh Token)
+        Webview->>Supabase: setSession (Refresh Token)
         Supabase-->>Webview: Valid Session & Access Token
+        Webview->>Webview: verifySession() — confirm getSession() != null
     end
 
     rect rgb(30, 35, 40)
         note right of User: Scenario 2: Standalone Browser
         User->>Webview: Clicks Login
-        Webview->>Supabase: OAuth Flow (PKCE)
+        Webview->>Supabase: OAuth Flow (PKCE / implicit)
+        Supabase-->>Webview: Redirect to /auth/callback
+        Webview->>Supabase: exchangeCodeForSession / setSession
+        Webview->>Webview: verifySession() — confirm getSession() != null
         Supabase-->>Webview: Session & Access Token
     end
 
@@ -235,6 +242,7 @@ The codebase is organized to promote separation of concerns and discoverability:
 | `src/components`  | Atomic design components (`Base*`) and complex feature widgets.              |
 | `src/views`       | Route-level page components (Chat, History, Prompts, Settings).              |
 | `src/validators`  | Zod schemas for runtime data validation.                                     |
+| `docs/`           | Architecture decision records and flow documentation.                        |
 
 ### Environment Configuration
 
