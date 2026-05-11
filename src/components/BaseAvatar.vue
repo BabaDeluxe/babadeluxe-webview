@@ -16,7 +16,10 @@
       role="img"
       aria-label="User avatar"
     >
-      <i class="i-bi:person-circle w-8 h-8" aria-hidden="true" />
+      <i
+        class="i-bi:person-circle w-8 h-8"
+        aria-hidden="true"
+      />
     </div>
 
     <!-- Assistant Robot -->

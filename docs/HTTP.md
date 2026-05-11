@@ -43,12 +43,12 @@ export async function retryWithBackoff<T, E>(
 
 ### Config defaults
 
-| Option | Default | Notes |
-| :--- | :--- | :--- |
-| `maxRetries` | `5` | Must be > 0 or the function returns an error immediately |
-| `initialDelayMilliseconds` | `1000` | First retry delay |
-| `backoffMultiplier` | `2` | Exponential factor |
-| `maxDelayMilliseconds` | `16_000` | Cap to avoid unbounded waits |
+| Option                     | Default  | Notes                                                    |
+| :------------------------- | :------- | :------------------------------------------------------- |
+| `maxRetries`               | `5`      | Must be > 0 or the function returns an error immediately |
+| `initialDelayMilliseconds` | `1000`   | First retry delay                                        |
+| `backoffMultiplier`        | `2`      | Exponential factor                                       |
+| `maxDelayMilliseconds`     | `16_000` | Cap to avoid unbounded waits                             |
 
 Only `RateLimitError` triggers a retry. Any other error type short-circuits immediately — no point retrying a validation error.
 

@@ -78,7 +78,7 @@ steps:
   deploy-prod:
     image: *deploy_image
     when:
-      - event: [ push, manual ]
+      - event: [push, manual]
         branch: master
     environment:
       <<: *deploy_base_env
@@ -93,7 +93,7 @@ steps:
   deploy-staging:
     image: *deploy_image
     when:
-      - event: [ push, manual ]
+      - event: [push, manual]
         branch: dev
     environment:
       <<: *deploy_base_env

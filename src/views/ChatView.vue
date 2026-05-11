@@ -187,7 +187,11 @@ const chatInputTopRef = ref()
 const chatInputBottomRef = ref()
 const messagesScrollRef = ref<HTMLElement>()
 
-const { isVisible: isScrollToBottomVisible, scrollToBottom, updateVisibility } = useScrollToBottom(messagesScrollRef)
+const {
+  isVisible: isScrollToBottomVisible,
+  scrollToBottom,
+  updateVisibility,
+} = useScrollToBottom(messagesScrollRef)
 
 // Sync the focusable ref
 watch([chatInputTopRef, chatInputBottomRef], () => {
@@ -197,6 +201,6 @@ watch([chatInputTopRef, chatInputBottomRef], () => {
 // Re-check scroll visibility when streaming appends new content
 watch(
   () => messages.value.length,
-  () => nextTick(updateVisibility),
+  () => nextTick(updateVisibility)
 )
 </script>

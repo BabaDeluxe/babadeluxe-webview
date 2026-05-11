@@ -103,7 +103,7 @@ describe('SettingsView — AsyncInjectable loading states', () => {
     }
 
     const wrapper = mountWithInjectable(injectable)
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(false)
@@ -123,7 +123,7 @@ describe('SettingsView — AsyncInjectable loading states', () => {
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(true)
 
     isReady.value = true
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(false)

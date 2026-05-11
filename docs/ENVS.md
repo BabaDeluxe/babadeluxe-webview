@@ -4,21 +4,21 @@ All environment variables are validated at boot time via Zod in `src/env-validat
 
 ## Variables
 
-| Variable | Required | Description |
-| :--- | :--- | :--- |
-| `VITE_NODE_ENV` | ✅ | `development` \| `staging` \| `production` |
-| `VITE_SUPABASE_URL` | ✅ | Your Supabase project URL (`https://*.supabase.co`) |
-| `VITE_SUPABASE_ANON_KEY` | ✅ | Supabase anonymous key (public, safe to expose) |
-| `VITE_SOCKET_URL` | ✅ | Socket.io backend base URL (`http://localhost:3000` in dev) |
+| Variable                 | Required | Description                                                 |
+| :----------------------- | :------- | :---------------------------------------------------------- |
+| `VITE_NODE_ENV`          | ✅       | `development` \| `staging` \| `production`                  |
+| `VITE_SUPABASE_URL`      | ✅       | Your Supabase project URL (`https://*.supabase.co`)         |
+| `VITE_SUPABASE_ANON_KEY` | ✅       | Supabase anonymous key (public, safe to expose)             |
+| `VITE_SOCKET_URL`        | ✅       | Socket.io backend base URL (`http://localhost:3000` in dev) |
 
 ## Env Files
 
-| File | When loaded | Committed |
-| :--- | :--- | :--- |
-| `.env` | Always | ✅ (safe defaults only) |
-| `.env.local` | Always, overrides `.env` | ❌ (gitignored) |
-| `.env.staging` | `vite --mode staging` | ✅ |
-| `.env.production` | `vite build` | ✅ |
+| File              | When loaded              | Committed               |
+| :---------------- | :----------------------- | :---------------------- |
+| `.env`            | Always                   | ✅ (safe defaults only) |
+| `.env.local`      | Always, overrides `.env` | ❌ (gitignored)         |
+| `.env.staging`    | `vite --mode staging`    | ✅                      |
+| `.env.production` | `vite build`             | ✅                      |
 
 For local development, copy the example file and fill in your values:
 

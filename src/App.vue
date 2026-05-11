@@ -210,15 +210,8 @@ import BaseAvatar from '@/components/BaseAvatar.vue'
 import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
 import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
-import { useToastStore } from '@/stores/use-toast-store'
-import { safeInject } from '@/safe-inject'
-import { LOGGER_KEY } from '@/injection-keys'
 import { useAppLogic } from '@/composables/use-app-logic'
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _logger = safeInject(LOGGER_KEY)
 const router = useRouter()
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _toasts = useToastStore()
 const { session, handleNewChat, handleLogout } = useAppLogic()
 </script>

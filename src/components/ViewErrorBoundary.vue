@@ -23,7 +23,8 @@
             <pre
               v-if="capturedError.stack"
               class="text-textMuted font-mono text-xs whitespace-pre-wrap break-all mt-1 max-h-64 overflow-auto"
-            >{{ capturedError.stack }}</pre>
+              >{{ capturedError.stack }}</pre
+            >
           </div>
 
           <BaseButton

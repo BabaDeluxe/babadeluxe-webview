@@ -160,9 +160,7 @@ const isReady = computed(
   () => apiKeyValidator.isReady.value && apiKeyValidator.value.value !== undefined
 )
 
-const resolvedValidator = computed(
-  () => apiKeyValidator.value.value as IApiKeyValidator
-)
+const resolvedValidator = computed(() => apiKeyValidator.value.value as IApiKeyValidator)
 
 const { apiProviders, fieldStates, modelsReloadWarning, hydrateFieldStates, handleApiKeyInput } =
   useApiKeyManagement(

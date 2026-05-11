@@ -33,16 +33,16 @@ graph TD
 
 ## Tech Stack
 
-| Layer | Library | Notes |
-| :--- | :--- | :--- |
-| Core | Vue 3 (Composition API) + TypeScript | Strict mode, no Options API |
-| State | Pinia | One store per domain |
-| Build | Vite | HMR in dev, optimized ESM output |
-| Styling | UnoCSS | Tailwind conventions, atomic |
-| Persistence | Dexie.js | IndexedDB wrapper with custom safe wrappers |
-| Real-time | Socket.io-client | See [HTTP.md](./HTTP.md) |
-| Validation | Zod + neverthrow | Runtime schemas + typed Results |
-| Testing | Vitest (unit) + Playwright (E2E) | See `TESTING_GUIDELINE.md` |
+| Layer       | Library                              | Notes                                       |
+| :---------- | :----------------------------------- | :------------------------------------------ |
+| Core        | Vue 3 (Composition API) + TypeScript | Strict mode, no Options API                 |
+| State       | Pinia                                | One store per domain                        |
+| Build       | Vite                                 | HMR in dev, optimized ESM output            |
+| Styling     | UnoCSS                               | Tailwind conventions, atomic                |
+| Persistence | Dexie.js                             | IndexedDB wrapper with custom safe wrappers |
+| Real-time   | Socket.io-client                     | See [HTTP.md](./HTTP.md)                    |
+| Validation  | Zod + neverthrow                     | Runtime schemas + typed Results             |
+| Testing     | Vitest (unit) + Playwright (E2E)     | See `TESTING_GUIDELINE.md`                  |
 
 ## Dependency Injection
 
@@ -105,13 +105,13 @@ A specialized store on top of Dexie for key-value pairs (e.g. API keys, user pre
 
 Logic is encapsulated in composables rather than bloated components:
 
-| Composable | Responsibility |
-| :--- | :--- |
-| `use-chat-socket` | Send messages, resume interrupted streams |
-| `use-file-context-resolver` | Resolve file references via VS Code message bridge |
-| `use-tracked-timeouts` | Register timeouts that are automatically cleared on unmount |
-| `use-socket-listener` | Type-safe Socket.io event subscriptions |
-| `use-date-formatter` | Locale-aware date/time formatting |
+| Composable                  | Responsibility                                              |
+| :-------------------------- | :---------------------------------------------------------- |
+| `use-chat-socket`           | Send messages, resume interrupted streams                   |
+| `use-file-context-resolver` | Resolve file references via VS Code message bridge          |
+| `use-tracked-timeouts`      | Register timeouts that are automatically cleared on unmount |
+| `use-socket-listener`       | Type-safe Socket.io event subscriptions                     |
+| `use-date-formatter`        | Locale-aware date/time formatting                           |
 
 ## Streaming & Rendering
 
@@ -143,13 +143,13 @@ graph TD
 
 ## Project Structure
 
-| Directory | Purpose |
-| :--- | :--- |
-| `src/composables/` | Reusable Composition API logic |
-| `src/stores/` | Pinia stores for conversations, context, and UI state |
-| `src/database/` | Dexie.js layer with `SafeTable` and `KeyValueDb` wrappers |
-| `src/vs-code/` | Message bridge, type guards, and VS Code protocols |
-| `src/components/` | `Base*` design system components and feature widgets |
-| `src/views/` | Route-level pages: Chat, History, Prompts, Settings |
-| `src/validators/` | Zod schemas for runtime validation |
-| `src/services/` | Domain services: `ChatContextManager`, `ApiKeyValidator`, search |
+| Directory          | Purpose                                                          |
+| :----------------- | :--------------------------------------------------------------- |
+| `src/composables/` | Reusable Composition API logic                                   |
+| `src/stores/`      | Pinia stores for conversations, context, and UI state            |
+| `src/database/`    | Dexie.js layer with `SafeTable` and `KeyValueDb` wrappers        |
+| `src/vs-code/`     | Message bridge, type guards, and VS Code protocols               |
+| `src/components/`  | `Base*` design system components and feature widgets             |
+| `src/views/`       | Route-level pages: Chat, History, Prompts, Settings              |
+| `src/validators/`  | Zod schemas for runtime validation                               |
+| `src/services/`    | Domain services: `ChatContextManager`, `ApiKeyValidator`, search |

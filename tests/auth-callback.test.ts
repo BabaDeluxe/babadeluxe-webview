@@ -8,8 +8,11 @@ import AuthCallbackView from '@/views/AuthCallbackView.vue'
 import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
 import { createPinia, setActivePinia } from 'pinia'
 
-const mockSession = { // eslint-disable-next-line @typescript-eslint/naming-convention
-      access_token: 'abc', user: { id: '1' } }
+const mockSession = {
+  /* eslint-disable @typescript-eslint/naming-convention */
+  access_token: /* eslint-enable @typescript-eslint/naming-convention */ 'abc',
+  user: { id: '1' },
+}
 
 // Mock Supabase
 const mockSupabase = {
