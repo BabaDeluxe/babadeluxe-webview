@@ -8,7 +8,8 @@ import AuthCallbackView from '@/views/AuthCallbackView.vue'
 import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
 import { createPinia, setActivePinia } from 'pinia'
 
-const mockSession = { access_token: 'abc', user: { id: '1' } }
+const mockSession = { // eslint-disable-next-line @typescript-eslint/naming-convention
+      access_token: 'abc', user: { id: '1' } }
 
 // Mock Supabase
 const mockSupabase = {
@@ -72,6 +73,7 @@ describe('AuthCallbackView', () => {
 
     expect(mockSupabase.auth.setSession).toHaveBeenCalledWith({
       /* eslint-disable @typescript-eslint/naming-convention */
+
       access_token: 'abc',
       refresh_token: 'def',
       /* eslint-enable @typescript-eslint/naming-convention */

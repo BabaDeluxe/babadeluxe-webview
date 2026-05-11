@@ -34,7 +34,8 @@ interface ConversationListItemProps {
   isActive?: boolean
 }
 
-const props = defineProps<ConversationListItemProps>()
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _props = defineProps<ConversationListItemProps>()
 
 const emit = defineEmits<{
   click: []

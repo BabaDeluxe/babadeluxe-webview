@@ -99,6 +99,7 @@ export function useApiKeyManagement<T, E>(
   }
 
   const validateAndSaveApiKey = async (provider: string, apiKey: string) => {
+    if (apiKey !== fieldStates.value[provider].value) return
     const definition = getSettingDefinition(provider)
     if (!definition) return
 

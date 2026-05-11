@@ -66,6 +66,6 @@ defineEmits<{
 const bridge = safeInject(VSCODE_BRIDGE_KEY)
 
 function pickContextRoot() {
-  bridge.postMessage({ command: 'pickContextRoot' })
+  bridge.post({ command: 'pickContextRoot' })
 }
 </script>

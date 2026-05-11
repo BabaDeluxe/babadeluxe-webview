@@ -135,7 +135,7 @@
       title="Delete Prompt"
       confirm-text="Delete"
       cancel-text="Cancel"
-      size="small"
+      size="sm"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     >

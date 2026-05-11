@@ -1,9 +1,11 @@
 import { onMounted, onUnmounted, ref, type Ref } from 'vue'
 
+/* eslint-disable @typescript-eslint/naming-convention */
 const SCROLL_THRESHOLD_PX = 120
 const AT_BOTTOM_TOLERANCE_PX = 24
+/* eslint-enable @typescript-eslint/naming-convention */
 
-export function useScrollToBottom(scrollContainer: Ref<HTMLElement | undefined>) {
+export function useScrollToBottom(scrollContainer: Ref<HTMLElement | undefined | null>) {
   const isVisible = ref(false)
 
   function updateVisibility() {

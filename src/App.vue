@@ -215,8 +215,10 @@ import { safeInject } from '@/safe-inject'
 import { LOGGER_KEY } from '@/injection-keys'
 import { useAppLogic } from '@/composables/use-app-logic'
 
-const logger = safeInject(LOGGER_KEY)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _logger = safeInject(LOGGER_KEY)
 const router = useRouter()
-const toasts = useToastStore()
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _toasts = useToastStore()
 const { session, handleNewChat, handleLogout } = useAppLogic()
 </script>

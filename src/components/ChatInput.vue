@@ -66,7 +66,7 @@ const inputRef = useTemplateRef<InstanceType<typeof BaseTextField>>('inputRef')
 
 const _value = computed({
   get: () => props.value,
-  set: (val) => emit('update:value', val),
+  set: (val) => { emit('update:value', val); },
 })
 
 const isSubmitDisabled = computed(() => props.value.trim().length === 0 || props.isSubmitting)

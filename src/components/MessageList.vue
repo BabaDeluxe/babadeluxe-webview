@@ -17,6 +17,6 @@ import { useTemplateRef } from 'vue'
 import ScrollToBottomButton from '@/components/ScrollToBottomButton.vue'
 import { useScrollToBottom } from '@/composables/use-scroll-to-bottom'
 
-const listRef = useTemplateRef<HTMLElement>('listRef')
+const listRef = useTemplateRef<HTMLElement | null>('listRef')
 const { isVisible, scrollToBottom } = useScrollToBottom(listRef)
 </script>
