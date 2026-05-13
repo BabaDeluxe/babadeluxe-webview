@@ -55,7 +55,7 @@
 
         <!-- Form -->
         <form
-          class="space-y-4"
+          class="space-y-6"
           @submit.prevent="handleAuth"
         >
           <BaseInput

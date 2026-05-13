@@ -24,13 +24,23 @@ export class SupabaseAuthProvider implements AuthProvider {
           redirectTo: `${appUrl}/auth/callback`,
         },
       }),
-      (e: unknown) => new AuthError(e instanceof Error ? e.message : 'OAuth failed', e)
+      (e: unknown) => {
+        if (e instanceof Error) {
+          return new AuthError(e.message, e)
+        }
+        return new AuthError('OAuth failed', e)
+      }
     )
 
-    return result.andThen((res) => {
-      if (res.error) return err(new AuthError(res.error.message))
-      return ok(undefined)
-    })
+    if (result.isErr()) {
+      return err(result.error)
+    }
+
+    if (result.value.error) {
+      return err(new AuthError(result.value.error.message))
+    }
+
+    return ok(undefined)
   }
 
   async signInWithPasskey(_email: string): Promise<Result<void, AuthError>> {
