@@ -67,8 +67,7 @@ export async function emitWithTimeout<K extends keyof Root.Actions>({
   // ResultAsync.fromPromise — correct usage for an already-constructed Promise.
   // fromThrowable is for sync functions; using it on an async fn silently wraps
   // the Promise itself as the success value instead of awaiting it.
-  return ResultAsync.fromPromise(
-    emitPromise,
-    (error) => error instanceof Error ? error : new SocketError('Socket.io emitted a non-Error rejection')
+  return ResultAsync.fromPromise(emitPromise, (error) =>
+    error instanceof Error ? error : new SocketError('Socket.io emitted a non-Error rejection')
   )
 }
