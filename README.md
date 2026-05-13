@@ -107,14 +107,50 @@ flowchart LR
 
 ### Error Handling
 
-`neverthrow` replaces thrown exceptions with typed `Result` objects throughout the codebase. Custom error classes (`DbError`, `NetworkError`, `RateLimitError`) give each layer its own failure vocabulary. Critical network calls use `retryWithBackoff` with exponential backoff and jitter.
+- **Client-Side Fuzzy Search:** To ensure instant feedback, we implement a client-side search service using Damerau-Levenshtein distance algorithms, allowing users to find messages and conversations efficiently without server round-trips.
+- **Optimized Rendering:** Markdown rendering is highly optimized, supporting syntax highlighting, Mermaid diagrams, and LaTeX math via `katex`, all while ensuring security through `DOMPurify` sanitization.
 
-### Authentication
+```mermaid
+graph TD
+    classDef input fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef process fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef store fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
 
-Two strategies depending on where the webview runs:
+    UserInput[User Query]:::input --> SearchService
+    SearchService[Search Service]:::process -->|Fetch All| DB[(IndexedDB)]:::store
+    DB -->|Conversations & Messages| SearchService
+    SearchService -->|Tokenize & Normalize| FuzzyLogic[Fuzzy Matching Logic]:::process
+    FuzzyLogic -->|Damerau-Levenshtein Score| Results[Ranked Results]:::input
+```
 
-- **Embedded in VS Code** — auth tokens are bridged from the extension host via `useVsCodeAuth`, no re-login needed
-- **Standalone browser** — standard Supabase PKCE OAuth flow (GitHub / Email)
+### Real-time Streaming & UX
+
+- **Optimized Stream Handling:** The application implements a sophisticated streaming architecture that handles high-frequency socket events. We utilize a throttled commit strategy (`streamingCommitIntervalMs`) to update the DOM efficiently without blocking the main thread during rapid token generation.
+- **Rich Content Rendering:** Our `ChatMarkdownRenderer` handles partial markdown streams gracefully, supporting complex artifacts like Mermaid diagrams, LaTeX equations (KaTeX), and syntax-highlighted code blocks in real-time.
+
+### Strict Configuration & Security
+
+- **Runtime Environment Validation:** We refuse to start the application with invalid configurations. The `env-validator.ts` module uses Zod to strictly validate all environment variables at boot time, preventing subtle configuration drift issues in production.
+- **Secure API Key Management:** API keys are never stored in plain text without validation. The `ApiKeyValidator` service performs a live check against the provider's API before persisting keys to the secure `KeyValueStore`, ensuring the system remains in a valid state.
+
+### Enterprise Design System & UX
+
+Our UI is built on a sophisticated, accessible-first design system (`src/components/Base*`), ensuring consistency and compliance across the enterprise.
+
+- **Dynamic Theming:** We utilize `colorino` to generate harmonious color palettes (e.g., Catppuccin Mocha) that ensure visual consistency.
+- **Automated Accessibility:** Interactive elements like `BaseButton` calculate their text color at runtime using `culori` based on background luminosity, strictly satisfying WCAG contrast ratios.
+- **Iconography:** A hybrid approach using `UnoCSS` preset icons (Bootstrap Icons, Simple Icons) for standard UI elements and custom SVG assets (e.g., Cyberpunk Robot) for brand identity.
+- **Keyboard Navigation:** The application is fully navigable via keyboard, with managed focus states and specific key bindings (e.g., `Esc` to cancel edits, `Ctrl+Enter` to submit) handled by composables like `use-tracked-timeouts`.
+
+### Authentication Architecture
+
+The application implements a dual-strategy authentication system to ensure seamless operation across environments:
+
+- **VS Code Token Bridge:** When embedded in VS Code, auth tokens are securely bridged from the extension host to the webview via `postMessage`. The `useVsCodeAuth` composable manages session synchronization, eliminating the need for repeated logins within the IDE.
+- **Standard OAuth / Email:** For browser access, Supabase Auth handles GitHub OAuth (PKCE and implicit flows) and email/password — fully decoupled from the VS Code context.
+- **Session Verification:** After every auth call (`setSession`, `exchangeCodeForSession`), the app explicitly calls `getSession()` to confirm the session is readable before navigating. This guards against a race condition where Supabase's internal state cache is not yet populated when `router.beforeEach` fires.
+
+For full details on every flow, edge cases, and the session race condition fix, see **[docs/AUTH_FLOWS.md](docs/AUTH_FLOWS.md)**.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'actorBkg': '#2a1758', 'actorBorder': '#7c3aed', 'actorTextColor': '#e2d9f3', 'actorLineColor': '#7c3aed', 'signalColor': '#c4b5fd', 'signalTextColor': '#e2d9f3', 'labelBoxBkgColor': '#1a0f3a', 'labelBoxBorderColor': '#4c1d95', 'labelTextColor': '#c4b5fd', 'loopTextColor': '#e2d9f3', 'noteBkgColor': '#1a0f3a', 'noteTextColor': '#c4b5fd', 'noteBorderColor': '#4c1d95', 'activationBkgColor': '#4c1d95', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
@@ -130,15 +166,14 @@ sequenceDiagram
         note right of User: Scenario 1 — Embedded in VS Code
         User->>Webview: Opens Extension
         Webview->>Bridge: Request Session (postMessage)
-        Bridge-->>Webview: Return GitHub Session
-        Webview->>Supabase: Set Session (Refresh Token)
+        Bridge-->>Webview: Return Github Session
+        Webview->>Supabase: setSession (Refresh Token)
         Supabase-->>Webview: Valid Session & Access Token
+        Webview->>Webview: verifySession() — confirm getSession() != null
     end
 
-    rect rgb(15, 26, 42)
-        note right of User: Scenario 2 — Standalone Browser
-        User->>Webview: Clicks Login
-        Webview->>Supabase: OAuth Flow (PKCE)
+        Supabase-->>Webview: Redirect to /auth/callback
+        Webview->>Supabase: exchangeCodeForSession / setSession
         Supabase-->>Webview: Session & Access Token
     end
 
@@ -150,7 +185,16 @@ sequenceDiagram
 
 Socket.io token events are committed to the store on a throttled interval (`streamingCommitIntervalMs`) to avoid blocking the main thread during fast generation. The `ChatMarkdownRenderer` handles partial streams including Mermaid diagrams, KaTeX, and syntax-highlighted code via DOMPurify sanitization.
 
-### Search
+| Directory         | Purpose                                                                      |
+| :---------------- | :--------------------------------------------------------------------------- |
+| `src/composables` | Reusable stateful logic (hooks), strictly typed and tested.                  |
+| `src/stores`      | Global domain state (Pinia) for Conversations, Context, and UI state.        |
+| `src/database`    | IndexedDB layer with `Dexie.js` and custom type-safe wrappers (`SafeTable`). |
+| `src/vs-code`     | Bridge logic, type guards, and message protocols for IDE communication.      |
+| `src/components`  | Atomic design components (`Base*`) and complex feature widgets.              |
+| `src/views`       | Route-level page components (Chat, History, Prompts, Settings).              |
+| `src/validators`  | Zod schemas for runtime data validation.                                     |
+| `docs/`           | Architecture decision records and flow documentation.                        |
 
 Client-side conversation search uses Damerau-Levenshtein distance for fuzzy matching, running entirely in the browser against the local IndexedDB.
 
@@ -170,15 +214,15 @@ graph TD
 
 ## Project Structure
 
-| Directory | Purpose |
-| :--- | :--- |
-| `src/composables/` | Reusable Composition API logic |
-| `src/stores/` | Pinia stores for conversations, context, and UI state |
-| `src/database/` | Dexie.js layer with `SafeTable` and `KeyValueDb` wrappers |
-| `src/vs-code/` | Message bridge, type guards, and VS Code protocols |
-| `src/components/` | `Base*` design system components and feature widgets |
-| `src/views/` | Route-level pages: Chat, History, Prompts, Settings |
-| `src/validators/` | Zod schemas for runtime validation |
+| Directory          | Purpose                                                   |
+| :----------------- | :-------------------------------------------------------- |
+| `src/composables/` | Reusable Composition API logic                            |
+| `src/stores/`      | Pinia stores for conversations, context, and UI state     |
+| `src/database/`    | Dexie.js layer with `SafeTable` and `KeyValueDb` wrappers |
+| `src/vs-code/`     | Message bridge, type guards, and VS Code protocols        |
+| `src/components/`  | `Base*` design system components and feature widgets      |
+| `src/views/`       | Route-level pages: Chat, History, Prompts, Settings       |
+| `src/validators/`  | Zod schemas for runtime validation                        |
 
 ## Prerequisites
 
@@ -210,16 +254,16 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full breakdown of env fil
 
 ## Scripts
 
-| Script | Description |
-| :--- | :--- |
-| `dev` | Start Vite dev server |
-| `build` | Type-check and produce production build |
-| `test` | Run unit + E2E test suites |
-| `test-unit` | Vitest unit tests only |
-| `test-e2e` | Playwright E2E tests only |
-| `type-check` | TypeScript type checking |
-| `format` | XO + Prettier lint and format |
-| `find-dead-code` | Knip analysis for unused exports |
+| Script           | Description                             |
+| :--------------- | :-------------------------------------- |
+| `dev`            | Start Vite dev server                   |
+| `build`          | Type-check and produce production build |
+| `test`           | Run unit + E2E test suites              |
+| `test-unit`      | Vitest unit tests only                  |
+| `test-e2e`       | Playwright E2E tests only               |
+| `type-check`     | TypeScript type checking                |
+| `format`         | XO + Prettier lint and format           |
+| `find-dead-code` | Knip analysis for unused exports        |
 
 ## License
 

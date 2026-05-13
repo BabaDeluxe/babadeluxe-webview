@@ -1,17 +1,26 @@
-import { type Result, err, ok, ResultAsync } from 'neverthrow'
+/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+import { type Result, err, ok } from 'neverthrow'
 import { type ManagerOptions, type SocketOptions, io } from 'socket.io-client'
 import { Root } from '@babadeluxe/shared'
 import type { AbstractLogger } from '@/logger'
 import { SocketError } from '@/errors'
+import { SocketFeatures } from '@/socket-features'
 
-export class SocketManager {
+type SocketGetterName<K extends string> = `${Lowercase<K>}Socket`
+
+type SocketGetters = {
+  [K in keyof typeof SocketFeatures as SocketGetterName<K>]: SocketManager
+}
+
+class SocketManagerBase {
   private readonly _socket: Root.Socket
   private _isConnectedInternal = false
   private _isConnectingInternal = false
   private readonly _trackedEvents = new Set<string>()
   private _internalHandlersRegistered = false
+  private _connectingPromise: Promise<void> | undefined
 
-  // Named references so disconnect() can remove them specifically, not in bulk.
   private readonly _onConnect = (): void => {
     this._isConnectedInternal = true
     this._logger.log(`Connected to socket: ${this._socket.id}`)
@@ -32,9 +41,6 @@ export class SocketManager {
     })
   }
 
-  // Shared promise used to coalesce concurrent waitForConnection callers.
-  private _connectingPromise: Promise<Result<void, SocketError>> | undefined
-
   constructor(
     private readonly _logger: AbstractLogger,
     private readonly _baseUrl: string,
@@ -49,6 +55,19 @@ export class SocketManager {
     }
 
     this._socket = io(this._baseUrl, socketOptions)
+    this._createSocketGetters()
+  }
+
+  private _createSocketGetters(): void {
+    for (const key of Object.keys(SocketFeatures)) {
+      const getterName = `${key.toLowerCase()}Socket` as SocketGetterName<string>
+
+      Object.defineProperty(this, getterName, {
+        get: () => this,
+        enumerable: true,
+        configurable: false,
+      })
+    }
   }
 
   get isConnected(): boolean {
@@ -96,44 +115,40 @@ export class SocketManager {
   private async _performConnection(
     timeoutMilliseconds: number
   ): Promise<Result<Root.Socket, SocketError>> {
-    return ResultAsync.fromPromise(
-      new Promise<Root.Socket>((resolve, reject) => {
-        let hasResolved = false
+    return await new Promise<Result<Root.Socket, SocketError>>((resolve) => {
+      let hasResolved = false
 
-        const connectHandler = () => {
-          if (hasResolved) return
-          hasResolved = true
-          clearTimeout(timeoutId)
-          resolve(this._socket)
-        }
+      const succeed = () => {
+        if (hasResolved) return
+        hasResolved = true
+        clearTimeout(timeoutId)
+        resolve(ok(this._socket))
+      }
 
-        this._socket.once('connect', connectHandler)
+      const fail = (error: SocketError) => {
+        if (hasResolved) return
+        hasResolved = true
+        clearTimeout(timeoutId)
+        this._socket.off('connect', connectHandler)
+        resolve(err(error))
+      }
 
-        const timeoutId = setTimeout(() => {
-          if (hasResolved) return
-          hasResolved = true
-          this._socket.off('connect', connectHandler)
-          reject(
-            new SocketError(`Connection timeout after ${timeoutMilliseconds}ms (retries exhausted)`)
-          )
-        }, timeoutMilliseconds)
+      const connectHandler = () => {
+        succeed()
+      }
 
-        this._socket.connect()
-      }),
-      (unknownError) =>
-        new SocketError(
-          unknownError instanceof Error
-            ? unknownError.message
-            : 'Unknown socket connection failure',
-          unknownError instanceof Error ? unknownError : undefined
+      this._socket.once('connect', connectHandler)
+
+      const timeoutId = setTimeout(() => {
+        fail(
+          new SocketError(`Connection timeout after ${timeoutMilliseconds}ms (retries exhausted)`)
         )
-    )
+      }, timeoutMilliseconds)
+
+      this._socket.connect()
+    })
   }
 
-  /**
-   * Update authentication token for the socket connection.
-   * This ensures that subsequent reconnections use a valid, fresh token.
-   */
   updateAuthToken(token: string): void {
     this._socket.auth = { token }
   }
@@ -141,41 +156,65 @@ export class SocketManager {
   async waitForConnection(timeoutMilliseconds = 10_000): Promise<Result<void, SocketError>> {
     if (this._isConnectedInternal) return ok(undefined)
 
-    // Coalesce concurrent callers onto a single promise so only one timeout races.
     if (this._connectingPromise !== undefined) {
-      return this._connectingPromise
+      try {
+        await this._connectingPromise
+        return this._isConnectedInternal
+          ? ok(undefined)
+          : err(new SocketError('Socket not connected after waitForConnection'))
+      } catch (unknownError) {
+        const error =
+          unknownError instanceof SocketError
+            ? unknownError
+            : new SocketError(
+                unknownError instanceof Error ? unknownError.message : 'Socket connection timeout',
+                unknownError instanceof Error ? unknownError : undefined
+              )
+        return err(error)
+      }
     }
 
-    this._connectingPromise = ResultAsync.fromPromise(
-      new Promise<void>((resolve, reject) => {
-        const onConnect = () => {
-          clearTimeout(timeoutId)
-          resolve()
-        }
+    const connectingPromise = new Promise<void>((resolve, reject) => {
+      const onConnect = () => {
+        clearTimeout(timeoutId)
+        resolve()
+      }
 
-        this._socket.once('connect', onConnect)
+      this._socket.once('connect', onConnect)
 
-        const timeoutId = setTimeout(() => {
-          this._socket.off('connect', onConnect)
-          reject(new SocketError(`Connection timeout after ${timeoutMilliseconds}ms`))
-        }, timeoutMilliseconds)
-      }),
-      (unknownError) =>
-        new SocketError(
-          unknownError instanceof Error ? unknownError.message : 'Socket connection timeout',
-          unknownError instanceof Error ? unknownError : undefined
-        )
-    ).finally(() => {
-      this._connectingPromise = undefined
+      const timeoutId = setTimeout(() => {
+        this._socket.off('connect', onConnect)
+        reject(new SocketError(`Connection timeout after ${timeoutMilliseconds}ms`))
+      }, timeoutMilliseconds)
+
+      // Optionally, ensure a connect attempt is actually made:
+      this._socket.connect()
     })
 
-    return this._connectingPromise
+    this._connectingPromise = connectingPromise
+
+    try {
+      await connectingPromise
+      return this._isConnectedInternal
+        ? ok(undefined)
+        : err(new SocketError('Socket not connected after waitForConnection'))
+    } catch (unknownError) {
+      const error =
+        unknownError instanceof SocketError
+          ? unknownError
+          : new SocketError(
+              unknownError instanceof Error ? unknownError.message : 'Socket connection timeout',
+              unknownError instanceof Error ? unknownError : undefined
+            )
+      return err(error)
+    } finally {
+      if (this._connectingPromise === connectingPromise) {
+        this._connectingPromise = undefined
+      }
+    }
   }
 
   disconnect(): void {
-    if (!this._isConnectedInternal) return
-
-    // Remove internal handlers by reference to avoid disturbing app-registered handlers.
     this._socket.off('connect', this._onConnect)
     this._socket.off('disconnect', this._onDisconnect)
     this._socket.off('connect_error', this._onConnectError)
@@ -195,9 +234,7 @@ export class SocketManager {
     this._logger.log('Socket disconnected and listeners cleared')
   }
 
-  // Typed events (from shared contract)
   on<T extends keyof Root.Emission>(event: T, handler: Root.Emission[T]): void
-  // String events (for composables / internal app events)
   on(event: string, handler: (...args: unknown[]) => void): void
   on(event: string, handler: (...args: unknown[]) => void): void {
     const eventName = String(event)
@@ -216,6 +253,7 @@ export class SocketManager {
       if (this._socket.listeners(eventName).length === 0) {
         this._trackedEvents.delete(eventName)
       }
+
       return
     }
 
@@ -229,11 +267,13 @@ export class SocketManager {
   ): Result<void, SocketError> {
     if (!this._isConnectedInternal) {
       const socketError = new SocketError('No socket connection established before emit')
+
       this._logger.error('Socket emit failed', {
         eventId: String(eventId),
         baseUrl: this._baseUrl,
         error: socketError,
       })
+
       return err(socketError)
     }
 
@@ -242,3 +282,6 @@ export class SocketManager {
     return ok(undefined)
   }
 }
+
+export interface SocketManager extends SocketGetters {}
+export class SocketManager extends SocketManagerBase {}

@@ -74,7 +74,6 @@ Error
     ├── MessageCreationError     — Failed to persist a new message
     ├── MessageUpdateError       — Failed to update an existing message
     ├── NetworkError             — Generic network layer failures
-    ├── InvalidModelFormatError  — Model string not in `provider:model` format
     └── ValidationError          — Zod schema mismatch at runtime
 ```
 

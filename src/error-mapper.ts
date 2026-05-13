@@ -1,4 +1,5 @@
-import { BaseError, NetworkError, RateLimitError, AuthError } from '@/errors'
+import { BaseError } from '@babadeluxe/shared'
+import { NetworkError, RateLimitError, AuthError } from '@/errors'
 
 export function toUserMessage(error: unknown, fallback = 'An unexpected error occurred.'): string {
   if (typeof error === 'string') return error
