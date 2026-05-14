@@ -99,6 +99,7 @@ export function useAppLogic() {
         } as any,
         expires_in: 3600,
         token_type: 'bearer',
+        refresh_token: 'offline-refresh-token',
       }
     }
 
