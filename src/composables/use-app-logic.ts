@@ -1,4 +1,5 @@
 import { ref, watch, onMounted, type Ref } from 'vue'
+import { isOfflineMode } from '@/env-validator'
 import { useRouter } from 'vue-router'
 import { useEventListener } from '@vueuse/core'
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js'
@@ -85,6 +86,22 @@ export function useAppLogic() {
   }
 
   onMounted(async () => {
+    if (isOfflineMode()) {
+      session.value = {
+        access_token: 'offline-token',
+        user: {
+          id: 'offline-user',
+          email: 'offline@local',
+          app_metadata: {},
+          user_metadata: { full_name: 'Offline User' },
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+        } as any,
+        expires_in: 3600,
+        token_type: 'bearer',
+      }
+    }
+
     supabase.auth.onAuthStateChange((event, session) => {
       handleAuthStateChange(event, session)
     })
@@ -100,6 +117,11 @@ export function useAppLogic() {
       },
       { deep: true }
     )
+
+    if (isOfflineMode()) {
+      void loadSettings()
+      return
+    }
 
     const { data, error } = await supabase.auth.getSession()
     if (data.session) void loadSettings()
