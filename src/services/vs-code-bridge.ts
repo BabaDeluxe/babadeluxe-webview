@@ -26,7 +26,7 @@ export class VsCodeBridge {
   post(message: object): void {
     const apiResult = getVsCodeApi()
     if (apiResult.isErr()) {
-      logger.warn('Cannot post message to VS Code', {
+      logger.debug('Cannot post message to VS Code', {
         messageType: (message as { type?: string }).type,
         error: apiResult.error,
       })
