@@ -172,8 +172,13 @@ sequenceDiagram
         Webview->>Webview: verifySession() — confirm getSession() != null
     end
 
+    rect rgb(30, 35, 40)
+        note right of User: Scenario 2: Standalone Browser
+        User->>Webview: Clicks Login
+        Webview->>Supabase: OAuth Flow (PKCE / implicit)
         Supabase-->>Webview: Redirect to /auth/callback
         Webview->>Supabase: exchangeCodeForSession / setSession
+        Webview->>Webview: verifySession() — confirm getSession() != null
         Supabase-->>Webview: Session & Access Token
     end
 

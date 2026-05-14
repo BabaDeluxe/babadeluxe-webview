@@ -14,10 +14,10 @@ const { isInVsCode } = useIsInVsCode()
 
 `useIsInVsCode` calls `getVsCodeApi()` which probes `globalThis.acquireVsCodeApi`. This is injected exclusively by the VS Code webview host — it is `undefined` in every normal browser. The result drives two decisions:
 
-| `isInVsCode` | Router history          | Auth strategy          |
-| :----------- | :---------------------- | :--------------------- |
-| `true`       | `createMemoryHistory()` | VS Code token bridge   |
-| `false`      | `createWebHistory()`    | Supabase OAuth / email |
+| `isInVsCode` | Router history | Auth strategy |
+| :--- | :--- | :--- |
+| `true` | `createMemoryHistory()` | VS Code token bridge |
+| `false` | `createWebHistory()` | Supabase OAuth / email |
 
 ---
 
@@ -220,10 +220,10 @@ On first page load in Chrome this window is reliably hit, causing `beforeEach` t
 
 The Supabase project's allowed redirect URLs must include:
 
-| Environment | URL                                                |
-| :---------- | :------------------------------------------------- |
-| Local dev   | `http://localhost:5100/auth/callback`              |
-| Staging     | `https://app-staging.babadeluxe.com/auth/callback` |
-| Production  | `https://app.babadeluxe.com/auth/callback`         |
+| Environment | URL |
+| :--- | :--- |
+| Local dev | `http://localhost:5100/auth/callback` |
+| Staging | `https://app-staging.babadeluxe.com/auth/callback` |
+| Production | `https://app.babadeluxe.com/auth/callback` |
 
 Missing entries will cause OAuth providers to reject the redirect with `redirect_uri_mismatch`.
