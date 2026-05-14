@@ -8,7 +8,7 @@
       variant="message"
       :placeholder="placeholder"
       :disabled="isSubmitting"
-      data-testid="chat-input"
+      :data-testid="dataTestid"
       class="flex-1"
       @keydown="handleKeydown"
     />
@@ -19,7 +19,7 @@
       :icon="submitIcon"
       :is-disabled="isSubmitDisabled"
       aria-label="Send message"
-      data-testid="chat-submit-button"
+      :data-testid="submitButtonDataTestid"
       @click="handleSubmit"
     />
 
@@ -28,7 +28,7 @@
       variant="ghost"
       :icon="abortIcon"
       aria-label="Stop generating"
-      data-testid="chat-abort-button"
+      :data-testid="abortButtonDataTestid"
       @click="$emit('abort')"
     />
 
@@ -47,6 +47,9 @@ interface ChatInputProps {
   isSubmitting?: boolean
   submitIcon?: string
   abortIcon?: string
+  dataTestid?: string
+  submitButtonDataTestid?: string
+  abortButtonDataTestid?: string
 }
 
 const props = withDefaults(defineProps<ChatInputProps>(), {
@@ -54,6 +57,9 @@ const props = withDefaults(defineProps<ChatInputProps>(), {
   isSubmitting: false,
   submitIcon: 'i-bi:send',
   abortIcon: 'i-bi:stop-circle',
+  dataTestid: 'chat-input',
+  submitButtonDataTestid: 'chat-submit-button',
+  abortButtonDataTestid: 'chat-abort-button',
 })
 
 const emit = defineEmits<{

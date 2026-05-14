@@ -1,30 +1,42 @@
 <template>
-  <div class="flex flex-col items-center justify-center p-8 text-subtleText">
-    <slot name="icon">
-      <i
-        v-if="icon"
-        :class="[icon, iconSizeClass, 'mb-4 opacity-50']"
-      />
-    </slot>
+  <div
+    class="flex flex-col items-center justify-center p-12 text-subtleText transition-all duration-300"
+    :class="[hasBorder ? 'border border-borderMuted/20 border-dashed rounded-3xl bg-panel/5 shadow-inner' : '']"
+  >
+    <div class="relative mb-6">
+      <slot name="icon">
+        <i
+          v-if="icon"
+          :class="[icon, iconSizeClass, 'relative z-10 opacity-60 text-accent']"
+        />
+        <div class="absolute inset-0 blur-2xl bg-accent/20 rounded-full scale-150" v-if="icon" />
+      </slot>
+    </div>
+
     <h3
       v-if="title"
-      class="text-lg font-medium mb-2 text-deepText"
+      class="text-xl font-onest font-semibold mb-3 text-deepText tracking-tight text-center"
     >
       {{ title }}
     </h3>
+
     <p
       v-if="description"
-      class="text-sm text-center"
+      class="text-sm text-center max-w-sm leading-relaxed text-subtleText/80"
     >
       {{ description }}
     </p>
+
     <p
       v-if="subDescription"
-      class="text-xs mt-2 text-center"
+      class="text-xs mt-3 text-center opacity-60 font-mono"
     >
       {{ subDescription }}
     </p>
-    <slot />
+
+    <div class="mt-8">
+      <slot />
+    </div>
   </div>
 </template>
 
@@ -35,6 +47,7 @@ interface BaseEmptyStateProps {
   description?: string
   subDescription?: string
   iconSize?: 'small' | 'medium' | 'large'
+  hasBorder?: boolean
 }
 
 const props = withDefaults(defineProps<BaseEmptyStateProps>(), {
@@ -43,6 +56,7 @@ const props = withDefaults(defineProps<BaseEmptyStateProps>(), {
   description: undefined,
   subDescription: undefined,
   iconSize: 'large',
+  hasBorder: false,
 })
 
 const iconSizeClass = {

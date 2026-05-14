@@ -23,6 +23,7 @@ export const socketTimeoutMs = {
 
 export const localStorageKeys = {
   currentConversationId: 'current-conversation-id',
+  lastSelectedModel: 'last-selected-model',
 } as const
 
 export const templateLimits = {
