@@ -60,6 +60,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
 
   const isLoadingContext = ref(false)
   const contextError = ref<string>()
+  const contextRootPath = ref<string>()
 
   const toggleLocked = (filePath: string): void => {
     const cleaned = compact(filePath)
@@ -81,7 +82,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
   }
 
   const handleVsCodeMessage = (event: MessageEvent) => {
-    const message = event.data as IncomingMessage
+    const message = event.data as IncomingMessage & { type: string; path?: string }
 
     if (isContextSnapshotMessage(message)) {
       applySnapshot(message)
@@ -96,6 +97,10 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     if (isContextPinSnippetMessage(message)) {
       pinSnippetLocal(message.filePath, message.snippet, message.range)
       return
+    }
+
+    if (message.type === 'context:rootPath') {
+      contextRootPath.value = message.path
     }
   }
 
@@ -326,6 +331,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     isLoadingContext,
     contextError,
     contextRevision,
+    contextRootPath,
 
     // derived
     contextItems,

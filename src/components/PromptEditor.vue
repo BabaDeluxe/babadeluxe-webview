@@ -1,8 +1,21 @@
 <template>
-  <div class="flex flex-col gap-4">
-    <h4 class="text-md font-medium text-deepText">
-      {{ isCreating ? 'Create New Prompt' : 'Edit Prompt' }}
-    </h4>
+  <div class="flex flex-col gap-6">
+    <div class="flex items-center justify-between border-b border-borderMuted/20 pb-4">
+      <h4 class="text-lg font-onest font-semibold text-deepText">
+        {{ isCreating ? 'Create New Prompt' : 'Edit Prompt' }}
+      </h4>
+
+      <div class="flex gap-2" v-if="canDuplicate">
+         <BaseButton
+          variant="ghost"
+          icon="i-bi:copy"
+          class="text-xs"
+          @click="emit('duplicate', localPrompt)"
+        >
+          {{ duplicateLabel }}
+        </BaseButton>
+      </div>
+    </div>
 
     <!-- Prompt Name -->
     <BaseInput
@@ -20,28 +33,28 @@
     <div class="flex flex-col gap-1.5">
       <label
         :for="commandId"
-        class="text-sm text-subtleText"
+        class="text-sm font-medium text-subtleText"
       >
         Command
       </label>
       <div
-        class="flex items-center gap-0 rounded-lg overflow-hidden transition-colors"
+        class="flex items-center gap-0 rounded-lg overflow-hidden transition-all bg-panel border"
         :class="[
           isSaving
-            ? 'border border-borderMuted opacity-50 pointer-events-none'
+            ? 'border-borderMuted opacity-50 pointer-events-none'
             : showValidationErrors && validationErrors.command
-              ? 'border border-error'
-              : 'border border-borderMuted focus-within:border-accent',
+              ? 'border-error shadow-sm shadow-error/10'
+              : 'border-borderMuted focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20',
         ]"
       >
-        <span class="text-subtleText px-3 bg-transparent">/</span>
+        <span class="text-subtleText/60 px-3 bg-slate/30 font-mono">/</span>
         <input
           :id="commandId"
           v-model="localPrompt.command"
           type="text"
           placeholder="e.g. review"
           data-testid="prompt-command-input"
-          class="flex-1 px-3 py-2 bg-panel text-deepText placeholder-subtleText outline-none border-none"
+          class="flex-1 px-3 py-2.5 bg-transparent text-deepText placeholder-subtleText/40 outline-none border-none font-mono text-sm"
           :disabled="isSaving"
           @input="handleCommandChange"
         />
@@ -49,7 +62,7 @@
       <span
         v-if="showValidationErrors && validationErrors.command"
         role="alert"
-        class="text-error text-xs"
+        class="text-error text-xs mt-1"
       >
         {{ validationErrors.command }}
       </span>
@@ -71,12 +84,12 @@
       <div class="flex justify-between items-center">
         <label
           :for="templateId"
-          class="text-sm text-subtleText"
+          class="text-sm font-medium text-subtleText"
         >
           Template
         </label>
         <span
-          class="text-xs transition-colors"
+          class="text-xs font-mono transition-colors"
           :class="characterCountClass"
         >
           {{ templateCharCount }}/{{ templateLimits.maxPromptLength }}
@@ -85,15 +98,15 @@
       <textarea
         :id="templateId"
         v-model="localPrompt.template"
-        placeholder="<role>Act as a senior software engineer doing a code review.</role> Focus on code clarity, performance, and adherence to best practices."
+        placeholder="Act as a senior software engineer doing a code review. Focus on clarity and performance."
         data-testid="prompt-template-input"
         :class="[
-          'w-full px-3 py-2 rounded-lg bg-panel text-deepText placeholder-subtleText focus:outline-none resize-none transition-colors',
+          'w-full px-4 py-3 rounded-xl bg-panel text-deepText placeholder-subtleText/40 focus:outline-none resize-none transition-all border font-onest text-sm leading-relaxed',
           isSaving
-            ? 'border border-borderMuted opacity-50 cursor-not-allowed'
+            ? 'border-borderMuted opacity-50 cursor-not-allowed'
             : showValidationErrors && validationErrors.template
-              ? 'border border-error'
-              : 'border border-borderMuted focus:border-accent',
+              ? 'border-error shadow-sm shadow-error/10'
+              : 'border-borderMuted focus:border-accent focus:ring-1 focus:ring-accent/20',
         ]"
         :rows="rows"
         :maxlength="templateLimits.maxPromptLength"
@@ -103,19 +116,20 @@
       <span
         v-if="showValidationErrors && validationErrors.template"
         role="alert"
-        class="text-error text-xs"
+        class="text-error text-xs mt-1"
       >
         {{ validationErrors.template }}
       </span>
     </div>
 
     <!-- Save Button -->
-    <div class="flex justify-end pb-4">
+    <div class="flex justify-end pt-4 mt-2 border-t border-borderMuted/10">
       <BaseButton
         variant="primary"
         :is-disabled="!canSave"
         :is-loading="isSaving"
         data-testid="prompt-save-button"
+        class="px-8"
         @click="handleSave"
       >
         {{ isSaving ? 'Saving...' : 'Save Changes' }}
@@ -143,11 +157,15 @@ interface PromptEditorProps {
   isCreating: boolean
   isSaving: boolean
   rows?: number
+  canDuplicate?: boolean
+  duplicateLabel?: string
 }
 
 const props = withDefaults(defineProps<PromptEditorProps>(), {
   prompt: undefined,
   rows: 10,
+  canDuplicate: false,
+  duplicateLabel: 'Duplicate',
 })
 
 const emit = defineEmits<{
@@ -155,6 +173,7 @@ const emit = defineEmits<{
     payload: { id?: number; name: string; command: string; description?: string; template: string },
   ]
   change: []
+  duplicate: [payload: Prompt]
 }>()
 
 const commandId = useId()
@@ -203,7 +222,7 @@ const characterCountClass = computed(() => {
 
   if (count >= templateLimits.maxPromptLength) return 'text-error font-semibold'
   if (count >= templateLimits.warningThreshold) return 'text-warning'
-  return 'text-subtleText'
+  return 'text-subtleText/60'
 })
 
 const validationErrors = computed(() => {
