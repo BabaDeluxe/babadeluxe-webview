@@ -8,11 +8,11 @@ This document describes how environment variables are structured, loaded, and ov
 
 BabaDeluxe Webview uses **Vite's built-in mode system** to load environment-specific `.env` files at build time. Each deployment stage maps to a distinct Vite mode, ensuring clean separation of config without runtime surprises.
 
-| Stage | Vite Mode | Env File Loaded | `import.meta.env.MODE` |
-| :--- | :--- | :--- | :--- |
-| Local dev server | `development` | `.env` + `.env.development` | `development` |
-| Staging build | `staging` | `.env` + `.env.staging` | `staging` |
-| Production build | `production` | `.env` + `.env.production` | `production` |
+| Stage            | Vite Mode     | Env File Loaded             | `import.meta.env.MODE` |
+| :--------------- | :------------ | :-------------------------- | :--------------------- |
+| Local dev server | `development` | `.env` + `.env.development` | `development`          |
+| Staging build    | `staging`     | `.env` + `.env.staging`     | `staging`              |
+| Production build | `production`  | `.env` + `.env.production`  | `production`           |
 
 > `.env` is **always** loaded as the base. Mode-specific files override keys defined there.
 
@@ -58,11 +58,11 @@ Before the pipeline can run successfully, the following must be in place.
 
 Register these in the Woodpecker repository settings under **Secrets**. They are injected at runtime and are never stored in the repository.
 
-| Secret name | What it is | Where to get it |
-| :--- | :--- | :--- |
-| `ssh_user` | SSH username on the deploy server | Server admin / hosting provider |
-| `deploy_ssh_key` | Private SSH key (ed25519 PEM) used to authenticate against the server | Generate with `ssh-keygen -t ed25519`; add the public key to `~/.ssh/authorized_keys` on the server |
-| `deploy_base_dir` | Absolute base path on the server (e.g. `/var/www/vhosts/babadeluxe.com`) | Server admin |
+| Secret name       | What it is                                                               | Where to get it                                                                                     |
+| :---------------- | :----------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------- |
+| `ssh_user`        | SSH username on the deploy server                                        | Server admin / hosting provider                                                                     |
+| `deploy_ssh_key`  | Private SSH key (ed25519 PEM) used to authenticate against the server    | Generate with `ssh-keygen -t ed25519`; add the public key to `~/.ssh/authorized_keys` on the server |
+| `deploy_base_dir` | Absolute base path on the server (e.g. `/var/www/vhosts/babadeluxe.com`) | Server admin                                                                                        |
 
 > `SSH_HOST` (`217.160.14.123`) is hardcoded in `.woodpecker.yml` — update it there directly if the server IP changes.
 
@@ -70,13 +70,13 @@ Register these in the Woodpecker repository settings under **Secrets**. They are
 
 The deploy script runs **on the remote server via SSH**. The following must be present before the first deploy:
 
-| Requirement | Notes |
-| :--- | :--- |
+| Requirement                                | Notes                                                              |
+| :----------------------------------------- | :----------------------------------------------------------------- |
 | Node.js v20.19.0+ or v22.12.0+ via **nvm** | Must be loadable via `source ~/.nvm/nvm.sh` from `~/.bash_profile` |
-| pnpm v9.15.0 via **corepack** | Activated by `corepack enable && corepack use pnpm@9.15.0` |
-| **GitHub CLI** (`gh`) | Used for the initial `gh repo clone` on first deploy |
-| **rsync** | Used to sync `dist/` into the docroot |
-| **nginx / Apache** | Must serve both docroots as static SPA (see config below) |
+| pnpm v9.15.0 via **corepack**              | Activated by `corepack enable && corepack use pnpm@9.15.0`         |
+| **GitHub CLI** (`gh`)                      | Used for the initial `gh repo clone` on first deploy               |
+| **rsync**                                  | Used to sync `dist/` into the docroot                              |
+| **nginx / Apache**                         | Must serve both docroots as static SPA (see config below)          |
 
 ### 3. GitHub CLI Authentication on the Server
 
@@ -97,12 +97,12 @@ export GITHUB_TOKEN=ghp_your_token_here
 
 The pipeline creates all subdirectories via `mkdir -p` automatically. Only `$DEPLOY_BASE_DIR` itself must exist and be writable by `$SSH_USER`:
 
-| Path | Purpose |
-| :--- | :--- |
-| `$DEPLOY_BASE_DIR/babadeluxe-webview-staging` | Git working directory for staging builds |
-| `$DEPLOY_BASE_DIR/babadeluxe-webview-prod` | Git working directory for production builds |
-| `$DEPLOY_BASE_DIR/app-staging.babadeluxe.com` | Docroot served by the web server for staging |
-| `$DEPLOY_BASE_DIR/app.babadeluxe.com` | Docroot served by the web server for production |
+| Path                                          | Purpose                                         |
+| :-------------------------------------------- | :---------------------------------------------- |
+| `$DEPLOY_BASE_DIR/babadeluxe-webview-staging` | Git working directory for staging builds        |
+| `$DEPLOY_BASE_DIR/babadeluxe-webview-prod`    | Git working directory for production builds     |
+| `$DEPLOY_BASE_DIR/app-staging.babadeluxe.com` | Docroot served by the web server for staging    |
+| `$DEPLOY_BASE_DIR/app.babadeluxe.com`         | Docroot served by the web server for production |
 
 ### 5. Web Server SPA Fallback
 

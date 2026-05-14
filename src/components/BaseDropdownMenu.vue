@@ -6,6 +6,9 @@
     <BaseButton
       variant="icon"
       :data-testid="triggerTestId"
+      aria-haspopup="menu"
+      :aria-expanded="isOpen"
+      :aria-label="triggerAriaLabel"
       @click="toggle"
     >
       <slot name="trigger">
@@ -18,6 +21,7 @@
         v-if="isOpen"
         ref="menuRef"
         data-dropdown-layer="true"
+        role="menu"
         class="bg-panel border border-borderMuted rounded-lg shadow-xl py-1 min-w-40 max-h-[400px] overflow-y-auto z-50 fixed animate-fade-in animate-duration-150 animate-ease-out"
         :style="menuPositionStyle"
         :data-testid="menuTestId"
@@ -38,12 +42,14 @@ interface BaseDropdownMenuProps {
   triggerTestId?: string
   menuTestId?: string
   placement?: 'bottom' | 'top' | 'right'
+  triggerAriaLabel?: string
 }
 
 const props = withDefaults(defineProps<BaseDropdownMenuProps>(), {
   triggerTestId: 'dropdown-trigger',
   menuTestId: 'dropdown-menu',
   placement: 'bottom',
+  triggerAriaLabel: 'Open menu',
 })
 
 const menuRef = ref<HTMLElement | undefined>(undefined)

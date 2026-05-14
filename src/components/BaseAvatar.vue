@@ -18,10 +18,13 @@
       v-else-if="role === 'user'"
       class="flex items-center justify-center text-subtleText rounded-full"
       :class="imageSizeClasses"
+      role="img"
+      aria-label="User avatar"
     >
       <i
         class="i-bi:person-circle"
         :class="iconSizeClasses"
+        aria-hidden="true"
       />
     </div>
 
@@ -30,6 +33,8 @@
       v-else
       class="flex items-center justify-center text-accent"
       :class="imageSizeClasses"
+      role="img"
+      aria-label="Assistant avatar"
     >
       <IconRobot :class="iconSizeClasses" />
     </div>
@@ -65,42 +70,42 @@ const props = withDefaults(defineProps<BaseAvatarProps>(), {
 const containerSizeClasses = computed(() => {
   switch (props.size) {
     case 'xs':
-      return 'w-6 h-6'
+      return 'w-9 h-9'
     case 'sm':
-      return 'w-8 h-8'
+      return 'w-11 h-11'
     case 'md':
-      return 'w-10 h-10'
+      return 'w-14 h-14'
     case 'lg':
     default:
-      return 'w-14 h-14'
+      return 'w-20 h-20'
   }
 })
 
 const imageSizeClasses = computed(() => {
   switch (props.size) {
     case 'xs':
-      return 'w-6 h-6'
+      return 'w-9 h-9'
     case 'sm':
-      return 'w-8 h-8'
+      return 'w-11 h-11'
     case 'md':
-      return 'w-10 h-10'
+      return 'w-14 h-14'
     case 'lg':
     default:
-      return 'w-14 h-14'
+      return 'w-20 h-20'
   }
 })
 
 const iconSizeClasses = computed(() => {
   switch (props.size) {
     case 'xs':
-      return 'w-4 h-4'
-    case 'sm':
       return 'w-5 h-5'
-    case 'md':
+    case 'sm':
       return 'w-6 h-6'
+    case 'md':
+      return 'w-8 h-8'
     case 'lg':
     default:
-      return 'w-8 h-8'
+      return 'w-12 h-12'
   }
 })
 

@@ -1,92 +1,56 @@
 <template>
   <section
     id="prompts"
-    data-testid="prompts-view-container"
-    class="relative flex flex-col flex-1 min-h-0 w-full bg-slate overflow-hidden"
+    class="flex flex-col flex-1 min-h-0 w-full bg-slate"
   >
-    <div class="flex flex-row w-full items-center justify-between flex-shrink-0 gap-2 px-4 pt-4">
-      <h3 class="text-lg font-medium text-deepText">All Prompts</h3>
+    <!-- Header -->
+    <header class="flex items-center justify-between p-4 border-b border-borderMuted/20 bg-panel shadow-sm">
+      <div class="flex items-center gap-2">
+        <h2 class="text-lg font-onest font-semibold text-deepText">Prompt Library</h2>
+        <span
+          v-if="prompts.length > 0"
+          class="text-xs bg-accent/15 text-accent px-2 py-0.5 rounded-full border border-accent/20"
+        >
+          {{ prompts.length }}
+        </span>
+      </div>
+
       <BaseButton
+        data-testid="prompts-new-button"
         variant="primary"
         icon="i-bi:plus-lg"
-        text="New Prompt"
-        data-testid="prompts-new-button"
         @click="handleCreateNewPrompt"
-      />
-    </div>
+      >
+        New Prompt
+      </BaseButton>
+    </header>
 
+    <!-- Error state -->
     <div
       v-if="hasComponentError"
-      data-testid="component-error"
-      class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
+      class="flex-1 flex flex-col items-center justify-center p-8 gap-4"
     >
-      <p class="text-error text-lg">Something went wrong with the prompts view.</p>
-      <BaseButton
-        variant="secondary"
-        data-testid="prompts-reload-button"
-        @click="handleReload"
+      <BaseEmptyState
+        icon="i-bi:exclamation-triangle"
+        title="Oops! Something went wrong"
+        description="We couldn't load your prompt library. This might be a temporary connection issue."
       >
-        Reload Page
-      </BaseButton>
-    </div>
-
-    <div
-      v-else-if="isLoading"
-      data-testid="prompts-loading-state"
-      class="flex-1 flex items-center justify-center"
-    >
-      <BaseSpinner
-        size="large"
-        message="Loading prompts..."
-      />
-    </div>
-
-    <template v-else>
-      <div class="flex flex-col flex-1 min-h-0 w-full overflow-hidden pt-4 px-4">
-        <PromptLayout
-          v-if="isMobile"
-          ref-key="vertical-split-container"
-          direction="vertical"
-          :left-width-percent="verticalTopHeightPercent"
-          :right-width-percent="verticalBottomHeightPercent"
-          :is-dragging="verticalIsDragging"
-          @start-dragging="verticalStartDragging"
+        <BaseButton
+          variant="primary"
+          @click="handleReload"
         >
-          <template #master>
-            <PromptList
-              :prompts="prompts"
-              :selected-prompt-id="selectedPromptId"
-              empty-description="No prompts created yet. Click New Prompt to start."
-              data-testid="prompt-list"
-              @select="handleSelectPrompt"
-              @delete="handleDeletePrompt"
-            />
-          </template>
+          Reload Page
+        </BaseButton>
+      </BaseEmptyState>
+    </div>
 
-          <template #detail>
-            <PromptEditor
-              v-if="selectedPrompt || isCreatingNewPrompt"
-              :prompt="editablePrompt"
-              :is-creating="isCreatingNewPrompt"
-              :is-saving="isSaving"
-              :rows="6"
-              :can-duplicate="canDuplicate"
-              :duplicate-label="duplicateLabel"
-              data-testid="prompt-editor"
-              @save="handleSaveChanges"
-              @change="handleFormChange"
-              @duplicate="handleDuplicate"
-            />
-            <BaseEmptyState
-              v-else-if="prompts.length > 0"
-              icon="i-bi:cursor-text"
-              description="Select a prompt to edit."
-            />
-          </template>
-        </PromptLayout>
-
+    <!-- Main Content -->
+    <template v-else>
+      <div
+        id="horizontal-split-container"
+        class="flex-1 flex min-h-0 overflow-hidden"
+      >
         <PromptLayout
-          v-else
           ref-key="horizontal-split-container"
           direction="horizontal"
           :left-width-percent="splitLeftWidthPercent"
@@ -95,35 +59,76 @@
           @start-dragging="splitStartDragging"
         >
           <template #master>
-            <PromptList
-              :prompts="prompts"
-              :selected-prompt-id="selectedPromptId"
-              empty-description="No prompts created yet. Click New Prompt to start."
-              data-testid="prompt-list"
-              @select="handleSelectPrompt"
-              @delete="handleDeletePrompt"
-            />
+            <div class="flex flex-col h-full bg-panel/30 border-r border-borderMuted/10">
+              <div
+                v-if="isLoading && prompts.length === 0"
+                class="flex-1 flex items-center justify-center"
+              >
+                <BaseSpinner message="Loading library..." />
+              </div>
+
+              <div
+                v-else-if="prompts.length === 0"
+                class="flex-1 flex items-center justify-center p-8"
+              >
+                <BaseEmptyState
+                  icon="i-hugeicons:quill-write-02" :has-border="true"
+                  title="No prompts yet"
+                  description="Create your first reusable prompt to speed up your workflow."
+                >
+                  <BaseButton
+                    variant="ghost"
+                    icon="i-bi:plus-lg"
+                    class="mt-4"
+                    @click="handleCreateNewPrompt"
+                  >
+                    Get Started
+                  </BaseButton>
+                </BaseEmptyState>
+              </div>
+
+              <div
+                v-else
+                class="flex-1 overflow-y-auto p-4"
+              >
+                <PromptList
+                  :prompts="prompts"
+                  :selected-prompt-id="selectedPromptId"
+                  empty-description="Your library is empty."
+                  @select="handleSelectPrompt"
+                  @delete="handleDeletePrompt"
+                />
+              </div>
+            </div>
           </template>
 
           <template #detail>
-            <PromptEditor
-              v-if="selectedPrompt || isCreatingNewPrompt"
-              :prompt="editablePrompt"
-              :is-creating="isCreatingNewPrompt"
-              :is-saving="isSaving"
-              :rows="10"
-              :can-duplicate="canDuplicate"
-              :duplicate-label="duplicateLabel"
-              data-testid="prompt-editor"
-              @save="handleSaveChanges"
-              @change="handleFormChange"
-              @duplicate="handleDuplicate"
-            />
-            <BaseEmptyState
+            <div
+              v-if="editablePrompt"
+              class="h-full flex flex-col p-6 bg-panel border border-borderMuted/30 rounded-xl m-4 shadow-sm"
+            >
+              <PromptEditor
+                :prompt="editablePrompt"
+                :is-creating="isCreatingNewPrompt"
+                :is-saving="isSaving"
+                :can-duplicate="canDuplicate"
+                :duplicate-label="duplicateLabel"
+                data-testid="prompt-editor"
+                @save="handleSaveChanges"
+                @change="handleFormChange"
+                @duplicate="handleDuplicate"
+              />
+            </div>
+            <div
               v-else-if="prompts.length > 0"
-              icon="i-bi:cursor-text"
-              description="Select a prompt to view or edit its details."
-            />
+              class="h-full flex items-center justify-center"
+            >
+              <BaseEmptyState
+                icon="i-hugeicons:quill-write-02" :has-border="true"
+                description="Select a prompt from the list to view or edit its details."
+                class="border border-borderMuted/20 border-dashed rounded-2xl p-12 bg-panel/20"
+              />
+            </div>
           </template>
         </PromptLayout>
       </div>
@@ -135,14 +140,13 @@
       title="Delete Prompt"
       confirm-text="Delete"
       cancel-text="Cancel"
-      size="small"
+      size="sm"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     >
       <p class="text-deepText">
         Are you sure you want to delete
-        <strong class="text-accent">{{ deleteModal.promptName }}</strong
-        >?
+        <strong class="text-accent">{{ deleteModal.promptName }}</strong>?
       </p>
       <p class="text-sm text-subtleText mt-2">This action cannot be undone.</p>
     </BaseModal>

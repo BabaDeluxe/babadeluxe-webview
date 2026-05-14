@@ -3,11 +3,14 @@
     class="min-h-screen flex flex-col items-center justify-center bg-slate text-bodyText font-sans"
   >
     <div
-      v-if="!error"
+      v-if="!uiError"
       class="flex flex-col items-center gap-6 animate-fade-in"
     >
       <BaseSpinner size="large" />
-      <p class="text-xl font-medium tracking-tight">
+      <p
+        class="text-xl font-medium tracking-tight"
+        data-testid="auth-callback-status-message"
+      >
         {{ statusMessage }}
       </p>
     </div>
@@ -17,12 +20,16 @@
     >
       <div class="i-ri:error-warning-line text-6xl text-accent mb-2" />
       <h1 class="text-3xl font-bold text-headingText">Authentication Failed</h1>
-      <p class="text-subtleText max-w-md">
-        {{ error }}
+      <p
+        class="text-subtleText max-w-md"
+        data-testid="auth-callback-error-message"
+      >
+        {{ uiError }}
       </p>
       <BaseButton
         variant="primary"
         class="mt-4"
+        data-testid="auth-callback-back-button"
         @click="router.replace('/login')"
       >
         Back to login
@@ -39,6 +46,8 @@ import { safeInject } from '@/safe-inject'
 import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
 import { useToastStore } from '@/stores/use-toast-store'
 import { isOfflineMode } from '@/env-validator'
+import { AuthError } from '@/errors'
+import { toUserMessage } from '@/error-mapper'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseButton from '@/components/BaseButton.vue'
 
@@ -48,7 +57,8 @@ const logger = safeInject(LOGGER_KEY)
 const toastStore = useToastStore()
 
 const statusMessage = ref('Authenticating...')
-const error = ref<string | null>(null)
+
+const uiError = ref<string | null>(null)
 
 onMounted(async () => {
   if (isOfflineMode()) {
@@ -66,8 +76,8 @@ onMounted(async () => {
 
   if (errorCode) {
     logger.error('Auth callback error', { error: errorCode, errorDescription })
-    error.value = errorDescription || 'Authentication failed. Please try again.'
-    toastStore.error(error.value)
+    uiError.value = errorDescription || 'Authentication failed. Please try again.'
+    toastStore.error(uiError.value)
     return
   }
 
@@ -86,14 +96,21 @@ onMounted(async () => {
         refresh_token: refreshToken,
         /* eslint-enable @typescript-eslint/naming-convention */
       }),
-      (e: unknown) => new Error(e instanceof Error ? e.message : 'Session setup failed')
+      (e: unknown) => {
+        if (e instanceof Error) {
+          return new AuthError(e.message, e)
+        }
+        return new AuthError('Session setup failed', e)
+      }
     )
 
     if (result.isErr() || result.value.error) {
-      const msg = result.isErr() ? result.error.message : result.value.error?.message
-      logger.error('Failed to set session in callback', { error: msg })
-      error.value = 'Session setup failed. Please try again.'
-      toastStore.error(error.value)
+      const errorObj = result.isErr()
+        ? result.error
+        : new AuthError(result.value.error?.message || 'Session setup failed')
+      logger.error('Failed to set session in callback', { error: errorObj.message })
+      uiError.value = toUserMessage(errorObj, 'Session setup failed. Please try again.')
+      toastStore.error(uiError.value)
       return
     }
   } else if (code) {
@@ -101,14 +118,21 @@ onMounted(async () => {
 
     const result = await ResultAsync.fromPromise(
       supabase.auth.exchangeCodeForSession(code),
-      (e: unknown) => new Error(e instanceof Error ? e.message : 'Code exchange failed')
+      (e: unknown) => {
+        if (e instanceof Error) {
+          return new AuthError(e.message, e)
+        }
+        return new AuthError('Code exchange failed', e)
+      }
     )
 
     if (result.isErr() || result.value.error) {
-      const msg = result.isErr() ? result.error.message : result.value.error?.message
-      logger.error('Failed to exchange code for session', { error: msg })
-      error.value = 'Authentication failed. Please try again.'
-      toastStore.error(error.value)
+      const errorObj = result.isErr()
+        ? result.error
+        : new AuthError(result.value.error?.message || 'Code exchange failed')
+      logger.error('Failed to exchange code for session', { error: errorObj.message })
+      uiError.value = toUserMessage(errorObj, 'Authentication failed. Please try again.')
+      toastStore.error(uiError.value)
       return
     }
   } else {

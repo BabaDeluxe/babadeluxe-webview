@@ -30,7 +30,7 @@
 
     <div
       v-if="showActions"
-      class="flex items-center gap-1 ml-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+      class="flex items-center gap-1 ml-2 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
     >
       <BaseButton
         variant="icon"

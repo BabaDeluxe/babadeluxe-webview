@@ -1,47 +1,38 @@
-# BabaDeluxe AI Webview
+# babadeluxe-webview
 
-> **Empowering Engineering Excellence through Superior AI Integration.**
+<p align="left">
+  <img src="https://img.shields.io/badge/license-EUPL%201.2-6a5acd?style=flat-rounded" alt="license">
+  <img src="https://img.shields.io/badge/code_style-XO-8a2be2?style=flat-rounded" alt="code style: xo">
+  <img src="https://img.shields.io/badge/vue-3-b06ab3?style=flat-rounded" alt="vue 3">
+  <img src="https://img.shields.io/badge/node-%3E%3D20-9a56bf?style=flat-rounded" alt="node version">
+</p>
+
+> **The chat UI for BabaDeluxe AI Coder.** A Vue 3 webview embedded in the VS Code extension, with full support for real-time streaming, Mermaid diagrams, KaTeX math, and persistent local chat history.
 
 ## Overview
 
-Welcome to the **BabaDeluxe Webview** repository. This project serves as the sophisticated frontend interface for our next-generation AI coding assistant. Designed with enterprise scalability and developer ergonomics in mind, it leverages a modern Vue 3 ecosystem to deliver a seamless, high-performance conversational experience within IDEs.
-
-Our mission is to augment developer productivity by providing context-aware, intelligent code assistance that integrates deeply with existing workflows.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture & Tech Stack](#architecture--tech-stack)
-- [Key Architecture Concepts](#key-architecture-concepts)
-- [Deep VS Code Integration](#deep-vs-code-integration)
-- [Authentication Architecture](#authentication-architecture)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
-- [Contribution Guidelines](#contribution-guidelines)
+This repo contains the frontend that runs inside the VS Code webview panel. It communicates bidirectionally with the extension host via a typed message bridge, connects to the backend over Socket.io, and stores all chat history locally in IndexedDB via Dexie.
 
 ## Architecture & Tech Stack
 
-We adhere to a strict, modern technology stack to ensure maintainability, type safety, and performance:
-
-- **Core Framework:** Vue 3 (Composition API) with TypeScript.
-- **State Management:** Pinia for modular and type-safe state handling.
-- **Build System:** Vite for lightning-fast HMR and optimized production builds.
-- **Styling:** UnoCSS for atomic, on-demand CSS generation combined with Tailwind conventions.
-- **Database:** Dexie.js (IndexedDB wrapper) for robust client-side persistence of chat history and context.
-- **Real-time Communication:** Socket.io-client for low-latency communication with the backend services.
-- **Validation & Safety:** Zod for runtime schema validation and Neverthrow for functional error handling.
-- **Testing:**
+- **Core:** Vue 3 (Composition API) + TypeScript
+- **State:** Pinia
+- **Build:** Vite
+- **Styling:** UnoCSS (Tailwind conventions)
+- **Persistence:** Dexie.js (IndexedDB)
+- **Real-time:** Socket.io-client
+- **Validation:** Zod + neverthrow
+- **Testing:** Vitest (unit) + Playwright (E2E)
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'clusterBkg': '#1a1030', 'clusterBorder': '#4c1d95', 'titleColor': '#e2d9f3', 'nodeBorder': '#7c3aed', 'mainBkg': '#2a1758', 'fontFamily': 'monospace'}}}%%
 graph TD
-    %% Enterprise Styling
-    classDef client fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1
-    classDef backend fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20
-    classDef storage fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#e65100
-    classDef ext fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#4a148c
+    classDef client fill:#2a1758,stroke:#7c3aed,stroke-width:2px,color:#e2d9f3
+    classDef backend fill:#1a0f3a,stroke:#4c1d95,stroke-width:2px,color:#c4b5fd
+    classDef storage fill:#1a1a0a,stroke:#d97706,stroke-width:2px,color:#fcd34d
+    classDef ext fill:#0f1a2a,stroke:#0891b2,stroke-width:2px,color:#67e8f9
 
-    subgraph ClientLayer ["Client Layer (Browser / VS Code Webview)"]
+    subgraph ClientLayer ["Client Layer — Browser / VS Code Webview"]
         direction TB
         VueApp[Vue 3 Application]:::client
         DexieDB[(IndexedDB / Dexie)]:::storage
@@ -55,7 +46,6 @@ graph TD
 
     External[LLM Providers API]:::ext
 
-    %% Connections
     VueApp -->|Read/Write State| DexieDB
     VueApp -->|Bi-directional Sync| SocketServer
     VueApp -->|Auth Tokens| Supabase
@@ -64,48 +54,14 @@ graph TD
     SocketServer <-->|Streaming Response| External
 ```
 
-- **Unit:** Vitest
-- **E2E:** Playwright
-
 ## Key Architecture Concepts
 
-### Modular Composables
+### VS Code Message Bridge
 
-We utilize the Composition API to encapsulate logic into reusable, testable units. Key composables include:
-
-- **UI Logic:** `use-button-variants`, `use-dropdown`, `use-teleported-menu-position` for complex UI state management.
-- **Utilities:** `use-date-formatter`, `use-tracked-timeouts` for robust resource cleanup.
-- **Communication:** `use-socket-listener` for type-safe event handling.
-
-### Robust Client-Side Persistence
-
-Our data layer is built on top of `Dexie.js` but enhanced with custom wrappers for enterprise-grade safety:
-
-- **SafeCollection / SafeTable:** Provides strongly-typed wrappers around Dexie collections to prevent runtime errors and ensure schema consistency.
-- **KeyValueDb:** A specialized store for managing key-value pairs with automatic timestamp tracking (`updatedAt`).
-- **Context Awareness:** The database schema handles complex context references (files, snippets) necessary for AI model interactions.
-
-### Error Handling & Resilience Strategy
-
-We prioritize system stability through defensive programming patterns:
-
-- **Explicit Result Types:** We utilize `neverthrow` to replace exception throwing with type-safe `Result` objects, forcing consumers to handle both success and failure cases explicitly.
-- **Structured Error Hierarchy:** A comprehensive set of custom error classes (`DbError`, `NetworkError`, `RateLimitError`) enables granular error handling and precise UI feedback.
-- **Automatic Retries:** Critical network operations (e.g., model listing, message sending) are protected by a `retryWithBackoff` utility that implements exponential backoff with jitter to handle transient failures gracefully.
-
-### Deep VS Code Integration
-
-This webview is not just an iframe; it is a deeply integrated part of the IDE experience:
-
-- **Bi-directional Communication:** A strongly-typed message bridge facilitates seamless data exchange between the Vue frontend and the VS Code extension host.
-- **Context Awareness:** The application manages complex context states, including pinned files and intelligent suggestions, resolving file contents directly from the editor's document model.
-- **Shared Authentication:** Authentication sessions are synchronized between the extension and the webview to provide a frictionless "sign-in once" experience.
-
-#### Context Resolution Flow
-
-The application uses an asynchronous message bridge to resolve file contents from VS Code securely:
+A typed message bridge handles all communication between the Vue app and the extension host. File contents are resolved asynchronously via request/response pairs keyed by a unique `requestId`:
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'actorBkg': '#2a1758', 'actorBorder': '#7c3aed', 'actorTextColor': '#e2d9f3', 'actorLineColor': '#7c3aed', 'signalColor': '#c4b5fd', 'signalTextColor': '#e2d9f3', 'labelBoxBkgColor': '#1a0f3a', 'labelBoxBorderColor': '#4c1d95', 'labelTextColor': '#c4b5fd', 'loopTextColor': '#e2d9f3', 'noteBkgColor': '#1a0f3a', 'noteTextColor': '#c4b5fd', 'noteBorderColor': '#4c1d95', 'activationBkgColor': '#4c1d95', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
 sequenceDiagram
     participant Store as Pinia Store
     participant Resolver as Context Resolver
@@ -124,32 +80,32 @@ sequenceDiagram
     Resolver-->>Store: Return Resolved Content
 ```
 
-### Dependency Injection & State Management
+### State & Data Layer
 
-- **Strict Dependency Injection:** We enforce a strict DI pattern using Vue's `provide`/`inject` mechanism combined with `Symbol`-based keys and a `safeInject` helper. This ensures runtime dependency availability and facilitates easy mocking for tests.
-- **Store Architecture:** Pinia stores (`useConversationStore`, `useVsCodeContextStore`) act as the single source of truth for domain state, managing complex asynchronous flows and side effects securely.
+Pinia stores are the single source of truth for all domain state. The Dexie layer adds custom `SafeCollection`/`SafeTable` wrappers for type-safe IndexedDB access and a `KeyValueDb` store with automatic `updatedAt` tracking.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'edgeLabelBackground': '#1a1030', 'clusterBkg': '#1a1030', 'clusterBorder': '#4c1d95', 'titleColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
 flowchart LR
-    classDef view fill:#e1bee7,stroke:#4a148c,color:#000
-    classDef logic fill:#bbdefb,stroke:#0d47a1,color:#000
-    classDef state fill:#c8e6c9,stroke:#1b5e20,color:#000
-    classDef infra fill:#ffecb3,stroke:#ff6f00,color:#000
+    classDef view fill:#2a1758,stroke:#7c3aed,stroke-width:2px,color:#e2d9f3
+    classDef logic fill:#1a0f3a,stroke:#4c1d95,stroke-width:2px,color:#c4b5fd
+    classDef state fill:#0f2a1a,stroke:#059669,stroke-width:2px,color:#6ee7b7
+    classDef infra fill:#1a1a0a,stroke:#d97706,stroke-width:2px,color:#fcd34d
 
     View[Vue Component]:::view
     Composable[Composable Logic]:::logic
     Store[Pinia Store]:::state
-    Service[Socket/DB Service]:::infra
+    Service[Socket / DB Service]:::infra
 
     View -->|User Action| Composable
     Composable -->|Dispatch Action| Store
     Store -->|Async Operation| Service
-    Service -->|Result/Stream| Store
+    Service -->|Result / Stream| Store
     Store -->|Reactive State Update| Composable
-    Composable -->|Ref/Computed| View
+    Composable -->|Ref / Computed| View
 ```
 
-### Performance & Search
+### Error Handling
 
 - **Client-Side Fuzzy Search:** To ensure instant feedback, we implement a client-side search service using Damerau-Levenshtein distance algorithms, allowing users to find messages and conversations efficiently without server round-trips.
 - **Optimized Rendering:** Markdown rendering is highly optimized, supporting syntax highlighting, Mermaid diagrams, and LaTeX math via `katex`, all while ensuring security through `DOMPurify` sanitization.
@@ -197,6 +153,7 @@ The application implements a dual-strategy authentication system to ensure seaml
 For full details on every flow, edge cases, and the session race condition fix, see **[docs/AUTH_FLOWS.md](docs/AUTH_FLOWS.md)**.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'actorBkg': '#2a1758', 'actorBorder': '#7c3aed', 'actorTextColor': '#e2d9f3', 'actorLineColor': '#7c3aed', 'signalColor': '#c4b5fd', 'signalTextColor': '#e2d9f3', 'labelBoxBkgColor': '#1a0f3a', 'labelBoxBorderColor': '#4c1d95', 'labelTextColor': '#c4b5fd', 'loopTextColor': '#e2d9f3', 'noteBkgColor': '#1a0f3a', 'noteTextColor': '#c4b5fd', 'noteBorderColor': '#4c1d95', 'activationBkgColor': '#4c1d95', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
 sequenceDiagram
     autonumber
     participant User
@@ -205,8 +162,8 @@ sequenceDiagram
     participant Supabase as Supabase Auth
     participant Socket as Socket Server
 
-    rect rgb(30, 30, 40)
-        note right of User: Scenario 1: Embedded in VS Code
+    rect rgb(26, 15, 58)
+        note right of User: Scenario 1 — Embedded in VS Code
         User->>Webview: Opens Extension
         Webview->>Bridge: Request Session (postMessage)
         Bridge-->>Webview: Return Github Session
@@ -229,9 +186,9 @@ sequenceDiagram
     Socket-->>Webview: Connection Established
 ```
 
-### Project Structure
+### Streaming & Rendering
 
-The codebase is organized to promote separation of concerns and discoverability:
+Socket.io token events are committed to the store on a throttled interval (`streamingCommitIntervalMs`) to avoid blocking the main thread during fast generation. The `ChatMarkdownRenderer` handles partial streams including Mermaid diagrams, KaTeX, and syntax-highlighted code via DOMPurify sanitization.
 
 | Directory         | Purpose                                                                      |
 | :---------------- | :--------------------------------------------------------------------------- |
@@ -244,84 +201,75 @@ The codebase is organized to promote separation of concerns and discoverability:
 | `src/validators`  | Zod schemas for runtime data validation.                                     |
 | `docs/`           | Architecture decision records and flow documentation.                        |
 
-### Environment Configuration
+Client-side conversation search uses Damerau-Levenshtein distance for fuzzy matching, running entirely in the browser against the local IndexedDB.
 
-We enforce strict runtime validation of environment variables using `Zod`. The application will fail to boot if the configuration schema is not met.
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'edgeLabelBackground': '#1a1030', 'clusterBkg': '#1a1030', 'clusterBorder': '#4c1d95', 'titleColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
+graph TD
+    classDef input fill:#2a1758,stroke:#7c3aed,stroke-width:2px,color:#e2d9f3
+    classDef process fill:#1a0f3a,stroke:#4c1d95,stroke-width:2px,color:#c4b5fd
+    classDef store fill:#1a1a0a,stroke:#d97706,stroke-width:2px,color:#fcd34d
 
-Create a `.env.local` file from the provided template:
-
-```bash
-cp .env.local.example .env.local
+    UserInput[User Query]:::input --> SearchService
+    SearchService[Search Service]:::process -->|Fetch All| DB[(IndexedDB)]:::store
+    DB -->|Conversations & Messages| SearchService
+    SearchService -->|Tokenize & Normalize| FuzzyLogic[Fuzzy Matching Logic]:::process
+    FuzzyLogic -->|Damerau-Levenshtein Score| Results[Ranked Results]:::input
 ```
 
-For a full breakdown of how env files, Vite modes, and the CI pipeline interact across all deployment stages, see **[docs/CI_CD_ENV.md](docs/CI_CD_ENV.md)**.
+## Project Structure
+
+| Directory          | Purpose                                                   |
+| :----------------- | :-------------------------------------------------------- |
+| `src/composables/` | Reusable Composition API logic                            |
+| `src/stores/`      | Pinia stores for conversations, context, and UI state     |
+| `src/database/`    | Dexie.js layer with `SafeTable` and `KeyValueDb` wrappers |
+| `src/vs-code/`     | Message bridge, type guards, and VS Code protocols        |
+| `src/components/`  | `Base*` design system components and feature widgets      |
+| `src/views/`       | Route-level pages: Chat, History, Prompts, Settings       |
+| `src/validators/`  | Zod schemas for runtime validation                        |
 
 ## Prerequisites
 
-Ensure your development environment meets the following criteria:
-
-- **Node.js:** v20.19.0+ or v22.12.0+ (strictly enforced via engines)
-- **Package Manager:** PNPM v9+
+- **Node.js**: v20.19.0+ or v22.12.0+
+- **Package Manager**: PNPM v9+
 
 ## Getting Started
 
-### 1. Installation
-
-Clone the repository and install dependencies:
-
 ```bash
 pnpm install
-```
-
-### 2. Development
-
-Start the development server with HMR enabled:
-
-```bash
 pnpm dev
 ```
 
-For performance profiling during development:
+For performance profiling:
 
 ```bash
 pnpm dev-performance
 ```
 
-### 3. Quality Assurance
+### Environment
 
-We maintain rigorous code quality standards. Run the full test suite before pushing:
+Copy the example env file and fill in your values:
 
 ```bash
-pnpm test
+cp .env.local.example .env.local
 ```
 
-- **Unit Tests:** `pnpm test-unit`
-- **E2E Tests:** `pnpm test-e2e`
-- **Type Checking:** `pnpm type-check`
-- **Linting & Formatting:** `pnpm format`
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full breakdown of env files, Vite modes, and deployment stages.
 
 ## Scripts
 
-| Script           | Description                                                    |
-| :--------------- | :------------------------------------------------------------- |
-| `dev`            | Starts the Vite development server.                            |
-| `build`          | Runs type checks and produces a production-ready build.        |
-| `test`           | Executes both unit and end-to-end test suites.                 |
-| `format`         | Fixes linting issues and formats code with Prettier.           |
-| `find-dead-code` | Analyzes the codebase for unused exports and types using Knip. |
-
-## Contribution Guidelines
-
-We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for comprehensive details on our development workflow, coding standards, and submission process.
-
-1. **Code Style:** Strict adherence to TypeScript strict mode and Vue 3 Composition API patterns is required.
-2. **Commit Convention:** Use semantic commit messages.
-3. **Testing:** All new features must be accompanied by comprehensive unit tests. UI changes require E2E coverage.
+| Script           | Description                             |
+| :--------------- | :-------------------------------------- |
+| `dev`            | Start Vite dev server                   |
+| `build`          | Type-check and produce production build |
+| `test`           | Run unit + E2E test suites              |
+| `test-unit`      | Vitest unit tests only                  |
+| `test-e2e`       | Playwright E2E tests only               |
+| `type-check`     | TypeScript type checking                |
+| `format`         | XO + Prettier lint and format           |
+| `find-dead-code` | Knip analysis for unused exports        |
 
 ## License
 
-This project is licensed under the **European Union Public License 1.2 (EUPL-1.2)**.
-
----
-
-**BabaDeluxe** — _Redefining the Future of Software Development._
+[EUPL 1.2](LICENSE.md)

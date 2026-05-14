@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 /**
  * Unit test: useApiKeyManagement field-status state machine.
  *

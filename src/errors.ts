@@ -1,5 +1,4 @@
 import { BaseError } from '@babadeluxe/shared'
-export { BaseError }
 export class DbError extends BaseError {}
 export class ValidationError extends BaseError {}
 export class ChatError extends BaseError {}
@@ -11,11 +10,7 @@ export type SocketConnectionError = NetworkError | SocketError
 
 export class AuthError extends BaseError {}
 export class InitializationError extends BaseError {}
-export class RateLimitError extends BaseError {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause)
-  }
-}
+export class RateLimitError extends BaseError {}
 
 export class InvalidModelFormatError extends BaseError {
   constructor(

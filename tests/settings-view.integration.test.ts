@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 /**
  * Integration test: SettingsView + AsyncInjectable reactive state.
  *
@@ -54,10 +55,12 @@ const mountWithInjectable = (injectable: AsyncInjectable<IApiKeyValidator>): Vue
         },
       },
       stubs: {
+        /* eslint-disable @typescript-eslint/naming-convention */
         BaseSpinner: { template: '<div data-testid="base-spinner" />' },
         BaseButton: { template: '<button data-testid="base-button"><slot /></button>' },
         BaseInput: { template: '<input data-testid="base-input" />' },
         SettingsField: { template: '<div data-testid="settings-field" />' },
+        /* eslint-enable @typescript-eslint/naming-convention */
       },
     },
   })
@@ -100,6 +103,7 @@ describe('SettingsView — AsyncInjectable loading states', () => {
     }
 
     const wrapper = mountWithInjectable(injectable)
+    await new Promise((resolve) => setTimeout(resolve, 0))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(false)
@@ -119,6 +123,7 @@ describe('SettingsView — AsyncInjectable loading states', () => {
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(true)
 
     isReady.value = true
+    await new Promise((resolve) => setTimeout(resolve, 0))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(false)

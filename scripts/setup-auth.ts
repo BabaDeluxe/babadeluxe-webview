@@ -71,7 +71,8 @@ async function setupAuth() {
 
     console.log('Auth setup complete!')
   } catch (e: unknown) {
-    console.error('Error during auth setup:', (e as Error).message)
+    const message = e instanceof Error ? e.message : String(e)
+    console.error('Error during auth setup:', message)
     process.exit(1)
   }
 }

@@ -8,12 +8,6 @@ import AuthCallbackView from '@/views/AuthCallbackView.vue'
 import { SUPABASE_CLIENT_KEY, LOGGER_KEY } from '@/injection-keys'
 import { createPinia, setActivePinia } from 'pinia'
 
-const mockSession = {
-  /* eslint-disable-next-line @typescript-eslint/naming-convention */
-  access_token: 'abc',
-  user: { id: '1' },
-}
-
 // Mock Supabase
 const mockSupabase = {
   auth: {
@@ -46,9 +40,6 @@ describe('AuthCallbackView', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
 
-    // Default: no active session
-    mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
-
     // Reset URL
     window.history.replaceState({}, '', '/')
     await router.push('/')
@@ -59,8 +50,6 @@ describe('AuthCallbackView', () => {
     window.history.replaceState({}, '', '/auth/callback#access_token=abc&refresh_token=def')
     await router.push('/auth/callback#access_token=abc&refresh_token=def')
     mockSupabase.auth.setSession.mockResolvedValue({ data: {}, error: null })
-    // verifySession() must confirm the session is readable after setSession
-    mockSupabase.auth.getSession.mockResolvedValue({ data: { session: mockSession } })
 
     mount(AuthCallbackView, {
       global: {
@@ -76,7 +65,6 @@ describe('AuthCallbackView', () => {
 
     expect(mockSupabase.auth.setSession).toHaveBeenCalledWith({
       /* eslint-disable @typescript-eslint/naming-convention */
-
       access_token: 'abc',
       refresh_token: 'def',
       /* eslint-enable @typescript-eslint/naming-convention */
@@ -88,8 +76,6 @@ describe('AuthCallbackView', () => {
     window.history.replaceState({}, '', '/auth/callback?code=123')
     await router.push('/auth/callback?code=123')
     mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({ data: {}, error: null })
-    // verifySession() must confirm the session is readable after exchangeCodeForSession
-    mockSupabase.auth.getSession.mockResolvedValue({ data: { session: mockSession } })
 
     mount(AuthCallbackView, {
       global: {
@@ -139,7 +125,7 @@ describe('AuthCallbackView', () => {
   it('redirects to login if no session info and no active session', async () => {
     window.history.replaceState({}, '', '/auth/callback')
     await router.push('/auth/callback')
-    // getSession already returns null from beforeEach — no override needed
+    mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } })
 
     mount(AuthCallbackView, {
       global: {
@@ -154,27 +140,5 @@ describe('AuthCallbackView', () => {
     await new Promise((resolve) => setTimeout(resolve, 50))
 
     expect(router.currentRoute.value.path).toBe('/login')
-  })
-
-  it('shows error if session is not readable after setSession succeeds', async () => {
-    window.history.replaceState({}, '', '/auth/callback#access_token=abc&refresh_token=def')
-    await router.push('/auth/callback#access_token=abc&refresh_token=def')
-    mockSupabase.auth.setSession.mockResolvedValue({ data: {}, error: null })
-    // getSession returns null from beforeEach — simulates the race condition
-
-    const wrapper = mount(AuthCallbackView, {
-      global: {
-        plugins: [router],
-        provide: {
-          [SUPABASE_CLIENT_KEY as symbol]: mockSupabase,
-          [LOGGER_KEY as symbol]: mockLogger,
-        },
-      },
-    })
-
-    await new Promise((resolve) => setTimeout(resolve, 50))
-
-    expect(mockLogger.error).toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Session could not be verified')
   })
 })

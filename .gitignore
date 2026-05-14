@@ -33,3 +33,7 @@ node_modules/
 .github/workflows/playwright.yml
 .aider**
 .env.local
+
+# Local temporary files
+*.patch
+fix_*.py

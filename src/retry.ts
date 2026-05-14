@@ -28,6 +28,10 @@ export async function retryWithBackoff<T, E>(
   const { maxRetries, initialDelayMilliseconds, backoffMultiplier, maxDelayMilliseconds, logger } =
     { ...defaultRetryConfig, ...config }
 
+  if (maxRetries <= 0) {
+    return err(new RateLimitError(`retryWithBackoff called with maxRetries <= 0 for "${context}"`))
+  }
+
   let lastError: E | RateLimitError | undefined
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
