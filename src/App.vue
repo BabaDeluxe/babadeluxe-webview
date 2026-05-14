@@ -87,7 +87,7 @@
                 <BaseButton
                   data-testid="nav-settings-button"
                   variant="ghost"
-                  icon="i-bi:gear"
+                  icon="i-weui:setting-outlined"
                   class="w-full justify-start"
                   @click="
                     () => {
@@ -204,6 +204,7 @@
 
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { onErrorCaptured } from 'vue'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
@@ -211,7 +212,21 @@ import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
 import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
 import { useAppLogic } from '@/composables/use-app-logic'
+import { useToastStore } from '@/stores/use-toast-store'
+import { logger } from '@/logger'
 
 const router = useRouter()
+const toasts = useToastStore()
 const { session, handleNewChat, handleLogout } = useAppLogic()
+
+onErrorCaptured((err, instance, info) => {
+  logger.error('Something crashed', {
+    vueInfo: info,
+    componentName: instance?.$options?.name,
+    error: err,
+  })
+
+  toasts.error('Something crashed. Please reload.')
+  return false
+})
 </script>

@@ -51,15 +51,11 @@ const props = defineProps({
   isDisabled: { type: Boolean, default: false },
   isLoading: { type: Boolean, default: false },
   isSelected: { type: Boolean, default: false },
-  allowTextOverride: { type: Boolean, default: true },
 })
 
 defineEmits(['click'])
 
 const buttonRef = ref<HTMLButtonElement>()
-
-// Compiled regex for text color classes (performance)
-const textColorRegex = /\btext-(white|black|deepText|subtleText|accent|error|success|warning)\b/
 
 const computedClasses = computed(() => {
   const variantClasses = getButtonClasses(props.variant)
@@ -71,31 +67,9 @@ const computedClasses = computed(() => {
         ? 'bg-borderMuted text-deepText'
         : ''
 
-  const userClassesRaw = props.class.trim()
-  const userHasTextClass = textColorRegex.test(userClassesRaw)
-
-  const shouldLetUserControlText = userHasTextClass && props.allowTextOverride
-  const shouldStripUserText = userHasTextClass && !props.allowTextOverride
-
-  const userClassesCleaned = shouldStripUserText
-    ? userClassesRaw
-        .split(/\s+/)
-        .filter((cls) => !textColorRegex.test(cls))
-        .join(' ')
-    : userClassesRaw
-
-  const baseMerged = twMerge(variantClasses, selectedClasses, userClassesCleaned)
-
-  if (shouldLetUserControlText) {
-    return baseMerged
-  }
-
-  // Variant/auto controls text: only add auto color if no text-* at all
-  const hasAnyTextClass = textColorRegex.test(baseMerged)
-
   // Default to text-white for primary, text-deepText for others if not specified
   const defaultTextColor = props.variant === 'primary' ? 'text-white' : 'text-deepText'
 
-  return hasAnyTextClass ? baseMerged : twMerge(baseMerged, defaultTextColor)
+  return twMerge(variantClasses, defaultTextColor, selectedClasses, props.class)
 })
 </script>
