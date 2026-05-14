@@ -25,8 +25,14 @@ export function useChatContextHandler(
   messageComponents: Ref<Map<number, StreamingMessageComponent>>
 ) {
   const vsCodeContext = useVsCodeContextStore()
-  const { isInVsCode, contextItems, contextError, contextRevision, isLoadingContext } =
-    storeToRefs(vsCodeContext)
+  const {
+    isInVsCode,
+    contextItems,
+    contextError,
+    contextRevision,
+    isLoadingContext,
+    contextRootPath,
+  } = storeToRefs(vsCodeContext)
   const {
     toggleLocked,
     refreshSuggestions,
@@ -137,6 +143,7 @@ export function useChatContextHandler(
     contextError,
     contextRevision,
     isLoadingContext,
+    contextRootPath,
     refreshSuggestions,
     prepareChatRequest,
     handleRemoveContextItem,

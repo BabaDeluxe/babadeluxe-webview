@@ -19,6 +19,7 @@
           v-model:current-model="currentModel"
           :is-in-vs-code="isInVsCode"
           :is-context-root-bar-visible="isContextRootBarVisible"
+          :context-root-path="contextRootPath"
           :context-items="contextItems"
           :has-context-error="!!contextError"
           :is-loading-context="isLoadingContext"
@@ -26,9 +27,9 @@
           :is-loading="isLoadingConversations || isLoadingMessages"
           :is-submitting="isChatStreaming"
           placeholder="How can I help you today?"
-          data-testid="chat-message-input-top"
-          submit-button-data-testid="chat-send-button-top"
-          abort-button-data-testid="chat-abort-button-top"
+          test-id="chat-message-input-top"
+          submit-button-test-id="chat-send-button-top"
+          abort-button-test-id="chat-abort-button-top"
           :prompt-options="promptOptions"
           :grouped-models="groupedModels"
           :is-loading-models="isLoadingModels"
@@ -58,9 +59,11 @@
       <!-- Empty state -->
       <BaseEmptyState
         v-else-if="messages.length === 0"
-        icon="i-bi:chat-left-dots"
+        icon="i-hugeicons:quill-write-02"
         :title="`Hello ${currentUsername}, what's on your mind today?`"
         description="Ask me anything to begin!"
+        :has-border="true"
+        class="m-4 bg-panel/10"
       />
 
       <!-- Messages -->
@@ -102,6 +105,7 @@
           v-model:current-model="currentModel"
           :is-in-vs-code="isInVsCode"
           :is-context-root-bar-visible="isContextRootBarVisible"
+          :context-root-path="contextRootPath"
           :context-items="contextItems"
           :has-context-error="!!contextError"
           :is-loading-context="isLoadingContext"
@@ -109,9 +113,9 @@
           :is-loading="isLoadingConversations || isLoadingMessages"
           :is-submitting="isChatStreaming"
           placeholder="How can I help you today?"
-          data-testid="chat-message-input-bottom"
-          submit-button-data-testid="chat-send-button-bottom"
-          abort-button-data-testid="chat-abort-button-bottom"
+          test-id="chat-message-input-bottom"
+          submit-button-test-id="chat-send-button-bottom"
+          abort-button-test-id="chat-abort-button-bottom"
           :prompt-options="promptOptions"
           :grouped-models="groupedModels"
           :is-loading-models="isLoadingModels"
@@ -158,6 +162,7 @@ const {
   contextItems,
   contextError,
   isLoadingContext,
+  contextRootPath,
   isContextRootBarVisible,
   currentMessage,
   currentPrompt,

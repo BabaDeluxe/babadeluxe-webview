@@ -50,7 +50,7 @@
           >
             <BaseButton
               variant="menu"
-              icon="i-bi:terminal"
+              icon="i-hugeicons:quill-write-02"
               title="Prompts"
               class="w-10 h-10 p-0"
               :is-selected="isExactActive"
@@ -72,8 +72,8 @@
           </BaseButton>
 
           <BaseDropdownMenu
-            trigger-test-id="nav-user-menu-button"
-            menu-test-id="nav-user-menu-dropdown"
+            trigger-testid="nav-user-menu-button"
+            menu-testid="nav-user-menu-dropdown"
           >
             <template #trigger>
               <BaseAvatar
@@ -165,7 +165,7 @@
           >
             <BaseButton
               variant="menu"
-              icon="i-bi:terminal"
+              icon="i-hugeicons:quill-write-02"
               data-testid="nav-prompts-link"
               :is-selected="isExactActive"
               @click="navigate"

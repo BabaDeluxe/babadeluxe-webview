@@ -16,12 +16,14 @@
     <!-- User Placeholder -->
     <div
       v-else-if="role === 'user'"
-      class="w-14 h-14 flex items-center justify-center text-subtleText rounded-full"
+      class="flex items-center justify-center text-subtleText rounded-full"
+      :class="imageSizeClasses"
       role="img"
       aria-label="User avatar"
     >
       <i
-        class="i-bi:person-circle w-8 h-8"
+        class="i-bi:person-circle"
+        :class="iconSizeClasses"
         aria-hidden="true"
       />
     </div>
@@ -29,7 +31,8 @@
     <!-- Assistant Robot -->
     <div
       v-else
-      class="w-14 h-14 flex items-center justify-center text-accent"
+      class="flex items-center justify-center text-accent"
+      :class="imageSizeClasses"
       role="img"
       aria-label="Assistant avatar"
     >
@@ -48,8 +51,11 @@ import { safeInject } from '@/safe-inject'
 
 const logger = safeInject(LOGGER_KEY)
 const envConfig: EnvConfigType = safeInject(ENV_CONFIG_KEY)
+
 const supabaseUrl = envConfig.VITE_SUPABASE_URL ?? ''
 const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : ''
+const useAvatar = useUserAvatar(projectRef)
+const avatarUrl = useAvatar?.avatarUrl
 if (!projectRef) {
   logger.warn('ProjectRef is unset in during base avatar component init')
 }
@@ -105,7 +111,4 @@ const iconSizeClasses = computed(() => {
       return 'w-8 h-8'
   }
 })
-
-const avatarUrlRef = useUserAvatar(projectRef)?.avatarUrl
-const avatarUrl = avatarUrlRef ? avatarUrlRef.value : undefined
 </script>

@@ -2,7 +2,7 @@
   <div class="flex flex-row">
     <BaseDropdown
       :model-value="prompt"
-      icon="i-bi:chat-left"
+      icon="i-hugeicons:quill-write-02"
       placement="top"
       :items="promptOptions"
       @update:model-value="emit('update:prompt', $event)"
