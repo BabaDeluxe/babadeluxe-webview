@@ -315,15 +315,17 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     return result
   }
 
-  useEventListener(window, 'message', handleVsCodeMessage)
+  if (isInVsCode.value) {
+    useEventListener(window, 'message', handleVsCodeMessage)
 
-  const notifySidebarReady = (): void => {
-    const message: SidebarReadyMessage = { type: 'sidebar.ready' }
-    bridge.post(message)
+    const notifySidebarReady = (): void => {
+      const message: SidebarReadyMessage = { type: 'sidebar.ready' }
+      bridge.post(message)
+    }
+
+    notifySidebarReady()
+    void rebuildPinnedItems()
   }
-
-  notifySidebarReady()
-  void rebuildPinnedItems()
 
   return {
     // state / flags
