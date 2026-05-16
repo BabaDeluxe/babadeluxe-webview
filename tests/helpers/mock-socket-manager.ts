@@ -121,7 +121,7 @@ export function createMockSocketManager(
 ) {
   const socketManager = new MockSocketManager(options)
 
-  const global = {
+  const global: any = {
     provide: {
       [SOCKET_MANAGER_KEY as symbol]: ref(socketManager),
     },

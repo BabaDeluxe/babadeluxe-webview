@@ -7,7 +7,7 @@ import { nextTick, ref } from 'vue'
 import { useSettings } from '@/composables/use-settings'
 import * as emitWithTimeoutModule from '@/emit-with-timeout'
 import { mountComposable } from './helpers/mount-composable'
-import type { MockSocket } from './helpers/mock-socket-manager'
+import type { MockSocket, MockSettingsSocket } from './helpers/mock-socket-manager'
 import {
   createMockSocketManager,
   trigger as triggerSocketEvent,
@@ -86,7 +86,7 @@ const fixtures = {
     },
   },
   responses: {
-    success: (data?: unknown) => ({ success: true as const, data }),
+    success: (data?: unknown) => ({ success: true as const, data: data ?? [] }),
     error: (error?: string) => ({
       success: false as const,
       error: error ?? 'Unknown error',
@@ -105,7 +105,7 @@ function trigger<T extends keyof Root.Emission>(
 
 function mockGetAllEmit(response: unknown): void {
   vi.spyOn(emitWithTimeoutModule, 'emitWithTimeout').mockResolvedValue(
-    ok(response) as Result<unknown, Error | string>
+    ok((response as any).data) as Result<unknown, Error | string>
   )
 }
 
@@ -133,14 +133,13 @@ describe('useSettings()', () => {
   function mountSettingsSocket() {
     const { socketManager, global } = createMockSocketManager()
     settingsSocket = socketManager.settingsSocket as MockSettingsSocket
-    global.provide[APP_DB_KEY as symbol] = mockDb
 
     return mountComposable(() => useSettings(), {
       global: {
         ...global,
         provide: {
           ...global.provide,
-          [APP_DB_KEY as symbol]: { localSetting: {} }, // Mock DB even if not offline
+          [APP_DB_KEY as symbol]: mockDb, // Mock DB even if not offline
         }
       }
     })
