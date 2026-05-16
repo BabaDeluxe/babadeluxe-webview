@@ -60,7 +60,8 @@ export function createAppRouter(supabase: SupabaseClient): Router {
   router.beforeEach(async (to) => {
     if (offline) {
       if (
-        to.path === '/' || to.path === '' ||
+        to.path === '/' ||
+        to.path === '' ||
         to.path === '/login' ||
         to.path === '/reset-password' ||
         to.path === '/auth/callback'

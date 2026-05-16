@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention, @typescript-eslint/no-explicit-any */
 import { ref, watch, onMounted, type Ref } from 'vue'
 import { isOfflineMode } from '@/env-validator'
 import { useRouter } from 'vue-router'
