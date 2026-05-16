@@ -1,12 +1,15 @@
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConversationStore } from '@/stores/use-conversation-store'
+import { useToastStore } from '@/stores/use-toast-store'
 import { LOGGER_KEY } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
+import { toUserMessage } from '@/error-mapper'
 
 export function useChatHistory(currentConversationId: { value: number }) {
   const logger = safeInject(LOGGER_KEY)
   const store = useConversationStore()
+  const toasts = useToastStore()
   const { messages } = storeToRefs(store)
   const { loadMessages } = store
 
@@ -27,7 +30,14 @@ export function useChatHistory(currentConversationId: { value: number }) {
         conversationId: currentConversationId.value,
         error: result.error,
       })
+      toasts.error(toUserMessage(result.error))
       return
+    }
+
+    if (messages.value.length === 0) {
+       logger.warn('No messages found for conversation', {
+         conversationId: currentConversationId.value
+       })
     }
   }
 

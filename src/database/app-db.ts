@@ -1,4 +1,4 @@
-import { Dexie, type Table } from 'dexie'
+import { Dexie, type Table, type Transaction } from 'dexie'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import type { Conversation, Message, ContextReference, LocalSetting } from '@/database/types'
 import type { AbstractLogger } from '@/logger'
@@ -10,22 +10,22 @@ import { encodeContextReferences, decodeContextReferences } from '@/database/ser
 type DbMessage = {
   id?: number
   conversationId: number
-  role: 'user' | 'assistant'
+  role: Message['role']
   timestamp: Date
   content: string
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
-  // JSON stringified
-  contextReferences?: string
+  contextReferences?: string // Encoded as JSON
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
 
 export class AppDb extends Dexie {
-  conversation!: SafeTable<Conversation, Conversation, number>
-  message!: SafeTable<DbMessage, NewDbMessage, number>
-  localSetting!: SafeTable<LocalSetting, LocalSetting, number>
+  public conversation!: SafeTable<Conversation, Conversation, number>
+  public message!: SafeTable<DbMessage, NewDbMessage, number>
+  public localSetting!: SafeTable<LocalSetting, LocalSetting, number>
+
   private _conversationTable!: Table<Conversation, number>
   private _messageTable!: Table<DbMessage, number>
   private _localSettingTable!: Table<LocalSetting, number>
@@ -350,13 +350,6 @@ export class AppDb extends Dexie {
   }
 
   private _toDomainError(error: unknown): DbError {
-    if (error instanceof DexieError) {
-      return new DbError(
-        `Database operation '${error.operation}' failed on table '${error.tableName}'`,
-        error
-      )
-    }
-
     return new DbError(
       error instanceof Error ? error.message : 'An unknown DB error occurred',
       error instanceof Error ? error : undefined

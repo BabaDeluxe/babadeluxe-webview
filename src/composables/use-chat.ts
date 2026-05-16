@@ -564,11 +564,12 @@ export function useChat() {
         await resumeInterruptedStreams()
 
         if (!currentConversationId.value && store.conversations.length > 0) {
-          const highestId = store.conversations.reduce(
-            (max, c) => (c.id > max ? c.id : max),
-            store.conversations[0].id
-          )
-          currentConversationId.value = highestId
+          const latest = [...store.conversations].sort((a, b) => {
+            const timeA = a.updatedAt?.getTime() ?? 0
+            const timeB = b.updatedAt?.getTime() ?? 0
+            return timeB - timeA
+          })[0]
+          currentConversationId.value = latest.id
         }
 
         await loadMessagesForCurrentConversation()
