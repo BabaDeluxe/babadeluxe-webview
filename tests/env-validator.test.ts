@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention, @typescript-eslint/no-explicit-any */
 import { describe, it, expect, afterEach, test, beforeAll } from 'vitest'
 import { type EnvConfigType, validateEnvConfig } from '../src/env-validator'
 
@@ -23,7 +24,7 @@ describe('validateEnvConfig()', () => {
 
   afterEach(() => {
     for (const key in env) {
-        delete (env as any)[key]
+      delete (env as any)[key]
     }
     Object.assign(env, originalEnv)
   })
@@ -35,7 +36,7 @@ describe('validateEnvConfig()', () => {
 
   describe('validation errors', () => {
     test('returns Err when VITE_SUPABASE_URL is invalid', () => {
-      (env as any).VITE_SUPABASE_URL = 'not-a-url'
+      ;(env as any).VITE_SUPABASE_URL = 'not-a-url'
       const result = validateEnvConfig()
       expect(result.isErr()).toBe(true)
       if (result.isErr()) {
@@ -44,7 +45,7 @@ describe('validateEnvConfig()', () => {
     })
 
     test('returns Err when VITE_SOCKET_URL is invalid', () => {
-      (env as any).VITE_SOCKET_URL = 'also-not-a-url'
+      ;(env as any).VITE_SOCKET_URL = 'also-not-a-url'
       const result = validateEnvConfig()
       expect(result.isErr()).toBe(true)
       if (result.isErr()) {
@@ -53,8 +54,8 @@ describe('validateEnvConfig()', () => {
     })
 
     test('returns Err when VITE_SUPABASE_ANON_KEY is missing and offline mode is false', () => {
-      (env as any).VITE_OFFLINE_MODE = 'false';
-      delete (env as any).VITE_SUPABASE_ANON_KEY;
+      ;(env as any).VITE_OFFLINE_MODE = 'false'
+      delete (env as any).VITE_SUPABASE_ANON_KEY
       const result = validateEnvConfig()
       expect(result.isErr()).toBe(true)
       if (result.isErr()) {
@@ -63,8 +64,8 @@ describe('validateEnvConfig()', () => {
     })
 
     it('returns Err when multiple fields are invalid', () => {
-      (env as any).VITE_SUPABASE_URL = 'bad-url';
-      (env as any).VITE_SOCKET_URL = 'also-bad';
+      ;(env as any).VITE_SUPABASE_URL = 'bad-url'
+      ;(env as any).VITE_SOCKET_URL = 'also-bad'
       const result = validateEnvConfig()
       expect(result.isErr()).toBe(true)
     })
