@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, afterEach, vi, test } from 'vitest'
 import type { Root } from '@babadeluxe/shared'
-import { nextTick } from 'vue'
+import { nextTick, ref } from 'vue'
 import { useSettings } from '@/composables/use-settings'
 import * as emitWithTimeoutModule from '@/emit-with-timeout'
 import { mountComposable } from './helpers/mount-composable'
@@ -15,6 +15,14 @@ import {
 import type { Result } from 'neverthrow'
 import { ok } from 'neverthrow'
 import { APP_DB_KEY } from '@/injection-keys'
+
+vi.mock('@/env-validator', async (orig) => {
+  const actual = await orig<any>()
+  return {
+    ...actual,
+    isOfflineMode: () => false,
+  }
+})
 
 vi.mock('@babadeluxe/shared', async (origImport) => {
   const actual = await origImport<{
@@ -128,7 +136,13 @@ describe('useSettings()', () => {
     global.provide[APP_DB_KEY as symbol] = mockDb
 
     return mountComposable(() => useSettings(), {
-      global,
+      global: {
+        ...global,
+        provide: {
+          ...global.provide,
+          [APP_DB_KEY as symbol]: { localSetting: {} }, // Mock DB even if not offline
+        }
+      }
     })
   }
 
