@@ -36,7 +36,7 @@ const forwardedAttrs = computed(() => {
 
 const textareaClass = computed(() => {
   const base =
-    props.variant === 'input'
+    props.variant === 'input' || props.variant === 'message'
       ? 'w-full bg-panel border border-borderMuted rounded-lg px-3 py-2 text-base outline-none text-deepText placeholder-subtleText focus:border-accent transition-colors resize-none'
       : 'w-full bg-transparent border-none px-0 py-0 text-sm outline-none text-deepText placeholder-subtleText resize-none'
 
@@ -45,7 +45,7 @@ const textareaClass = computed(() => {
 
 const textareaStyle = computed<StyleValue>(() => {
   const baseStyle: CSSProperties =
-    props.variant === 'input'
+    props.variant === 'input' || props.variant === 'message'
       ? { maxHeight: props.maxHeight, minHeight: '2.5rem' }
       : { maxHeight: props.maxHeight }
 

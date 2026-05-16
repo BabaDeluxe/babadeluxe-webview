@@ -57,36 +57,32 @@ vi.mock('@babadeluxe/shared', async (origImport) => {
           dataType: 'number' as const,
           required: false,
           description: 'Max tokens',
-          minValue: 1,
         }
       }
-      // Fallback to real behavior
-      return actual.getSettingDefinition?.(key)
+      return undefined
     },
   }
 })
-
-export type MockSettingsSocket = MockSocket
 
 const fixtures = {
   settings: {
     openaiKey: {
       settingKey: 'OPENAI_API_KEY',
       settingValue: 'sk-abc123',
-      dataType: 'string' as const,
-      updatedAt: new Date('2026-02-07T15:00:00Z').toISOString(),
+      dataType: 'string',
+      updatedAt: new Date().toISOString(),
     },
     anthropicKey: {
       settingKey: 'ANTHROPIC_API_KEY',
-      settingValue: 'sk-ant-xyz789',
-      dataType: 'string' as const,
-      updatedAt: new Date('2026-02-07T15:00:00Z').toISOString(),
+      settingValue: 'sk-ant456',
+      dataType: 'string',
+      updatedAt: new Date().toISOString(),
     },
     maxTokens: {
       settingKey: 'MAX_TOKENS',
-      settingValue: '4096',
-      dataType: 'number' as const,
-      updatedAt: new Date('2026-02-07T15:00:00Z').toISOString(),
+      settingValue: 2048,
+      dataType: 'number',
+      updatedAt: new Date().toISOString(),
     },
   },
   responses: {
@@ -119,10 +115,25 @@ function mockUpsertEmit(): void {
   )
 }
 
+const mockDb = {
+  localSetting: {
+    where: vi.fn().mockReturnValue({
+      equals: vi.fn().mockReturnValue({
+        first: vi.fn().mockResolvedValue(ok(undefined)),
+      }),
+    }),
+    toArray: vi.fn().mockResolvedValue(ok([])),
+    add: vi.fn().mockResolvedValue(ok(1)),
+    update: vi.fn().mockResolvedValue(ok(1)),
+    delete: vi.fn().mockResolvedValue(ok(1)),
+  },
+}
+
 describe('useSettings()', () => {
   function mountSettingsSocket() {
     const { socketManager, global } = createMockSocketManager()
     settingsSocket = socketManager.settingsSocket as MockSettingsSocket
+    global.provide[APP_DB_KEY as symbol] = mockDb
 
     return mountComposable(() => useSettings(), {
       global: {
@@ -203,16 +214,16 @@ describe('useSettings()', () => {
 
   describe('loadSettings', () => {
     it('loads all settings on success', async () => {
-      mockGetAllEmit([
-        fixtures.settings.openaiKey,
-        fixtures.settings.anthropicKey,
-        fixtures.settings.maxTokens,
-      ])
+      mockGetAllEmit(
+        fixtures.responses.success([
+          fixtures.settings.openaiKey,
+          fixtures.settings.anthropicKey,
+          fixtures.settings.maxTokens,
+        ])
+      )
 
-      const { settings, loadSettings, isLoading } = mountSettingsSocket()
-
-      const loadResult = await loadSettings()
-      if (loadResult.isErr()) return
+      const { settings, isLoading, loadSettings } = mountSettingsSocket()
+      await loadSettings()
 
       expect(isLoading.value).toBe(false)
       expect(settings.value).toHaveLength(3)
@@ -227,37 +238,16 @@ describe('useSettings()', () => {
   })
 
   describe('upsertSetting', () => {
-    const upsertCases = [
-      {
-        name: 'string setting',
-        key: 'OPENAI_API_KEY',
-        value: 'sk-new',
-        dataType: 'string' as const,
-      },
-      {
-        name: 'number setting',
-        key: 'MAX_TOKENS',
-        value: 8192,
-        dataType: 'number' as const,
-      },
-      {
-        name: 'boolean setting',
-        key: 'ENABLE_STREAMING',
-        value: true,
-        dataType: 'boolean' as const,
-      },
-    ]
+    test.each([
+      ['string setting', 'OPENAI_API_KEY', 'sk-new-key', 'string'],
+      ['number setting', 'MAX_TOKENS', 4096, 'number'],
+      ['boolean setting', 'OFFLINE_MODE', true, 'boolean'],
+    ])('resolves on successful upsert: %s', async (_, key, value, type) => {
+      mockUpsertEmit()
+      const { upsertSetting } = mountSettingsSocket()
 
-    test.each(upsertCases)(
-      'resolves on successful upsert: $name',
-      async ({ key, value, dataType }) => {
-        mockUpsertEmit()
-
-        const { upsertSetting } = mountSettingsSocket()
-
-        const result = await upsertSetting(key, value, dataType)
-        expect(result.isOk()).toBe(true)
-      }
-    )
+      const result = await upsertSetting(key, value, type as 'string' | 'number' | 'boolean')
+      expect(result.isOk()).toBe(true)
+    })
   })
 })

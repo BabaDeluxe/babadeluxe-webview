@@ -7,12 +7,14 @@
     <div class="flex flex-row w-full items-center justify-between flex-shrink-0 gap-2 px-4 pt-4">
       <h3 class="text-lg font-medium text-deepText">All Prompts</h3>
       <BaseButton
-        variant="primary"
+        variant="secondary"
         icon="i-bi:plus-lg"
-        text="New Prompt"
+        class="md:w-auto w-9 h-9 md:h-auto"
         data-testid="prompts-new-button"
         @click="handleCreateNewPrompt"
-      />
+      >
+        <span class="hidden md:inline-block">New Prompt</span>
+      </BaseButton>
     </div>
 
     <div
