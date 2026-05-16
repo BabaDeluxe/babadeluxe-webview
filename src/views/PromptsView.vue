@@ -8,11 +8,11 @@
       <h3 class="text-lg font-medium text-deepText">All Prompts</h3>
       <BaseButton
         variant="secondary"
-        icon="i-hugeicons:quill-write-02"
+        icon="i-bi:plus-lg"
+        class="md:w-auto w-9 h-9 md:h-auto"
         data-testid="prompts-new-button"
         @click="handleCreateNewPrompt"
       >
-        <i class="i-bi:plus-lg -ml-1" />
         <span class="hidden md:inline-block">New Prompt</span>
       </BaseButton>
     </div>
