@@ -114,7 +114,7 @@ export function useHistory() {
     }
 
     isLoadingMessages.value = true
-    const result = await appDb.getMessageByConversation(conversationId)
+    const result = await appDb.getMessagesByConversation(conversationId)
     isLoadingMessages.value = false
 
     if (result.isErr()) {
