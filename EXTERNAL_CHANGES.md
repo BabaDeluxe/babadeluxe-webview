@@ -4,15 +4,23 @@ The following changes are required in external packages to support the current B
 
 ## @babadeluxe/shared
 
+### Consolidation of Feature Branches
+I have consolidated the following feature branches in the `babadeluxe-shared` repository into a single coherent state:
+- `feat/prompt-injection-settings`
+- `feat/temperature-per-model`
+
 ### Missing Exports
 The following types and constants are currently missing from the exported API of `@babadeluxe/shared` but are required by `PromptInjectionSettings.vue` and `prompt-injection-service.ts`:
 
 - `PromptInjectionMode` (type)
 - `PromptInjectionPosition` (type)
 - `PROMPT_INJECTION_DEFAULTS` (constant)
+- `ModelTemperatures` (type)
+- `DEFAULT_TEMPERATURE` (constant)
+- Helper functions: `getModelTemperature`, `setModelTemperature`, `resetModelTemperature`.
 
-**Temporary Workaround**:
-These types and the default constant have been manually defined in `src/services/prompt-injection-service.ts` within the webview repository.
+**Action Taken**:
+I have manually implemented these types and defaults in `src/services/prompt-injection-service.ts` within the webview repository as a temporary workaround.
 
 **Action Required**:
-Update `@babadeluxe/shared` to include and export these members, then update the webview to import them from the package.
+A PR should be opened in `@babadeluxe/shared` merging `feat/prompt-injection-settings` and `feat/temperature-per-model` and ensuring all types/helpers are properly exported. I have verified the merge logic locally.
