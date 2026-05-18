@@ -35,9 +35,9 @@ export function useChatHistory(currentConversationId: { value: number }) {
     }
 
     if (messages.value.length === 0) {
-       logger.warn('No messages found for conversation', {
-         conversationId: currentConversationId.value
-       })
+      logger.warn('No messages found for conversation', {
+        conversationId: currentConversationId.value,
+      })
     }
   }
 

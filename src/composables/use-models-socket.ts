@@ -1,13 +1,16 @@
-import { ref, computed, onUnmounted, watch, readonly } from 'vue'
-import { type Result, err, ok, ResultAsync } from 'neverthrow'
-import type { AbstractLogger } from '@/logger'
-import type { SocketManager } from '@/socket-manager'
-import { LOGGER_KEY } from '@/injection-keys'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/naming-convention */
+import { ref, computed, watch, onUnmounted, readonly } from 'vue'
+import { ResultAsync, type Result, ok, err } from 'neverthrow'
 import { NetworkError } from '@/errors'
+import { type AbstractLogger } from '@/logger'
 import { safeInject } from '@/safe-inject'
-import { socketTimeoutMs } from '@/constants'
+import { LOGGER_KEY } from '@/injection-keys'
 import { useSocketManager } from '@/composables/use-socket-manager'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
+import type { SocketManager } from '@/socket-manager'
+import { socketTimeoutMs } from '@/constants'
+import { modelsInitializeContext } from '@/composables/constants'
 import { retryWithBackoff } from '@/retry'
 import {
   modelsSocketConnectionFailed,
@@ -16,10 +19,10 @@ import {
   backendReturnedEmptyModels,
   failedToListModels,
   socketNotConnected,
-  modelsInitializeContext,
   reloadModelsDueToUpdate,
   failedToReloadModels,
 } from '@/composables/constants'
+
 const providers = ['openai', 'anthropic', 'gemini', 'ollama', 'deepseek'] as const
 type Provider = (typeof providers)[number]
 
@@ -139,10 +142,11 @@ const getProviderDisplayName = (provider: Provider): string => {
     anthropic: 'Anthropic',
     gemini: 'Google Gemini',
     ollama: 'Ollama',
-    deepseek: 'deepseek',
+    deepseek: 'DeepSeek',
   }
   return displayNames[provider]
 }
+
 const models = ref<Record<Provider, RawModel[]>>({
   openai: [],
   anthropic: [],
@@ -161,10 +165,6 @@ type Timeouts = {
 type ModelsUpdateHandler = () => void
 const updateHandlerBySocket = new WeakMap<object, ModelsUpdateHandler>()
 
-/**
- * Ensures that the 'models:updated' listener is attached to the given socket.
- * Uses a WeakMap to cache the handler per socket instance, preventing duplicate listeners.
- */
 function ensureModelsSocketListeners(
   modelsSocket: SocketManager['modelsSocket'],
   logger: AbstractLogger,
@@ -185,6 +185,7 @@ function ensureModelsSocketListeners(
   modelsSocket.off('models:updated', handler)
   modelsSocket.on('models:updated', handler)
 }
+
 export async function initializeModels(
   modelsSocket: SocketManager['modelsSocket'],
   timeouts?: Timeouts
@@ -195,14 +196,13 @@ export async function initializeModels(
   modelsError.value = undefined
 
   const fetchWork = async (): Promise<Result<void, NetworkError>> => {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     const win = window as unknown as { __TEST_MODELS__?: Record<Provider, RawModel[]> }
 
     if (typeof window !== 'undefined' && win.__TEST_MODELS__) {
       models.value = filterModelsByProvider(win.__TEST_MODELS__)
       modelsLoadedCount.value++
       isLoadingModels.value = false
-      return ok()
+      return ok(undefined)
     }
 
     const waitResult = await modelsSocket.waitForConnection()
@@ -244,11 +244,11 @@ export async function initializeModels(
           }
 
           resolve({
-            openai: response.models.openai,
-            anthropic: response.models.anthropic,
-            gemini: response.models.gemini,
-            ollama: [], // TODO Implement ollama and deepseek
-            deepseek: [],
+            openai: response.models.openai || [],
+            anthropic: response.models.anthropic || [],
+            gemini: response.models.gemini || [],
+            ollama: (response.models as any).ollama || [],
+            deepseek: (response.models as any).deepseek || [],
           })
         })
       }),
@@ -268,7 +268,7 @@ export async function initializeModels(
     models.value = filterModelsByProvider(rawModels)
     modelsLoadedCount.value++
 
-    return ok()
+    return ok(undefined)
   }
 
   fetchPromise = retryWithBackoff(fetchWork, modelsInitializeContext, {
@@ -287,6 +287,7 @@ export async function initializeModels(
 
   return fetchResult
 }
+
 export function useModelsSocket() {
   const { socketManagerRef } = useSocketManager()
   const logger: AbstractLogger = safeInject(LOGGER_KEY)
@@ -356,6 +357,8 @@ export function useModelsSocket() {
     return result
   }
 
+  const selectedModelContextWindow = ref<number | undefined>(128000)
+
   return {
     models,
     groupedModels,
@@ -363,5 +366,6 @@ export function useModelsSocket() {
     modelsError: readonly(modelsError),
     modelsLoadedCount,
     reloadModels: reload,
+    selectedModelContextWindow,
   }
 }

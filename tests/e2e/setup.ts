@@ -106,7 +106,10 @@ async function globalSetup(config: FullConfig): Promise<void> {
     )
 
     if (backendResult.isErr()) {
-      logger.error('Backend health check failed, but continuing as this might be an environment without a real backend', { error: backendResult.error })
+      logger.error(
+        'Backend health check failed, but continuing as this might be an environment without a real backend',
+        { error: backendResult.error }
+      )
     }
   } else {
     logger.log('ℹ️ Skipping backend health check in offline mode')
