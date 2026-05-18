@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 /**
  * @vitest-environment jsdom
  */
@@ -140,8 +141,8 @@ describe('useSettings()', () => {
         provide: {
           ...global.provide,
           [APP_DB_KEY as symbol]: mockDb, // Mock DB even if not offline
-        }
-      }
+        },
+      },
     })
   }
 

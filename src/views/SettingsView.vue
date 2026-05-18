@@ -130,6 +130,7 @@ import { useModelsSocket } from '@/composables/use-models-socket'
 import { useApiKeyManagement } from '@/composables/use-api-key-management'
 import { useToastStore } from '@/stores/use-toast-store'
 import { useTheme } from '@/composables/use-theme'
+import { useOllamaSettings } from '@/composables/use-ollama-settings'
 import { toUserMessage } from '@/error-mapper'
 import SettingsField from '@/components/SettingsField.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
@@ -149,6 +150,7 @@ const toasts = useToastStore()
 const { settings, upsertSetting, loadSettings } = useSettings()
 const { reloadModels } = useModelsSocket()
 const { isDark, toggleDark } = useTheme()
+useOllamaSettings()
 
 const currentUserId = ref<string>()
 

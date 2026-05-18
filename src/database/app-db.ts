@@ -1,9 +1,9 @@
-import { Dexie, type Table, type Transaction } from 'dexie'
+import { Dexie, type Table } from 'dexie'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import type { Conversation, Message, ContextReference, LocalSetting } from '@/database/types'
 import type { AbstractLogger } from '@/logger'
 import { DbError } from '@/errors'
-import { DexieError, SafeTable } from '@/database/safe-table'
+import { SafeTable } from '@/database/safe-table'
 import { encodeContextReferences, decodeContextReferences } from '@/database/serializers'
 
 // What actually lives in IndexedDB
