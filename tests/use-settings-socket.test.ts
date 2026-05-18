@@ -7,7 +7,7 @@ import { nextTick, ref } from 'vue'
 import { useSettings } from '@/composables/use-settings'
 import * as emitWithTimeoutModule from '@/emit-with-timeout'
 import { mountComposable } from './helpers/mount-composable'
-import type { MockSocket } from './helpers/mock-socket-manager'
+import type { MockSocket, MockSettingsSocket } from './helpers/mock-socket-manager'
 import {
   createMockSocketManager,
   trigger as triggerSocketEvent,
@@ -133,14 +133,13 @@ describe('useSettings()', () => {
   function mountSettingsSocket() {
     const { socketManager, global } = createMockSocketManager()
     settingsSocket = socketManager.settingsSocket as MockSettingsSocket
-    global.provide[APP_DB_KEY as symbol] = mockDb
 
     return mountComposable(() => useSettings(), {
       global: {
         ...global,
         provide: {
           ...global.provide,
-          [APP_DB_KEY as symbol]: { localSetting: {} }, // Mock DB even if not offline
+          [APP_DB_KEY as symbol]: mockDb,
         }
       }
     })
