@@ -47,8 +47,12 @@ const envConfigSchema = z
 
 export type EnvConfigType = Readonly<z.infer<typeof envConfigSchema>>
 
-export function isOfflineMode(): boolean {
-  const result = offlineModeSchema.safeParse(import.meta.env.VITE_OFFLINE_MODE)
+// F9: env is injected rather than read from import.meta.env directly.
+// This keeps both functions pure and removes the need for import.meta.env
+// mutation in tests. Production callers pass no argument; the default
+// preserves the existing zero-argument call signature.
+export function isOfflineMode(env: Record<string, unknown> = import.meta.env): boolean {
+  const result = offlineModeSchema.safeParse(env.VITE_OFFLINE_MODE)
   if (!result.success) {
     return false
   }
@@ -56,11 +60,18 @@ export function isOfflineMode(): boolean {
   return result.data
 }
 
-export function validateEnvConfig(): Result<EnvConfigType, Error> {
-  const result = envConfigSchema.safeParse(import.meta.env)
+export function validateEnvConfig(
+  env: Record<string, unknown> = import.meta.env
+): Result<EnvConfigType, Error> {
+  const result = envConfigSchema.safeParse(env)
 
   if (!result.success) {
-    return err(new Error(result.error.message))
+    // F10: Zod v4 .message is a JSON string of the issue array. Build a
+    // human-readable message from the structured issue list instead.
+    const message = result.error.issues
+      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+      .join('; ')
+    return err(new Error(message))
   }
 
   return ok(result.data)

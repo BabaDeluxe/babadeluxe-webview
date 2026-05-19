@@ -112,18 +112,14 @@
             When should the system prompt be appended during a conversation?
           </p>
 
-          <div
-            class="flex flex-col border border-borderMuted rounded-lg bg-panel overflow-hidden"
-          >
+          <div class="flex flex-col border border-borderMuted rounded-lg bg-panel overflow-hidden">
             <div
               v-for="option in injectionModeOptions"
               :key="option.value"
             >
               <button
                 type="button"
-                class="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors
-                       hover:bg-panelHover focus-visible:outline-none focus-visible:ring-1
-                       focus-visible:ring-accent"
+                class="w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-panelHover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                 :class="{
                   'bg-accentDim border-l-2 border-accent': promptInjectionMode === option.value,
                   'border-l-2 border-transparent': promptInjectionMode !== option.value,
@@ -133,8 +129,7 @@
               >
                 <!-- Radio indicator -->
                 <span
-                  class="mt-0.5 w-4 h-4 rounded-full border flex-shrink-0 flex items-center
-                         justify-center transition-colors"
+                  class="mt-0.5 w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition-colors"
                   :class="
                     promptInjectionMode === option.value
                       ? 'border-accentButton bg-accentButton'
@@ -150,9 +145,7 @@
                 <span class="flex flex-col gap-0.5 flex-1 min-w-0">
                   <span
                     class="text-sm font-medium transition-colors"
-                    :class="
-                      promptInjectionMode === option.value ? 'text-accent' : 'text-deepText'
-                    "
+                    :class="promptInjectionMode === option.value ? 'text-accent' : 'text-deepText'"
                   >
                     {{ option.label }}
                   </span>
@@ -164,7 +157,9 @@
 
               <!-- Interval slider — only shown under every-x-messages -->
               <div
-                v-if="option.value === 'every-x-messages' && promptInjectionMode === 'every-x-messages'"
+                v-if="
+                  option.value === 'every-x-messages' && promptInjectionMode === 'every-x-messages'
+                "
                 class="flex items-center gap-3 px-4 pb-3 pt-1 bg-panelDark"
                 data-testid="injection-interval-row"
               >
@@ -179,8 +174,7 @@
                   @input="handleIntervalChange"
                 />
                 <span
-                  class="text-xs font-semibold text-accent bg-accentDim border
-                         border-accentBorder rounded px-2 py-0.5 min-w-[76px] text-center"
+                  class="text-xs font-semibold text-accent bg-accentDim border border-accentBorder rounded px-2 py-0.5 min-w-[76px] text-center"
                 >
                   {{ promptInjectionInterval }} messages
                 </span>
@@ -203,8 +197,7 @@
               v-for="pos in injectionPositionOptions"
               :key="pos.value"
               type="button"
-              class="flex-1 py-2 px-3 text-xs font-medium rounded-md border transition-colors
-                     focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+              class="flex-1 py-2 px-3 text-xs font-medium rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
               :class="
                 promptInjectionPosition === pos.value
                   ? 'bg-accentDim border-accent text-accent'
@@ -224,13 +217,13 @@
         <!-- Toggles -->
         <div class="flex flex-col gap-2">
           <div
-            class="flex items-center justify-between p-3 border border-borderMuted rounded-lg
-                   bg-panel"
+            class="flex items-center justify-between p-3 border border-borderMuted rounded-lg bg-panel"
           >
             <div class="flex flex-col">
               <span class="text-deepText font-medium text-sm">Include history on re-inject</span>
-              <span class="text-xs text-subtleText">Re-include prior messages when the prompt is
-                re-injected mid-conversation.</span>
+              <span class="text-xs text-subtleText"
+                >Re-include prior messages when the prompt is re-injected mid-conversation.</span
+              >
             </div>
             <BaseButton
               variant="ghost"
@@ -275,8 +268,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ResultAsync } from 'neverthrow'
-import { validateSetting, PROMPT_INJECTION_DEFAULTS } from '@babadeluxe/shared'
-import type { PromptInjectionMode, PromptInjectionPosition } from '@babadeluxe/shared'
+import { validateSetting, promptInjectionDefaults, type PromptInjectionMode, type PromptInjectionPosition } from '@babadeluxe/shared'
 import { useSettings } from '@/composables/use-settings'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { useApiKeyManagement } from '@/composables/use-api-key-management'
@@ -338,22 +330,22 @@ const loadError = ref<string | undefined>()
 // Prompt injection reactive state
 // ---------------------------------------------------------------------------
 
-const getSettingValue = <T>(key: string, fallback: T): T => {
+const getSettingValue = <T,>(key: string, fallback: T): T => {
   const s = settings.value.find((x) => x.settingKey === key)
   return s !== undefined ? (s.settingValue as T) : fallback
 }
 
-const promptInjectionMode = computed<NonNullable<PromptInjectionMode>>(
-  () => getSettingValue('promptInjectionMode', PROMPT_INJECTION_DEFAULTS.mode)
+const promptInjectionMode = computed<NonNullable<PromptInjectionMode>>(() =>
+  getSettingValue('promptInjectionMode', promptInjectionDefaults.mode)
 )
-const promptInjectionInterval = computed<number>(
-  () => getSettingValue('promptInjectionInterval', PROMPT_INJECTION_DEFAULTS.interval)
+const promptInjectionInterval = computed<number>(() =>
+  getSettingValue('promptInjectionInterval', promptInjectionDefaults.interval)
 )
-const promptInjectionPosition = computed<NonNullable<PromptInjectionPosition>>(
-  () => getSettingValue('promptInjectionPosition', PROMPT_INJECTION_DEFAULTS.position)
+const promptInjectionPosition = computed<NonNullable<PromptInjectionPosition>>(() =>
+  getSettingValue('promptInjectionPosition', promptInjectionDefaults.position)
 )
-const promptIncludeHistory = computed<boolean>(
-  () => getSettingValue('promptIncludeHistory', PROMPT_INJECTION_DEFAULTS.includeHistory)
+const promptIncludeHistory = computed<boolean>(() =>
+  getSettingValue('promptIncludeHistory', promptInjectionDefaults.includeHistory)
 )
 
 const injectionModeOptions: Array<{
@@ -439,19 +431,25 @@ const handleIncludeHistoryToggle = async () => {
 // Existing handlers (unchanged)
 // ---------------------------------------------------------------------------
 
-const handleReload = () => { window.location.reload() }
+const handleReload = () => {
+  window.location.reload()
+}
 
 const handleRetryLoad = async () => {
   loadError.value = undefined
   isLoadingSettings.value = true
 
   const result = await ResultAsync.fromPromise(loadSettings(), (unknownError) => {
-    if (unknownError instanceof Error) return new InitializationError(unknownError.message, unknownError)
+    if (unknownError instanceof Error)
+      return new InitializationError(unknownError.message, unknownError)
     return new InitializationError('Failed to load settings', unknownError)
   })
 
   result.match(
-    () => { hydrateFieldStates(); isLoadingSettings.value = false },
+    () => {
+      hydrateFieldStates()
+      isLoadingSettings.value = false
+    },
     (loadErr) => {
       logger.error('Failed to reload settings', { userId: currentUserId.value, error: loadErr })
       loadError.value = 'Settings could not be loaded. Please try again.'
@@ -463,13 +461,25 @@ const handleRetryLoad = async () => {
 const generalSettings = computed(() =>
   settings.value.filter(
     (setting) =>
-      !setting.settingKey.startsWith('apiKey') &&
-      !setting.settingKey.startsWith('prompt')
+      !setting.settingKey.startsWith('apiKey') && !setting.settingKey.startsWith('prompt')
   )
 )
 
-watch(modelsReloadWarning, (val) => { if (val) toasts.warning(toUserMessage(val)) }, { immediate: true })
-watch(settings, () => { if (isLoadingSettings.value) return; hydrateFieldStates() }, { deep: true })
+watch(
+  modelsReloadWarning,
+  (val) => {
+    if (val) toasts.warning(toUserMessage(val))
+  },
+  { immediate: true }
+)
+watch(
+  settings,
+  () => {
+    if (isLoadingSettings.value) return
+    hydrateFieldStates()
+  },
+  { deep: true }
+)
 
 const getSettingByKey = (key: string) => settings.value.find((s) => s.settingKey === key)
 
@@ -478,17 +488,31 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
   const setting = getSettingByKey(fieldName)
   if (!setting) return
   const validationResult = validateSetting(fieldName, value)
-  if (!validationResult.success) { updateFieldStatus(fieldName, 'invalid', validationResult.error); return }
+  if (!validationResult.success) {
+    updateFieldStatus(fieldName, 'invalid', validationResult.error)
+    return
+  }
   updateFieldStatus(fieldName, 'validating')
   const saveResult = await upsertSetting(fieldName, value, setting.dataType)
-  if (saveResult.isErr()) { updateFieldStatus(fieldName, 'invalid', toUserMessage(saveResult.error)); logger.error('Failed to save setting', { fieldName, error: saveResult.error }); return }
+  if (saveResult.isErr()) {
+    updateFieldStatus(fieldName, 'invalid', toUserMessage(saveResult.error))
+    logger.error('Failed to save setting', { fieldName, error: saveResult.error })
+    return
+  }
   updateFieldStatus(fieldName, 'valid')
   toasts.success('Setting saved')
 }
 
-async function upsertSettingWrapper(key: string, value: unknown, dataType: 'string' | 'number' | 'boolean'): Promise<void> {
+async function upsertSettingWrapper(
+  key: string,
+  value: unknown,
+  dataType: 'string' | 'number' | 'boolean'
+): Promise<void> {
   const result = await upsertSetting(key, value, dataType)
-  if (result.isErr()) { logger.error('Failed to save setting via API key management', { key, error: result.error }); toasts.error(toUserMessage(result.error)) }
+  if (result.isErr()) {
+    logger.error('Failed to save setting via API key management', { key, error: result.error })
+    toasts.error(toUserMessage(result.error))
+  }
 }
 
 const handleThemeToggle = async () => {
@@ -498,25 +522,36 @@ const handleThemeToggle = async () => {
 }
 
 const fetchUserId = async (): Promise<void> => {
-  if (isOfflineMode()) { currentUserId.value = 'offline-user'; return }
+  if (isOfflineMode()) {
+    currentUserId.value = 'offline-user'
+    return
+  }
   const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
     if (unknownError instanceof Error) return new AuthError(unknownError.message, unknownError)
     return new AuthError('Failed to fetch user', unknownError)
   })
   getUserResult.match(
-    (response) => { if (response.data.user?.id) currentUserId.value = response.data.user.id },
-    (fetchError) => { logger.error('Failed to fetch user details for settings view', { error: fetchError }) }
+    (response) => {
+      if (response.data.user?.id) currentUserId.value = response.data.user.id
+    },
+    (fetchError) => {
+      logger.error('Failed to fetch user details for settings view', { error: fetchError })
+    }
   )
 }
 
 onMounted(async () => {
   await fetchUserId()
   const result = await ResultAsync.fromPromise(loadSettings(), (unknownError) => {
-    if (unknownError instanceof Error) return new InitializationError(unknownError.message, unknownError)
+    if (unknownError instanceof Error)
+      return new InitializationError(unknownError.message, unknownError)
     return new InitializationError('Failed to load settings', unknownError)
   })
   result.match(
-    () => { hydrateFieldStates(); isLoadingSettings.value = false },
+    () => {
+      hydrateFieldStates()
+      isLoadingSettings.value = false
+    },
     (loadErr) => {
       logger.error('Failed to load settings', { userId: currentUserId.value, error: loadErr })
       loadError.value = 'Settings could not be loaded. Please try again.'

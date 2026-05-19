@@ -1,72 +1,82 @@
-import { describe, it, expect, afterEach, test, beforeAll } from 'vitest'
-import { type EnvConfigType, validateEnvConfig } from '../src/env-validator'
+import { describe, it, expect, afterEach, beforeEach } from 'vitest'
+import { validateEnvConfig } from '../src/env-validator'
 
-type Writeable<T> = {
-  -readonly [P in keyof T]: T[P]
+// validEnv uses the raw pre-parse wire format — string values exactly as
+// Vite would provide them. EnvConfigType is the post-transform output shape
+// and must not be used to type test input objects.
+const validEnv: Record<string, unknown> = {
+  /* eslint-disable @typescript-eslint/naming-convention */
+  VITE_NODE_ENV: 'development',
+  VITE_SUPABASE_URL: 'https://example.supabase.co',
+  VITE_SUPABASE_ANON_KEY: 'key123',
+  VITE_SOCKET_URL: 'https://socket.example.com',
+  VITE_OFFLINE_MODE: 'false', // string — raw wire format consumed by the schema
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-const env: Writeable<EnvConfigType> = import.meta.env as unknown as Writeable<EnvConfigType>
-
 describe('validateEnvConfig()', () => {
-  const originalEnv = { ...env }
-  const validEnv = {
-    VITE_NODE_ENV: 'development',
-    VITE_SUPABASE_URL: 'https://example.supabase.co',
-    VITE_SUPABASE_ANON_KEY: 'key123',
-    VITE_SOCKET_URL: 'https://socket.example.com',
-    VITE_OFFLINE_MODE: 'false',
-  }
+  let env: Record<string, unknown>
 
-  beforeAll(() => {
-    Object.assign(env, validEnv)
+  beforeEach(() => {
+    env = { ...validEnv }
   })
 
   afterEach(() => {
-    for (const key in env) {
-        delete (env as any)[key]
-    }
-    Object.assign(env, originalEnv)
+    env = { ...validEnv }
   })
 
   it('returns Ok with valid env config', () => {
-    const result = validateEnvConfig()
+    const result = validateEnvConfig(env)
     expect(result.isOk()).toBe(true)
+    expect(result._unsafeUnwrap().VITE_NODE_ENV).toBe('development')
   })
 
   describe('validation errors', () => {
-    test('returns Err when VITE_SUPABASE_URL is invalid', () => {
-      (env as any).VITE_SUPABASE_URL = 'not-a-url'
-      const result = validateEnvConfig()
+    it('returns Err when VITE_SUPABASE_URL is invalid', () => {
+      env.VITE_SUPABASE_URL = 'not-a-url'
+      const result = validateEnvConfig(env)
       expect(result.isErr()).toBe(true)
-      if (result.isErr()) {
-        expect(result.error.message).toContain('VITE_SUPABASE_URL')
-      }
+      expect(result._unsafeUnwrapErr().message).toContain('VITE_SUPABASE_URL')
     })
 
-    test('returns Err when VITE_SOCKET_URL is invalid', () => {
-      (env as any).VITE_SOCKET_URL = 'also-not-a-url'
-      const result = validateEnvConfig()
+    it('returns Err when VITE_SOCKET_URL is invalid', () => {
+      env.VITE_SOCKET_URL = 'also-not-a-url'
+      const result = validateEnvConfig(env)
       expect(result.isErr()).toBe(true)
-      if (result.isErr()) {
-        expect(result.error.message).toContain('VITE_SOCKET_URL')
-      }
+      expect(result._unsafeUnwrapErr().message).toContain('VITE_SOCKET_URL')
     })
 
-    test('returns Err when VITE_SUPABASE_ANON_KEY is missing and offline mode is false', () => {
-      (env as any).VITE_OFFLINE_MODE = 'false';
-      delete (env as any).VITE_SUPABASE_ANON_KEY;
-      const result = validateEnvConfig()
+    it('returns Err when VITE_SUPABASE_ANON_KEY is missing and offline mode is false', () => {
+      env.VITE_OFFLINE_MODE = 'false'
+      delete env.VITE_SUPABASE_ANON_KEY
+      const result = validateEnvConfig(env)
       expect(result.isErr()).toBe(true)
-      if (result.isErr()) {
-        expect(result.error.message).toContain('VITE_SUPABASE_ANON_KEY')
-      }
+      expect(result._unsafeUnwrapErr().message).toContain('VITE_SUPABASE_ANON_KEY')
+    })
+
+    it('returns Err when VITE_SUPABASE_URL is missing and offline mode is false', () => {
+      env.VITE_OFFLINE_MODE = 'false'
+      delete env.VITE_SUPABASE_URL
+      const result = validateEnvConfig(env)
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().message).toContain('VITE_SUPABASE_URL')
     })
 
     it('returns Err when multiple fields are invalid', () => {
-      (env as any).VITE_SUPABASE_URL = 'bad-url';
-      (env as any).VITE_SOCKET_URL = 'also-bad';
-      const result = validateEnvConfig()
+      env.VITE_SUPABASE_URL = 'bad-url'
+      env.VITE_SOCKET_URL = 'also-bad'
+      const result = validateEnvConfig(env)
       expect(result.isErr()).toBe(true)
+    })
+  })
+
+  describe('offline mode', () => {
+    it('returns Ok when VITE_OFFLINE_MODE is true and Supabase keys are absent', () => {
+      env.VITE_OFFLINE_MODE = 'true' // string wire format
+      delete env.VITE_SUPABASE_URL
+      delete env.VITE_SUPABASE_ANON_KEY
+      const result = validateEnvConfig(env)
+      expect(result.isOk()).toBe(true)
     })
   })
 })
