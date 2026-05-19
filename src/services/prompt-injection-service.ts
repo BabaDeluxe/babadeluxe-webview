@@ -13,7 +13,7 @@
  */
 
 import type { PromptInjectionMode, PromptInjectionPosition } from '@babadeluxe/shared'
-import { PROMPT_INJECTION_DEFAULTS } from '@babadeluxe/shared'
+import { promptInjectionDefaults } from '@babadeluxe/shared'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,7 +57,7 @@ export interface InjectionResult {
 function shouldInject(opts: PromptInjectionOptions): boolean {
   if (!opts.systemPrompt) return false
 
-  const mode = opts.mode ?? PROMPT_INJECTION_DEFAULTS.mode
+  const mode = opts.mode ?? promptInjectionDefaults.mode
 
   switch (mode) {
     case 'always':
@@ -67,7 +67,7 @@ function shouldInject(opts: PromptInjectionOptions): boolean {
       return opts.isFirstMessage
 
     case 'every-x-messages': {
-      const n = opts.interval ?? PROMPT_INJECTION_DEFAULTS.interval
+      const n = opts.interval ?? promptInjectionDefaults.interval
       // Inject on the first message and then every n messages after that.
       return opts.userMessageCount % n === 0
     }
@@ -96,10 +96,7 @@ function injectIntoMessages(
     case 'system':
       // Prepend a dedicated system message; replace any existing one to avoid
       // duplicate system turns.
-      return [
-        buildSystemMessage(prompt),
-        ...messages.filter((m) => m.role !== 'system'),
-      ]
+      return [buildSystemMessage(prompt), ...messages.filter((m) => m.role !== 'system')]
 
     case 'user-prefix': {
       // Prepend the prompt text to the content of the first user message.
@@ -159,7 +156,7 @@ export function buildMessagesWithPrompt(
     return { messages, injected: false }
   }
 
-  const position = opts.position ?? PROMPT_INJECTION_DEFAULTS.position
+  const position = opts.position ?? promptInjectionDefaults.position
   const injected = injectIntoMessages(messages, opts.systemPrompt, position)
 
   return { messages: injected, injected: true }
@@ -172,7 +169,7 @@ export function buildMessagesWithPrompt(
 export function forceInjectPrompt(
   messages: ChatMessage[],
   systemPrompt: string,
-  position: PromptInjectionPosition = PROMPT_INJECTION_DEFAULTS.position
+  position: PromptInjectionPosition = promptInjectionDefaults.position
 ): ChatMessage[] {
   if (!systemPrompt) return messages
   return injectIntoMessages(messages, systemPrompt, position)

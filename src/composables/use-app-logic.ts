@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/naming-convention, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/naming-convention */
 import { ref, watch, onMounted, type Ref } from 'vue'
 import { isOfflineMode } from '@/env-validator'
 import { useRouter } from 'vue-router'
@@ -97,7 +97,7 @@ export function useAppLogic() {
           user_metadata: { full_name: 'Offline User' },
           aud: 'authenticated',
           created_at: new Date().toISOString(),
-        } as any,
+        },
         expires_in: 3600,
         token_type: 'bearer',
         refresh_token: 'offline-refresh-token',
