@@ -1,136 +1,105 @@
-import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { ok, err, type Result } from 'neverthrow'
+import { defineStore } from 'pinia'
+import type { SyncStatus, SyncBackend, ConflictInfo } from '@/sync/types'
+import { SyncManager } from '@/sync/sync-manager'
+import { GitHubSyncAdapter } from '@/sync/github-adapter'
+import { DeviceIdService } from '@/sync/device-id'
 import { safeInject } from '@/safe-inject'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
-import { SyncManager } from '@/sync/sync-manager'
-import { GitHubSyncAdapter, type GitHubAdapterConfig } from '@/sync/github-adapter'
-import type { SyncError } from '@/sync/types'
-import type { KeyValueStore } from '@/database/key-value-store'
 
-/**
- * useSyncStore
- *
- * Thin Pinia wrapper exposing reactive sync state to the UI.
- * All heavy lifting is in SyncManager (plain service — no Pinia dependency).
- *
- * Integration in useConversationStore — add after every successful DB write:
- *
- *   const syncStore = useSyncStore()
- *
- *   // After createConversation / updateConversationTitle / createUserMessage
- *   // / finalizeAssistantMessage / updateUserMessage:
- *   void syncStore.notifyMutated(conversationId)
- *
- *   // After deleteConversation — read syncId from conversation BEFORE deleting:
- *   void syncStore.notifyDeleted(conversationId, conversation.syncId)
- *
- * The store does NOT auto-initialise. The user calls configure() from
- * the settings panel after supplying credentials.
- */
+export type SyncConfig =
+  | { backend: 'github'; token: string; owner: string; repo: string; branch?: string }
+  | { backend: 'webdav'; url: string; username: string; password: string }
+  | { backend: 'sftp'; host: string; port: number; username: string; privateKey: string }
+
 export const useSyncStore = defineStore('sync', () => {
+  const db = safeInject(APP_DB_KEY)
   const logger = safeInject(LOGGER_KEY)
-  const appDb = safeInject(APP_DB_KEY)
 
-  // ─── Reactive state ─────────────────────────────────────────────────────────
+  const deviceIdService = new DeviceIdService()
+  const deviceId = deviceIdService.getOrCreate()
+  const manager = new SyncManager(db, logger, deviceId)
 
-  const isSyncing = ref(false)
-  const lastSyncAt = ref<Date | undefined>(undefined)
-  const syncError = ref<string | undefined>(undefined)
-  const pendingCount = ref(0)
-  const isConfigured = ref(false)
+  const status = ref<SyncStatus>({ state: 'idle' })
+  const activeBackend = ref<SyncBackend | null>(null)
+  const conflict = ref<ConflictInfo | null>(null)
 
-  let _manager: SyncManager | undefined
-
-  const hasPending = computed(() => pendingCount.value > 0)
-
-  // ─── Configuration ───────────────────────────────────────────────────────────
-
-  /**
-   * Configure with a GitHub adapter.
-   * WebDAV / SFTP adapters will extend this union when added in phase 2/3.
-   */
-  async function configure(
-    type: 'github',
-    config: GitHubAdapterConfig,
-    kv: KeyValueStore
-  ): Promise<Result<void, SyncError>> {
-    _manager?.stop()
-
-    const adapter = new GitHubSyncAdapter(config)
-    _manager = new SyncManager(appDb, kv, logger, {
-      adapter,
-      pushDebounceMs: 2_000,
-      pullIntervalMs: 60_000,
-    })
-
-    await _manager.start()
-    isConfigured.value = true
-    syncError.value = undefined
-    return ok(undefined)
-  }
-
-  function deconfigure(): void {
-    _manager?.stop()
-    _manager = undefined
-    isConfigured.value = false
-    pendingCount.value = 0
-    syncError.value = undefined
-  }
-
-  // ─── Mutation hooks ──────────────────────────────────────────────────────────
-
-  async function notifyMutated(conversationId: number): Promise<void> {
-    if (!_manager) return
-    pendingCount.value += 1
-    await _manager.notifyConversationMutated(conversationId)
-  }
-
-  async function notifyDeleted(conversationId: number, syncId: string): Promise<void> {
-    if (!_manager) return
-    await _manager.notifyConversationDeleted(conversationId, syncId)
-  }
-
-  // ─── Manual sync ─────────────────────────────────────────────────────────────
-
-  async function syncNow(): Promise<Result<void, SyncError>> {
-    if (!_manager) {
-      return err({
-        name: 'SyncError',
-        message: 'Sync not configured',
-      } as unknown as SyncError)
-    }
-    if (isSyncing.value) return ok(undefined)
-
-    isSyncing.value = true
-    syncError.value = undefined
-
-    const result = await _manager.syncNow()
-
-    isSyncing.value = false
-    if (result.isOk()) {
-      lastSyncAt.value = new Date()
-      pendingCount.value = 0
+  manager.onStatusChange((s) => {
+    status.value = s
+    if (s.state === 'conflict') {
+      conflict.value = s.info
     } else {
-      syncError.value = result.error.message
+      conflict.value = null
+    }
+  })
+
+  const isSyncing = computed(() => status.value.state === 'syncing')
+  const hasConflict = computed(() => status.value.state === 'conflict')
+  const lastSyncAt = computed(() =>
+    status.value.state === 'success' ? status.value.lastSyncAt : null
+  )
+
+  async function configure(config: SyncConfig | null): Promise<void> {
+    if (!config) {
+      manager.setAdapter(null)
+      activeBackend.value = null
+      return
     }
 
-    return result
+    if (config.backend === 'github') {
+      const adapter = new GitHubSyncAdapter(
+        {
+          token: config.token,
+          owner: config.owner,
+          repo: config.repo,
+          branch: config.branch,
+        },
+        deviceIdService
+      )
+      manager.setAdapter(adapter)
+      activeBackend.value = 'github'
+
+      const testResult = await adapter.testConnection()
+      if (testResult.isErr()) {
+        status.value = { state: 'error', error: testResult.error }
+        return
+      }
+
+      void manager.pullAll()
+      return
+    }
+
+    logger.warn(`Sync adapter '${config.backend}' not yet implemented`)
   }
 
-  // ─── Exports ─────────────────────────────────────────────────────────────────
+  function notifyChanged(conversationId: number): void {
+    manager.notifyChanged(conversationId)
+  }
+
+  function notifyDeleted(conversationId: number, syncVersion: number): void {
+    manager.notifyDeleted(conversationId, syncVersion)
+  }
+
+  async function syncNow(): Promise<void> {
+    await manager.syncNow()
+  }
+
+  async function resolveConflict(resolution: 'local-wins' | 'remote-wins'): Promise<void> {
+    if (!conflict.value) return
+    await manager.resolveConflict(conflict.value, resolution)
+  }
 
   return {
+    status,
+    activeBackend,
+    conflict,
     isSyncing,
+    hasConflict,
     lastSyncAt,
-    syncError,
-    pendingCount,
-    hasPending,
-    isConfigured,
     configure,
-    deconfigure,
-    notifyMutated,
+    notifyChanged,
     notifyDeleted,
     syncNow,
+    resolveConflict,
   }
 })

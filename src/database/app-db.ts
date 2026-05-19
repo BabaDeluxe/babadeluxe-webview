@@ -1,44 +1,33 @@
-import { Dexie, type Table, type Transaction } from 'dexie'
-import { err, ok, type Result, ResultAsync } from 'neverthrow'
-import type { Conversation, Message, ContextReference, LocalSetting } from '@/database/types'
+import { Dexie, type Table } from 'dexie'
+import type { Conversation, Message, LocalSetting, ContextReference } from '@/database/types'
 import type { AbstractLogger } from '@/logger'
-import { DbError } from '@/errors'
-import { DexieError, SafeTable } from '@/database/safe-table'
-import { encodeContextReferences, decodeContextReferences } from '@/database/serializers'
+import { SafeTable } from '@/database/safe-table'
+import { ChatRepository } from '@/database/chat-repository'
 
-// What actually lives in IndexedDB
 type DbMessage = {
   id?: number
   conversationId: number
-  role: 'user' | 'assistant'
+  role: Message['role']
   timestamp: Date
   content: string
-  isStreaming: boolean
+  isStreaming?: boolean
   model?: string
   systemPrompt?: string
-  contextReferences?: string // JSON.stringify(ContextReference[])
+  contextReferences?: string
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
 
-/**
- * Augmented Conversation stored in IndexedDB from schema v7 onwards.
- * The base Conversation type is extended with optional sync fields so
- * existing code that reads Conversation objects doesn't need to change.
- */
-export type DbConversation = Conversation & {
-  syncId?: string
-  syncVersion?: number
-}
-
 export class AppDb extends Dexie {
-  public conversation!: SafeTable<DbConversation, DbConversation, number>
+  public conversation!: SafeTable<Conversation, Conversation, number>
   public message!: SafeTable<DbMessage, NewDbMessage, number>
   public localSetting!: SafeTable<LocalSetting, LocalSetting, number>
 
-  private _conversationTable!: Table<DbConversation, number>
+  private _conversationTable!: Table<Conversation, number>
   private _messageTable!: Table<DbMessage, number>
   private _localSettingTable!: Table<LocalSetting, number>
+
+  private _chatRepository!: ChatRepository
 
   constructor(private readonly _logger: AbstractLogger) {
     super('AppDb')
@@ -46,266 +35,58 @@ export class AppDb extends Dexie {
     this._bindTables()
     this._setupHooks()
     this._wrapSafeTables()
-  }
-
-  async getMessagesByConversation(conversationId: number): Promise<Result<Message[], DbError>> {
-    const messagesResult = await this.message
-      .where('conversationId')
-      .equals(conversationId)
-      .toArray()
-
-    if (messagesResult.isErr()) {
-      this._logger.error('Failed to get messages for conversation', {
-        conversationId,
-        error: messagesResult.error,
-      })
-      return err(this._toDomainError(messagesResult.error))
-    }
-
-    const mapped: Message[] = messagesResult.value.map((message) => ({
-      id: message.id!,
-      conversationId: message.conversationId,
-      role: message.role,
-      timestamp: message.timestamp,
-      content: message.content,
-      isStreaming: message.isStreaming,
-      model: message.model,
-      systemPrompt: message.systemPrompt,
-      contextReferences: decodeContextReferences(message.contextReferences),
-    }))
-
-    return ok(mapped)
-  }
-
-  /**
-   * Delete all messages belonging to a conversation without touching the
-   * conversation record itself. Used by SyncManager when replacing messages
-   * from a remote payload.
-   */
-  async deleteMessagesByConversation(conversationId: number): Promise<Result<void, DbError>> {
-    const result = await ResultAsync.fromPromise(
-      this._messageTable.where('conversationId').equals(conversationId).delete(),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to delete messages by conversation', {
-          conversationId,
-          error: mappedError,
-        })
-        return mappedError
-      }
+    this._chatRepository = new ChatRepository(
+      this._conversationTable,
+      this._messageTable,
+      this.message,
+      this.conversation,
+      this._logger,
+      this.transaction.bind(this)
     )
-    return result.map(() => undefined)
   }
 
-  /**
-   * Lookup a conversation by its stable syncId.
-   * Returns undefined (not an error) when the syncId is not found so callers
-   * can distinguish "not yet synced" from a genuine DB failure.
-   */
-  async getConversationBySyncId(
-    syncId: string
-  ): Promise<Result<DbConversation | undefined, DbError>> {
-    const result = await ResultAsync.fromPromise(
-      this._conversationTable.where('syncId').equals(syncId).first(),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to get conversation by syncId', { syncId, error: mappedError })
-        return mappedError
-      }
-    )
-    return result
+  get chatRepository(): ChatRepository {
+    return this._chatRepository
   }
 
-  async getMessageCountsByConversation(): Promise<Result<Map<number, number>, DbError>> {
-    const result = await ResultAsync.fromPromise(
-      (async () => {
-        const countMap = new Map<number, number>()
-        const allConversations = await this._conversationTable.toArray()
-
-        for (const conversation of allConversations) {
-          if (conversation.id) {
-            const count = await this._messageTable
-              .where('conversationId')
-              .equals(conversation.id)
-              .count()
-            countMap.set(conversation.id, count)
-          }
-        }
-
-        return countMap
-      })(),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to get message counts', {
-          error: mappedError,
-        })
-        return mappedError
-      }
-    )
-
-    return result
+  getAllConversations() {
+    return this._chatRepository.getAllConversations()
   }
 
-  async getAllConversations(): Promise<Result<readonly Conversation[], DbError>> {
-    const result = await this.conversation.toArray()
-    if (result.isErr()) {
-      this._logger.error('Failed to get all conversations', {
-        error: result.error,
-      })
-      return err(this._toDomainError(result.error))
-    }
-
-    return ok(result.value)
+  getMessagesByConversation(conversationId: number) {
+    return this._chatRepository.getMessagesByConversation(conversationId)
   }
 
-  async deleteConversationWithMessage(conversationId: number): Promise<Result<void, DbError>> {
-    const result = await ResultAsync.fromPromise(
-      this.transaction('rw', this._conversationTable, this._messageTable, async () => {
-        await this._messageTable.where('conversationId').equals(conversationId).delete()
-        await this._conversationTable.delete(conversationId)
-      }),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to delete conversation with messages', {
-          conversationId,
-          error: mappedError,
-        })
-        return mappedError
-      }
-    )
-
-    return result
+  getMessageCountsByConversation() {
+    return this._chatRepository.getMessageCountsByConversation()
   }
 
-  async createMessage(data: Omit<Message, 'id' | 'timestamp'>): Promise<Result<number, DbError>> {
-    const resolvedContent = data.content
-
-    const conversationResult = await this.conversation.get(data.conversationId)
-    if (conversationResult.isErr()) {
-      this._logger.error('Failed to verify conversation exists', {
-        conversationId: data.conversationId,
-        error: conversationResult.error,
-      })
-      return err(this._toDomainError(conversationResult.error))
-    }
-    if (conversationResult.value === undefined) {
-      const error = new DbError(
-        `Cannot create message: Conversation ${data.conversationId} missing`
-      )
-      this._logger.error('Conversation not found when creating message', {
-        conversationId: data.conversationId,
-        error,
-      })
-      return err(error)
-    }
-
-    const result = await ResultAsync.fromPromise(
-      this.transaction('rw', this._conversationTable, this._messageTable, async () => {
-        const messageData: NewDbMessage = {
-          conversationId: data.conversationId,
-          role: data.role,
-          content: resolvedContent,
-          isStreaming: data.isStreaming ?? false,
-          model: data.model,
-          systemPrompt: data.systemPrompt,
-          contextReferences: encodeContextReferences(data.contextReferences),
-        }
-        const addResult = await this.message.add(messageData)
-        if (addResult.isErr()) throw addResult.error
-        return addResult.value
-      }),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to create message', {
-          conversationId: data.conversationId,
-          role: data.role,
-          error: mappedError,
-        })
-        return mappedError
-      }
-    )
-
-    return result
+  getStreamingMessages() {
+    return this._chatRepository.getStreamingMessages()
   }
 
-  async deleteMessage(id: number): Promise<Result<void, DbError>> {
-    const result = await ResultAsync.fromPromise(
-      this.transaction('rw', this._conversationTable, this._messageTable, async () => {
-        const message = await this._messageTable.get(id)
-        if (!message) return
-
-        await this._messageTable.delete(id)
-
-        const cascadeResult = await this._deleteEmptyConversation(message.conversationId)
-        if (cascadeResult.isErr()) throw cascadeResult.error
-      }),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to delete message', {
-          messageId: id,
-          error: mappedError,
-        })
-        return mappedError
-      }
-    )
-
-    return result
+  createMessage(input: {
+    conversationId: number
+    role: Message['role']
+    content: string
+    isStreaming?: boolean
+    model?: string
+    systemPrompt?: string
+    contextReferences?: ContextReference[]
+  }) {
+    return this._chatRepository.createMessage(input)
   }
 
-  async updateMessage(id: number, content: string): Promise<Result<number, DbError>> {
-    const result = await this.message.update(id, { content, isStreaming: false })
-    if (result.isErr()) {
-      this._logger.error('Failed to update message', {
-        messageId: id,
-        error: result.error,
-      })
-      return err(this._toDomainError(result.error))
-    }
-
-    return ok(result.value)
+  updateMessage(messageId: number, content: string) {
+    return this._chatRepository.updateMessage(messageId, content)
   }
 
-  async updateMessageContextReferences(
-    id: number,
-    refs: ContextReference[] | undefined
-  ): Promise<Result<number, DbError>> {
-    const result = await this.message.update(id, {
-      contextReferences: encodeContextReferences(refs),
-    })
-    if (result.isErr()) {
-      this._logger.error('Failed to update message contextReferences', {
-        messageId: id,
-        error: result.error,
-      })
-      return err(this._toDomainError(result.error))
-    }
-
-    return ok(result.value)
+  deleteMessage(messageId: number) {
+    return this._chatRepository.deleteMessage(messageId)
   }
 
-  async getStreamingMessages(): Promise<Result<Message[], DbError>> {
-    const messagesResult = await this.message.where('isStreaming').equals('true').toArray()
-
-    if (messagesResult.isErr()) {
-      this._logger.error('Failed to get streaming messages', {
-        error: messagesResult.error,
-      })
-      return err(this._toDomainError(messagesResult.error))
-    }
-
-    const mapped: Message[] = messagesResult.value.map((message) => ({
-      id: message.id!,
-      conversationId: message.conversationId,
-      role: message.role,
-      timestamp: message.timestamp,
-      content: message.content,
-      isStreaming: message.isStreaming,
-      model: message.model,
-      systemPrompt: message.systemPrompt,
-      contextReferences: decodeContextReferences(message.contextReferences),
-    }))
-
-    return ok(mapped)
+  deleteConversationWithMessage(conversationId: number) {
+    return this._chatRepository.deleteConversationWithMessage(conversationId)
   }
 
   private _declareVersions(): void {
@@ -323,7 +104,6 @@ export class AppDb extends Dexie {
     })
     this.version(4).stores({
       conversation: '++id, title, isActive, createdAt, updatedAt',
-      // schema string stays the same; we just treat contextReferences as string in DbMessage
       message: '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences',
     })
     this.version(5).stores({
@@ -337,11 +117,8 @@ export class AppDb extends Dexie {
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
       localSetting: '++id, settingKey, updatedAt',
     })
-    // v7: add syncId index to conversations for getConversationBySyncId lookup.
-    // syncId and syncVersion are assigned lazily by SyncManager on first mutation
-    // after the user enables sync — no blocking migration needed.
     this.version(7).stores({
-      conversation: '++id, title, isActive, createdAt, updatedAt, syncId',
+      conversation: '++id, title, isActive, createdAt, updatedAt, &syncId, syncVersion',
       message:
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
       localSetting: '++id, settingKey, updatedAt',
@@ -349,7 +126,7 @@ export class AppDb extends Dexie {
   }
 
   private _bindTables(): void {
-    this._conversationTable = this.table<DbConversation, number>('conversation')
+    this._conversationTable = this.table<Conversation, number>('conversation')
     this._messageTable = this.table<DbMessage, number>('message')
     this._localSettingTable = this.table<LocalSetting, number>('localSetting')
   }
@@ -357,7 +134,7 @@ export class AppDb extends Dexie {
   private _setupHooks(): void {
     this._conversationTable.hook(
       'creating',
-      (_primaryKey: number | undefined, myObject: DbConversation) => {
+      (_primaryKey: number | undefined, myObject: Conversation) => {
         const now = new Date()
         myObject.createdAt = now
         myObject.updatedAt = now
@@ -380,39 +157,8 @@ export class AppDb extends Dexie {
   }
 
   private _wrapSafeTables(): void {
-    this.conversation = new SafeTable<DbConversation, DbConversation, number>(this._conversationTable)
+    this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
     this.message = new SafeTable<DbMessage, NewDbMessage, number>(this._messageTable)
     this.localSetting = new SafeTable<LocalSetting, LocalSetting, number>(this._localSettingTable)
-  }
-
-  // TODO Refactor this to chat-repository.ts
-  private async _deleteEmptyConversation(conversationId: number): Promise<Result<void, DbError>> {
-    return ResultAsync.fromPromise(
-      (async () => {
-        const count = await this._messageTable
-          .where('conversationId')
-          .equals(conversationId)
-          .count()
-        if (count !== 0) return
-
-        await this._conversationTable.delete(conversationId)
-        this._logger.log(`Cascade deleted empty conversation ${conversationId}`)
-      })(),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to cascade delete conversation', {
-          conversationId,
-          error: mappedError,
-        })
-        return mappedError
-      }
-    )
-  }
-
-  private _toDomainError(error: unknown): DbError {
-    return new DbError(
-      error instanceof Error ? error.message : 'An unknown DB error occurred',
-      error instanceof Error ? error : undefined
-    )
   }
 }

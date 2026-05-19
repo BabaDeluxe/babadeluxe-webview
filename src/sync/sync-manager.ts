@@ -1,106 +1,118 @@
 import { ok, err, type Result } from 'neverthrow'
 import { v4 as uuidv4 } from 'uuid'
 import type { AppDb } from '@/database/app-db'
-import type { KeyValueStore } from '@/database/key-value-store'
 import type { Conversation, Message } from '@/database/types'
+import { SyncError as AppSyncError } from '@/errors'
+import type { ISyncAdapter, SyncPayload, SyncStatus, ConflictInfo } from '@/sync/types'
 import type { AbstractLogger } from '@/logger'
-import { DbError } from '@/errors'
-import type { ISyncAdapter, SyncPayload } from './types'
-import { SyncError, SyncAuthError } from './types'
-import { SyncQueue } from './sync-queue'
 
-const DEVICE_ID_KEY = 'sync.deviceId'
+type StatusHandler = (status: SyncStatus) => void
+type ConflictHandler = (info: ConflictInfo) => void
 
-/**
- * SyncManager
- *
- * Plain service (not a Pinia store) that orchestrates all sync activity.
- * useConversationStore calls notifyConversationMutated / notifyConversationDeleted
- * after every successful DB write — no other changes needed in that store.
- *
- * Responsibilities:
- *   1. Generate and persist a stable deviceId per install via KeyValueStore.
- *   2. Lazily assign syncId + syncVersion to conversations that lack them
- *      (supports gradual migration — no blocking batch operation on upgrade).
- *   3. Build SyncPayload snapshots and hand them to the debounced SyncQueue.
- *   4. Apply incoming payloads from pull() back to the local DB using LWW.
- *   5. Coordinate push/pull through the active ISyncAdapter.
- *
- * Concurrency: _busy flag prevents overlapping sync cycles. A second call
- * logs and returns ok() immediately — nothing is lost because the queue persists.
- *
- * Required AppDb additions (see app-db.ts changes in this PR):
- *   - getConversationBySyncId(syncId: string): ResultAsync<SyncableConversation | undefined, DbError>
- *   - deleteMessagesByConversation(conversationId: number): ResultAsync<void, DbError>
- *   - schema version 7: syncId index on conversations + kv object store
- */
-
-/** Augmented Conversation type — only used internally by SyncManager */
-export type SyncableConversation = Conversation & {
-  syncId?: string
-  syncVersion?: number
+type DbMessage = {
+  id?: number
+  conversationId: number
+  role: Message['role']
+  timestamp: Date
+  content: string
+  isStreaming?: boolean
+  model?: string
+  systemPrompt?: string
+  contextReferences?: string
 }
 
-export type SyncManagerConfig = {
-  adapter: ISyncAdapter
-  /** Debounce window in ms — collapses rapid mutations into one queue entry. Default: 2000 */
-  pushDebounceMs?: number
-  /** Periodic pull interval in ms. Default: 60 000 */
-  pullIntervalMs?: number
-}
+const flushDebounceMs = 2000
 
 export class SyncManager {
-  private _deviceId: string | undefined
-  private _queue: SyncQueue
-  private _pullTimer: ReturnType<typeof setInterval> | undefined
-  private _busy = false
-  private _started = false
+  private _adapter: ISyncAdapter | null = null
+  private _statusHandlers: StatusHandler[] = []
+  private _conflictHandlers: ConflictHandler[] = []
+  private _pending = new Map<number, ReturnType<typeof setTimeout>>()
 
   constructor(
     private readonly _db: AppDb,
-    private readonly _kv: KeyValueStore,
     private readonly _logger: AbstractLogger,
-    private readonly _config: SyncManagerConfig
-  ) {
-    this._queue = new SyncQueue(_kv, _logger)
+    private readonly _deviceId: string
+  ) {}
+
+  setAdapter(adapter: ISyncAdapter | null): void {
+    this._adapter = adapter
   }
 
-  // ─── Lifecycle ────────────────────────────────────────────────────────────────
-
-  async start(): Promise<void> {
-    if (this._started) return
-    this._started = true
-
-    this._deviceId = await this._getOrCreateDeviceId()
-    this._logger.log('SyncManager: started', {
-      adapter: this._config.adapter.name,
-      deviceId: this._deviceId,
-    })
-
-    // Flush anything that survived a previous crash
-    await this._queue.flush(this._config.adapter)
-
-    const pullIntervalMs = this._config.pullIntervalMs ?? 60_000
-    this._pullTimer = setInterval(() => void this._periodicPull(), pullIntervalMs)
+  onStatusChange(handler: StatusHandler): void {
+    this._statusHandlers.push(handler)
   }
 
-  stop(): void {
-    if (this._pullTimer !== undefined) {
-      clearInterval(this._pullTimer)
-      this._pullTimer = undefined
+  onConflict(handler: ConflictHandler): void {
+    this._conflictHandlers.push(handler)
+  }
+
+  notifyChanged(conversationId: number): void {
+    const existing = this._pending.get(conversationId)
+    if (existing) clearTimeout(existing)
+
+    const timer = setTimeout(() => {
+      this._pending.delete(conversationId)
+      void this._pushOne(conversationId)
+    }, flushDebounceMs)
+
+    this._pending.set(conversationId, timer)
+  }
+
+  notifyDeleted(conversationId: number, syncVersion: number): void {
+    const existing = this._pending.get(conversationId)
+    if (existing) clearTimeout(existing)
+    void this._pushTombstone(conversationId, syncVersion)
+  }
+
+  async syncNow(): Promise<void> {
+    for (const [id, timer] of this._pending) {
+      clearTimeout(timer)
+      this._pending.delete(id)
     }
-    this._started = false
-    this._logger.log('SyncManager: stopped')
+    await this.pullAll()
   }
 
-  // ─── Mutation hooks ───────────────────────────────────────────────────────────
+  async pullAll(): Promise<void> {
+    if (!this._adapter) return
 
-  /**
-   * Call after any conversation or message mutation (create / update / delete).
-   * Debounced — safe to call on every keystroke.
-   */
-  async notifyConversationMutated(conversationId: number): Promise<void> {
-    if (!this._started || !this._deviceId) return
+    this._emit({ state: 'syncing' })
+
+    const pullResult = await this._adapter.pull()
+    if (pullResult.isErr()) {
+      this._emit({ state: 'error', error: pullResult.error })
+      return
+    }
+
+    for (const payload of pullResult.value) {
+      if (payload.deviceId === this._deviceId) continue
+      await this._applyPayload(payload)
+    }
+
+    this._emit({ state: 'success', lastSyncAt: new Date() })
+  }
+
+  async resolveConflict(
+    info: ConflictInfo,
+    resolution: 'local-wins' | 'remote-wins'
+  ): Promise<void> {
+    if (!this._adapter) return
+
+    if (resolution === 'local-wins') {
+      const result = await this._adapter.push(info.localPayload)
+      if (result.isErr()) {
+        this._emit({ state: 'error', error: result.error })
+        return
+      }
+    } else {
+      await this._applyPayload(info.remotePayload)
+    }
+
+    this._emit({ state: 'success', lastSyncAt: new Date() })
+  }
+
+  private async _pushOne(conversationId: number): Promise<void> {
+    if (!this._adapter) return
 
     const payloadResult = await this._buildPayload(conversationId)
     if (payloadResult.isErr()) {
@@ -111,237 +123,181 @@ export class SyncManager {
       return
     }
 
-    this._queue.enqueueDebounced(payloadResult.value, this._config.pushDebounceMs ?? 2_000)
+    const pushResult = await this._adapter.push(payloadResult.value)
+    if (pushResult.isErr()) {
+      this._logger.error('SyncManager: push failed', {
+        conversationId,
+        error: pushResult.error,
+      })
+      this._emit({ state: 'error', error: pushResult.error })
+    }
   }
 
-  /**
-   * Call after a conversation is deleted.
-   * Pushes a tombstone immediately so remote devices know to remove it.
-   * Pass the syncId you read from the conversation BEFORE calling deleteConversationWithMessage.
-   */
-  async notifyConversationDeleted(conversationId: number, syncId: string): Promise<void> {
-    if (!this._started || !this._deviceId) return
+  private async _pushTombstone(conversationId: number, syncVersion: number): Promise<void> {
+    if (!this._adapter) return
 
     const tombstone: SyncPayload = {
-      syncId,
+      syncId: `tombstone:${conversationId}`,
       conversation: {
         id: conversationId,
-        syncId,
-        syncVersion: Date.now(),
         title: '',
-        isActive: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
+        isActive: 0,
+        syncId: `tombstone:${conversationId}`,
+        syncVersion: Number.MAX_SAFE_INTEGER,
       },
       messages: [],
-      syncVersion: Date.now(),
+      syncVersion: Number.MAX_SAFE_INTEGER,
       deviceId: this._deviceId,
       deletedAt: new Date().toISOString(),
     }
 
-    await this._queue.enqueue(tombstone)
-    await this._queue.flush(this._config.adapter)
-  }
-
-  // ─── Manual sync ──────────────────────────────────────────────────────────────
-
-  async syncNow(): Promise<Result<void, SyncError>> {
-    if (this._busy) {
-      this._logger.log('SyncManager: syncNow skipped — another cycle running')
-      return ok(undefined)
-    }
-    this._busy = true
-    try {
-      const flushResult = await this._queue.flush(this._config.adapter)
-      if (flushResult.isErr()) return flushResult
-      return await this._pull()
-    } finally {
-      this._busy = false
-    }
-  }
-
-  // ─── Pull ─────────────────────────────────────────────────────────────────────
-
-  private async _periodicPull(): Promise<void> {
-    if (this._busy) return
-    this._busy = true
-    try {
-      const result = await this._pull()
-      if (result.isErr()) {
-        if (result.error instanceof SyncAuthError) {
-          this._logger.error('SyncManager: auth error — stopping periodic pull', {
-            error: result.error,
-          })
-          this.stop()
-          return
-        }
-        this._logger.error('SyncManager: periodic pull failed', { error: result.error })
-      }
-    } finally {
-      this._busy = false
-    }
-  }
-
-  private async _pull(): Promise<Result<void, SyncError>> {
-    const pullResult = await this._config.adapter.pull()
-    if (pullResult.isErr()) return err(pullResult.error)
-
-    const payloads = pullResult.value
-    this._logger.log('SyncManager: pulled payloads', { count: payloads.length })
-
-    for (const payload of payloads) {
-      if (payload.deviceId === this._deviceId) continue // skip self-authored echo
-
-      const applyResult = await this._applyPayload(payload)
-      if (applyResult.isErr()) {
-        this._logger.error('SyncManager: failed to apply payload', {
-          syncId: payload.syncId,
-          error: applyResult.error,
-        })
-      }
-    }
-
-    return ok(undefined)
-  }
-
-  // ─── Payload builder ──────────────────────────────────────────────────────────
-
-  private async _buildPayload(
-    conversationId: number
-  ): Promise<Result<SyncPayload, DbError | SyncError>> {
-    const convResult = await this._db.conversation.get(conversationId)
-    if (convResult.isErr()) return err(convResult.error)
-
-    const conv = convResult.value as SyncableConversation | undefined
-    if (!conv) return err(new SyncError(`Conversation ${conversationId} not found`))
-
-    // Lazily assign syncId for conversations that pre-date the v7 migration
-    let syncId = conv.syncId
-    if (!syncId) {
-      syncId = uuidv4()
-      const upd = await this._db.conversation.update(conversationId, {
-        syncId,
-        syncVersion: 0,
-      } as Partial<Conversation>)
-      if (upd.isErr()) return err(upd.error)
-    }
-
-    // Bump syncVersion
-    const nextVersion = (conv.syncVersion ?? 0) + 1
-    const bumpResult = await this._db.conversation.update(conversationId, {
-      syncVersion: nextVersion,
-    } as Partial<Conversation>)
-    if (bumpResult.isErr()) return err(bumpResult.error)
-
-    const msgsResult = await this._db.getMessagesByConversation(conversationId)
-    if (msgsResult.isErr()) return err(msgsResult.error)
-
-    return ok({
-      syncId: syncId!,
-      conversation: { ...conv, syncId, syncVersion: nextVersion },
-      messages: [...msgsResult.value],
-      syncVersion: nextVersion,
-      deviceId: this._deviceId!,
-    })
-  }
-
-  // ─── Apply incoming payload (LWW) ─────────────────────────────────────────────
-
-  private async _applyPayload(
-    payload: SyncPayload
-  ): Promise<Result<void, DbError | SyncError>> {
-    // Tombstone handling
-    if (payload.deletedAt) {
-      const existing = await this._findBySyncId(payload.syncId)
-      if (existing?.id !== undefined) {
-        const del = await this._db.deleteConversationWithMessage(existing.id)
-        if (del.isErr()) return err(del.error)
-        this._logger.log('SyncManager: applied remote deletion', { syncId: payload.syncId })
-      }
-      return ok(undefined)
-    }
-
-    const existing = await this._findBySyncId(payload.syncId)
-
-    if (!existing) {
-      return this._createFromPayload(payload)
-    }
-
-    const localVersion = existing.syncVersion ?? 0
-    if (localVersion >= payload.syncVersion) {
-      this._logger.log('SyncManager: skipping stale remote payload', {
-        syncId: payload.syncId,
-        local: localVersion,
-        remote: payload.syncVersion,
+    const result = await this._adapter.push(tombstone)
+    if (result.isErr()) {
+      this._logger.error('SyncManager: tombstone push failed', {
+        conversationId,
+        syncVersion,
+        error: result.error,
       })
-      return ok(undefined)
     }
-
-    return this._updateFromPayload(existing.id, payload)
   }
 
-  private async _createFromPayload(
-    payload: SyncPayload
-  ): Promise<Result<void, DbError | SyncError>> {
-    const addResult = await this._db.conversation.add({
-      ...payload.conversation,
-      syncVersion: payload.syncVersion,
-    } as Conversation)
-    if (addResult.isErr()) return err(addResult.error)
+  private async _applyPayload(payload: SyncPayload): Promise<void> {
+    if (payload.deletedAt) {
+      const existingResult = await this._db.conversation.get(payload.conversation.id)
+      if (existingResult.isOk() && existingResult.value) {
+        await this._db.conversation.delete(payload.conversation.id)
+        const msgResult = await this._db.message
+          .where('conversationId')
+          .equals(payload.conversation.id)
+          .toArray()
+        if (msgResult.isOk()) {
+          const ids = msgResult.value.map((m) => m.id!).filter(Boolean)
+          if (ids.length > 0) await this._db.message.bulkDelete(ids)
+        }
+      }
+      return
+    }
 
-    const newId = Number(addResult.value)
-    for (const msg of payload.messages) {
-      const r = await this._db.createMessage({ ...msg, conversationId: newId })
-      if (r.isErr()) {
-        this._logger.error('SyncManager: failed to insert message from remote', { error: r.error })
+    const localResult = await this._db.conversation.get(payload.conversation.id)
+    if (localResult.isErr()) return
+    const local = localResult.value
+
+    if (local && this._pending.has(payload.conversation.id)) {
+      const localPayloadResult = await this._buildPayload(payload.conversation.id)
+      if (localPayloadResult.isOk()) {
+        const info: ConflictInfo = {
+          conversationId: payload.conversation.id,
+          localPayload: localPayloadResult.value,
+          remotePayload: payload,
+        }
+        this._conflictHandlers.forEach((h) => {
+          h(info)
+        })
+        this._emit({ state: 'conflict', info })
+        return
       }
     }
 
-    this._logger.log('SyncManager: created conversation from remote', { syncId: payload.syncId })
-    return ok(undefined)
-  }
+    if (local?.syncVersion !== undefined && payload.syncVersion <= local.syncVersion) {
+      return
+    }
 
-  private async _updateFromPayload(
-    localId: number,
-    payload: SyncPayload
-  ): Promise<Result<void, DbError | SyncError>> {
-    const updResult = await this._db.conversation.update(localId, {
+    const conv: Conversation = {
+      id: payload.conversation.id,
       title: payload.conversation.title,
+      isActive: payload.conversation.isActive,
+      createdAt: new Date(payload.conversation.createdAt),
       updatedAt: new Date(payload.conversation.updatedAt),
-      syncVersion: payload.syncVersion,
-    } as Partial<Conversation>)
-    if (updResult.isErr()) return err(updResult.error)
+      syncId: payload.conversation.syncId,
+      syncVersion: payload.conversation.syncVersion,
+    }
+    await this._db.conversation.put(conv)
 
-    const delResult = await this._db.deleteMessagesByConversation(localId)
-    if (delResult.isErr()) return err(delResult.error)
+    const existingMsgResult = await this._db.message
+      .where('conversationId')
+      .equals(payload.conversation.id)
+      .toArray()
 
-    for (const msg of payload.messages) {
-      const r = await this._db.createMessage({ ...msg, conversationId: localId })
-      if (r.isErr()) {
-        this._logger.error('SyncManager: failed to re-insert message from remote', { error: r.error })
-      }
+    if (existingMsgResult.isOk() && existingMsgResult.value.length > 0) {
+      const ids = existingMsgResult.value.map((m) => m.id!).filter(Boolean)
+      await this._db.message.bulkDelete(ids)
     }
 
-    this._logger.log('SyncManager: updated conversation from remote', {
-      syncId: payload.syncId,
-      newVersion: payload.syncVersion,
+    if (payload.messages.length > 0) {
+      const rows: DbMessage[] = payload.messages.map((m: Message) => ({
+        id: m.id,
+        conversationId: m.conversationId,
+        role: m.role,
+        timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(String(m.timestamp)),
+        content: m.content,
+        model: m.model,
+        systemPrompt: m.systemPrompt,
+        contextReferences: m.contextReferences ? JSON.stringify(m.contextReferences) : undefined,
+      }))
+      await this._db.message.bulkPut(rows)
+    }
+  }
+
+  private async _buildPayload(conversationId: number): Promise<Result<SyncPayload, AppSyncError>> {
+    const convResult = await this._db.conversation.get(conversationId)
+    if (convResult.isErr()) {
+      return err(
+        new AppSyncError('local', `Failed to read conversation ${conversationId}`, convResult.error)
+      )
+    }
+
+    const conv = convResult.value
+    if (!conv) {
+      return err(new AppSyncError('local', `Conversation ${conversationId} not found`))
+    }
+
+    const syncId = conv.syncId ?? uuidv4()
+    const syncVersion = (conv.syncVersion ?? 0) + 1
+
+    if (!conv.syncId) {
+      await this._db.conversation.update(conversationId, { syncId, syncVersion })
+    }
+
+    const msgResult = await this._db.message
+      .where('conversationId')
+      .equals(conversationId)
+      .toArray()
+
+    if (msgResult.isErr()) {
+      return err(
+        new AppSyncError(
+          'local',
+          `Failed to read messages for conversation ${conversationId}`,
+          msgResult.error
+        )
+      )
+    }
+
+    const payload: SyncPayload = {
+      syncId,
+      conversation: { ...conv, syncId, syncVersion },
+      messages: msgResult.value.map((m) => ({
+        id: m.id!,
+        conversationId: m.conversationId,
+        role: m.role,
+        timestamp: m.timestamp,
+        content: m.content,
+        model: m.model,
+        systemPrompt: m.systemPrompt,
+        contextReferences: m.contextReferences ? JSON.parse(m.contextReferences) : undefined,
+      })),
+      syncVersion,
+      deviceId: this._deviceId,
+    }
+
+    return ok(payload)
+  }
+
+  private _emit(status: SyncStatus): void {
+    this._statusHandlers.forEach((h) => {
+      h(status)
     })
-    return ok(undefined)
-  }
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-  private async _findBySyncId(syncId: string): Promise<SyncableConversation | null> {
-    const result = await this._db.getConversationBySyncId(syncId)
-    if (result.isErr() || !result.value) return null
-    return result.value as SyncableConversation
-  }
-
-  private async _getOrCreateDeviceId(): Promise<string> {
-    const result = await this._kv.get(DEVICE_ID_KEY)
-    if (result.isOk() && result.value) return result.value
-    const newId = uuidv4()
-    await this._kv.set(DEVICE_ID_KEY, newId)
-    return newId
   }
 }

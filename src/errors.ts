@@ -63,3 +63,37 @@ export type CreateOrResetAssistantError =
   | MessageUpdateError
 
 export class UnexpectedAppError extends BaseError {}
+export class SyncError extends BaseError {
+  constructor(
+    public readonly backend: string,
+    message: string,
+    cause?: unknown
+  ) {
+    super(`[sync:${backend}] ${message}`, cause)
+  }
+}
+
+export class SyncAuthError extends BaseError {
+  constructor(
+    public readonly backend: string,
+    message: string,
+    cause?: unknown
+  ) {
+    super(`[sync:${backend}] Auth error: ${message}`, cause)
+  }
+}
+
+export class ConflictError extends BaseError {
+  constructor(
+    public readonly backend: string,
+    public readonly conversationId: number,
+    public readonly localVersion: number,
+    public readonly remoteVersion: number,
+    cause?: unknown
+  ) {
+    super(
+      `[sync:${backend}] Conflict on conversation ${conversationId}: local v${localVersion} vs remote v${remoteVersion}`,
+      cause
+    )
+  }
+}

@@ -136,9 +136,7 @@ describe('useSettings()', () => {
 
   describe('upsertSetting', () => {
     it('resolves on successful upsert', async () => {
-      vi.spyOn(emitWithTimeoutModule, 'emitWithTimeout').mockResolvedValue(
-        ok({ success: true })
-      )
+      vi.spyOn(emitWithTimeoutModule, 'emitWithTimeout').mockResolvedValue(ok({ success: true }))
 
       const { upsertSetting } = mountSettingsSocket()
       const result = await upsertSetting('KEY', 'VAL', 'string')

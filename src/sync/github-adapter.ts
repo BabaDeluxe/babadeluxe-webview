@@ -1,195 +1,256 @@
-import { ok, err, ResultAsync } from 'neverthrow'
-import type { Result } from 'neverthrow'
-import type { ISyncAdapter, SyncPayload } from './types'
-import { SyncError, SyncAuthError } from './types'
+import { ok, err, type Result } from 'neverthrow'
+import { SyncError, SyncAuthError } from '@/errors'
+import type {
+  ISyncAdapter,
+  ConversationSnapshot,
+  ConversationSnapshotForUpload,
+  SyncPayload,
+} from '@/sync/types'
+import type { DeviceIdService } from '@/sync/device-id'
 
-/**
- * GitHubSyncAdapter
- *
- * One conversation = one file:  <repo>/<basePath>/<syncId>.json
- *
- * Push strategy — "upsert with version guard":
- *   1. GET existing file to obtain its blob SHA and current syncVersion.
- *   2. If remote syncVersion > local: skip (another device is ahead; pull handles it).
- *   3. PUT with the blob SHA so GitHub rejects concurrent conflicting writes (412).
- *
- * Pull strategy:
- *   List directory → fetch each file via download_url (CDN, does not count against
- *   the 5 000 req/hr API rate limit for file reads).
- *
- * Error classification:
- *   401 / 403 (non-rate-limit) → SyncAuthError (non-retryable, stops SyncQueue retry loop)
- *   403 with x-ratelimit-remaining=0, 429  → SyncError (retryable via retryWithBackoff)
- *   All other non-2xx              → SyncError (retryable)
- */
+const apiBase = 'https://api.github.com'
+const filePrefix = 'chats/'
+const fileExtension = '.json'
 
-export type GitHubAdapterConfig = {
-  /** PAT with contents:write (fine-grained) or repo (classic) scope */
+type GitHubAdapterConfig = {
   token: string
   owner: string
   repo: string
-  /** Folder inside the repo, e.g. "babadeluxe-sync" */
-  basePath: string
-  /** Defaults to "dev" to match this project's default branch */
   branch?: string
 }
 
-const API = 'https://api.github.com'
+type GitHubFileResponse = {
+  content: string
+  sha: string
+  encoding: string
+}
 
 export class GitHubSyncAdapter implements ISyncAdapter {
   readonly name = 'github'
+  readonly backend = 'github' as const
   private readonly _branch: string
 
-  constructor(private readonly _config: GitHubAdapterConfig) {
-    this._branch = _config.branch ?? 'dev'
+  constructor(
+    private readonly _config: GitHubAdapterConfig,
+    private readonly _deviceIdService: DeviceIdService
+  ) {
+    this._branch = _config.branch ?? 'main'
   }
 
-  isAvailable(): boolean {
-    const { token, owner, repo, basePath } = this._config
-    return !!(token && owner && repo && basePath)
-  }
-
-  // ─── Push ─────────────────────────────────────────────────────────────────────
-
-  async push(payloads: SyncPayload[]): Promise<Result<void, SyncError>> {
-    for (const payload of payloads) {
-      const result = await this._upsertFile(payload)
-      if (result.isErr()) return err(result.error)
-    }
-    return ok(undefined)
-  }
-
-  private async _upsertFile(payload: SyncPayload): Promise<Result<void, SyncError>> {
-    const url = `${API}/repos/${this._config.owner}/${this._config.repo}/contents/${this._filePath(payload.syncId)}`
-
-    const getResult = await this._getFile(url)
-    if (getResult.isErr()) return err(getResult.error)
-    const existing = getResult.value
-
-    // Version guard: skip if remote is strictly newer
-    if (existing) {
-      let remoteVersion = 0
-      try {
-        const decoded = JSON.parse(
-          atob(existing.content.replace(/\n/g, ''))
-        ) as Partial<SyncPayload>
-        remoteVersion = decoded.syncVersion ?? 0
-      } catch {
-        // Corrupt remote file — overwrite
-      }
-      if (remoteVersion > payload.syncVersion) return ok(undefined)
+  async push(payload: SyncPayload): Promise<Result<void, SyncError>> {
+    if (payload.deletedAt) {
+      return this.remove(payload.conversation.id)
     }
 
-    const body: Record<string, unknown> = {
-      message: `sync: update ${payload.syncId.slice(0, 8)}`,
-      content: btoa(JSON.stringify(payload)),
-      branch: this._branch,
+    const snapshot: ConversationSnapshotForUpload = {
+      id: payload.conversation.id,
+      syncVersion: payload.syncVersion,
+      conversation: payload.conversation,
+      messages: payload.messages,
+      deviceId: payload.deviceId,
     }
-    if (existing?.sha) body['sha'] = existing.sha
 
-    const putResult = await ResultAsync.fromPromise(
-      this._fetch(url, 'PUT', body),
-      (e) => new SyncError('GitHub PUT network error', e instanceof Error ? e : undefined)
-    )
-    if (putResult.isErr()) return err(putResult.error)
-
-    const res = putResult.value
-    if (res.ok || res.status === 201) return ok(undefined)
-    return err(await this._httpError(res))
+    return this.upload(snapshot)
   }
-
-  // ─── Pull ─────────────────────────────────────────────────────────────────────
 
   async pull(): Promise<Result<SyncPayload[], SyncError>> {
-    const url = `${API}/repos/${this._config.owner}/${this._config.repo}/contents/${this._config.basePath}?ref=${this._branch}`
-
-    const listResult = await ResultAsync.fromPromise(
-      this._fetch(url, 'GET'),
-      (e) => new SyncError('GitHub list network error', e instanceof Error ? e : undefined)
-    )
+    const listResult = await this.listRemote()
     if (listResult.isErr()) return err(listResult.error)
 
-    const res = listResult.value
-    if (res.status === 404) return ok([]) // Folder doesn't exist yet — first push hasn't happened
-    if (!res.ok) return err(await this._httpError(res))
-
-    let files: Array<{ name: string; download_url: string }>
-    try {
-      files = await res.json()
-    } catch (e) {
-      return err(new SyncError('GitHub pull: failed to parse directory listing', e instanceof Error ? e : undefined))
-    }
-
     const payloads: SyncPayload[] = []
-    for (const file of files) {
-      if (!file.name.endsWith('.json')) continue
 
-      const fetchResult = await ResultAsync.fromPromise(
-        fetch(file.download_url, { headers: this._headers() }).then(
-          (r) => r.json() as Promise<SyncPayload>
-        ),
-        (e) => new SyncError(`GitHub pull: failed to fetch ${file.name}`, e instanceof Error ? e : undefined)
-      )
-      if (fetchResult.isErr()) return err(fetchResult.error)
-      payloads.push(fetchResult.value)
+    for (const { id, syncVersion } of listResult.value) {
+      const downloadResult = await this.download(id)
+      if (downloadResult.isErr()) return err(downloadResult.error)
+      const snapshot = downloadResult.value
+      if (!snapshot) continue
+
+      const payload: SyncPayload = {
+        syncId: `github:${id}`,
+        conversation: {
+          ...snapshot.conversation,
+          syncId: `github:${id}`,
+          syncVersion: snapshot.syncVersion,
+        },
+        messages: snapshot.messages,
+        syncVersion,
+        deviceId: snapshot.deviceId ?? this._deviceIdService.getOrCreate(),
+      }
+
+      payloads.push(payload)
     }
 
     return ok(payloads)
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-  private _filePath(syncId: string): string {
-    return `${this._config.basePath}/${syncId}.json`
+  async testConnection(): Promise<Result<void, SyncError>> {
+    const result = await this._get(`/repos/${this._config.owner}/${this._config.repo}`)
+    if (result.isErr()) return err(result.error)
+    return ok(undefined)
   }
 
-  private _headers(): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this._config.token}`,
-      Accept: 'application/vnd.github+json',
-      'Content-Type': 'application/json',
-      'X-GitHub-Api-Version': '2022-11-28',
+  async upload(snapshot: ConversationSnapshotForUpload): Promise<Result<void, SyncError>> {
+    const deviceId = snapshot.deviceId ?? this._deviceIdService.getOrCreate()
+
+    const envelope: ConversationSnapshotForUpload = {
+      ...snapshot,
+      deviceId,
     }
-  }
 
-  private _fetch(url: string, method: string, body?: unknown): Promise<Response> {
-    return fetch(url, {
-      method,
-      headers: this._headers(),
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    })
-  }
+    const path = this._filePath(envelope.id)
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(envelope, null, 2))))
 
-  private async _getFile(
-    url: string
-  ): Promise<Result<{ sha: string; content: string } | null, SyncError>> {
-    const result = await ResultAsync.fromPromise(
-      this._fetch(`${url}?ref=${this._branch}`, 'GET'),
-      (e) => new SyncError('GitHub GET network error', e instanceof Error ? e : undefined)
+    const existing = await this._getFileMeta(path)
+    const sha = existing.isOk() ? existing.value : undefined
+
+    const body: Record<string, unknown> = {
+      message: `sync: update conversation ${envelope.id} (v${envelope.syncVersion})`,
+      content,
+      branch: this._branch,
+    }
+    if (sha) body.sha = sha
+
+    const result = await this._put(
+      `/repos/${this._config.owner}/${this._config.repo}/contents/${path}`,
+      body
     )
     if (result.isErr()) return err(result.error)
+    return ok(undefined)
+  }
 
-    const res = result.value
-    if (res.status === 404) return ok(null)
-    if (!res.ok) return err(await this._httpError(res))
+  async download(conversationId: number): Promise<Result<ConversationSnapshot | null, SyncError>> {
+    const path = this._filePath(conversationId)
+    const result = await this._get<GitHubFileResponse>(
+      `/repos/${this._config.owner}/${this._config.repo}/contents/${path}?ref=${this._branch}`
+    )
+
+    if (result.isErr()) {
+      if (result.error.message.includes('404')) return ok(null)
+      return err(result.error)
+    }
 
     try {
-      const data = (await res.json()) as { sha: string; content: string }
-      return ok(data)
+      const decoded = decodeURIComponent(escape(atob(result.value.content.replace(/\n/g, ''))))
+      const snapshot = JSON.parse(decoded) as ConversationSnapshot
+      return ok(snapshot)
     } catch (e) {
-      return err(new SyncError('GitHub GET: failed to parse response', e instanceof Error ? e : undefined))
+      return err(
+        new SyncError(
+          'github',
+          `Failed to parse remote snapshot for conversation ${conversationId}`,
+          e
+        )
+      )
     }
   }
 
-  private async _httpError(res: Response): Promise<SyncError> {
-    const body = await res.text().catch(() => '')
-    if (res.status === 401) return new SyncAuthError(`GitHub 401 Unauthorized: ${body}`)
-    if (res.status === 403) {
-      if (res.headers.get('x-ratelimit-remaining') === '0') {
-        return new SyncError(`GitHub rate limit hit — will retry after reset`)
-      }
-      return new SyncAuthError(`GitHub 403 Forbidden: ${body}`)
+  async remove(conversationId: number): Promise<Result<void, SyncError>> {
+    const path = this._filePath(conversationId)
+    const shaResult = await this._getFileMeta(path)
+    if (shaResult.isErr()) {
+      if (shaResult.error.message.includes('404')) return ok(undefined)
+      return err(shaResult.error)
     }
-    return new SyncError(`GitHub HTTP ${res.status}: ${body}`)
+
+    const result = await this._delete(
+      `/repos/${this._config.owner}/${this._config.repo}/contents/${path}`,
+      {
+        message: `sync: delete conversation ${conversationId}`,
+        sha: shaResult.value,
+        branch: this._branch,
+      }
+    )
+    if (result.isErr()) return err(result.error)
+    return ok(undefined)
+  }
+
+  async listRemote(): Promise<
+    Result<ReadonlyArray<{ id: number; syncVersion: number }>, SyncError>
+  > {
+    // eslint-disable-next-line
+    const result = await this._get<Array<{ name: string; download_url: string }>>(
+      `/repos/${this._config.owner}/${this._config.repo}/contents/${filePrefix.slice(0, -1)}?ref=${this._branch}`
+    )
+
+    if (result.isErr()) {
+      if (result.error.message.includes('404')) return ok([])
+      return err(result.error)
+    }
+
+    const entries: Array<{ id: number; syncVersion: number }> = []
+
+    for (const file of result.value) {
+      if (!file.name.endsWith(fileExtension)) continue
+      const id = parseInt(file.name.replace(fileExtension, ''), 10)
+      if (isNaN(id)) continue
+
+      const downloadResult = await this.download(id)
+      if (downloadResult.isErr() || !downloadResult.value) continue
+      entries.push({ id, syncVersion: downloadResult.value.syncVersion })
+    }
+
+    return ok(entries)
+  }
+
+  private async _getFileMeta(path: string): Promise<Result<string, SyncError>> {
+    const result = await this._get<GitHubFileResponse>(
+      `/repos/${this._config.owner}/${this._config.repo}/contents/${path}?ref=${this._branch}`
+    )
+    if (result.isErr()) return err(result.error)
+    return ok(result.value.sha)
+  }
+
+  private async _get<T>(endpoint: string): Promise<Result<T, SyncError>> {
+    return this._request<T>('GET', endpoint)
+  }
+
+  private async _put(endpoint: string, body: unknown): Promise<Result<unknown, SyncError>> {
+    return this._request('PUT', endpoint, body)
+  }
+
+  private async _delete(endpoint: string, body: unknown): Promise<Result<unknown, SyncError>> {
+    return this._request('DELETE', endpoint, body)
+  }
+
+  private async _request<T>(
+    method: string,
+    endpoint: string,
+    body?: unknown
+  ): Promise<Result<T, SyncError>> {
+    try {
+      const res = await fetch(`${apiBase}${endpoint}`, {
+        method,
+        headers: {
+          // eslint-disable-next-line
+          Authorization: `Bearer ${this._config.token}`,
+          // eslint-disable-next-line
+          Accept: 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      })
+
+      if (res.status === 401 || res.status === 403) {
+        return err(new SyncAuthError('github', `HTTP ${res.status}: ${await res.text()}`))
+      }
+
+      if (!res.ok) {
+        return err(new SyncError('github', `HTTP ${res.status}: ${await res.text()}`))
+      }
+
+      if (res.status === 204) return ok(undefined as T)
+
+      const data = (await res.json()) as T
+      return ok(data)
+    } catch (e) {
+      return err(
+        new SyncError('github', `Network error: ${e instanceof Error ? e.message : String(e)}`, e)
+      )
+    }
+  }
+
+  private _filePath(conversationId: number): string {
+    return `${filePrefix}${conversationId}${fileExtension}`
   }
 }

@@ -21,7 +21,10 @@
       v-if="isLoading"
       class="flex-1 flex items-center justify-center"
     >
-      <BaseSpinner size="medium" message="Loading prompts..." />
+      <BaseSpinner
+        size="medium"
+        message="Loading prompts..."
+      />
     </div>
 
     <template v-else>
@@ -139,7 +142,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { validateSetting } from '../services/prompt-injection-service'
-import type { PromptInjectionMode, PromptInjectionPosition } from '../services/prompt-injection-service'
+import type {
+  PromptInjectionMode,
+  PromptInjectionPosition,
+} from '../services/prompt-injection-service'
 import { usePromptsSocket as usePrompts, type Prompt } from '@/composables/use-prompts-socket'
 import { useSettings } from '@/composables/use-settings'
 import { useToastStore } from '@/stores/use-toast-store'
@@ -159,8 +165,8 @@ const isCreating = ref(false)
 const isSaving = ref(false)
 const isDeleting = ref(false)
 
-const selectedPrompt = computed(() =>
-  prompts.value.find((p) => p.id === selectedPromptId.value) as any
+const selectedPrompt = computed(
+  () => prompts.value.find((p) => p.id === selectedPromptId.value) as any
 )
 
 function selectPrompt(prompt: { id: number }) {
@@ -175,7 +181,13 @@ function handleNewPrompt() {
   activeTab.value = 'edit'
 }
 
-async function handleSave(payload: { id?: number; name: string; command: string; description?: string; template: string }) {
+async function handleSave(payload: {
+  id?: number
+  name: string
+  command: string
+  description?: string
+  template: string
+}) {
   isSaving.value = true
   const result = payload.id
     ? await updatePrompt(payload as Required<typeof payload>)
@@ -188,7 +200,9 @@ async function handleSave(payload: { id?: number; name: string; command: string;
       isCreating.value = false
       void fetchPrompts()
     },
-    (err) => { toasts.error(toUserMessage(err)) }
+    (err) => {
+      toasts.error(toUserMessage(err))
+    }
   )
 }
 
@@ -200,8 +214,13 @@ async function handleDelete() {
   const result = await deletePrompt(selectedPromptId.value)
   isDeleting.value = false
   result.match(
-    () => { toasts.success('Prompt deleted'); selectedPromptId.value = undefined },
-    (err) => { toasts.error(toUserMessage(err)) }
+    () => {
+      toasts.success('Prompt deleted')
+      selectedPromptId.value = undefined
+    },
+    (err) => {
+      toasts.error(toUserMessage(err))
+    }
   )
 }
 
@@ -215,22 +234,33 @@ const activeTab = ref<'edit' | 'injection'>('edit')
 // ── Injection settings (read from global settings store) ─────────────────────
 const getSetting = (key: string) => settings.value.find((s) => s.settingKey === key)?.settingValue
 
-const injectionMode = computed(() => (getSetting('promptInjectionMode') as PromptInjectionMode) ?? 'always')
+const injectionMode = computed(
+  () => (getSetting('promptInjectionMode') as PromptInjectionMode) ?? 'always'
+)
 const injectionInterval = computed(() => (getSetting('promptInjectionInterval') as number) ?? 5)
-const injectionPosition = computed(() => (getSetting('promptInjectionPosition') as PromptInjectionPosition) ?? 'system')
-const injectionIncludeHistory = computed(() => (getSetting('promptIncludeHistory') as boolean) ?? true)
+const injectionPosition = computed(
+  () => (getSetting('promptInjectionPosition') as PromptInjectionPosition) ?? 'system'
+)
+const injectionIncludeHistory = computed(
+  () => (getSetting('promptIncludeHistory') as boolean) ?? true
+)
 
 async function saveInjectionSetting(key: string, value: unknown) {
   const dataType =
     typeof value === 'boolean' ? 'boolean' : typeof value === 'number' ? 'number' : 'string'
 
   const validation = validateSetting(key, value)
-  if (!validation.success) { toasts.error(validation.error || "Invalid setting"); return }
+  if (!validation.success) {
+    toasts.error(validation.error || 'Invalid setting')
+    return
+  }
 
   const result = await upsertSetting(key, value, dataType)
   result.match(
     () => {},
-    (err) => { toasts.error(toUserMessage(err)) }
+    (err) => {
+      toasts.error(toUserMessage(err))
+    }
   )
 }
 

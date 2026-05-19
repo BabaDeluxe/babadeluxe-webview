@@ -124,7 +124,14 @@ export function createMockSocketManager(
   const global = {
     provide: {
       [SOCKET_MANAGER_KEY as symbol]: ref(socketManager),
-      [APP_DB_KEY as symbol]: { localSetting: { toArray: () => ({ isErr: () => false, value: [] }), where: () => ({ equals: () => ({ first: () => ({ isErr: () => false, value: undefined }) }) }) } },
+      [APP_DB_KEY as symbol]: {
+        localSetting: {
+          toArray: () => ({ isErr: () => false, value: [] }),
+          where: () => ({
+            equals: () => ({ first: () => ({ isErr: () => false, value: undefined }) }),
+          }),
+        },
+      },
     },
   }
 

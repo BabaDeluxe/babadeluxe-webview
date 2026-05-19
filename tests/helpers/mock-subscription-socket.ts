@@ -1,6 +1,4 @@
-import { MockSocket } from './mock-socket-manager'
-
-export type MockSubscriptionSocket = MockSocket
+import { MockSocket, type MockSubscriptionSocket } from './mock-socket-manager'
 
 export function createMockSocket(): MockSubscriptionSocket {
   return new MockSocket()
