@@ -1,15 +1,20 @@
 # Environment Variables
 
-All environment variables are validated at boot time via Zod in `src/env-validator.ts`. The app **refuses to start** if any required variable is missing or malformed — no silent config drift in production.
+All environment variables are validated at boot time via Zod in `src/env-validator.ts`. The app returns a `Result<EnvConfig, Error>` (neverthrow) — it **refuses to start** if any required variable is missing or malformed.
 
 ## Variables
 
-| Variable                 | Required | Description                                                 |
-| :----------------------- | :------- | :---------------------------------------------------------- |
-| `VITE_NODE_ENV`          | ✅       | `development` \| `staging` \| `production`                  |
-| `VITE_SUPABASE_URL`      | ✅       | Your Supabase project URL (`https://*.supabase.co`)         |
-| `VITE_SUPABASE_ANON_KEY` | ✅       | Supabase anonymous key (public, safe to expose)             |
-| `VITE_SOCKET_URL`        | ✅       | Socket.io backend base URL (`http://localhost:3000` in dev) |
+| Variable                   | Required                        | Description                                                  |
+| :------------------------- | :------------------------------ | :----------------------------------------------------------- |
+| `VITE_NODE_ENV`            | ✅ (default: `development`)     | `development` \| `production` \| `test`                      |
+| `VITE_OFFLINE_MODE`        | ❌ optional                     | `true` \| `false` — skips Supabase/socket validation when `true` |
+| `VITE_SUPABASE_URL`        | ✅ unless `VITE_OFFLINE_MODE=true` | Your Supabase project URL (`https://*.supabase.co`)       |
+| `VITE_SUPABASE_ANON_KEY`   | ✅ unless `VITE_OFFLINE_MODE=true` | Supabase anonymous key (public, safe to expose)           |
+| `VITE_SOCKET_URL`          | ❌ optional                     | Socket.io backend base URL (`http://localhost:3000` in dev)  |
+| `VITE_GA_MEASUREMENT_ID`   | ❌ optional                     | Google Analytics 4 measurement ID (`G-XXXXXXXXXX`)          |
+| `VITE_STATSIG_CLIENT_KEY`  | ❌ optional                     | Statsig client SDK key for feature flags                     |
+
+> **Offline mode:** when `VITE_OFFLINE_MODE=true`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are not required and the app runs fully without network auth.
 
 ## Env Files
 
@@ -28,26 +33,41 @@ cp .env.local.example .env.local
 
 ## Boot Validation
 
-`env-validator.ts` defines a Zod schema for the full env surface. It runs synchronously before the Vue app is mounted:
+`env-validator.ts` defines a Zod schema and returns a `Result<EnvConfigType, Error>` via neverthrow. It runs before the Vue app is mounted:
 
 ```ts
-const envSchema = z.object({
-  VITE_NODE_ENV: z.enum(['development', 'staging', 'production']),
-  VITE_SUPABASE_URL: z.string().url(),
-  VITE_SUPABASE_ANON_KEY: z.string().min(1),
-  VITE_SOCKET_URL: z.string().url(),
-})
-
-export const env = envSchema.parse(import.meta.env)
-// Throws a ZodError with a clear message if any variable is invalid.
-// The app never mounts in an invalid state.
+// Returns ok(config) or err(Error) — never throws
+export function validateEnvConfig(): Result<EnvConfigType, Error> {
+  const result = envConfigSchema.safeParse(import.meta.env)
+  if (!result.success) return err(new Error(result.error.message))
+  return ok(result.data)
+}
 ```
 
-All consumer code imports `env` from this module — never `import.meta.env` directly. This is the single source of truth for configuration.
+The schema uses `superRefine` to enforce conditional requirements:
+
+```ts
+const envConfigSchema = z
+  .object({
+    VITE_NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    VITE_OFFLINE_MODE: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
+    VITE_SUPABASE_URL: z.string().url().optional(),
+    VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
+    VITE_SOCKET_URL: z.string().url().optional(),
+    VITE_GA_MEASUREMENT_ID: z.string().min(1).optional(),
+    VITE_STATSIG_CLIENT_KEY: z.string().min(1).optional(),
+  })
+  .superRefine((config, ctx) => {
+    if (config.VITE_OFFLINE_MODE) return
+    // VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required in online mode
+    if (!config.VITE_SUPABASE_URL)    ctx.addIssue({ ... })
+    if (!config.VITE_SUPABASE_ANON_KEY) ctx.addIssue({ ... })
+  })
+```
+
+All consumer code imports `EnvConfigType` via the `ENV_CONFIG_KEY` injection key — never `import.meta.env` directly.
 
 ## Vite Modes
-
-Vite's `--mode` flag controls which `.env.*` file is loaded:
 
 ```powershell
 pnpm dev                     # mode: development → .env + .env.local

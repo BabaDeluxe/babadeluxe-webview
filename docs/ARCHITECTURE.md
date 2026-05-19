@@ -49,15 +49,25 @@ graph TD
 We enforce strict DI using Vue's `provide`/`inject` mechanism with `Symbol`-based keys and a `safeInject` helper. This guarantees runtime availability and makes dependencies trivially mockable in tests.
 
 ```ts
-// injection-keys.ts
-export const APP_DB_KEY: InjectionKey<AppDb> = Symbol('AppDb')
-export const LOGGER_KEY: InjectionKey<AbstractLogger> = Symbol('Logger')
+// injection-keys.ts (all current keys)
+export const ENV_CONFIG_KEY:          InjectionKey<EnvConfigType>                          = Symbol('ENV_CONFIG_KEY')
+export const LOGGER_KEY:              InjectionKey<AbstractLogger>                         = Symbol('LOGGER_KEY')
+export const APP_DB_KEY:              InjectionKey<AppDb>                                  = Symbol('APP_DB_KEY')
+export const SEARCH_SERVICE_KEY:      InjectionKey<SearchService>                          = Symbol('SEARCH_SERVICE_KEY')
+export const KEY_VALUE_STORE_KEY:     InjectionKey<KeyValueStore>                          = Symbol('KEY_VALUE_STORE_KEY')
+export const SUPABASE_CLIENT_KEY:     InjectionKey<SupabaseClientType>                     = Symbol('SUPABASE_CLIENT_KEY')
+export const SOCKET_MANAGER_KEY:      InjectionKey<Ref<SocketManager | undefined>>         = Symbol('SOCKET_MANAGER_KEY')
+export const ANALYTICS_MANAGER_KEY:   InjectionKey<AnalyticsManager>                       = Symbol('ANALYTICS_MANAGER_KEY')
+export const API_KEY_VALIDATOR_KEY:   InjectionKey<AsyncInjectable<IApiKeyValidator>>      = Symbol('API_KEY_VALIDATOR_KEY')
+export const AUTH_PROVIDER_KEY:       InjectionKey<AuthProvider>                           = Symbol('authProvider')
+export const VSCODE_BRIDGE_KEY:       InjectionKey<VsCodeBridge>                           = Symbol('VSCODE_BRIDGE_KEY')
 ```
 
 ```ts
 // App.vue — provide at root
 provide(APP_DB_KEY, appDb)
 provide(LOGGER_KEY, logger)
+// ... all keys above provided at root
 ```
 
 ```ts
@@ -68,6 +78,20 @@ const appDb = safeInject(APP_DB_KEY)
 ```
 
 `safeInject` wraps `inject()` and throws immediately with a clear message if the symbol is missing — no silent `undefined` leaking into business logic.
+
+### AsyncInjectable
+
+Dependencies that are provided before `app.mount()` but resolved asynchronously (e.g. after socket init) use the `AsyncInjectable<T>` wrapper:
+
+```ts
+export type AsyncInjectable<T> = {
+  readonly isReady: Readonly<Ref<boolean>>
+  readonly hasError: Readonly<Ref<boolean>>
+  readonly value: Readonly<Ref<T | undefined>>
+}
+```
+
+Consumers gate rendering on `isReady` / `hasError` instead of crashing during setup.
 
 ## State & Data Layer
 
@@ -96,6 +120,10 @@ flowchart LR
 ### SafeCollection / SafeTable
 
 Raw Dexie collections are wrapped in `SafeCollection` and `SafeTable` to enforce strong typing and prevent schema drift at runtime. Every DB operation returns a `Result<T, DbError>` — no naked throws.
+
+### ChatRepository
+
+`src/database/chat-repository.ts` holds all chat business logic (message CRUD, conversation cascade delete, streaming message resolution). `AppDb` owns the schema, hooks, and `SafeTable` wrappers and exposes a `chatRepository` getter — it no longer contains domain methods directly.
 
 ### KeyValueDb
 
@@ -147,7 +175,7 @@ graph TD
 | :----------------- | :--------------------------------------------------------------- |
 | `src/composables/` | Reusable Composition API logic                                   |
 | `src/stores/`      | Pinia stores for conversations, context, and UI state            |
-| `src/database/`    | Dexie.js layer with `SafeTable` and `KeyValueDb` wrappers        |
+| `src/database/`    | Dexie.js layer: `SafeTable`, `KeyValueDb`, `ChatRepository`      |
 | `src/vs-code/`     | Message bridge, type guards, and VS Code protocols               |
 | `src/components/`  | `Base*` design system components and feature widgets             |
 | `src/views/`       | Route-level pages: Chat, History, Prompts, Settings              |

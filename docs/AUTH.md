@@ -1,13 +1,14 @@
 # Authentication
 
-The webview supports two authentication strategies depending on where it runs.
+The webview supports three authentication strategies depending on where it runs and which identity provider is configured.
 
 ## Strategies
 
-| Strategy             | When                      | Composable         |
-| :------------------- | :------------------------ | :----------------- |
-| VS Code token bridge | Embedded in the extension | `useVsCodeAuth`    |
-| Supabase PKCE OAuth  | Standalone browser / dev  | Supabase JS client |
+| Strategy             | When                                  | Implementation                  |
+| :------------------- | :------------------------------------ | :------------------------------ |
+| VS Code token bridge | Embedded in the extension             | `useVsCodeAuth`                 |
+| Supabase PKCE OAuth  | Standalone browser / dev              | `SupabaseAuthProvider`          |
+| Zitadel PKCE OAuth   | Enterprise / self-hosted deployments  | `ZitadelAuthProvider` (planned) |
 
 ## VS Code Bridge Auth
 
@@ -23,6 +24,16 @@ For standalone browser usage (local dev, staging), a standard PKCE flow is used:
 2. GitHub redirects back to the webview with an auth code
 3. Supabase exchanges the code for a session and access token
 4. Access token is passed to the Socket.io connection
+
+## Zitadel PKCE OAuth _(planned — tracked in [#100](https://github.com/BabaDeluxe/babadeluxe-webview/issues/100))_
+
+`src/auth/zitadel-auth-provider.ts` implements the `AuthProvider` interface and is wired up via `create-auth-provider.ts`. The following methods are currently stubbed and return `err(...)` until the full session flow is implemented:
+
+- `signInWithOAuth` — Zitadel PKCE/redirect flow
+- `signInWithPasskey` — WebAuthn passkey flow (scope TBD)
+- `signInWithSSO` — Enterprise SSO (scope TBD)
+
+Once complete, Zitadel will be the preferred provider for self-hosted and enterprise deployments. `SupabaseAuthProvider` explicitly disables `signInWithPasskey` and `signInWithSSO` until Zitadel configuration is finalised.
 
 ## Full Auth Flow
 
@@ -46,7 +57,7 @@ sequenceDiagram
     end
 
     rect rgb(15, 26, 42)
-        note right of User: Scenario 2 — Standalone Browser
+        note right of User: Scenario 2 — Standalone Browser (Supabase)
         User->>Webview: Clicks Login
         Webview->>Supabase: OAuth Flow (PKCE)
         Supabase-->>Webview: Session & Access Token
@@ -63,3 +74,7 @@ API keys are never stored without validation. Before persisting to `KeyValueStor
 ## Session Synchronization
 
 Supabase emits `SIGNED_IN` / `SIGNED_OUT` / `TOKEN_REFRESHED` events. The app subscribes via `supabase.auth.onAuthStateChange()` and propagates token changes to the active Socket.io connection via `SocketManager.updateAuthToken()` — no reconnect required.
+
+## AuthProvider Interface
+
+All providers implement the `AuthProvider` interface from `src/auth/auth-provider.ts`. The active provider is resolved at boot by `create-auth-provider.ts` based on the runtime environment and injects via `AUTH_PROVIDER_KEY`.
