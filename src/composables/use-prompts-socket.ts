@@ -264,7 +264,7 @@ export function usePromptsSocket() {
     selectedPromptId,
     isLoading: readonly(isLoading),
     error: readonly(error),
-    fetchAllPrompts,
+    fetchPrompts: fetchAllPrompts,
     clearError,
     createPrompt,
     updatePrompt,

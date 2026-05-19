@@ -1,354 +1,189 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
 <template>
   <section
     id="prompts"
-    data-testid="prompts-view-container"
-    class="relative flex flex-col flex-1 min-h-0 w-full bg-slate overflow-hidden"
+    data-testid="prompts-view"
+    class="flex-1 flex flex-col gap-6 p-4 sm:p-6 max-w-4xl mx-auto w-full"
   >
-    <div class="flex flex-row w-full items-center justify-between flex-shrink-0 gap-2 px-4 pt-4">
-      <h3 class="text-lg font-medium text-deepText">All Prompts</h3>
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-4">
+      <h2 class="text-xl font-onest font-semibold text-deepText">Prompts</h2>
       <BaseButton
-        variant="secondary"
+        variant="primary"
         icon="i-bi:plus-lg"
-        class="md:w-auto w-9 h-9 md:h-auto"
-        data-testid="prompts-new-button"
-        @click="handleCreateNewPrompt"
-      >
-        <span class="hidden md:inline-block">New Prompt</span>
-      </BaseButton>
+        text="New Prompt"
+        data-testid="create-prompt-button"
+        @click="handleNewPrompt"
+      />
     </div>
 
+    <!-- Loading -->
     <div
-      v-if="hasComponentError"
-      data-testid="component-error"
-      class="flex-1 flex flex-col items-center justify-center gap-4 text-center"
-    >
-      <p class="text-error text-lg">Something went wrong with the prompts view.</p>
-      <BaseButton
-        variant="secondary"
-        data-testid="prompts-reload-button"
-        @click="handleReload"
-      >
-        Reload Page
-      </BaseButton>
-    </div>
-
-    <div
-      v-else-if="isLoading"
-      data-testid="prompts-loading-state"
+      v-if="isLoading"
       class="flex-1 flex items-center justify-center"
     >
       <BaseSpinner
-        size="large"
+        size="medium"
         message="Loading prompts..."
       />
     </div>
 
     <template v-else>
-      <div class="flex flex-col flex-1 min-h-0 w-full overflow-hidden pt-4 px-4">
-        <PromptLayout
-          v-if="isMobile"
-          ref-key="vertical-split-container"
-          direction="vertical"
-          :left-width-percent="verticalTopHeightPercent"
-          :right-width-percent="verticalBottomHeightPercent"
-          :is-dragging="verticalIsDragging"
-          @start-dragging="verticalStartDragging"
+      <!-- Two-column layout: list + editor/injection settings -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- ── Prompt List ── -->
+        <div class="flex flex-col gap-2">
+          <div
+            v-if="prompts.length === 0"
+            class="flex flex-col items-center justify-center gap-3 py-16 text-center"
+          >
+            <span class="i-bi:chat-square-text text-subtleText text-3xl" />
+            <p class="text-sm text-subtleText">No prompts yet.</p>
+            <BaseButton
+              variant="secondary"
+              icon="i-bi:plus-lg"
+              text="Create your first prompt"
+              @click="handleNewPrompt"
+            />
+          </div>
+
+          <button
+            v-for="prompt in prompts"
+            :key="prompt.id"
+            type="button"
+            class="flex flex-col gap-0.5 px-3.5 py-3 rounded-lg border text-left transition-colors"
+            :class="
+              selectedPromptId === prompt.id
+                ? 'border-accent bg-accentDim'
+                : 'border-borderMuted bg-panel hover:border-accent/50'
+            "
+            :data-testid="`prompt-list-item-${prompt.id}`"
+            @click="selectPrompt(prompt)"
+          >
+            <span class="text-sm font-medium text-deepText truncate">{{ prompt.name }}</span>
+            <span class="text-xs text-subtleText">/{{ prompt.command || '' }}</span>
+          </button>
+        </div>
+
+        <!-- ── Right panel: tabs (Edit / Injection Settings) ── -->
+        <div
+          v-if="selectedPrompt || isCreating"
+          class="flex flex-col gap-3"
         >
-          <template #master>
-            <PromptList
-              :prompts="prompts"
-              :selected-prompt-id="selectedPromptId"
-              empty-description="No prompts created yet. Click New Prompt to start."
-              data-testid="prompt-list"
-              @select="handleSelectPrompt"
-              @delete="handleDeletePrompt"
-            />
-          </template>
+          <!-- Tab bar -->
+          <div
+            v-if="!isCreating"
+            class="flex gap-1 p-0.5 rounded-lg bg-panel border border-borderMuted self-start"
+          >
+            <button
+              v-for="tab in tabs"
+              :key="tab.id"
+              type="button"
+              class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+              :class="
+                activeTab === tab.id
+                  ? 'bg-accentDim text-accent border border-accentBorder'
+                  : 'text-subtleText hover:text-deepText'
+              "
+              :data-testid="`tab-${tab.id}`"
+              @click="activeTab = tab.id"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
 
-          <template #detail>
+          <!-- Edit tab -->
+          <div v-show="isCreating || activeTab === 'edit'">
             <PromptEditor
-              v-if="selectedPrompt || isCreatingNewPrompt"
-              :prompt="editablePrompt"
-              :is-creating="isCreatingNewPrompt"
+              :prompt="selectedPrompt"
+              :is-creating="isCreating"
               :is-saving="isSaving"
-              :rows="6"
-              :can-duplicate="canDuplicate"
-              :duplicate-label="duplicateLabel"
-              data-testid="prompt-editor"
-              @save="handleSaveChanges"
-              @change="handleFormChange"
-              @duplicate="handleDuplicate"
+              @save="handleSave"
+              @change="handleChange"
             />
-            <BaseEmptyState
-              v-else-if="prompts.length > 0"
-              icon="i-bi:cursor-text"
-              description="Select a prompt to edit."
-            />
-          </template>
-        </PromptLayout>
+          </div>
 
-        <PromptLayout
-          v-else
-          ref-key="horizontal-split-container"
-          direction="horizontal"
-          :left-width-percent="splitLeftWidthPercent"
-          :right-width-percent="splitRightWidthPercent"
-          :is-dragging="splitIsDragging"
-          @start-dragging="splitStartDragging"
-        >
-          <template #master>
-            <PromptList
-              :prompts="prompts"
-              :selected-prompt-id="selectedPromptId"
-              empty-description="No prompts created yet. Click New Prompt to start."
-              data-testid="prompt-list"
-              @select="handleSelectPrompt"
-              @delete="handleDeletePrompt"
+          <!-- Injection Settings tab -->
+          <div
+            v-if="!isCreating"
+            v-show="activeTab === 'injection'"
+          >
+            <PromptInjectionSettings
+              :mode="injectionMode"
+              :interval="injectionInterval"
+              :position="injectionPosition"
+              :include-history="injectionIncludeHistory"
+              @update:mode="saveInjectionSetting('promptInjectionMode', $event)"
+              @update:interval="saveInjectionSetting('promptInjectionInterval', $event)"
+              @update:position="saveInjectionSetting('promptInjectionPosition', $event)"
+              @update:include-history="saveInjectionSetting('promptIncludeHistory', $event)"
             />
-          </template>
+          </div>
 
-          <template #detail>
-            <PromptEditor
-              v-if="selectedPrompt || isCreatingNewPrompt"
-              :prompt="editablePrompt"
-              :is-creating="isCreatingNewPrompt"
-              :is-saving="isSaving"
-              :rows="10"
-              :can-duplicate="canDuplicate"
-              :duplicate-label="duplicateLabel"
-              data-testid="prompt-editor"
-              @save="handleSaveChanges"
-              @change="handleFormChange"
-              @duplicate="handleDuplicate"
+          <!-- Prompt actions -->
+          <div
+            v-if="selectedPrompt && !isCreating"
+            class="flex justify-end gap-2 pt-2"
+          >
+            <BaseButton
+              variant="ghost"
+              icon="i-bi:trash"
+              text="Delete"
+              :is-loading="isDeleting"
+              data-testid="delete-prompt-button"
+              @click="handleDelete"
             />
-            <BaseEmptyState
-              v-else-if="prompts.length > 0"
-              icon="i-bi:cursor-text"
-              description="Select a prompt to view or edit its details."
-            />
-          </template>
-        </PromptLayout>
+          </div>
+        </div>
       </div>
     </template>
-
-    <BaseModal
-      v-model:is-shown="deleteModal.isShown"
-      data-testid="prompt-delete-modal"
-      title="Delete Prompt"
-      confirm-text="Delete"
-      cancel-text="Cancel"
-      size="sm"
-      @confirm="confirmDelete"
-      @cancel="cancelDelete"
-    >
-      <p class="text-deepText">
-        Are you sure you want to delete
-        <strong class="text-accent">{{ deleteModal.promptName }}</strong
-        >?
-      </p>
-      <p class="text-sm text-subtleText mt-2">This action cannot be undone.</p>
-    </BaseModal>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineAsyncComponent, onMounted, watch } from 'vue'
-import { useDebounceFn, useBreakpoints, breakpointsTailwind } from '@vueuse/core'
-import { ResultAsync } from 'neverthrow'
-import { usePromptsSocket } from '@/composables/use-prompts-socket'
-import { useResizableSplit } from '@/composables/use-resizable-split'
-import { KEY_VALUE_STORE_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
-import { safeInject } from '@/safe-inject'
-import { AuthError } from '@/errors'
-import { toUserMessage } from '@/error-mapper'
+/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
+import { ref, computed, onMounted } from 'vue'
+import { validateSetting } from '../services/prompt-injection-service'
+import type {
+  PromptInjectionMode,
+  PromptInjectionPosition,
+} from '../services/prompt-injection-service'
+import { usePromptsSocket as usePrompts, type Prompt } from '@/composables/use-prompts-socket'
+import { useSettings } from '@/composables/use-settings'
 import { useToastStore } from '@/stores/use-toast-store'
-import { isOfflineMode } from '@/env-validator'
+import { toUserMessage } from '@/error-mapper'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
-import BaseEmptyState from '@/components/BaseEmptyState.vue'
-import PromptList from '@/components/PromptList.vue'
-import PromptLayout from '@/components/PromptLayout.vue'
+import PromptEditor from '@/components/PromptEditor.vue'
+import PromptInjectionSettings from '@/components/PromptInjectionSettings.vue'
 
-defineOptions({ name: 'PromptsView' })
-
-const breakpoints = useBreakpoints(breakpointsTailwind)
-const isMobile = breakpoints.smaller('md')
-
-// eslint-disable-next-line @typescript-eslint/naming-convention
-const PromptEditor = defineAsyncComponent({
-  loader: () => import('@/components/PromptEditor.vue'),
-  loadingComponent: BaseSpinner,
-  delay: 200,
-})
-
-// eslint-disable-next-line @typescript-eslint/naming-convention
-const BaseModal = defineAsyncComponent(() => import('@/components/BaseModal.vue'))
-
-const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)
-const logger = safeInject(LOGGER_KEY)
-const supabase = safeInject(SUPABASE_CLIENT_KEY)
-
-const {
-  prompts,
-  selectedPrompt,
-  selectedPromptId,
-  isLoading,
-  error,
-  createPrompt,
-  updatePrompt,
-  deletePrompt,
-  isValidationError,
-  clearError,
-} = usePromptsSocket()
-
+const { prompts, isLoading, createPrompt, updatePrompt, deletePrompt, fetchPrompts } = usePrompts()
+const { settings, upsertSetting, loadSettings } = useSettings()
 const toasts = useToastStore()
 
-const {
-  leftWidthPercent: splitLeftWidthPercent,
-  rightWidthPercent: splitRightWidthPercent,
-  isDragging: splitIsDragging,
-  startDragging: splitStartDragging,
-} = useResizableSplit({
-  keyValueStore,
-  storageKey: 'prompts-split-ratio',
-  refKey: 'horizontal-split-container',
-  defaultRatio: 33,
-  minRatio: 20,
-  maxRatio: 50,
-})
-
-const {
-  leftWidthPercent: verticalTopHeightPercent,
-  rightWidthPercent: verticalBottomHeightPercent,
-  isDragging: verticalIsDragging,
-  startDragging: verticalStartDragging,
-} = useResizableSplit({
-  keyValueStore,
-  storageKey: 'prompts-vertical-split-ratio',
-  refKey: 'vertical-split-container',
-  defaultRatio: 40,
-  direction: 'vertical',
-  minRatio: 0,
-  maxRatio: 50,
-})
-
-const isCreatingNewPrompt = ref(false)
+// ── Prompt selection ─────────────────────────────────────────────────────────
+const selectedPromptId = ref<number | undefined>()
+const isCreating = ref(false)
 const isSaving = ref(false)
-const saveError = ref<string | undefined>()
-const currentUserId = ref<string>()
-const hasComponentError = ref(false)
+const isDeleting = ref(false)
 
-const deleteModal = ref({
-  isShown: false,
-  promptId: null as number | null,
-  promptName: '',
-})
-
-const handleReload = () => {
-  window.location.reload()
-}
-
-const editablePrompt = computed(() => {
-  if (isCreatingNewPrompt.value) {
-    return {
-      id: undefined,
-      name: '',
-      command: '',
-      description: '',
-      template: '',
-      isSystem: false,
-      fkUserId: currentUserId.value ?? undefined,
-    }
-  }
-
-  if (selectedPrompt.value) {
-    return {
-      id: selectedPrompt.value.id,
-      name: selectedPrompt.value.name,
-      command: selectedPrompt.value.command ?? '',
-      description: selectedPrompt.value.description ?? '',
-      template: selectedPrompt.value.template,
-      isSystem: selectedPrompt.value.isSystem,
-    }
-  }
-
-  return undefined
-})
-
-watch(
-  error,
-  (val) => {
-    if (val) {
-      toasts.error(toUserMessage(val))
-      clearError()
-    }
-  },
-  { immediate: true }
+const selectedPrompt = computed(
+  () => prompts.value.find((p) => p.id === selectedPromptId.value) as any
 )
 
-watch(
-  saveError,
-  (val) => {
-    if (val) {
-      const isValidation = val.startsWith('Invalid prompt') || val.startsWith('Cannot delete')
-      if (isValidation) {
-        toasts.warning(toUserMessage(val))
-      } else {
-        toasts.error(toUserMessage(val))
-      }
-    }
-  },
-  { immediate: true }
-)
-
-const fetchUserId = async (): Promise<void> => {
-  if (isOfflineMode()) {
-    currentUserId.value = 'offline-user'
-    return
-  }
-
-  const getUserResult = await ResultAsync.fromPromise(supabase.auth.getUser(), (unknownError) => {
-    if (unknownError instanceof Error) {
-      return new AuthError(unknownError.message, unknownError)
-    }
-    return new AuthError('Failed to fetch user', unknownError)
-  })
-
-  getUserResult.match(
-    (response) => {
-      if (response.data.user?.id) {
-        currentUserId.value = response.data.user.id
-      }
-    },
-    (fetchError) => {
-      logger.error('Failed to fetch user details for prompts view', {
-        error: fetchError,
-      })
-    }
-  )
+function selectPrompt(prompt: { id: number }) {
+  isCreating.value = false
+  selectedPromptId.value = prompt.id
+  activeTab.value = 'edit'
 }
 
-function handleSelectPrompt(promptId: number) {
-  selectedPromptId.value = promptId
-  isCreatingNewPrompt.value = false
-  saveError.value = undefined
-}
-
-function handleCreateNewPrompt() {
-  isCreatingNewPrompt.value = true
+function handleNewPrompt() {
+  isCreating.value = true
   selectedPromptId.value = undefined
-  saveError.value = undefined
+  activeTab.value = 'edit'
 }
 
-const debouncedClearSaveError = useDebounceFn(() => {
-  saveError.value = undefined
-}, 3000)
-
-function handleFormChange() {
-  if (saveError.value) debouncedClearSaveError()
-}
-
-async function handleSaveChanges(payload: {
+async function handleSave(payload: {
   id?: number
   name: string
   command: string
@@ -356,149 +191,82 @@ async function handleSaveChanges(payload: {
   template: string
 }) {
   isSaving.value = true
-  saveError.value = undefined
-
-  const result = isCreatingNewPrompt.value
-    ? await createPrompt(payload)
-    : await updatePrompt({ id: payload.id!, ...payload })
-
-  if (result.isErr()) {
-    const action = isCreatingNewPrompt.value ? 'create' : 'update'
-    logger.error(`Failed to ${action} prompt`, {
-      userId: currentUserId.value,
-      promptId: payload.id,
-      promptName: payload.name,
-      error: result.error,
-    })
-
-    const isValidation = isValidationError(result.error)
-
-    saveError.value = isValidation
-      ? 'Invalid prompt data. Check required fields and character limits.'
-      : 'Failed to save prompt. Please try again or contact support.'
-
-    isSaving.value = false
-    return
-  }
-
-  logger.log(`Successfully ${isCreatingNewPrompt.value ? 'created' : 'updated'} prompt`, {
-    userId: currentUserId.value,
-    promptId: payload.id,
-  })
-  isCreatingNewPrompt.value = false
+  const result = payload.id
+    ? await updatePrompt(payload as Required<typeof payload>)
+    : await createPrompt(payload)
   isSaving.value = false
+
+  result.match(
+    (saved) => {
+      toasts.success(payload.id ? 'Prompt updated' : 'Prompt created')
+      isCreating.value = false
+      void fetchPrompts()
+    },
+    (err) => {
+      toasts.error(toUserMessage(err))
+    }
+  )
 }
 
-function handleDeletePrompt(promptId: number) {
-  const prompt = prompts.value.find((p) => p.id === promptId)
-  if (!prompt) return
+function handleChange() {}
 
-  deleteModal.value = {
-    isShown: true,
-    promptId,
-    promptName: prompt.name,
-  }
+async function handleDelete() {
+  if (!selectedPromptId.value) return
+  isDeleting.value = true
+  const result = await deletePrompt(selectedPromptId.value)
+  isDeleting.value = false
+  result.match(
+    () => {
+      toasts.success('Prompt deleted')
+      selectedPromptId.value = undefined
+    },
+    (err) => {
+      toasts.error(toUserMessage(err))
+    }
+  )
 }
 
-async function confirmDelete() {
-  if (deleteModal.value.promptId === null) return
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+const tabs = [
+  { id: 'edit' as const, label: 'Edit' },
+  { id: 'injection' as const, label: 'Injection Settings' },
+]
+const activeTab = ref<'edit' | 'injection'>('edit')
 
-  saveError.value = undefined
+// ── Injection settings (read from global settings store) ─────────────────────
+const getSetting = (key: string) => settings.value.find((s) => s.settingKey === key)?.settingValue
 
-  const result = await deletePrompt(deleteModal.value.promptId)
+const injectionMode = computed(
+  () => (getSetting('promptInjectionMode') as PromptInjectionMode) ?? 'always'
+)
+const injectionInterval = computed(() => (getSetting('promptInjectionInterval') as number) ?? 5)
+const injectionPosition = computed(
+  () => (getSetting('promptInjectionPosition') as PromptInjectionPosition) ?? 'system'
+)
+const injectionIncludeHistory = computed(
+  () => (getSetting('promptIncludeHistory') as boolean) ?? true
+)
 
-  if (result.isErr()) {
-    logger.error('Failed to delete prompt', {
-      userId: currentUserId.value,
-      promptId: deleteModal.value.promptId,
-      promptName: deleteModal.value.promptName,
-      error: result.error,
-    })
+async function saveInjectionSetting(key: string, value: unknown) {
+  const dataType =
+    typeof value === 'boolean' ? 'boolean' : typeof value === 'number' ? 'number' : 'string'
 
-    const isValidation = isValidationError(result.error)
-
-    saveError.value = isValidation
-      ? 'Cannot delete this prompt. It may be in use.'
-      : 'Failed to delete prompt. Please try again later.'
-
-    cancelDelete()
+  const validation = validateSetting(key, value)
+  if (!validation.success) {
+    toasts.error(validation.error || 'Invalid setting')
     return
   }
 
-  logger.log('Successfully deleted prompt', {
-    userId: currentUserId.value,
-    promptId: deleteModal.value.promptId,
-  })
-  cancelDelete()
-}
-
-function cancelDelete() {
-  deleteModal.value = {
-    isShown: false,
-    promptId: null,
-    promptName: '',
-  }
-}
-
-const canDuplicate = computed(() => !!selectedPrompt.value && !isCreatingNewPrompt.value)
-
-const duplicateLabel = computed(() => {
-  const prompt = selectedPrompt.value
-  if (!prompt) return 'Duplicate'
-  if (prompt.isSystem) {
-    return 'Copy to my prompts'
-  }
-  return 'Duplicate'
-})
-
-async function handleDuplicate(payload: {
-  name: string
-  command: string
-  description?: string
-  template: string
-}) {
-  if (!selectedPrompt.value) return
-
-  const source = selectedPrompt.value
-  isSaving.value = true
-  saveError.value = undefined
-
-  const result = await createPrompt({
-    name: payload.name,
-    command: payload.command,
-    description: payload.description,
-    template: payload.template,
-  })
-
-  if (result.isErr()) {
-    logger.error('Failed to duplicate prompt', {
-      userId: currentUserId.value,
-      fromPromptId: source.id,
-      error: result.error,
-    })
-
-    const isValidation = isValidationError(result.error)
-
-    saveError.value = isValidation
-      ? 'Invalid prompt data. Check required fields and character limits.'
-      : 'Failed to duplicate prompt. Please try again or contact support.'
-
-    isSaving.value = false
-    return
-  }
-
-  const isSystemGlobal = source.isSystem
-
-  logger.log(isSystemGlobal ? 'Copied system prompt to user prompts' : 'Duplicated prompt', {
-    userId: currentUserId.value,
-    fromPromptId: source.id,
-  })
-
-  isCreatingNewPrompt.value = false
-  isSaving.value = false
+  const result = await upsertSetting(key, value, dataType)
+  result.match(
+    () => {},
+    (err) => {
+      toasts.error(toUserMessage(err))
+    }
+  )
 }
 
 onMounted(async () => {
-  await fetchUserId()
+  await Promise.all([fetchPrompts(), loadSettings()])
 })
 </script>

@@ -10,23 +10,33 @@ import { encodeContextReferences, decodeContextReferences } from '@/database/ser
 type DbMessage = {
   id?: number
   conversationId: number
-  role: Message['role']
+  role: 'user' | 'assistant'
   timestamp: Date
   content: string
-  isStreaming?: boolean
+  isStreaming: boolean
   model?: string
   systemPrompt?: string
-  contextReferences?: string // Encoded as JSON
+  contextReferences?: string // JSON.stringify(ContextReference[])
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
 
+/**
+ * Augmented Conversation stored in IndexedDB from schema v7 onwards.
+ * The base Conversation type is extended with optional sync fields so
+ * existing code that reads Conversation objects doesn't need to change.
+ */
+export type DbConversation = Conversation & {
+  syncId?: string
+  syncVersion?: number
+}
+
 export class AppDb extends Dexie {
-  public conversation!: SafeTable<Conversation, Conversation, number>
+  public conversation!: SafeTable<DbConversation, DbConversation, number>
   public message!: SafeTable<DbMessage, NewDbMessage, number>
   public localSetting!: SafeTable<LocalSetting, LocalSetting, number>
 
-  private _conversationTable!: Table<Conversation, number>
+  private _conversationTable!: Table<DbConversation, number>
   private _messageTable!: Table<DbMessage, number>
   private _localSettingTable!: Table<LocalSetting, number>
 
@@ -38,19 +48,21 @@ export class AppDb extends Dexie {
     this._wrapSafeTables()
   }
 
-  async getMessageByConversation(
-    conversationId: number
-  ): Promise<Result<readonly Message[], DbError>> {
-    const result = await this.message.where('conversationId').equals(conversationId).sortBy('id')
-    if (result.isErr()) {
-      this._logger.error('Failed to get messages by conversation', {
+  async getMessagesByConversation(conversationId: number): Promise<Result<Message[], DbError>> {
+    const messagesResult = await this.message
+      .where('conversationId')
+      .equals(conversationId)
+      .toArray()
+
+    if (messagesResult.isErr()) {
+      this._logger.error('Failed to get messages for conversation', {
         conversationId,
-        error: result.error,
+        error: messagesResult.error,
       })
-      return err(this._toDomainError(result.error))
+      return err(this._toDomainError(messagesResult.error))
     }
 
-    const mapped: Message[] = result.value.map((message) => ({
+    const mapped: Message[] = messagesResult.value.map((message) => ({
       id: message.id!,
       conversationId: message.conversationId,
       role: message.role,
@@ -63,6 +75,45 @@ export class AppDb extends Dexie {
     }))
 
     return ok(mapped)
+  }
+
+  /**
+   * Delete all messages belonging to a conversation without touching the
+   * conversation record itself. Used by SyncManager when replacing messages
+   * from a remote payload.
+   */
+  async deleteMessagesByConversation(conversationId: number): Promise<Result<void, DbError>> {
+    const result = await ResultAsync.fromPromise(
+      this._messageTable.where('conversationId').equals(conversationId).delete(),
+      (error) => {
+        const mappedError = this._toDomainError(error)
+        this._logger.error('Failed to delete messages by conversation', {
+          conversationId,
+          error: mappedError,
+        })
+        return mappedError
+      }
+    )
+    return result.map(() => undefined)
+  }
+
+  /**
+   * Lookup a conversation by its stable syncId.
+   * Returns undefined (not an error) when the syncId is not found so callers
+   * can distinguish "not yet synced" from a genuine DB failure.
+   */
+  async getConversationBySyncId(
+    syncId: string
+  ): Promise<Result<DbConversation | undefined, DbError>> {
+    const result = await ResultAsync.fromPromise(
+      this._conversationTable.where('syncId').equals(syncId).first(),
+      (error) => {
+        const mappedError = this._toDomainError(error)
+        this._logger.error('Failed to get conversation by syncId', { syncId, error: mappedError })
+        return mappedError
+      }
+    )
+    return result
   }
 
   async getMessageCountsByConversation(): Promise<Result<Map<number, number>, DbError>> {
@@ -286,10 +337,19 @@ export class AppDb extends Dexie {
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
       localSetting: '++id, settingKey, updatedAt',
     })
+    // v7: add syncId index to conversations for getConversationBySyncId lookup.
+    // syncId and syncVersion are assigned lazily by SyncManager on first mutation
+    // after the user enables sync — no blocking migration needed.
+    this.version(7).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt, syncId',
+      message:
+        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
+      localSetting: '++id, settingKey, updatedAt',
+    })
   }
 
   private _bindTables(): void {
-    this._conversationTable = this.table<Conversation, number>('conversation')
+    this._conversationTable = this.table<DbConversation, number>('conversation')
     this._messageTable = this.table<DbMessage, number>('message')
     this._localSettingTable = this.table<LocalSetting, number>('localSetting')
   }
@@ -297,7 +357,7 @@ export class AppDb extends Dexie {
   private _setupHooks(): void {
     this._conversationTable.hook(
       'creating',
-      (_primaryKey: number | undefined, myObject: Conversation) => {
+      (_primaryKey: number | undefined, myObject: DbConversation) => {
         const now = new Date()
         myObject.createdAt = now
         myObject.updatedAt = now
@@ -320,7 +380,9 @@ export class AppDb extends Dexie {
   }
 
   private _wrapSafeTables(): void {
-    this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
+    this.conversation = new SafeTable<DbConversation, DbConversation, number>(
+      this._conversationTable
+    )
     this.message = new SafeTable<DbMessage, NewDbMessage, number>(this._messageTable)
     this.localSetting = new SafeTable<LocalSetting, LocalSetting, number>(this._localSettingTable)
   }
