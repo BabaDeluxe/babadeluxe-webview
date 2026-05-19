@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import { type Result, err, ok } from 'neverthrow'
 import { type ManagerOptions, type SocketOptions, io } from 'socket.io-client'
+import * as msgpackParser from 'socket.io-msgpack-parser'
 import { Root } from '@babadeluxe/shared'
 import type { AbstractLogger } from '@/logger'
 import { SocketError } from '@/errors'
@@ -13,6 +14,22 @@ type SocketGetters = {
   [K in keyof typeof SocketFeatures as SocketGetterName<K>]: SocketManager
 }
 
+// ---------------------------------------------------------------------------
+// Reconnect config
+// ---------------------------------------------------------------------------
+const RECONNECT_INITIAL_DELAY_MS = 500
+const RECONNECT_MAX_RETRIES = 3
+const RECONNECT_MAX_DELAY_MS = 30_000
+
+/**
+ * Returns the next reconnect delay in milliseconds using full-jitter
+ * exponential backoff: delay = random(0, min(maxDelay, initialDelay * 2^attempt))
+ */
+function getReconnectDelay(attempt: number): number {
+  const cap = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_INITIAL_DELAY_MS * 2 ** attempt)
+  return Math.floor(Math.random() * cap)
+}
+
 class SocketManagerBase {
   private readonly _socket: Root.Socket
   private _isConnectedInternal = false
@@ -20,15 +37,20 @@ class SocketManagerBase {
   private readonly _trackedEvents = new Set<string>()
   private _internalHandlersRegistered = false
   private _connectingPromise: Promise<void> | undefined
+  private _reconnectAttempts = 0
+  private _reconnectTimer: ReturnType<typeof setTimeout> | undefined
 
   private readonly _onConnect = (): void => {
     this._isConnectedInternal = true
+    this._reconnectAttempts = 0
+    clearTimeout(this._reconnectTimer)
     this._logger.log(`Connected to socket: ${this._socket.id}`)
   }
 
   private readonly _onDisconnect = (reason: string): void => {
     this._isConnectedInternal = false
     this._logger.log(`Socket disconnected: ${reason}`)
+    this._scheduleReconnect()
   }
 
   private readonly _onConnectError = (unknownError: unknown): void => {
@@ -41,6 +63,31 @@ class SocketManagerBase {
     })
   }
 
+  // -------------------------------------------------------------------------
+  // Exponential reconnect
+  // -------------------------------------------------------------------------
+  private _scheduleReconnect(): void {
+    if (this._reconnectAttempts >= RECONNECT_MAX_RETRIES) {
+      this._logger.warn(
+        `Socket reconnect limit reached (${RECONNECT_MAX_RETRIES} attempts). Giving up.`
+      )
+      return
+    }
+
+    const delay = getReconnectDelay(this._reconnectAttempts)
+    this._reconnectAttempts++
+
+    this._logger.log(
+      `Reconnect attempt ${this._reconnectAttempts}/${RECONNECT_MAX_RETRIES} in ${delay}ms`
+    )
+
+    this._reconnectTimer = setTimeout(() => {
+      if (!this._isConnectedInternal) {
+        this._socket.connect()
+      }
+    }, delay)
+  }
+
   constructor(
     private readonly _logger: AbstractLogger,
     private readonly _baseUrl: string,
@@ -51,7 +98,9 @@ class SocketManagerBase {
       transports: ['websocket', 'polling'],
       withCredentials: true,
       autoConnect: false,
+      reconnection: false, // We manage reconnects manually above
       auth: { token: this._authToken },
+      parser: msgpackParser,
     }
 
     this._socket = io(this._baseUrl, socketOptions)
@@ -215,6 +264,9 @@ class SocketManagerBase {
   }
 
   disconnect(): void {
+    clearTimeout(this._reconnectTimer)
+    this._reconnectAttempts = 0
+
     this._socket.off('connect', this._onConnect)
     this._socket.off('disconnect', this._onDisconnect)
     this._socket.off('connect_error', this._onConnectError)
