@@ -140,9 +140,9 @@ describe('useSettings()', () => {
         ...global,
         provide: {
           ...global.provide,
-          [APP_DB_KEY as symbol]: mockDb, // Mock DB even if not offline
-        },
-      },
+          [APP_DB_KEY as symbol]: mockDb,
+        }
+      }
     })
   }
 

@@ -78,13 +78,23 @@
             class="flex flex-col gap-2 overflow-y-auto border-t border-borderMuted pt-4 pr-2"
             :style="{ height: verticalBottomHeightPercent }"
           >
-            <MessageList
-              :messages="selectedConversationMessages"
-              :conversation-title="currentConversationTitle"
-              :is-rewrite-enabled="true"
-              @delete="handleDeleteMessage"
-              @update="handleEditMessage"
-            />
+            <h2
+              v-if="currentConversationTitle"
+              class="text-sm font-semibold text-subtleText px-1 pb-2"
+            >
+              Messages in &ldquo;{{ currentConversationTitle }}&rdquo;
+            </h2>
+            <MessageList>
+              <ChatMessage
+                v-for="message in selectedConversationMessages"
+                :key="message.id"
+                v-bind="message"
+                :is-rewrite-enabled="true"
+                :is-edit-enabled="false"
+                @delete="handleDeleteMessage"
+                @update="handleEditMessage"
+              />
+            </MessageList>
           </div>
         </div>
 
@@ -131,13 +141,23 @@
             class="flex flex-col gap-2 overflow-y-auto pl-4 pr-2 border-l border-borderMuted min-w-0"
             :style="{ width: splitRightWidthPercent }"
           >
-            <MessageList
-              :messages="selectedConversationMessages"
-              :conversation-title="currentConversationTitle"
-              :is-rewrite-enabled="true"
-              @delete="handleDeleteMessage"
-              @update="handleEditMessage"
-            />
+            <h2
+              v-if="currentConversationTitle"
+              class="text-sm font-semibold text-subtleText px-1 pb-2"
+            >
+              Messages in &ldquo;{{ currentConversationTitle }}&rdquo;
+            </h2>
+            <MessageList>
+              <ChatMessage
+                v-for="message in selectedConversationMessages"
+                :key="message.id"
+                v-bind="message"
+                :is-rewrite-enabled="true"
+                :is-edit-enabled="false"
+                @delete="handleDeleteMessage"
+                @update="handleEditMessage"
+              />
+            </MessageList>
           </div>
         </div>
       </template>
@@ -187,6 +207,7 @@
 <script setup lang="ts">
 import ConversationList from '@/components/ConversationList.vue'
 import MessageList from '@/components/MessageList.vue'
+import ChatMessage from '@/components/ChatMessage.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import SearchResultsDropdown from '@/components/SearchResultsDropdown.vue'
 import BaseTextField from '@/components/BaseTextField.vue'
