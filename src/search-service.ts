@@ -15,13 +15,15 @@ export class SearchService {
     const normalizedQuery = query.toLowerCase()
 
     // 1. Search in conversations
-    const conversationsResult = await this._db.getAllConversations()
+    const conversationsResult = await this._db.conversation.toArray()
     if (conversationsResult.isErr()) {
       this._logger.error('Failed to get all conversations for search', {
         query,
         error: conversationsResult.error,
       })
-      return err(conversationsResult.error)
+      return err(
+        new NetworkError('Failed to fetch conversations for search', conversationsResult.error)
+      )
     }
 
     const conversationResults: SearchResult[] = []
@@ -37,9 +39,7 @@ export class SearchService {
       }
     }
 
-    // 2. Search in messages (paginated/streaming approach to avoid OOM)
-    // For now, we still fetch all but we map them efficiently.
-    // In a real production app with millions of messages, this should use a full-text index.
+    // 2. Search in messages
     const messagesResult = await this._db.message.toArray()
     if (messagesResult.isErr()) {
       return err(new NetworkError('Failed to fetch messages for search', messagesResult.error))
@@ -50,7 +50,7 @@ export class SearchService {
       const score = this._getBestTokenScore(normalizedQuery, dbMsg.content)
       if (score > 0.3) {
         messageResults.push({
-          id: dbMsg.id!,
+          id: dbMsg.id ?? 0,
           conversationId: dbMsg.conversationId,
           role: dbMsg.role,
           timestamp: dbMsg.timestamp,

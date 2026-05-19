@@ -127,14 +127,12 @@
                 :data-testid="`injection-mode-${option.value}`"
                 @click="handleInjectionModeChange(option.value)"
               >
-                <!-- Radio indicator -->
+                <!-- FIX V-01: restored missing `>` and moved inner span inside as child -->
                 <span
                   v-if="promptInjectionMode === option.value"
                   class="mt-0.5 w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition-colors"
-                  "
-                    <span
-                    class="w-1.5 h-1.5 rounded-full bg-white"
-                  />
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-white" />
                 </span>
 
                 <span class="flex flex-col gap-0.5 flex-1 min-w-0">
@@ -263,7 +261,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ResultAsync } from 'neverthrow'
-import { validateSetting, promptInjectionDefaults, type PromptInjectionMode, type PromptInjectionPosition } from '@babadeluxe/shared'
+import {
+  validateSetting,
+  promptInjectionDefaults,
+  type PromptInjectionMode,
+  type PromptInjectionPosition,
+} from '@babadeluxe/shared'
 import { useSettings } from '@/composables/use-settings'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { useApiKeyManagement } from '@/composables/use-api-key-management'
@@ -423,110 +426,12 @@ const handleIncludeHistoryToggle = async () => {
 }
 
 // ---------------------------------------------------------------------------
-// Existing handlers (unchanged)
+// General handlers
 // ---------------------------------------------------------------------------
 
 const handleReload = () => {
   window.location.reload()
 }
-
-const promptInjectionMode = computed<NonNullable<PromptInjectionMode>>(
-  () => getSettingValue('promptInjectionMode', PROMPT_INJECTION_DEFAULTS.mode)
-)
-const promptInjectionInterval = computed<number>(
-  () => getSettingValue('promptInjectionInterval', PROMPT_INJECTION_DEFAULTS.interval)
-)
-const promptInjectionPosition = computed<NonNullable<PromptInjectionPosition>>(
-  () => getSettingValue('promptInjectionPosition', PROMPT_INJECTION_DEFAULTS.position)
-)
-const promptIncludeHistory = computed<boolean>(
-  () => getSettingValue('promptIncludeHistory', PROMPT_INJECTION_DEFAULTS.includeHistory)
-)
-
-const injectionModeOptions: Array<{
-  value: NonNullable<PromptInjectionMode>
-  label: string
-  description: string
-}> = [
-  { value: 'always', label: 'Always', description: 'Prepend the prompt to every message sent.' },
-  {
-    value: 'first-message',
-    label: 'First message only',
-    description: 'Inject once at the start of each new conversation.',
-  },
-  {
-    value: 'every-x-messages',
-    label: 'Every X messages',
-    description: 'Re-inject after a set number of messages to keep context fresh.',
-  },
-  {
-    value: 'on-prompt-change',
-    label: 'On prompt change',
-    description: 'Re-inject automatically when you switch to a different prompt.',
-  },
-  {
-    value: 'manual',
-    label: 'Manual',
-    description: 'Never auto-inject — trigger it yourself with the inject button in chat.',
-  },
-]
-
-const injectionPositionOptions: Array<{
-  value: NonNullable<PromptInjectionPosition>
-  label: string
-  description: string
-}> = [
-  {
-    value: 'system',
-    label: 'System',
-    description: 'Sent as a dedicated role: "system" message at the top of the thread.',
-  },
-  {
-    value: 'user-prefix',
-    label: 'User prefix',
-    description: 'Prepended inline to the content of the first user message.',
-  },
-  {
-    value: 'user-suffix',
-    label: 'User suffix',
-    description: 'Appended inline to the content of the last user message before send.',
-  },
-]
-
-const activePositionDescription = computed(
-  () =>
-    injectionPositionOptions.find((p) => p.value === promptInjectionPosition.value)?.description ??
-    ''
-)
-
-// ---------------------------------------------------------------------------
-// Prompt injection handlers
-// ---------------------------------------------------------------------------
-
-const handleInjectionModeChange = async (mode: NonNullable<PromptInjectionMode>) => {
-  await upsertSetting('promptInjectionMode', mode, 'string')
-}
-
-const handleIntervalChange = async (event: Event) => {
-  const value = Number((event.target as HTMLInputElement).value)
-  const validation = validateSetting('promptInjectionInterval', value)
-  if (!validation.success) return
-  await upsertSetting('promptInjectionInterval', value, 'number')
-}
-
-const handlePositionChange = async (pos: NonNullable<PromptInjectionPosition>) => {
-  await upsertSetting('promptInjectionPosition', pos, 'string')
-}
-
-const handleIncludeHistoryToggle = async () => {
-  await upsertSetting('promptIncludeHistory', !promptIncludeHistory.value, 'boolean')
-}
-
-// ---------------------------------------------------------------------------
-// Existing handlers (unchanged)
-// ---------------------------------------------------------------------------
-
-const handleReload = () => { window.location.reload() }
 
 const handleRetryLoad = async () => {
   loadError.value = undefined
@@ -539,7 +444,10 @@ const handleRetryLoad = async () => {
   })
 
   result.match(
-    () => { hydrateFieldStates(); isLoadingSettings.value = false },
+    () => {
+      hydrateFieldStates()
+      isLoadingSettings.value = false
+    },
     (loadErr) => {
       logger.error('Failed to reload settings', { userId: currentUserId.value, error: loadErr })
       loadError.value = 'Settings could not be loaded. Please try again.'
@@ -593,7 +501,11 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
   toasts.success('Setting saved')
 }
 
-async function upsertSettingWrapper(key: string, value: unknown, dataType: 'string' | 'number' | 'boolean'): Promise<void> {
+async function upsertSettingWrapper(
+  key: string,
+  value: unknown,
+  dataType: 'string' | 'number' | 'boolean'
+): Promise<void> {
   const result = await upsertSetting(key, value, dataType)
   if (result.isErr()) {
     logger.error('Failed to save setting via API key management', { key, error: result.error })
@@ -634,7 +546,10 @@ onMounted(async () => {
     return new InitializationError('Failed to load settings', unknownError)
   })
   result.match(
-    () => { hydrateFieldStates(); isLoadingSettings.value = false },
+    () => {
+      hydrateFieldStates()
+      isLoadingSettings.value = false
+    },
     (loadErr) => {
       logger.error('Failed to load settings', { userId: currentUserId.value, error: loadErr })
       loadError.value = 'Settings could not be loaded. Please try again.'

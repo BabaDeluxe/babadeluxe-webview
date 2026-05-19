@@ -1,19 +1,26 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ref } from 'vue'
 import { ok } from 'neverthrow'
+import { vi } from 'vitest'
 
-export function createMockSocketManager(overrides: any = {}) {
-  const socket: any = {
-    on: vi.fn(),
-    off: vi.fn(),
-    emit: vi.fn(),
-    once: vi.fn(),
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    waitForConnection: vi.fn().mockResolvedValue(ok(undefined)),
-    isConnected: true,
-    ...overrides,
+export class MockSocket {
+  on = vi.fn()
+  off = vi.fn()
+  emit = vi.fn()
+  once = vi.fn()
+  connect = vi.fn()
+  disconnect = vi.fn()
+  waitForConnection = vi.fn().mockResolvedValue(ok(undefined))
+  isConnected = true
+
+  constructor(overrides: Record<string, unknown> = {}) {
+    Object.assign(this, overrides)
   }
+}
+
+export type MockSettingsSocket = MockSocket
+
+export function createMockSocketManager(overrides: Record<string, unknown> = {}) {
+  const socket = new MockSocket(overrides)
 
   return {
     socketManagerRef: ref({
@@ -27,5 +34,13 @@ export function createMockSocketManager(overrides: any = {}) {
       init: vi.fn().mockResolvedValue(ok(undefined)),
     }),
     socket,
+  }
+}
+
+export async function trigger(socket: MockSocket, event: string, payload: unknown): Promise<void> {
+  const call = socket.on.mock.calls.find((c: unknown[]) => c[0] === event)
+  const handler = call?.[1]
+  if (typeof handler === 'function') {
+    handler(payload)
   }
 }

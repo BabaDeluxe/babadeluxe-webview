@@ -3,7 +3,7 @@
 **Feature:** Multi-backend chat synchronisation (GitHub, WebDAV, SFTP)  
 **Repo:** BabaDeluxe/babadeluxe-webview  
 **Status:** Design / Pre-implementation  
-**Author:** simwai  
+**Author:** simwai
 
 ---
 
@@ -66,11 +66,11 @@ chats/
 ```ts
 interface SyncChatEnvelope {
   schemaVersion: 1
-  id: string           // UUID v4, stable across devices
-  version: number      // monotonically increasing integer, device-local counter
-  updatedAt: string    // ISO 8601, informational only — NOT used for conflict resolution
-  deviceId: string     // random UUID generated once per installation
-  payload: Chat        // the actual chat data from src/database/
+  id: string // UUID v4, stable across devices
+  version: number // monotonically increasing integer, device-local counter
+  updatedAt: string // ISO 8601, informational only — NOT used for conflict resolution
+  deviceId: string // random UUID generated once per installation
+  payload: Chat // the actual chat data from src/database/
 }
 ```
 
@@ -127,7 +127,7 @@ export interface ISyncAdapter {
 // src/services/sync/sync-manager.ts
 
 class SyncManager {
-  private queue: SyncQueue       // persisted to IndexedDB
+  private queue: SyncQueue // persisted to IndexedDB
   private adapter: ISyncAdapter
 
   /** Called on app start and on a debounced timer after saves. */
@@ -136,8 +136,8 @@ class SyncManager {
     await this.drainQueue()
 
     // 2. Fetch remote manifest
-    const remoteManifest = await this.adapter.fetchManifest() ?? emptyManifest()
-    const localManifest  = await this.buildLocalManifest()
+    const remoteManifest = (await this.adapter.fetchManifest()) ?? emptyManifest()
+    const localManifest = await this.buildLocalManifest()
 
     // 3. Diff manifests → classify each chat
     const diff = diffManifests(localManifest, remoteManifest)
@@ -175,7 +175,12 @@ class SyncManager {
 `SyncQueue` is an IndexedDB object store (`sync_queue`) with entries:
 
 ```ts
-{ id: string; op: 'put' | 'delete'; retries: number; enqueuedAt: number }
+{
+  id: string
+  op: 'put' | 'delete'
+  retries: number
+  enqueuedAt: number
+}
 ```
 
 On app start, `drainQueue()` replays any items that survived a crash before the previous sync completed.
@@ -254,13 +259,13 @@ Remote path:  <remote-dir>/chats/<uuid>.json
 
 Builds on `src/errors.ts` and `src/error-mapper.ts`:
 
-| Error class | Examples | Action |
-|---|---|---|
-| `SyncAuthError` | HTTP 401, 403, SSH auth failure | Surface to UI immediately, disable sync, prompt re-auth. **Never retry.** |
-| `SyncNetworkError` | Network timeout, ECONNREFUSED | Retry with exponential backoff (use `src/retry.ts`). Max 5 attempts. |
-| `SyncConflictError` | GitHub SHA mismatch (409), WebDAV ETag mismatch | Fetch remote, resolve conflict, retry once. |
-| `SyncDataError` | Corrupt JSON, schema version mismatch | Log, skip item, emit warning event. |
-| `SyncStorageError` | IndexedDB write failure | Escalate to user — local DB is broken. |
+| Error class         | Examples                                        | Action                                                                    |
+| ------------------- | ----------------------------------------------- | ------------------------------------------------------------------------- |
+| `SyncAuthError`     | HTTP 401, 403, SSH auth failure                 | Surface to UI immediately, disable sync, prompt re-auth. **Never retry.** |
+| `SyncNetworkError`  | Network timeout, ECONNREFUSED                   | Retry with exponential backoff (use `src/retry.ts`). Max 5 attempts.      |
+| `SyncConflictError` | GitHub SHA mismatch (409), WebDAV ETag mismatch | Fetch remote, resolve conflict, retry once.                               |
+| `SyncDataError`     | Corrupt JSON, schema version mismatch           | Log, skip item, emit warning event.                                       |
+| `SyncStorageError`  | IndexedDB write failure                         | Escalate to user — local DB is broken.                                    |
 
 All errors are logged via `src/logger.ts`. The Pinia sync store exposes a `syncStatus` reactive ref (`'idle' | 'syncing' | 'error' | 'conflict'`) for the UI.
 
@@ -297,23 +302,23 @@ Extend the existing settings model with a `sync` block:
 interface SyncSettings {
   enabled: boolean
   backend: 'github' | 'webdav' | 'sftp' | null
-  syncIntervalSeconds: number  // default: 300 (5 min); 0 = on-save only
+  syncIntervalSeconds: number // default: 300 (5 min); 0 = on-save only
   github?: {
     owner: string
     repo: string
-    branch: string            // default: 'main'
-    pat: string               // stored encrypted
+    branch: string // default: 'main'
+    pat: string // stored encrypted
   }
   webdav?: {
     url: string
     username: string
-    password: string          // stored encrypted
+    password: string // stored encrypted
   }
   sftp?: {
     host: string
-    port: number              // default: 22
+    port: number // default: 22
     username: string
-    privateKeyPath: string    // extension-host path only
+    privateKeyPath: string // extension-host path only
     remoteDir: string
   }
 }
@@ -325,31 +330,35 @@ Credentials are **never** stored in plaintext in `localStorage` or `IndexedDB`. 
 
 ## 11. Open Questions
 
-| # | Question | Impact | Recommendation |
-|---|---|---|---|
-| 1 | Push-on-save (debounced) vs. fixed interval? | GitHub rate limits; UX responsiveness | Debounce 30s on-save + 5-min interval as fallback |
-| 2 | Should sync settings live in the existing settings store or a dedicated Pinia store? | Code organisation | Dedicated `sync-store.ts` — keeps sync state (status, errors) separate from config |
-| 3 | Scope: sync chats only, or also settings? | Complexity | Chats only in v1; settings sync is a separate feature |
-| 4 | Encryption at rest on remote? | Privacy | Opt-in `AES-GCM` envelope wrapping before upload — design as a wrapper adapter (`EncryptedSyncAdapter`) |
+| #   | Question                                                                             | Impact                                | Recommendation                                                                                          |
+| --- | ------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1   | Push-on-save (debounced) vs. fixed interval?                                         | GitHub rate limits; UX responsiveness | Debounce 30s on-save + 5-min interval as fallback                                                       |
+| 2   | Should sync settings live in the existing settings store or a dedicated Pinia store? | Code organisation                     | Dedicated `sync-store.ts` — keeps sync state (status, errors) separate from config                      |
+| 3   | Scope: sync chats only, or also settings?                                            | Complexity                            | Chats only in v1; settings sync is a separate feature                                                   |
+| 4   | Encryption at rest on remote?                                                        | Privacy                               | Opt-in `AES-GCM` envelope wrapping before upload — design as a wrapper adapter (`EncryptedSyncAdapter`) |
 
 ---
 
 ## 12. Implementation Phases
 
 **Phase 1 — Core + GitHub adapter** (highest value, lowest complexity)
+
 - `ISyncAdapter`, `SyncManager`, `SyncQueue`, `manifest-differ`, `conflict-resolver`
 - `GitHubSyncAdapter`
 - `sync-store.ts` with basic UI indicators
 
 **Phase 2 — WebDAV adapter**
+
 - `WebDavSyncAdapter` with ETag optimistic locking
 - Settings UI for WebDAV credentials
 
 **Phase 3 — SFTP adapter**
+
 - `SftpSyncAdapter` + extension-host bridge
 - Extension-side SSH connection manager
 
 **Phase 4 — Hardening**
+
 - `EncryptedSyncAdapter` wrapper (opt-in AES-GCM)
 - Conflict UI (toast with "remote won" / "local won" details)
 - Unit tests for `manifest-differ` and `conflict-resolver` (pure functions, easy to test)

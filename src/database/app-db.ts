@@ -1,5 +1,5 @@
-import { Dexie, type Table, type Transaction } from 'dexie'
-import type { Conversation, Message, ContextReference, LocalSetting } from '@/database/types'
+import { Dexie, type Table } from 'dexie'
+import type { Conversation, Message, LocalSetting } from '@/database/types'
 import type { AbstractLogger } from '@/logger'
 import { SafeTable } from '@/database/safe-table'
 import { ChatRepository } from '@/database/chat-repository'

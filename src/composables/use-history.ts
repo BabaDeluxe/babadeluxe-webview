@@ -114,7 +114,8 @@ export function useHistory() {
     }
 
     isLoadingMessages.value = true
-    const result = await appDb.getMessageByConversation(conversationId)
+    // V-04 Fix: Access domain operations via chatRepository instead of directly on appDb
+    const result = await appDb.chatRepository.getMessageByConversation(conversationId)
     isLoadingMessages.value = false
 
     if (result.isErr()) {

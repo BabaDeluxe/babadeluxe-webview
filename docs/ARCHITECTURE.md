@@ -50,17 +50,19 @@ We enforce strict DI using Vue's `provide`/`inject` mechanism with `Symbol`-base
 
 ```ts
 // injection-keys.ts (all current keys)
-export const ENV_CONFIG_KEY:          InjectionKey<EnvConfigType>                          = Symbol('ENV_CONFIG_KEY')
-export const LOGGER_KEY:              InjectionKey<AbstractLogger>                         = Symbol('LOGGER_KEY')
-export const APP_DB_KEY:              InjectionKey<AppDb>                                  = Symbol('APP_DB_KEY')
-export const SEARCH_SERVICE_KEY:      InjectionKey<SearchService>                          = Symbol('SEARCH_SERVICE_KEY')
-export const KEY_VALUE_STORE_KEY:     InjectionKey<KeyValueStore>                          = Symbol('KEY_VALUE_STORE_KEY')
-export const SUPABASE_CLIENT_KEY:     InjectionKey<SupabaseClientType>                     = Symbol('SUPABASE_CLIENT_KEY')
-export const SOCKET_MANAGER_KEY:      InjectionKey<Ref<SocketManager | undefined>>         = Symbol('SOCKET_MANAGER_KEY')
-export const ANALYTICS_MANAGER_KEY:   InjectionKey<AnalyticsManager>                       = Symbol('ANALYTICS_MANAGER_KEY')
-export const API_KEY_VALIDATOR_KEY:   InjectionKey<AsyncInjectable<IApiKeyValidator>>      = Symbol('API_KEY_VALIDATOR_KEY')
-export const AUTH_PROVIDER_KEY:       InjectionKey<AuthProvider>                           = Symbol('authProvider')
-export const VSCODE_BRIDGE_KEY:       InjectionKey<VsCodeBridge>                           = Symbol('VSCODE_BRIDGE_KEY')
+export const ENV_CONFIG_KEY: InjectionKey<EnvConfigType> = Symbol('ENV_CONFIG_KEY')
+export const LOGGER_KEY: InjectionKey<AbstractLogger> = Symbol('LOGGER_KEY')
+export const APP_DB_KEY: InjectionKey<AppDb> = Symbol('APP_DB_KEY')
+export const SEARCH_SERVICE_KEY: InjectionKey<SearchService> = Symbol('SEARCH_SERVICE_KEY')
+export const KEY_VALUE_STORE_KEY: InjectionKey<KeyValueStore> = Symbol('KEY_VALUE_STORE_KEY')
+export const SUPABASE_CLIENT_KEY: InjectionKey<SupabaseClientType> = Symbol('SUPABASE_CLIENT_KEY')
+export const SOCKET_MANAGER_KEY: InjectionKey<Ref<SocketManager | undefined>> =
+  Symbol('SOCKET_MANAGER_KEY')
+export const ANALYTICS_MANAGER_KEY: InjectionKey<AnalyticsManager> = Symbol('ANALYTICS_MANAGER_KEY')
+export const API_KEY_VALIDATOR_KEY: InjectionKey<AsyncInjectable<IApiKeyValidator>> =
+  Symbol('API_KEY_VALIDATOR_KEY')
+export const AUTH_PROVIDER_KEY: InjectionKey<AuthProvider> = Symbol('authProvider')
+export const VSCODE_BRIDGE_KEY: InjectionKey<VsCodeBridge> = Symbol('VSCODE_BRIDGE_KEY')
 ```
 
 ```ts

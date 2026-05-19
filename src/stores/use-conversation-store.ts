@@ -54,9 +54,9 @@ export const useConversationStore = defineStore('conversation', () => {
   const selectedModelContextWindow = ref<number | undefined>(undefined)
 
   let creationPromise: Promise<Result<number, DbError | ChatError>> | undefined
-  let initializePromise: Promise<void> | undefined
+  let initializePromise: Promise<Result<void, DbError>> | undefined
 
-  async function initialize(): Promise<void> {
+  async function initialize(): Promise<Result<void, DbError>> {
     if (initializePromise) return initializePromise
 
     initializePromise = (async () => {
@@ -66,7 +66,7 @@ export const useConversationStore = defineStore('conversation', () => {
           logger.error('Failed to load conversations during initialization', {
             error: loadConversationsResult.error,
           })
-          throw loadConversationsResult.error
+          return err(loadConversationsResult.error)
         }
 
         const loadMessageCountsResult = await loadMessageCounts()
@@ -74,10 +74,11 @@ export const useConversationStore = defineStore('conversation', () => {
           logger.error('Failed to load message counts during initialization', {
             error: loadMessageCountsResult.error,
           })
-          throw loadMessageCountsResult.error
+          return err(loadMessageCountsResult.error)
         }
 
         await resumeInterruptedStreams()
+        return ok(undefined)
       } finally {
         initializePromise = undefined
       }
@@ -87,7 +88,7 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   async function loadMessageCounts(): Promise<Result<void, DbError>> {
-    const result = await appDb.getMessageCountsByConversation()
+    const result = await appDb.chatRepository.getMessageCountsByConversation()
 
     if (result.isErr()) {
       messageCountsByConversation.value = new Map()
@@ -150,7 +151,7 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   async function resumeInterruptedStreams(): Promise<void> {
-    const streamingMessagesResult = await appDb.getStreamingMessages()
+    const streamingMessagesResult = await appDb.chatRepository.getStreamingMessages()
 
     if (streamingMessagesResult.isErr()) {
       logger.error('Failed to get streaming messages during recovery', {
@@ -234,7 +235,7 @@ export const useConversationStore = defineStore('conversation', () => {
     }
 
     const updated: Message = {
-      id: updatedDb.id!,
+      id: updatedDb.id ?? 0,
       conversationId: updatedDb.conversationId,
       role: updatedDb.role,
       timestamp: updatedDb.timestamp,
@@ -251,7 +252,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   async function loadConversations(): Promise<Result<void, DbError>> {
     isLoadingConversations.value = true
-    const result = await appDb.getAllConversations()
+    const result = await appDb.conversation.toArray()
 
     if (result.isErr()) {
       error.value = 'Failed to load conversations'
@@ -271,7 +272,7 @@ export const useConversationStore = defineStore('conversation', () => {
       return ok(undefined)
     }
 
-    const result = await appDb.getMessageByConversation(conversationId)
+    const result = await appDb.chatRepository.getMessageByConversation(conversationId)
     if (result.isErr()) {
       messages.value = []
       return err(result.error)
@@ -310,6 +311,13 @@ export const useConversationStore = defineStore('conversation', () => {
               conversationId: newId,
               error: deleteResult.error,
             })
+            // Surface the rollback error
+            return err(
+              new DbError(
+                'Conversation created but failed to load, and rollback also failed',
+                deleteResult.error
+              )
+            )
           }
 
           return err(new ChatError('Failed to load conversations after creation', loadError.error))
@@ -326,6 +334,12 @@ export const useConversationStore = defineStore('conversation', () => {
               conversationId: newId,
               error: deleteResult.error,
             })
+            return err(
+              new DbError(
+                'Conversation created but missing from list, and rollback also failed',
+                deleteResult.error
+              )
+            )
           }
 
           return err(new ChatError('Created conversation missing from loaded list'))
@@ -360,7 +374,7 @@ export const useConversationStore = defineStore('conversation', () => {
     messageId: number,
     content: string
   ): Promise<Result<void, DbError>> {
-    const updateResult = await appDb.updateMessage(messageId, content)
+    const updateResult = await appDb.chatRepository.updateMessage(messageId, content)
     if (updateResult.isErr()) return err(updateResult.error)
 
     const messageIndex = messages.value.findIndex((message) => message.id === messageId)
@@ -378,7 +392,7 @@ export const useConversationStore = defineStore('conversation', () => {
     metadata?: MessageMetadata,
     contextReferences?: ContextReference[]
   ): Promise<Result<Message, ChatError | DbError>> {
-    const createResult = await appDb.createMessage({
+    const createResult = await appDb.chatRepository.createMessage({
       conversationId,
       role: 'user',
       content,
@@ -452,7 +466,7 @@ export const useConversationStore = defineStore('conversation', () => {
     metadata: MessageMetadata | undefined,
     contextReferences: ContextReference[] | undefined
   ): Promise<Result<Message, MessageCreationError>> {
-    const createResult = await appDb.createMessage({
+    const createResult = await appDb.chatRepository.createMessage({
       conversationId,
       role: 'assistant',
       content: '',
@@ -500,7 +514,7 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   async function deleteMessage(messageId: number): Promise<Result<void, DbError | ChatError>> {
-    const result = await appDb.deleteMessage(messageId)
+    const result = await appDb.chatRepository.deleteMessage(messageId)
     if (result.isErr()) {
       error.value = 'Failed to delete message'
       return err(result.error)
@@ -557,7 +571,7 @@ export const useConversationStore = defineStore('conversation', () => {
   async function deleteConversation(
     conversationId: number
   ): Promise<Result<void, DbError | ChatError>> {
-    const result = await appDb.deleteConversationWithMessage(conversationId)
+    const result = await appDb.chatRepository.deleteConversationWithMessage(conversationId)
 
     if (result.isErr()) {
       error.value = 'Failed to delete conversation'

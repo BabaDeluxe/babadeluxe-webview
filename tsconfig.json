@@ -3,14 +3,9 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": [
-      "DOM",
-      "ESNext"
-    ],
+    "lib": ["DOM", "ESNext"],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     },
     "rootDir": ".",
     "strict": true,
@@ -22,14 +17,6 @@
     "isolatedModules": true,
     "jsx": "preserve"
   },
-  "include": [
-    "./src/**/*",
-    "./tests/**/*",
-    "./*.ts",
-    "./scripts/**/*"
-  ],
-  "exclude": [
-    "./dist",
-    "./node_modules"
-  ]
+  "include": ["./src/**/*", "./tests/**/*", "./*.ts", "./scripts/**/*"],
+  "exclude": ["./dist", "./node_modules"]
 }

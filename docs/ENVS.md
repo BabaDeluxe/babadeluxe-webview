@@ -4,15 +4,15 @@ All environment variables are validated at boot time via Zod in `src/env-validat
 
 ## Variables
 
-| Variable                   | Required                        | Description                                                  |
-| :------------------------- | :------------------------------ | :----------------------------------------------------------- |
-| `VITE_NODE_ENV`            | ✅ (default: `development`)     | `development` \| `production` \| `test`                      |
-| `VITE_OFFLINE_MODE`        | ❌ optional                     | `true` \| `false` — skips Supabase/socket validation when `true` |
-| `VITE_SUPABASE_URL`        | ✅ unless `VITE_OFFLINE_MODE=true` | Your Supabase project URL (`https://*.supabase.co`)       |
-| `VITE_SUPABASE_ANON_KEY`   | ✅ unless `VITE_OFFLINE_MODE=true` | Supabase anonymous key (public, safe to expose)           |
-| `VITE_SOCKET_URL`          | ❌ optional                     | Socket.io backend base URL (`http://localhost:3000` in dev)  |
-| `VITE_GA_MEASUREMENT_ID`   | ❌ optional                     | Google Analytics 4 measurement ID (`G-XXXXXXXXXX`)          |
-| `VITE_STATSIG_CLIENT_KEY`  | ❌ optional                     | Statsig client SDK key for feature flags                     |
+| Variable                  | Required                           | Description                                                      |
+| :------------------------ | :--------------------------------- | :--------------------------------------------------------------- |
+| `VITE_NODE_ENV`           | ✅ (default: `development`)        | `development` \| `production` \| `test`                          |
+| `VITE_OFFLINE_MODE`       | ❌ optional                        | `true` \| `false` — skips Supabase/socket validation when `true` |
+| `VITE_SUPABASE_URL`       | ✅ unless `VITE_OFFLINE_MODE=true` | Your Supabase project URL (`https://*.supabase.co`)              |
+| `VITE_SUPABASE_ANON_KEY`  | ✅ unless `VITE_OFFLINE_MODE=true` | Supabase anonymous key (public, safe to expose)                  |
+| `VITE_SOCKET_URL`         | ❌ optional                        | Socket.io backend base URL (`http://localhost:3000` in dev)      |
+| `VITE_GA_MEASUREMENT_ID`  | ❌ optional                        | Google Analytics 4 measurement ID (`G-XXXXXXXXXX`)               |
+| `VITE_STATSIG_CLIENT_KEY` | ❌ optional                        | Statsig client SDK key for feature flags                         |
 
 > **Offline mode:** when `VITE_OFFLINE_MODE=true`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are not required and the app runs fully without network auth.
 

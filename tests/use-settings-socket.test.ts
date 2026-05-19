@@ -15,7 +15,7 @@ import {
 } from './helpers/mock-socket-manager'
 import type { Result } from 'neverthrow'
 import { ok } from 'neverthrow'
-import { APP_DB_KEY } from '@/injection-keys'
+import { APP_DB_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 
 vi.mock('@/env-validator', async (orig) => {
   const actual = await orig<any>()
@@ -132,17 +132,17 @@ const mockDb = {
 
 describe('useSettings()', () => {
   function mountSettingsSocket() {
-    const { socketManager, global } = createMockSocketManager()
-    settingsSocket = socketManager.settingsSocket as MockSettingsSocket
+    // V-10 Fix: Extract socketManagerRef correctly from the test mock helper
+    const { socketManagerRef, socket } = createMockSocketManager()
+    settingsSocket = socket as MockSettingsSocket
 
     return mountComposable(() => useSettings(), {
       global: {
-        ...global,
         provide: {
-          ...global.provide,
+          [SOCKET_MANAGER_KEY as symbol]: socketManagerRef,
           [APP_DB_KEY as symbol]: mockDb,
-        }
-      }
+        },
+      },
     })
   }
 
