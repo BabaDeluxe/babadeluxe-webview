@@ -141,7 +141,6 @@ export function usePromptsSocket() {
       return err(mappedError)
     }
 
-    // TODO Check if the shared types are correct, because this cast is weird
     prompts.value = result.value as Prompt[]
     const hasPrompts = prompts.value.length > 0
     const isNoPromptSelected = !selectedPromptId.value

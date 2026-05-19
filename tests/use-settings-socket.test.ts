@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 /**
  * @vitest-environment jsdom
  */
@@ -86,7 +87,7 @@ const fixtures = {
     },
   },
   responses: {
-    success: (data?: unknown) => ({ success: true as const, data }),
+    success: (data?: unknown) => ({ success: true as const, data: data ?? [] }),
     error: (error?: string) => ({
       success: false as const,
       error: error ?? 'Unknown error',
@@ -105,7 +106,7 @@ function trigger<T extends keyof Root.Emission>(
 
 function mockGetAllEmit(response: unknown): void {
   vi.spyOn(emitWithTimeoutModule, 'emitWithTimeout').mockResolvedValue(
-    ok(response) as Result<unknown, Error | string>
+    ok((response as any).data) as Result<unknown, Error | string>
   )
 }
 
