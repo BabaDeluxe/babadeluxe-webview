@@ -4,6 +4,8 @@ export type Conversation = {
   createdAt: Date
   updatedAt: Date
   isActive: number
+  syncId?: string
+  syncVersion?: number
 }
 
 export type KeyValuePair = {

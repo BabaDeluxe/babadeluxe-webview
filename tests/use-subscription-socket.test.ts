@@ -6,11 +6,11 @@ import { ref } from 'vue'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { SOCKET_MANAGER_KEY } from '@/injection-keys'
 import { mountComposable } from './helpers/mount-composable'
+import { createMockSocket as createMockSubscriptionSocket } from './helpers/mock-subscription-socket'
 import {
   type MockSubscriptionSocket,
-  createMockSocket as createMockSubscriptionSocket,
-} from './helpers/mock-subscription-socket'
-import { trigger as triggerSocketEvent } from './helpers/mock-socket-manager'
+  trigger as triggerSocketEvent,
+} from './helpers/mock-socket-manager'
 
 async function trigger(
   socket: MockSubscriptionSocket,

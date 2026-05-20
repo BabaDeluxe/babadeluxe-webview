@@ -1,10 +1,11 @@
 <template>
   <div class="flex flex-col gap-2">
-    <div
+    <button
       v-for="prompt in prompts"
       :key="prompt.id"
+      type="button"
       data-testid="prompt-item"
-      class="flex items-center justify-between p-3 border border-borderMuted rounded-lg hover:bg-panel cursor-pointer transition-colors"
+      class="flex items-center justify-between p-3 border border-borderMuted rounded-lg hover:bg-panel transition-colors text-left w-full"
       :class="{ 'bg-accent/10 border-accent': prompt.id === selectedPromptId }"
       @click="emit('select', prompt.id)"
     >
@@ -16,7 +17,7 @@
       <div class="flex items-center gap-1 flex-shrink-0">
         <span
           v-if="prompt.isSystem"
-          class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"
+          class="text-xs bg-borderMuted text-subtleText px-2 py-0.5 rounded-full"
         >
           System
         </span>
@@ -32,7 +33,7 @@
           @click.stop="emit('delete', prompt.id)"
         />
       </div>
-    </div>
+    </button>
 
     <BaseEmptyState
       v-if="prompts.length === 0"

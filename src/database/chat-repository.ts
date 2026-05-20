@@ -1,9 +1,9 @@
-import { err, ok, type Result, ResultAsync } from 'neverthrow'
-import type { Conversation, Message, ContextReference } from '@/database/types'
-import type { AbstractLogger } from '@/logger'
-import { DbError } from '@/errors'
-import type { SafeTable } from '@/database/safe-table'
+import { ok, err, type Result } from 'neverthrow'
 import type { Table, Dexie } from 'dexie'
+import type { Conversation, Message, ContextReference } from '@/database/types'
+import type { SafeTable } from '@/database/safe-table'
+import { DbError, ChatError } from '@/errors'
+import type { AbstractLogger } from '@/logger'
 import { encodeContextReferences, decodeContextReferences } from '@/database/serializers'
 
 type DbMessage = {
@@ -21,218 +21,188 @@ type DbMessage = {
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
 
 // Extract the exact transaction method type from Dexie to satisfy TS
-type TransactionMethod = Dexie['transaction']
+type TransactionFn = Dexie['transaction']
+// type TransactionFn = (
+//   mode: TransactionMode,
+//   conversationTable: Table<Conversation, number>,
+//   messageTable: Table<DbMessage, number>,
+//   scope: () => Promise<void>
+// ) => Promise<unknown>
+
+type CreateMessageInput = {
+  conversationId: number
+  role: Message['role']
+  content: string
+  isStreaming?: boolean
+  model?: string
+  systemPrompt?: string
+  contextReferences?: ContextReference[]
+}
 
 export class ChatRepository {
   constructor(
     private readonly _conversationTable: Table<Conversation, number>,
     private readonly _messageTable: Table<DbMessage, number>,
-    private readonly _safeMessage: SafeTable<DbMessage, NewDbMessage, number>,
-    private readonly _safeConversation: SafeTable<Conversation, Conversation, number>,
+    private readonly _message: SafeTable<DbMessage, NewDbMessage, number>,
+    private readonly _conversation: SafeTable<Conversation, Conversation, number>,
     private readonly _logger: AbstractLogger,
-    // Safely inject the bounded transaction method without inline imports
-    private readonly _transaction: TransactionMethod
+    private readonly _transaction: TransactionFn
   ) {}
 
-  async getMessageByConversation(
-    conversationId: number
-  ): Promise<Result<readonly Message[], DbError>> {
-    const result = await this._safeMessage
-      .where('conversationId')
-      .equals(conversationId)
-      .sortBy('id')
+  async getAllConversations(): Promise<Result<Conversation[], DbError>> {
+    const result = await this._conversation.toArray()
+    if (result.isErr()) return err(result.error)
 
-    if (result.isErr()) {
-      this._logger.error('Failed to get messages by conversation', {
-        conversationId,
-        error: result.error,
-      })
-      return err(this._toDomainError(result.error))
-    }
+    const sorted = [...result.value].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    )
 
-    const mapped: Message[] = result.value.map((message) => ({
-      id: message.id ?? 0,
-      conversationId: message.conversationId,
-      role: message.role,
-      timestamp: message.timestamp,
-      content: message.content,
-      isStreaming: message.isStreaming,
-      model: message.model,
-      systemPrompt: message.systemPrompt,
-      contextReferences: decodeContextReferences(message.contextReferences),
-    }))
+    return ok(sorted)
+  }
+
+  async getMessagesByConversation(conversationId: number): Promise<Result<Message[], DbError>> {
+    const result = await this._message.where('conversationId').equals(conversationId).toArray()
+    if (result.isErr()) return err(result.error)
+
+    const mapped: Message[] = result.value
+      .map((message) => ({
+        id: message.id!,
+        conversationId: message.conversationId,
+        role: message.role,
+        timestamp: message.timestamp,
+        content: message.content,
+        isStreaming: message.isStreaming,
+        model: message.model,
+        systemPrompt: message.systemPrompt,
+        contextReferences: decodeContextReferences(message.contextReferences),
+      }))
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
     return ok(mapped)
   }
 
   async getMessageCountsByConversation(): Promise<Result<Map<number, number>, DbError>> {
-    return ResultAsync.fromPromise(
-      (async () => {
-        const countMap = new Map<number, number>()
-        const allConversations = await this._conversationTable.toArray()
+    const result = await this._message.toArray()
+    if (result.isErr()) return err(result.error)
 
-        for (const conversation of allConversations) {
-          if (conversation.id) {
-            const count = await this._messageTable
-              .where('conversationId')
-              .equals(conversation.id)
-              .count()
-            countMap.set(conversation.id, count)
-          }
-        }
-
-        return countMap
-      })(),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to get message counts', { error: mappedError })
-        return mappedError
-      }
-    )
-  }
-
-  async deleteConversationWithMessage(conversationId: number): Promise<Result<void, DbError>> {
-    return ResultAsync.fromPromise(
-      this._transaction('rw', this._conversationTable, this._messageTable, async () => {
-        await this._messageTable.where('conversationId').equals(conversationId).delete()
-        await this._conversationTable.delete(conversationId)
-      }),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to delete conversation with messages', {
-          conversationId,
-          error: mappedError,
-        })
-        return mappedError
-      }
-    )
-  }
-
-  async createMessage(data: Omit<Message, 'id' | 'timestamp'>): Promise<Result<number, DbError>> {
-    const conversationResult = await this._safeConversation.get(data.conversationId)
-    if (conversationResult.isErr()) {
-      this._logger.error('Failed to verify conversation exists', {
-        conversationId: data.conversationId,
-        error: conversationResult.error,
-      })
-      return err(this._toDomainError(conversationResult.error))
-    }
-    if (conversationResult.value === undefined) {
-      const error = new DbError(
-        `Cannot create message: Conversation ${data.conversationId} missing`
-      )
-      this._logger.error('Conversation not found when creating message', {
-        conversationId: data.conversationId,
-        error,
-      })
-      return err(error)
+    const counts = new Map<number, number>()
+    for (const message of result.value) {
+      counts.set(message.conversationId, (counts.get(message.conversationId) ?? 0) + 1)
     }
 
-    return ResultAsync.fromPromise(
-      this._transaction('rw', this._conversationTable, this._messageTable, async () => {
-        const messageData: NewDbMessage = {
-          conversationId: data.conversationId,
-          role: data.role,
-          content: data.content,
-          isStreaming: data.isStreaming ?? false,
-          model: data.model,
-          systemPrompt: data.systemPrompt,
-          contextReferences: encodeContextReferences(data.contextReferences),
-        }
-        // We use the raw table so Dexie natively throws and rolls back the transaction on failure
-        return await this._messageTable.add(messageData as DbMessage)
-      }) as Promise<number>,
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to create message', {
-          conversationId: data.conversationId,
-          role: data.role,
-          error: mappedError,
-        })
-        return mappedError
-      }
-    )
-  }
-
-  async deleteMessage(id: number): Promise<Result<void, DbError>> {
-    return ResultAsync.fromPromise(
-      this._transaction('rw', this._conversationTable, this._messageTable, async () => {
-        const message = await this._messageTable.get(id)
-        if (!message) return
-
-        await this._messageTable.delete(id)
-
-        const count = await this._messageTable
-          .where('conversationId')
-          .equals(message.conversationId)
-          .count()
-
-        if (count === 0) {
-          await this._conversationTable.delete(message.conversationId)
-          this._logger.log(`Cascade deleted empty conversation ${message.conversationId}`)
-        }
-      }),
-      (error) => {
-        const mappedError = this._toDomainError(error)
-        this._logger.error('Failed to delete message', { messageId: id, error: mappedError })
-        return mappedError
-      }
-    )
-  }
-
-  async updateMessage(id: number, content: string): Promise<Result<number, DbError>> {
-    const result = await this._safeMessage.update(id, { content, isStreaming: false })
-    if (result.isErr()) {
-      this._logger.error('Failed to update message', { messageId: id, error: result.error })
-      return err(this._toDomainError(result.error))
-    }
-    return ok(result.value)
-  }
-
-  async updateMessageContextReferences(
-    id: number,
-    refs: ContextReference[] | undefined
-  ): Promise<Result<number, DbError>> {
-    const result = await this._safeMessage.update(id, {
-      contextReferences: encodeContextReferences(refs),
-    })
-    if (result.isErr()) {
-      this._logger.error('Failed to update message contextReferences', {
-        messageId: id,
-        error: result.error,
-      })
-      return err(this._toDomainError(result.error))
-    }
-    return ok(result.value)
+    return ok(counts)
   }
 
   async getStreamingMessages(): Promise<Result<Message[], DbError>> {
-    const messagesResult = await this._safeMessage.where('isStreaming').equals('true').toArray()
+    const result = await this._message.toArray()
+    if (result.isErr()) return err(result.error)
 
-    if (messagesResult.isErr()) {
-      this._logger.error('Failed to get streaming messages', { error: messagesResult.error })
-      return err(this._toDomainError(messagesResult.error))
-    }
-
-    const mapped: Message[] = messagesResult.value.map((message) => ({
-      id: message.id ?? 0,
-      conversationId: message.conversationId,
-      role: message.role,
-      timestamp: message.timestamp,
-      content: message.content,
-      isStreaming: message.isStreaming,
-      model: message.model,
-      systemPrompt: message.systemPrompt,
-      contextReferences: decodeContextReferences(message.contextReferences),
-    }))
+    const mapped: Message[] = result.value
+      .filter((message) => message.isStreaming === true)
+      .map((message) => ({
+        id: message.id!,
+        conversationId: message.conversationId,
+        role: message.role,
+        timestamp: message.timestamp,
+        content: message.content,
+        isStreaming: message.isStreaming,
+        model: message.model,
+        systemPrompt: message.systemPrompt,
+        contextReferences: decodeContextReferences(message.contextReferences),
+      }))
 
     return ok(mapped)
   }
 
-  private _toDomainError(error: unknown): DbError {
-    return new DbError(
-      error instanceof Error ? error.message : 'An unknown DB error occurred',
-      error instanceof Error ? error : undefined
-    )
+  async createMessage(input: CreateMessageInput): Promise<Result<number, DbError>> {
+    const addResult = await this._message.add({
+      conversationId: input.conversationId,
+      role: input.role,
+      content: input.content,
+      isStreaming: input.isStreaming ?? false,
+      model: input.model,
+      systemPrompt: input.systemPrompt,
+      contextReferences: encodeContextReferences(input.contextReferences),
+    })
+
+    if (addResult.isErr()) return err(addResult.error)
+
+    const updateConversationResult = await this._conversation.update(input.conversationId, {
+      updatedAt: new Date(),
+    })
+
+    if (updateConversationResult.isErr()) {
+      this._logger.error('Failed to update conversation timestamp after message creation', {
+        conversationId: input.conversationId,
+        error: updateConversationResult.error,
+      })
+    }
+
+    return ok(Number(addResult.value))
+  }
+
+  async updateMessage(messageId: number, content: string): Promise<Result<void, DbError>> {
+    const getResult = await this._message.get(messageId)
+    if (getResult.isErr()) return err(getResult.error)
+
+    const existing = getResult.value
+    if (!existing) return err(new DbError(`Message ${messageId} not found`))
+
+    const updateResult = await this._message.update(messageId, { content })
+    if (updateResult.isErr()) return err(updateResult.error)
+
+    const conversationUpdateResult = await this._conversation.update(existing.conversationId, {
+      updatedAt: new Date(),
+    })
+
+    if (conversationUpdateResult.isErr()) {
+      this._logger.error('Failed to update conversation timestamp after message update', {
+        messageId,
+        error: conversationUpdateResult.error,
+      })
+    }
+
+    return ok(undefined)
+  }
+
+  async deleteMessage(messageId: number): Promise<Result<void, DbError | ChatError>> {
+    const getResult = await this._message.get(messageId)
+    if (getResult.isErr()) return err(getResult.error)
+
+    const existing = getResult.value
+    if (!existing) return err(new ChatError(`Message ${messageId} not found`))
+
+    const deleteResult = await this._message.delete(messageId)
+    if (deleteResult.isErr()) return err(deleteResult.error)
+
+    const conversationUpdateResult = await this._conversation.update(existing.conversationId, {
+      updatedAt: new Date(),
+    })
+
+    if (conversationUpdateResult.isErr()) {
+      this._logger.error('Failed to update conversation timestamp after message deletion', {
+        messageId,
+        error: conversationUpdateResult.error,
+      })
+    }
+
+    return ok(undefined)
+  }
+
+  async deleteConversationWithMessage(
+    conversationId: number
+  ): Promise<Result<void, DbError | ChatError>> {
+    try {
+      await this._transaction('rw', this._conversationTable, this._messageTable, async () => {
+        await this._messageTable.where('conversationId').equals(conversationId).delete()
+        await this._conversationTable.delete(conversationId)
+      })
+
+      return ok(undefined)
+    } catch (unknownError) {
+      return err(
+        new DbError(`Failed to delete conversation ${conversationId} with messages`, unknownError)
+      )
+    }
   }
 }

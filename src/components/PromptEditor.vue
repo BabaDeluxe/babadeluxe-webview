@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col gap-4">
-    <h4 class="text-md font-medium text-deepText">
+    <h4 class="text-base font-medium text-deepText">
       {{ isCreating ? 'Create New Prompt' : 'Edit Prompt' }}
     </h4>
 
@@ -37,7 +37,7 @@
         <span class="text-subtleText px-3 bg-transparent">/</span>
         <input
           :id="commandId"
-          v-model="localPrompt.command"
+          :value="localPrompt.command"
           type="text"
           placeholder="e.g. review"
           data-testid="prompt-command-input"
@@ -84,7 +84,7 @@
       </div>
       <textarea
         :id="templateId"
-        v-model="localPrompt.template"
+        :value="localPrompt.template"
         placeholder="<role>Act as a senior software engineer doing a code review.</role> Focus on code clarity, performance, and adherence to best practices."
         data-testid="prompt-template-input"
         :class="[
@@ -118,7 +118,7 @@
         data-testid="prompt-save-button"
         @click="handleSave"
       >
-        {{ isSaving ? 'Saving...' : 'Save Changes' }}
+        Save Changes
       </BaseButton>
     </div>
   </div>
@@ -133,8 +133,16 @@ import { templateLimits } from '@/constants'
 interface Prompt {
   id?: number
   name: string
-  command: string
+  command?: string
   description?: string
+  template: string
+}
+
+interface LocalPrompt {
+  id: number | undefined
+  name: string
+  command: string
+  description: string | undefined
   template: string
 }
 
@@ -160,19 +168,21 @@ const emit = defineEmits<{
 const commandId = useId()
 const templateId = useId()
 
-const localPrompt = ref<Prompt>({
+const localPrompt = ref<LocalPrompt>({
   id: undefined,
   name: '',
   command: '',
-  description: '',
+  description: undefined,
   template: '',
 })
 
 const showValidationErrors = ref(false)
 
+// Watch both prompt and isCreating: toggling into create mode while prompt
+// stays undefined would not fire if source were () => props.prompt alone.
 watch(
-  () => props.prompt,
-  (newPrompt) => {
+  () => [props.prompt, props.isCreating] as const,
+  ([newPrompt]) => {
     showValidationErrors.value = false
 
     if (newPrompt) {
@@ -180,7 +190,7 @@ watch(
         id: newPrompt.id,
         name: newPrompt.name ?? '',
         command: newPrompt.command ?? '',
-        description: newPrompt.description ?? '',
+        description: newPrompt.description,
         template: newPrompt.template,
       }
     } else if (props.isCreating) {
@@ -188,7 +198,7 @@ watch(
         id: undefined,
         name: '',
         command: '',
-        description: '',
+        description: undefined,
         template: '',
       }
     }
@@ -200,7 +210,6 @@ const templateCharCount = computed(() => localPrompt.value.template.length)
 
 const characterCountClass = computed(() => {
   const count = templateCharCount.value
-
   if (count >= templateLimits.maxPromptLength) return 'text-error font-semibold'
   if (count >= templateLimits.warningThreshold) return 'text-warning'
   return 'text-subtleText'
@@ -212,11 +221,9 @@ const validationErrors = computed(() => {
   if (localPrompt.value.name.trim().length === 0) {
     errors.name = 'Prompt name is required'
   }
-
   if (localPrompt.value.command.trim().length === 0) {
     errors.command = 'Command is required'
   }
-
   if (localPrompt.value.template.trim().length === 0) {
     errors.template = 'Template is required'
   } else if (localPrompt.value.template.length > templateLimits.maxPromptLength) {
@@ -226,26 +233,21 @@ const validationErrors = computed(() => {
   return errors
 })
 
-const isFormValid = computed(() => {
-  return Object.keys(validationErrors.value).length === 0
-})
+const isFormValid = computed(() => Object.keys(validationErrors.value).length === 0)
 
 const isDirty = computed(() => {
   if (props.isCreating) return true
-
   if (!props.prompt) return false
 
   return (
     localPrompt.value.name !== props.prompt.name ||
     localPrompt.value.command !== (props.prompt.command ?? '') ||
-    (localPrompt.value.description ?? '') !== (props.prompt.description ?? '') ||
+    localPrompt.value.description !== props.prompt.description ||
     localPrompt.value.template !== props.prompt.template
   )
 })
 
-const canSave = computed(() => {
-  return isFormValid.value && isDirty.value && !props.isSaving
-})
+const canSave = computed(() => isFormValid.value && isDirty.value && !props.isSaving)
 
 function clearValidationOnChange() {
   if (showValidationErrors.value) {
@@ -259,16 +261,19 @@ function handleNameChange(value: string | number) {
   clearValidationOnChange()
 }
 
-function handleCommandChange() {
+function handleCommandChange(event: Event) {
+  localPrompt.value.command = (event.target as HTMLInputElement).value
   clearValidationOnChange()
 }
 
 function handleDescriptionChange(value: string | number) {
-  localPrompt.value.description = String(value)
+  const str = String(value)
+  localPrompt.value.description = str === '' ? undefined : str
   emit('change')
 }
 
-function handleTemplateChange() {
+function handleTemplateChange(event: Event) {
+  localPrompt.value.template = (event.target as HTMLTextAreaElement).value
   clearValidationOnChange()
 }
 
@@ -277,7 +282,6 @@ function handleSave() {
     showValidationErrors.value = true
     return
   }
-
   if (!canSave.value) return
 
   const { id, name, command, description, template } = localPrompt.value

@@ -272,7 +272,7 @@ export const useConversationStore = defineStore('conversation', () => {
       return ok(undefined)
     }
 
-    const result = await appDb.chatRepository.getMessageByConversation(conversationId)
+    const result = await appDb.chatRepository.getMessagesByConversation(conversationId)
     if (result.isErr()) {
       messages.value = []
       return err(result.error)

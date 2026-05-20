@@ -17,7 +17,7 @@
       @click="emit('click')"
     >
       <i
-        class="i-bi:chevron-double-down text-base"
+        class="i-bi:chevron-double-down"
         aria-hidden="true"
       />
     </button>
@@ -45,7 +45,7 @@ const buttonStyle = computed(() => ({
   right: `${props.rightOffsetPx}px`,
   width: '2.75rem',
   height: '2.75rem',
-  minWidth: '44px',
-  minHeight: '44px',
+  minWidth: '2.75rem',
+  minHeight: '2.75rem',
 }))
 </script>

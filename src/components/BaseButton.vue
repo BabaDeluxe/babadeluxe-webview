@@ -30,46 +30,71 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, type PropType } from 'vue'
-import { twMerge } from 'tailwind-merge'
+import { computed, onMounted, ref, useAttrs } from 'vue'
+import { mergeUnoClasses } from '@/merge-uno-classes'
 import { type ButtonVariant, useButtonVariants } from '@/composables/use-button-variants'
+
+defineOptions({ inheritAttrs: false })
+
+interface BaseButtonProps {
+  text?: string
+  icon?: string
+  variant?: ButtonVariant
+  type?: 'button' | 'submit' | 'reset'
+  isDisabled?: boolean
+  isLoading?: boolean
+  isSelected?: boolean
+  ariaLabel?: string
+}
+
+const props = withDefaults(defineProps<BaseButtonProps>(), {
+  text: '',
+  icon: '',
+  variant: 'primary',
+  type: 'button',
+  isDisabled: false,
+  isLoading: false,
+  isSelected: false,
+  ariaLabel: '',
+})
+
+defineEmits<{
+  click: [event: MouseEvent]
+}>()
 
 const { getButtonClasses } = useButtonVariants()
 
-const props = defineProps({
-  text: { type: String, default: '' },
-  icon: { type: String, default: '' },
-  class: { type: String, default: '' },
-  variant: {
-    type: String as PropType<ButtonVariant>,
-    default: 'primary',
-  },
-  type: {
-    type: String as PropType<'button' | 'submit' | 'reset'>,
-    default: 'button',
-  },
-  isDisabled: { type: Boolean, default: false },
-  isLoading: { type: Boolean, default: false },
-  isSelected: { type: Boolean, default: false },
-})
-
-defineEmits(['click'])
-
 const buttonRef = ref<HTMLButtonElement>()
+
+const attrs = useAttrs()
 
 const computedClasses = computed(() => {
   const variantClasses = getButtonClasses(props.variant)
 
   const selectedClasses =
     props.isSelected && props.variant === 'icon'
-      ? 'text-deepText'
+      ? // Icon variant: highlight text only — no background fill on selection
+        // to preserve the transparent/borderless icon button appearance.
+        'text-deepText'
       : props.isSelected
         ? 'bg-borderMuted text-deepText'
         : ''
 
-  // Default to text-white for primary, text-deepText for others if not specified
   const defaultTextColor = props.variant === 'primary' ? 'text-white' : 'text-deepText'
 
-  return twMerge(variantClasses, defaultTextColor, selectedClasses, props.class)
+  return mergeUnoClasses(variantClasses, defaultTextColor, selectedClasses, attrs.class as string)
 })
+
+if (import.meta.env.DEV) {
+  onMounted(() => {
+    const hasVisibleLabel = props.text || buttonRef.value?.textContent?.trim()
+    if (props.icon && !hasVisibleLabel && !props.ariaLabel) {
+      console.warn(
+        '[BaseButton] Icon-only button is missing an accessible label. ' +
+          'Add ariaLabel="..." to describe the button action.',
+        buttonRef.value
+      )
+    }
+  })
+}
 </script>

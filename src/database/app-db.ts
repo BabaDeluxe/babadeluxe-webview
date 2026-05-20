@@ -1,10 +1,9 @@
 import { Dexie, type Table } from 'dexie'
-import type { Conversation, Message, LocalSetting } from '@/database/types'
+import type { Conversation, Message, LocalSetting, ContextReference } from '@/database/types'
 import type { AbstractLogger } from '@/logger'
 import { SafeTable } from '@/database/safe-table'
 import { ChatRepository } from '@/database/chat-repository'
 
-// Internal DB shape for messages
 type DbMessage = {
   id?: number
   conversationId: number
@@ -14,7 +13,7 @@ type DbMessage = {
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
-  contextReferences?: string // Encoded as JSON
+  contextReferences?: string
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
@@ -46,9 +45,48 @@ export class AppDb extends Dexie {
     )
   }
 
-  /** Business-logic operations on conversations and messages. */
   get chatRepository(): ChatRepository {
     return this._chatRepository
+  }
+
+  getAllConversations() {
+    return this._chatRepository.getAllConversations()
+  }
+
+  getMessagesByConversation(conversationId: number) {
+    return this._chatRepository.getMessagesByConversation(conversationId)
+  }
+
+  getMessageCountsByConversation() {
+    return this._chatRepository.getMessageCountsByConversation()
+  }
+
+  getStreamingMessages() {
+    return this._chatRepository.getStreamingMessages()
+  }
+
+  createMessage(input: {
+    conversationId: number
+    role: Message['role']
+    content: string
+    isStreaming?: boolean
+    model?: string
+    systemPrompt?: string
+    contextReferences?: ContextReference[]
+  }) {
+    return this._chatRepository.createMessage(input)
+  }
+
+  updateMessage(messageId: number, content: string) {
+    return this._chatRepository.updateMessage(messageId, content)
+  }
+
+  deleteMessage(messageId: number) {
+    return this._chatRepository.deleteMessage(messageId)
+  }
+
+  deleteConversationWithMessage(conversationId: number) {
+    return this._chatRepository.deleteConversationWithMessage(conversationId)
   }
 
   private _declareVersions(): void {
@@ -75,6 +113,12 @@ export class AppDb extends Dexie {
     })
     this.version(6).stores({
       conversation: '++id, title, isActive, createdAt, updatedAt',
+      message:
+        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
+      localSetting: '++id, settingKey, updatedAt',
+    })
+    this.version(7).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt, &syncId, syncVersion',
       message:
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
       localSetting: '++id, settingKey, updatedAt',
