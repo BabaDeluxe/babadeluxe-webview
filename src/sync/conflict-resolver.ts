@@ -31,6 +31,9 @@ export function resolveConflict(
 /**
  * Returns true when a pull result should overwrite local — i.e. when remote is newer
  * or when local has no version yet (first sync).
+ *
+ * @warning Callers MUST check if the conversation has pending local changes (via SyncManager._pending)
+ * before calling this, otherwise local changes might be silently overwritten by a remote pull.
  */
 export function shouldApplyRemote(
   localSyncVersion: number | undefined,

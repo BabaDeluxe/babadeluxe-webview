@@ -86,6 +86,9 @@ export class WebDavSyncAdapter implements ISyncAdapter {
     if (etag) {
       // If-Match ensures we don't overwrite a newer remote version
       ;(headers as Record<string, string>)['If-Match'] = etag
+    } else {
+      // Prevent race conditions on first push
+      ;(headers as Record<string, string>)['If-None-Match'] = '*'
     }
 
     try {
@@ -98,7 +101,7 @@ export class WebDavSyncAdapter implements ISyncAdapter {
       if (res.status === 412) {
         // Precondition Failed — remote has diverged; surface as ConflictError
         return err(
-          new ConflictError('webdav', snapshot.id, snapshot.syncVersion, -1)
+          new ConflictError('webdav', snapshot.id, snapshot.syncVersion)
         )
       }
 
@@ -161,6 +164,7 @@ export class WebDavSyncAdapter implements ISyncAdapter {
   }
 
   private async _listRemote(): Promise<Result<Array<{ id: number }>, SyncError>> {
+    // TODO(v2): use getlastmodified prop
     // PROPFIND depth 1 to list files in the chats/ directory
     const body = `<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:">

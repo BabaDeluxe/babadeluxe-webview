@@ -197,19 +197,26 @@ export class SyncManager {
 
         if (resolution === 'use-local') {
           // Local is newer — push it and discard the remote payload
-          void this._adapter?.push(localPayload)
+          void this._adapter?.push(localPayload).then((result) => {
+            if (result && result.isErr()) {
+              this.notifyChanged(payload.conversation.id)
+            }
+          })
           return
         }
 
-        // resolution === 'use-remote': fall through to apply below,
-        // but also surface the conflict to handlers so the UI can notify the user.
-        const info: ConflictInfo = {
-          conversationId: payload.conversation.id,
-          localPayload,
-          remotePayload: payload,
+        // resolution === 'use-remote': fall through to apply below.
+        // Only emit conflict if versions are equal (the ambiguous case).
+        // If remote version is higher, it's just a normal background pull.
+        if (localPayload.syncVersion === payload.conversation.syncVersion) {
+          const info: ConflictInfo = {
+            conversationId: payload.conversation.id,
+            localPayload,
+            remotePayload: payload,
+          }
+          this._conflictHandlers.forEach((h) => h(info))
+          this._emit({ state: 'conflict', info })
         }
-        this._conflictHandlers.forEach((h) => h(info))
-        this._emit({ state: 'conflict', info })
         // Still apply the remote payload — it won the resolution
       }
     }

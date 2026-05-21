@@ -114,7 +114,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     if (cleaned.length === 0) return ok([])
 
     const requestId = makeId()
-    const result = await bridge.postAndAwait(
+    const result = await bridge.postAndAwait<FileContextResponse>(
       { type: 'fileContext:resolve', requestId, filePaths: cleaned },
       createTimeout,
       cancelTimeout,
@@ -123,8 +123,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     if (result.isErr()) return err(result.error)
 
     const resolved: Array<{ filePath: string; content: string }> = []
-    for (const raw of result.value) {
-      const item = raw as { filePath?: unknown; snippet?: unknown }
+    for (const item of result.value.items ?? []) {
       if (typeof item.filePath !== 'string' || item.filePath.trim().length === 0) continue
       if (typeof item.snippet !== 'string') continue
       resolved.push({ filePath: item.filePath, content: item.snippet })
@@ -204,7 +203,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     }
 
     const requestId = makeId()
-    const result = await bridge.postAndAwait(
+    const result = await bridge.postAndAwait<AutoContextResponse>(
       { type: 'autoContext:request', requestId, query: trimmed },
       createTimeout,
       cancelTimeout
@@ -224,8 +223,7 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     ])
 
     const nextSuggested = new Map<string, SuggestedEntry>()
-    for (const raw of result.value) {
-      const item = raw as { filePath?: unknown; score?: unknown; matchRange?: unknown }
+    for (const item of result.value.items ?? []) {
       if (typeof item.filePath !== 'string') continue
       const cleanedPath = compact(item.filePath)
       if (!cleanedPath) continue

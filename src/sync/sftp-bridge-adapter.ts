@@ -107,10 +107,10 @@ export class SftpBridgeAdapter implements ISyncAdapter {
     payload: Record<string, unknown>
   ): Promise<Result<T, SyncError>> {
     const requestId = crypto.randomUUID()
-    const request = { type, requestId, ...payload } as SftpRequest
+    const request = { type, requestId, ...payload }
 
-    const result = await this._bridge.postAndAwait(
-      request as Parameters<typeof this._bridge.postAndAwait>[0],
+    const result = await this._bridge.postAndAwait<any>(
+      request,
       (cb, ms) => setTimeout(cb, ms) as unknown as NodeJS.Timeout,
       (id) => clearTimeout(id as unknown as ReturnType<typeof setTimeout>)
     )
