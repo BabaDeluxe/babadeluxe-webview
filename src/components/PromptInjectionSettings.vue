@@ -3,7 +3,6 @@
     class="flex flex-col gap-5"
     data-testid="prompt-injection-settings"
   >
-    <!-- Injection Mode -->
     <div
       role="group"
       aria-labelledby="label-injection-mode"
@@ -12,7 +11,8 @@
       <span
         id="label-injection-mode"
         class="text-sm text-subtleText"
-      >Injection Mode</span>
+        >Injection Mode</span
+      >
 
       <div class="flex flex-col gap-1.5">
         <button
@@ -65,8 +65,6 @@
         </button>
       </div>
     </div>
-
-    <!-- Injection Position -->
     <div
       role="group"
       aria-labelledby="label-injection-position"
@@ -75,7 +73,8 @@
       <span
         id="label-injection-position"
         class="text-sm text-subtleText"
-      >Injection Position</span>
+        >Injection Position</span
+      >
       <div class="flex gap-1.5">
         <button
           v-for="pos in positionOptions"
@@ -96,8 +95,6 @@
         </button>
       </div>
     </div>
-
-    <!-- Conversation Behaviour -->
     <div
       v-if="showHistoryToggle"
       role="group"
@@ -107,7 +104,8 @@
       <span
         id="label-conversation-behaviour"
         class="text-sm text-subtleText"
-      >Conversation Behaviour</span>
+        >Conversation Behaviour</span
+      >
 
       <div
         class="flex items-start justify-between p-3.5 rounded-lg border border-borderMuted bg-panel gap-4"
@@ -152,9 +150,6 @@ import type {
   PromptInjectionMode,
   PromptInjectionPosition,
 } from '../services/prompt-injection-service'
-import { promptInjectionDefaults } from '../services/prompt-injection-service'
-
-// Static — hoisted to module scope to avoid per-instance allocation
 const modeOptions: { value: PromptInjectionMode; label: string; description: string }[] = [
   { value: 'always', label: 'Always', description: 'Prepend the prompt to every message sent.' },
   {
@@ -210,8 +205,6 @@ const localMode = ref<PromptInjectionMode>(props.mode)
 const localInterval = ref(props.interval)
 const localPosition = ref<PromptInjectionPosition>(props.position)
 const localIncludeHistory = ref(props.includeHistory)
-
-// Consolidated watch — syncs all local state when parent props change
 watch(
   () => props,
   (p) => {

@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import { type Result, err, ok } from 'neverthrow'
 import { type ManagerOptions, type SocketOptions, io } from 'socket.io-client'
+import * as msgpackParser from 'socket.io-msgpack-parser'
 import { Root } from '@babadeluxe/shared'
 import type { AbstractLogger } from '@/logger'
 import { SocketError } from '@/errors'
@@ -14,15 +15,25 @@ type SocketGetters = {
 }
 
 class SocketManagerBase {
-  private readonly _socket: Root.Socket
+  private _socketRef: Root.Socket
+  private get _socket(): Root.Socket {
+    return this._socketRef
+  }
+
   private _isConnectedInternal = false
   private _isConnectingInternal = false
+  private _isFallbackPending = false
+  private _currentAuthToken: string
   private readonly _trackedEvents = new Set<string>()
   private _internalHandlersRegistered = false
-  private _connectingPromise: Promise<void> | undefined
+  private _connectingPromise:
+    | { promise: Promise<void>; reject: (e: SocketError) => void }
+    | undefined
+  private _fallbackErrorHandler: ((unknownError: unknown) => void) | undefined
 
   private readonly _onConnect = (): void => {
     this._isConnectedInternal = true
+    this._removeFallbackErrorHandler()
     this._logger.log(`Connected to socket: ${this._socket.id}`)
   }
 
@@ -46,15 +57,23 @@ class SocketManagerBase {
     private readonly _baseUrl: string,
     private readonly _authToken: string
   ) {
+    this._currentAuthToken = this._authToken
+
     const socketOptions: Partial<ManagerOptions & SocketOptions> = {
       path: Root.path,
       transports: ['websocket', 'polling'],
       withCredentials: true,
       autoConnect: false,
-      auth: { token: this._authToken },
+      reconnection: true,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 30_000,
+      randomizationFactor: 0.5,
+      auth: { token: this._currentAuthToken },
+      parser: msgpackParser,
     }
 
-    this._socket = io(this._baseUrl, socketOptions)
+    this._socketRef = io(this._baseUrl, socketOptions)
     this._createSocketGetters()
   }
 
@@ -81,6 +100,10 @@ class SocketManagerBase {
       return err(new SocketError('Connection already in progress'))
     }
 
+    if (this._isFallbackPending) {
+      return err(new SocketError('Fallback connection in progress'))
+    }
+
     this._logger.log(`Connecting to socket at ${this._baseUrl}`)
     this._isConnectingInternal = true
 
@@ -88,6 +111,8 @@ class SocketManagerBase {
       this._registerInternalHandlers()
       this._internalHandlersRegistered = true
     }
+
+    this._registerFallbackErrorHandler()
 
     const result = await this._performConnection(10_000)
     this._isConnectingInternal = false
@@ -110,6 +135,84 @@ class SocketManagerBase {
     this._trackedEvents.add('connect')
     this._trackedEvents.add('disconnect')
     this._trackedEvents.add('connect_error')
+  }
+
+  private _registerFallbackErrorHandler(): void {
+    if (this._fallbackErrorHandler !== undefined) return
+
+    const handler = (): void => {
+      if (!this._socket.active && !this._isFallbackPending) {
+        void this._mountFallbackSocket()
+      }
+    }
+
+    this._fallbackErrorHandler = handler
+    this._socket.on('connect_error', handler)
+  }
+
+  private _removeFallbackErrorHandler(): void {
+    if (this._fallbackErrorHandler === undefined) return
+    this._socket.off('connect_error', this._fallbackErrorHandler)
+    this._fallbackErrorHandler = undefined
+  }
+
+  private async _mountFallbackSocket(): Promise<void> {
+    this._isFallbackPending = true
+    if (this._connectingPromise !== undefined) {
+      const { reject } = this._connectingPromise
+      this._connectingPromise = undefined
+      reject(new SocketError('Socket replaced by no-parser fallback'))
+    }
+
+    this._logger.warn('msgpack socket exhausted retries — mounting no-parser fallback', {
+      baseUrl: this._baseUrl,
+    })
+    this._socket.off('connect', this._onConnect)
+    this._socket.off('disconnect', this._onDisconnect)
+    this._socket.off('connect_error', this._onConnectError)
+    this._removeFallbackErrorHandler()
+
+    for (const eventName of this._trackedEvents) {
+      this._socket.off(eventName)
+    }
+
+    this._trackedEvents.clear()
+    this._socket.disconnect()
+    this._isConnectedInternal = false
+    this._isConnectingInternal = false
+    this._internalHandlersRegistered = false
+    const fallbackOptions: Partial<ManagerOptions & SocketOptions> = {
+      path: Root.path,
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 30_000,
+      randomizationFactor: 0.5,
+      auth: { token: this._currentAuthToken },
+    }
+
+    this._socketRef = io(this._baseUrl, fallbackOptions)
+
+    this._isFallbackPending = false
+    this._isConnectingInternal = true
+
+    this._registerInternalHandlers()
+    this._internalHandlersRegistered = true
+
+    const result = await this._performConnection(10_000)
+    this._isConnectingInternal = false
+
+    if (result.isErr()) {
+      this._logger.error('Fallback socket also failed to connect — giving up', {
+        baseUrl: this._baseUrl,
+        error: result.error,
+      })
+    } else {
+      this._logger.log('Fallback no-parser socket connected successfully')
+    }
   }
 
   private async _performConnection(
@@ -150,6 +253,7 @@ class SocketManagerBase {
   }
 
   updateAuthToken(token: string): void {
+    this._currentAuthToken = token
     this._socket.auth = { token }
   }
 
@@ -158,7 +262,7 @@ class SocketManagerBase {
 
     if (this._connectingPromise !== undefined) {
       try {
-        await this._connectingPromise
+        await this._connectingPromise.promise
         return this._isConnectedInternal
           ? ok(undefined)
           : err(new SocketError('Socket not connected after waitForConnection'))
@@ -174,7 +278,11 @@ class SocketManagerBase {
       }
     }
 
-    const connectingPromise = new Promise<void>((resolve, reject) => {
+    let rejectHandle!: (e: SocketError) => void
+
+    const promise = new Promise<void>((resolve, reject) => {
+      rejectHandle = reject
+
       const onConnect = () => {
         clearTimeout(timeoutId)
         resolve()
@@ -187,14 +295,13 @@ class SocketManagerBase {
         reject(new SocketError(`Connection timeout after ${timeoutMilliseconds}ms`))
       }, timeoutMilliseconds)
 
-      // Optionally, ensure a connect attempt is actually made:
       this._socket.connect()
     })
 
-    this._connectingPromise = connectingPromise
+    this._connectingPromise = { promise, reject: rejectHandle }
 
     try {
-      await connectingPromise
+      await promise
       return this._isConnectedInternal
         ? ok(undefined)
         : err(new SocketError('Socket not connected after waitForConnection'))
@@ -208,13 +315,15 @@ class SocketManagerBase {
             )
       return err(error)
     } finally {
-      if (this._connectingPromise === connectingPromise) {
+      if (this._connectingPromise?.promise === promise) {
         this._connectingPromise = undefined
       }
     }
   }
 
   disconnect(): void {
+    this._removeFallbackErrorHandler()
+
     this._socket.off('connect', this._onConnect)
     this._socket.off('disconnect', this._onDisconnect)
     this._socket.off('connect_error', this._onConnectError)
@@ -229,6 +338,7 @@ class SocketManagerBase {
 
     this._trackedEvents.clear()
     this._internalHandlersRegistered = false
+    this._isFallbackPending = false
     this._isConnectedInternal = false
     this._socket.disconnect()
     this._logger.log('Socket disconnected and listeners cleared')
@@ -277,7 +387,7 @@ class SocketManagerBase {
       return err(socketError)
     }
 
-    this._logger.log(`[emit] Event: ${String(eventId)}`)
+    this._logger.log(`Event: ${String(eventId)}`)
     this._socket.emit(String(eventId), ...args)
     return ok(undefined)
   }

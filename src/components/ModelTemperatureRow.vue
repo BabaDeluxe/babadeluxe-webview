@@ -44,7 +44,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { DEFAULT_TEMPERATURE } from '@babadeluxe/shared'
 import { temperatureLabel } from '@/model-preferences'
 import BaseButton from '@/components/BaseButton.vue'
 
@@ -65,12 +64,12 @@ const emit = defineEmits<{
   reset: [modelValue: string]
 }>()
 
-const localTemp = ref(props.temperature ?? DEFAULT_TEMPERATURE)
+const localTemp = ref(props.temperature)
 
 watch(
   () => props.temperature,
   (val) => {
-    localTemp.value = val ?? DEFAULT_TEMPERATURE
+    localTemp.value = val
   }
 )
 
@@ -78,7 +77,7 @@ const isOverridden = computed(() => props.temperature !== undefined)
 
 const displayValue = computed(() => {
   if (props.temperature === undefined) return 'Provider default'
-  return `${localTemp.value.toFixed(2)} · ${temperatureLabel(localTemp.value)}`
+  return `${localTemp?.value?.toFixed(2)} · ${temperatureLabel(localTemp?.value ?? 0.4)}`
 })
 
 function handleSliderInput(event: Event) {
