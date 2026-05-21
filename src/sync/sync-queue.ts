@@ -3,6 +3,8 @@ import { defineStore } from 'pinia'
 import type { SyncStatus, SyncBackend, ConflictInfo } from '@/sync/types'
 import { SyncManager } from '@/sync/sync-manager'
 import { GitHubSyncAdapter } from '@/sync/github-adapter'
+import { WebDavSyncAdapter } from '@/sync/webdav-adapter'
+import { SftpBridgeAdapter } from '@/sync/sftp-bridge-adapter'
 import { DeviceIdService } from '@/sync/device-id'
 import { safeInject } from '@/safe-inject'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
@@ -58,6 +60,53 @@ export const useSyncStore = defineStore('sync', () => {
       )
       manager.setAdapter(adapter)
       activeBackend.value = 'github'
+
+      const testResult = await adapter.testConnection()
+      if (testResult.isErr()) {
+        status.value = { state: 'error', error: testResult.error }
+        return
+      }
+
+      void manager.pullAll()
+      return
+    }
+
+    if (config.backend === 'webdav') {
+      const adapter = new WebDavSyncAdapter(
+        {
+          url: config.url,
+          username: config.username,
+          password: config.password,
+        },
+        deviceIdService,
+        db
+      )
+      manager.setAdapter(adapter)
+      activeBackend.value = 'webdav'
+
+      const testResult = await adapter.testConnection()
+      if (testResult.isErr()) {
+        status.value = { state: 'error', error: testResult.error }
+        return
+      }
+
+      void manager.pullAll()
+      return
+    }
+
+    if (config.backend === 'sftp') {
+      const adapter = new SftpBridgeAdapter(
+        {
+          host: config.host,
+          port: config.port,
+          username: config.username,
+          privateKeyOrPassword: config.privateKey,
+          remotePath: '', // TODO: allow config?
+        },
+        deviceIdService
+      )
+      manager.setAdapter(adapter)
+      activeBackend.value = 'sftp'
 
       const testResult = await adapter.testConnection()
       if (testResult.isErr()) {

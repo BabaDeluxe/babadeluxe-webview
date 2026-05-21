@@ -12,12 +12,22 @@ export type WebDavAdapterConfig = {
   password: string
 }
 
+import type { AppDb } from '@/database/app-db'
+
+/**
+ * WebDAV Sync Adapter.
+ *
+ * Implements conversation synchronization over WebDAV.
+ * Uses PROPFIND optimization to skip downloading unchanged files.
+ * Provides optimistic locking via ETags and If-Match/If-None-Match headers.
+ */
 export class WebDavSyncAdapter implements ISyncAdapter {
   readonly name = 'webdav'
 
   constructor(
     private readonly _config: WebDavAdapterConfig,
-    private readonly _deviceIdService: DeviceIdService
+    private readonly _deviceIdService: DeviceIdService,
+    private readonly _db: AppDb
   ) {}
 
   async push(payload: SyncPayload): Promise<Result<void, SyncError>> {
@@ -34,13 +44,27 @@ export class WebDavSyncAdapter implements ISyncAdapter {
     return this._upload(snapshot)
   }
 
+  /**
+   * Pulls all conversations from the remote WebDAV server.
+   * Optimized to only fetch files that have a newer modification date than local.
+   */
   async pull(): Promise<Result<SyncPayload[], SyncError>> {
     const listResult = await this._listRemote()
     if (listResult.isErr()) return err(listResult.error)
 
     const payloads: SyncPayload[] = []
 
-    for (const { id } of listResult.value) {
+    for (const { id, lastModified } of listResult.value) {
+      // PROPFIND optimization: Check if we actually need to download this file.
+      // If we have a local version and it's newer or equal to the remote mod date, skip download.
+      // This solves the N+1 requests problem by only fetching changed files.
+      if (lastModified) {
+        const localResult = await this._db.conversation.get(id)
+        if (localResult.isOk() && localResult.value && localResult.value.updatedAt >= lastModified) {
+          continue
+        }
+      }
+
       const downloadResult = await this._download(id)
       if (downloadResult.isErr()) return err(downloadResult.error)
       const snapshot = downloadResult.value
@@ -163,12 +187,14 @@ export class WebDavSyncAdapter implements ISyncAdapter {
     }
   }
 
-  private async _listRemote(): Promise<Result<Array<{ id: number }>, SyncError>> {
-    // TODO(v2): use getlastmodified prop
-    // PROPFIND depth 1 to list files in the chats/ directory
+  private async _listRemote(): Promise<Result<Array<{ id: number; lastModified?: Date }>, SyncError>> {
+    // PROPFIND depth 1 to list files in the chats/ directory, including modification date
     const body = `<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:">
-  <D:prop><D:displayname/></D:prop>
+  <D:prop>
+    <D:displayname/>
+    <D:getlastmodified/>
+  </D:prop>
 </D:propfind>`
 
     try {
@@ -191,8 +217,7 @@ export class WebDavSyncAdapter implements ISyncAdapter {
       }
 
       const xml = await res.text()
-      const ids = this._parseMultistatus(xml)
-      return ok(ids.map((id) => ({ id })))
+      return ok(this._parseMultistatus(xml))
     } catch (e) {
       return err(new SyncError('webdav', `Network error during PROPFIND: ${e instanceof Error ? e.message : String(e)}`, e))
     }
@@ -223,20 +248,35 @@ export class WebDavSyncAdapter implements ISyncAdapter {
     }
   }
 
-  /** Parse a WebDAV 207 Multi-Status XML body and return conversation IDs */
-  private _parseMultistatus(xml: string): number[] {
-    const ids: number[] = []
-    // Simple regex-based parse — avoids DOM parser dependency issues in webview context
-    const hrefPattern = /<[Dd]:[Hh]ref>([^<]+)<\/[Dd]:[Hh]ref>/g
-    let match: RegExpExecArray | null
-    while ((match = hrefPattern.exec(xml)) !== null) {
-      const href = decodeURIComponent(match[1].trim())
+  /** Parse a WebDAV 207 Multi-Status XML body and return conversation IDs and mod dates */
+  private _parseMultistatus(xml: string): Array<{ id: number; lastModified?: Date }> {
+    const results: Array<{ id: number; lastModified?: Date }> = []
+
+    // Each file is in a <D:response> block. Extract them.
+    const responsePattern = /<[Dd]:[Rr]esponse>([\s\S]*?)<\/[Dd]:[Rr]esponse>/g
+    const hrefPattern = /<[Dd]:[Hh]ref>([^<]+)<\/[Dd]:[Hh]ref>/
+    const datePattern = /<[Dd]:[Gg]etlastmodified>([^<]+)<\/[Dd]:[Gg]etlastmodified>/
+
+    let responseMatch: RegExpExecArray | null
+    while ((responseMatch = responsePattern.exec(xml)) !== null) {
+      const block = responseMatch[1]
+
+      const hrefMatch = hrefPattern.exec(block)
+      if (!hrefMatch) continue
+
+      const href = decodeURIComponent(hrefMatch[1].trim())
       const filename = href.split('/').pop() ?? ''
       if (!filename.endsWith(FILE_EXTENSION)) continue
+
       const id = parseInt(filename.replace(FILE_EXTENSION, ''), 10)
-      if (!isNaN(id)) ids.push(id)
+      if (isNaN(id)) continue
+
+      const dateMatch = datePattern.exec(block)
+      const lastModified = dateMatch ? new Date(dateMatch[1]) : undefined
+
+      results.push({ id, lastModified: lastModified && !isNaN(lastModified.getTime()) ? lastModified : undefined })
     }
-    return ids
+    return results
   }
 
   private _authHeader(): Record<string, string> {
