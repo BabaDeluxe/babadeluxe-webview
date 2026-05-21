@@ -15,11 +15,12 @@ import type { AuthProvider } from '@/auth/auth-provider'
  * Wraps a dependency that is provided before app.mount() but resolved asynchronously
  * (e.g. after socket init). Consumers use isReady/hasError to gate rendering instead
  * of crashing during setup when the value is not yet available.
+ * Provided as a reactive object so nested refs are auto-unwrapped for consumers.
  */
 export type AsyncInjectable<T> = {
-  readonly isReady: Readonly<Ref<boolean>>
-  readonly hasError: Readonly<Ref<boolean>>
-  readonly value: Readonly<Ref<T | undefined>>
+  readonly isReady: boolean
+  readonly hasError: boolean
+  readonly value: T | undefined
 }
 
 export const ENV_CONFIG_KEY: InjectionKey<EnvConfigType> = Symbol('ENV_CONFIG_KEY')
