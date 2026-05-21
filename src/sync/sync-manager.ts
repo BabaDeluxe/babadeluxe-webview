@@ -5,6 +5,7 @@ import type { Conversation, Message } from '@/database/types'
 import { SyncError as AppSyncError } from '@/errors'
 import type { ISyncAdapter, SyncPayload, SyncStatus, ConflictInfo } from '@/sync/types'
 import type { AbstractLogger } from '@/logger'
+import { resolveConflict, shouldApplyRemote } from '@/sync/conflict-resolver'
 
 type StatusHandler = (status: SyncStatus) => void
 type ConflictHandler = (info: ConflictInfo) => void
@@ -92,7 +93,7 @@ export class SyncManager {
     this._emit({ state: 'success', lastSyncAt: new Date() })
   }
 
-  async resolveConflict(
+  async resolveConflictManual(
     info: ConflictInfo,
     resolution: 'local-wins' | 'remote-wins'
   ): Promise<void> {
@@ -184,25 +185,37 @@ export class SyncManager {
     if (localResult.isErr()) return
     const local = localResult.value
 
+    // If this conversation has unsaved local changes in the pending queue,
+    // run conflict resolution before deciding what to apply.
     if (local && this._pending.has(payload.conversation.id)) {
       const localPayloadResult = await this._buildPayload(payload.conversation.id)
       if (localPayloadResult.isOk()) {
+        const localPayload = localPayloadResult.value
+        const resolution = resolveConflict(localPayload, payload)
+
+        if (resolution === 'noop') return
+
+        if (resolution === 'use-local') {
+          // Local is newer — push it and discard the remote payload
+          void this._adapter?.push(localPayload)
+          return
+        }
+
+        // resolution === 'use-remote': fall through to apply below,
+        // but also surface the conflict to handlers so the UI can notify the user.
         const info: ConflictInfo = {
           conversationId: payload.conversation.id,
-          localPayload: localPayloadResult.value,
+          localPayload,
           remotePayload: payload,
         }
-        this._conflictHandlers.forEach((h) => {
-          h(info)
-        })
+        this._conflictHandlers.forEach((h) => h(info))
         this._emit({ state: 'conflict', info })
-        return
+        // Still apply the remote payload — it won the resolution
       }
     }
 
-    if (local?.syncVersion !== undefined && payload.syncVersion <= local.syncVersion) {
-      return
-    }
+    // Skip if local is already at this version or newer
+    if (!shouldApplyRemote(local?.syncVersion, payload)) return
 
     const conv: Conversation = {
       id: payload.conversation.id,
