@@ -18,7 +18,8 @@ variables:
         "$PNPM_VERSION" \
         "$SUBDOMAIN_DIR" \
         "$VITE_APP_URL" \
-        "$VITE_BUILD_MODE" <<'ENDSSH'
+        "$VITE_BUILD_MODE" \
+        "$GH_TOKEN" <<'ENDSSH'
         set -euo pipefail
 
         NODE_ENV="$1"
@@ -30,6 +31,7 @@ variables:
         SUBDOMAIN_DIR="$7"
         VITE_APP_URL="$8"
         VITE_BUILD_MODE="$9"
+        GH_TOKEN="${10}"
 
         source ~/.bash_profile
         source ~/.nvm/nvm.sh
@@ -39,8 +41,35 @@ variables:
 
         mkdir -p "$DEPLOY_BASE_DIR"
 
+        clone_with_fallbacks() {
+          local slug="$1"
+          local path="$2"
+          local branch="$3"
+
+          echo "DEPLOY_VARIANT=primary-gh"
+          if gh repo clone "$slug" "$path" -- -b "$branch"; then
+            return 0
+          fi
+          echo "DEPLOY_VARIANT_FAILED=primary-gh"
+
+          echo "DEPLOY_VARIANT=fallback-git-token"
+          if GH_TOKEN="$GH_TOKEN" git clone "https://x-access-token:${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
+            return 0
+          fi
+          echo "DEPLOY_VARIANT_FAILED=fallback-git-token"
+
+          echo "DEPLOY_VARIANT=fallback-server-gh-auth"
+          if echo "$GH_TOKEN" | gh auth login --with-token && gh repo clone "$slug" "$path" -- -b "$branch"; then
+            return 0
+          fi
+          echo "DEPLOY_VARIANT_FAILED=fallback-server-gh-auth"
+
+          echo "DEPLOY_CLONE_ERROR=all variants exhausted for $slug"
+          return 1
+        }
+
         if [ ! -d "$DEPLOY_PATH/.git" ]; then
-          gh repo clone "$REPO_SLUG" "$DEPLOY_PATH" -- -b "$REPO_BRANCH"
+          clone_with_fallbacks "$REPO_SLUG" "$DEPLOY_PATH" "$REPO_BRANCH"
         fi
 
         cd "$DEPLOY_PATH"
@@ -73,6 +102,8 @@ variables:
     PNPM_VERSION: 9.15.0
     DEPLOY_SSH_KEY:
       from_secret: deploy_ssh_key
+    GH_TOKEN:
+      from_secret: gh_token
 
 steps:
   deploy-prod:
