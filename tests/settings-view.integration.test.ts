@@ -8,11 +8,12 @@ import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/inject
 import type { IApiKeyValidator } from '@/api-key-validator'
 import SettingsView from '@/views/SettingsView.vue'
 
+import { ok } from 'neverthrow'
 vi.mock('@/composables/use-settings', () => ({
   useSettings: () => ({
     settings: ref([]),
-    upsertSetting: vi.fn(),
-    loadSettings: vi.fn().mockResolvedValue(undefined),
+    upsertSetting: vi.fn().mockResolvedValue(ok(undefined)),
+    loadSettings: vi.fn().mockResolvedValue(ok(undefined)),
   }),
 }))
 

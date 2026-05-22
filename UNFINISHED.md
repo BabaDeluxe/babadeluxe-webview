@@ -6,19 +6,14 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 
 ### Authentication
 
-- **ZitadelAuthProvider**: The `signInWithOAuth`, `signInWithPasskey`, and `signInWithSSO` methods are currently stubs that return errors. The full Zitadel session flow needs to be implemented. (`src/auth/zitadel-auth-provider.ts`)
 - **OAuth Callback handling**: While basic OAuth is implemented, some edge cases in session synchronization during redirect might still need attention (ref: `AuthCallbackView.vue`).
-- **SupabaseAuthProvider**: `signInWithPasskey` and `signInWithSSO` are explicitly disabled as they require Zitadel configuration which is currently missing/incomplete. (`src/auth/supabase-auth-provider.ts`)
 
 ### Model Integration
 
-- **Ollama & DeepSeek**: Support for Ollama and DeepSeek models is currently not implemented in the backend listing logic. The frontend has stubs for these providers but they are explicitly skipped or return empty lists. (`src/composables/use-models-socket.ts`)
+- **Ollama & DeepSeek**: Support for Ollama and DeepSeek models is implemented in the frontend (`src/composables/use-models-socket.ts`) including discovery logic, though full end-to-end functionality depends on backend availability. (`src/composables/use-models-socket.ts`)
 
 ## Technical Debt / Refactoring
 
-### Architecture
-
-- **Database Logic**: `app-db.ts` contains logic that should be refactored into a dedicated `chat-repository.ts` to better separate concerns between storage and business logic. (`src/database/app-db.ts`)
 
 ### Type Safety
 
@@ -36,7 +31,5 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 
 ## Scan Results (Raw TODOs)
 
-- `src/database/app-db.ts`: `// TODO Refactor this to chat-repository.ts`
 - `src/composables/use-prompts-socket.ts`: `// TODO Check if the shared types are correct, because this cast is weird`
 - `src/composables/use-models-socket.ts`: `ollama: [], // TODO Implement ollama and deepseek`
-- `src/auth/zitadel-auth-provider.ts`: `* TODO: implement full Zitadel session flow`
