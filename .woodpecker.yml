@@ -9,8 +9,7 @@ variables:
     - echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
     - ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
     - |
-      ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" \
-        GH_TOKEN="$GH_TOKEN" bash -s -- \
+      ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s -- \
         "$NODE_ENV" \
         "$DEPLOY_BASE_DIR" \
         "$GIT_DIR" \
@@ -19,7 +18,8 @@ variables:
         "$PNPM_VERSION" \
         "$SUBDOMAIN_DIR" \
         "$VITE_APP_URL" \
-        "$VITE_BUILD_MODE" <<'ENDSSH'
+        "$VITE_BUILD_MODE" \
+        "$GH_TOKEN" <<'ENDSSH'
         set -euo pipefail
 
         NODE_ENV="$1"
@@ -31,6 +31,7 @@ variables:
         SUBDOMAIN_DIR="$7"
         VITE_APP_URL="$8"
         VITE_BUILD_MODE="$9"
+        export GH_TOKEN="${10}"
 
         source ~/.bash_profile
         source ~/.nvm/nvm.sh
