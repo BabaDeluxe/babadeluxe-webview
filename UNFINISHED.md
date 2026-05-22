@@ -6,9 +6,7 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 
 ### Authentication
 
-- **ZitadelAuthProvider**: The `signInWithOAuth`, `signInWithPasskey`, and `signInWithSSO` methods are currently stubs that return errors. The full Zitadel session flow needs to be implemented. (`src/auth/zitadel-auth-provider.ts`)
 - **OAuth Callback handling**: While basic OAuth is implemented, some edge cases in session synchronization during redirect might still need attention (ref: `AuthCallbackView.vue`).
-- **SupabaseAuthProvider**: `signInWithPasskey` and `signInWithSSO` are explicitly disabled as they require Zitadel configuration which is currently missing/incomplete. (`src/auth/supabase-auth-provider.ts`)
 
 ### Model Integration
 
@@ -35,4 +33,3 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 
 - `src/composables/use-prompts-socket.ts`: `// TODO Check if the shared types are correct, because this cast is weird`
 - `src/composables/use-models-socket.ts`: `ollama: [], // TODO Implement ollama and deepseek`
-- `src/auth/zitadel-auth-provider.ts`: `* TODO: implement full Zitadel session flow`
