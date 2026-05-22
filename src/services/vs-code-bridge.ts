@@ -42,7 +42,7 @@ export class VsCodeBridge {
     timeoutMs: number = socketTimeoutMs.vsCodeContext
   ): Promise<Result<T, NetworkError>> {
     const apiResult = getVsCodeApi()
-    if (apiResult.isErr()) return err(apiResult.error as unknown as NetworkError)
+    if (apiResult.isErr()) return err(new NetworkError(apiResult.error.message, apiResult.error))
 
     const vsCodeApi = apiResult.value
     const requestId = request.requestId
