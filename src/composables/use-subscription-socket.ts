@@ -1,3 +1,4 @@
+import { useSubscriptionStore, type SubscriptionTier } from "@/stores/use-subscription-store"
 import { ref, onBeforeUnmount, readonly, computed, watch } from 'vue'
 import type { SocketManager } from '@/socket-manager'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
@@ -52,7 +53,10 @@ export function useSubscriptionSocket() {
   // --------------------------------------------------------------------
   // Event handlers
   // --------------------------------------------------------------------
+  const subscriptionStore = useSubscriptionStore()
+
   const onUserTierChanged = (payload: { tier: string }) => {
+    subscriptionStore.setTier(payload.tier as SubscriptionTier)
     if (payload.tier === 'PRO') {
       isMessageLimitReached.value = false
       isDismissed.value = false
@@ -213,5 +217,6 @@ export function useSubscriptionSocket() {
     isConnected: computed(() => subscriptionSocketRef.value?.isConnected ?? false),
     shouldShowModal: readonly(shouldShowModal),
     dismissModal,
+    tier: computed(() => subscriptionStore.tier),
   }
 }

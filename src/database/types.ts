@@ -44,3 +44,13 @@ export type LocalSetting = {
   dataType: 'string' | 'number' | 'boolean'
   updatedAt: Date
 }
+
+export type Prompt = {
+  id: number
+  name: string
+  command: string
+  description?: string
+  template: string
+  isSystem: boolean
+  isPremium?: boolean
+}
