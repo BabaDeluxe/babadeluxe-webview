@@ -31,7 +31,7 @@ variables:
         SUBDOMAIN_DIR="$7"
         VITE_APP_URL="$8"
         VITE_BUILD_MODE="$9"
-        GH_TOKEN="${10}"
+        export GH_TOKEN="${10}"
 
         source ~/.bash_profile
         source ~/.nvm/nvm.sh
@@ -53,7 +53,7 @@ variables:
           echo "DEPLOY_VARIANT_FAILED=primary-gh"
 
           echo "DEPLOY_VARIANT=fallback-git-token"
-          if GH_TOKEN="$GH_TOKEN" git clone "https://x-access-token:${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
+          if git clone "https://x-access-token:${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
             return 0
           fi
           echo "DEPLOY_VARIANT_FAILED=fallback-git-token"
