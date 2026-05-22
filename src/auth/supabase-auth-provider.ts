@@ -43,14 +43,6 @@ export class SupabaseAuthProvider implements AuthProvider {
     return ok(undefined)
   }
 
-  async signInWithPasskey(_email: string): Promise<Result<void, AuthError>> {
-    return err(new AuthError('Passkey requires Zitadel -- not configured'))
-  }
-
-  async signInWithSSO(_domain: string): Promise<Result<void, AuthError>> {
-    return err(new AuthError('SSO requires Zitadel -- not configured'))
-  }
-
   async signOut(): Promise<Result<void, AuthError>> {
     if (isOfflineMode()) return ok(undefined)
 
