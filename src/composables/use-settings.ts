@@ -14,7 +14,7 @@ export function useSettings() {
   const { socketManagerRef } = useSocketManager()
   const db = inject(APP_DB_KEY)!
 
-  const isOffline = isOfflineMode() || import.meta.env.MODE === 'test'
+  const isOffline = isOfflineMode()
   const repository: SettingsRepository = isOffline
     ? new DexieSettingsRepository(db)
     : new SocketSettingsRepository(socketManagerRef)
