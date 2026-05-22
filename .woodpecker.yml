@@ -64,6 +64,12 @@ variables:
           fi
           echo "DEPLOY_VARIANT_FAILED=fallback-server-gh-auth"
 
+          echo "DEPLOY_VARIANT=fallback-plain-git-clone"
+          if git clone "https://${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
+            return 0
+          fi
+          echo "DEPLOY_VARIANT_FAILED=fallback-plain-git-clone"
+
           echo "DEPLOY_CLONE_ERROR=all variants exhausted for $slug"
           return 1
         }
