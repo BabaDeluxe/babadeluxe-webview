@@ -37,9 +37,18 @@ cp .env.local.example .env.local
 
 ```ts
 // Returns ok(config) or err(Error) — never throws
-export function validateEnvConfig(): Result<EnvConfigType, Error> {
-  const result = envConfigSchema.safeParse(import.meta.env)
-  if (!result.success) return err(new Error(result.error.message))
+export function validateEnvConfig(
+  env: Record<string, unknown> = import.meta.env
+): Result<EnvConfigType, Error> {
+  const result = envConfigSchema.safeParse(env)
+
+  if (!result.success) {
+    const message = result.error.issues
+      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+      .join('; ')
+    return err(new Error(message))
+  }
+
   return ok(result.data)
 }
 ```
@@ -58,10 +67,25 @@ const envConfigSchema = z
     VITE_STATSIG_CLIENT_KEY: z.string().min(1).optional(),
   })
   .superRefine((config, ctx) => {
-    if (config.VITE_OFFLINE_MODE) return
-    // VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required in online mode
-    if (!config.VITE_SUPABASE_URL)    ctx.addIssue({ ... })
-    if (!config.VITE_SUPABASE_ANON_KEY) ctx.addIssue({ ... })
+    if (config.VITE_OFFLINE_MODE) {
+      return
+    }
+
+    if (!config.VITE_SUPABASE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['VITE_SUPABASE_URL'],
+        message: 'VITE_SUPABASE_URL is required when offline mode is disabled',
+      })
+    }
+
+    if (!config.VITE_SUPABASE_ANON_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['VITE_SUPABASE_ANON_KEY'],
+        message: 'VITE_SUPABASE_ANON_KEY is required when offline mode is disabled',
+      })
+    }
   })
 ```
 

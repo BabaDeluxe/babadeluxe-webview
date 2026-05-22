@@ -19,6 +19,19 @@ vi.mock('@/env-validator', () => ({
   validateEnvConfig: vi.fn().mockReturnValue({ isOk: () => true, isErr: () => false, value: {} }),
 }))
 
+vi.mock('@babadeluxe/shared', async () => {
+  const actual = await vi.importActual('@babadeluxe/shared')
+  return {
+    ...actual,
+    getSettingDefinition: vi.fn().mockReturnValue({
+      label: 'Mock',
+      description: 'Mock',
+      dataType: 'string',
+      required: false,
+    }),
+  }
+})
+
 const fixtures = {
   settings: {
     openaiKey: {
@@ -50,6 +63,10 @@ const mockDb = {
         first: vi.fn().mockResolvedValue({ isErr: () => false, value: undefined }),
       }),
     }),
+    add: vi.fn().mockResolvedValue({ isErr: () => false, value: 1 }),
+    put: vi.fn().mockResolvedValue({ isErr: () => false, value: 1 }),
+    update: vi.fn().mockResolvedValue({ isErr: () => false, value: 1 }),
+    delete: vi.fn().mockResolvedValue({ isErr: () => false, value: undefined }),
   },
 }
 
@@ -133,10 +150,7 @@ describe('useSettings()', () => {
   describe('loadSettings', () => {
     it('loads all settings on success', async () => {
       vi.spyOn(emitWithTimeoutModule, 'emitWithTimeout').mockResolvedValue(
-        ok({
-          success: true,
-          data: [fixtures.settings.openaiKey],
-        })
+        ok([fixtures.settings.openaiKey])
       )
 
       const { loadSettings, settings } = mountSettingsSocket()

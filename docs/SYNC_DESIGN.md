@@ -12,7 +12,7 @@
 ### Goals
 
 - Reliably sync local chats (stored in IndexedDB via `src/database/`) to at least one remote backend
-- Support three backends: **GitHub** (Octokit REST), **WebDAV** (HTTP), **SFTP** (SSH — VS Code extension-host only)
+- Support three backends: **GitHub** (REST), **WebDAV** (HTTP), **SFTP** (SSH — VS Code extension-host only)
 - Offline-first: local is always the source of truth; sync is eventually consistent
 - Single-user, multi-device: no collaborative editing required
 - Reuse existing `src/retry.ts`, `src/errors.ts`, `src/error-mapper.ts`, and `src/services/` conventions
@@ -91,31 +91,12 @@ interface SyncManifest {
 ## 4. ISyncAdapter Interface
 
 ```ts
-// src/services/sync/i-sync-adapter.ts
+// src/sync/types.ts
 
-export interface ISyncAdapter {
-  readonly id: 'github' | 'webdav' | 'sftp'
-
-  /** Test connectivity and auth. Throws SyncAuthError on 401/403. */
-  connect(): Promise<void>
-
-  /** Fetch remote manifest. Returns null if it doesn't exist yet. */
-  fetchManifest(): Promise<SyncManifest | null>
-
-  /** Upload manifest atomically. */
-  putManifest(manifest: SyncManifest): Promise<void>
-
-  /** Fetch a single chat by UUID. Returns null if not found. */
-  fetchChat(id: string): Promise<SyncChatEnvelope | null>
-
-  /** Upload a chat. Must be atomic (write-then-rename or equivalent). */
-  putChat(envelope: SyncChatEnvelope): Promise<void>
-
-  /** Delete a chat remotely. Soft-delete preferred (mark in manifest). */
-  deleteChat(id: string): Promise<void>
-
-  /** Disconnect / release resources (e.g. close SSH connection). */
-  disconnect(): Promise<void>
+export type ISyncAdapter = {
+  readonly name: string
+  push(payload: SyncPayload): Promise<Result<void, SyncError>>
+  pull(since?: string): Promise<Result<SyncPayload[], SyncError>>
 }
 ```
 
@@ -124,7 +105,7 @@ export interface ISyncAdapter {
 ## 5. SyncManager
 
 ```ts
-// src/services/sync/sync-manager.ts
+// src/sync/sync-manager.ts
 
 class SyncManager {
   private queue: SyncQueue // persisted to IndexedDB
@@ -273,21 +254,16 @@ All errors are logged via `src/logger.ts`. The Pinia sync store exposes a `syncS
 
 ## 9. File Structure
 
-New files to create (all under `src/services/sync/`):
+Implemented files (all under `src/sync/`):
 
 ```
-src/services/sync/
-  i-sync-adapter.ts          ← interface + shared types
+src/sync/
+  types.ts                   ← interface + shared types
   sync-manager.ts            ← orchestration logic
   sync-queue.ts              ← IndexedDB-backed queue
-  sync-errors.ts             ← SyncAuthError, SyncNetworkError, etc.
-  manifest-differ.ts         ← diffManifests() pure function
-  conflict-resolver.ts       ← structural merge logic
-  adapters/
-    github-sync-adapter.ts
-    webdav-sync-adapter.ts
-    sftp-sync-adapter.ts
-src/stores/sync-store.ts     ← Pinia store: syncStatus, lastSyncAt, errors
+  device-id.ts               ← Device identification service
+  github-adapter.ts          ← GitHub REST API adapter
+src/stores/use-sync-store.ts ← Pinia store: syncStatus, lastSyncAt, errors
 ```
 
 No changes required to existing `src/database/`, `src/retry.ts`, or `src/errors.ts`.

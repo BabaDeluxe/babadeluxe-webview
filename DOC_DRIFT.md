@@ -18,3 +18,51 @@ This file documents discrepancies between the codebase implementation and the pr
 1.  **Injection Keys:**
     - `docs/ARCHITECTURE.md` mentions `APP_DB_KEY` and `LOGGER_KEY`.
     - `src/injection-keys.ts` includes many more: `ENV_CONFIG_KEY`, `SEARCH_SERVICE_KEY`, `KEY_VALUE_STORE_KEY`, `SUPABASE_CLIENT_KEY`, `SOCKET_MANAGER_KEY`, `ANALYTICS_MANAGER_KEY`, `API_KEY_VALIDATOR_KEY`, `AUTH_PROVIDER_KEY`, and `VSCODE_BRIDGE_KEY`.
+
+## docs/AUTH.md vs src/auth/
+
+1.  **Auth Providers:**
+    - `docs/AUTH.md` mentions VS Code token bridge and Supabase PKCE OAuth.
+    - The codebase (`src/auth/zitadel-auth-provider.ts`) suggests there might be support for Zitadel, which is not mentioned in the docs.
+
+---
+
+## Pass Summary: 2025-05-22
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `docs/ENVS.md`
+- `UNFINISHED.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `babadeluxe-docs/docs/getting-started.md`
+- `babadeluxe-docs/docs/CONTRIBUTING.md`
+- `CONTRIBUTING.md`
+
+**Regressions Found & Fixed:**
+- **Architecture:** `docs/ARCHITECTURE.md` and `babadeluxe-docs/docs/ARCHITECTURE.md` were missing 9+ injection keys and listed stale service paths.
+- **Sync Feature:** `docs/SYNC_DESIGN.md` was stuck in "Design" status despite implementation; paths and interfaces were outdated.
+- **Environment:** `docs/ENVS.md` boot validation examples didn't match the `neverthrow` + `superRefine` implementation in `src/env-validator.ts`.
+- **Debt Tracking:** `UNFINISHED.md` listed completed refactors (AppDb → ChatRepository) as pending.
+- **Onboarding:** `getting-started.md` and `README.md` failed to mention the now-implemented GitHub Synchronization feature.
+
+**Files Changed:**
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `docs/ENVS.md`
+- `UNFINISHED.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `babadeluxe-docs/docs/getting-started.md`
+- `DOC_DRIFT.md`
+- `src/composables/use-settings.ts` (Fixed test-mode logic)
+- `tests/settings-view.integration.test.ts` (Fixed mock types)
+- `tests/use-settings-socket.test.ts` (Fixed missing DB mocks)
+
+**Test "Non-sense" Fixed:**
+- Fixed `useSettings` composable to not hardcode `import.meta.env.MODE === 'test'` as offline mode, which was preventing socket-based integration tests from running their intended logic.
+- Expanded `mockDb` in `use-settings-socket.test.ts` to include `add`, `put`, `update`, and `delete` methods, resolving `TypeError` during test execution.
+- Updated `SettingsView` and `useSettings` mocks to return proper `neverthrow` `Result` types and reactive refs, resolving "Cannot read properties of undefined (reading 'value')" errors.
