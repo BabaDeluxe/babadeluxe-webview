@@ -52,23 +52,18 @@ variables:
           fi
           echo "DEPLOY_VARIANT_FAILED=primary-gh"
 
-          echo "DEPLOY_VARIANT=fallback-git-token"
+          echo "DEPLOY_VARIANT=fallback-git-credential-helper"
+          gh auth setup-git
+          if git clone "https://github.com/${slug}.git" "$path" -b "$branch"; then
+            return 0
+          fi
+          echo "DEPLOY_VARIANT_FAILED=fallback-git-credential-helper"
+
+          echo "DEPLOY_VARIANT=fallback-git-token-url"
           if git clone "https://x-access-token:${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
             return 0
           fi
-          echo "DEPLOY_VARIANT_FAILED=fallback-git-token"
-
-          echo "DEPLOY_VARIANT=fallback-server-gh-auth"
-          if echo "$GH_TOKEN" | gh auth login --with-token && gh repo clone "$slug" "$path" -- -b "$branch"; then
-            return 0
-          fi
-          echo "DEPLOY_VARIANT_FAILED=fallback-server-gh-auth"
-
-          echo "DEPLOY_VARIANT=fallback-plain-git-clone"
-          if git clone "https://${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
-            return 0
-          fi
-          echo "DEPLOY_VARIANT_FAILED=fallback-plain-git-clone"
+          echo "DEPLOY_VARIANT_FAILED=fallback-git-token-url"
 
           echo "DEPLOY_CLONE_ERROR=all variants exhausted for $slug"
           return 1
