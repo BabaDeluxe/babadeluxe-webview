@@ -106,12 +106,19 @@ variables:
     GH_TOKEN:
       from_secret: gh_token
 
+  - &deploy_base_secrets
+    - ssh_user
+    - deploy_base_dir
+    - deploy_ssh_key
+    - gh_token
+
 steps:
   deploy-prod:
     image: *deploy_image
     when:
       - event: [push, manual]
         branch: master
+    secrets: *deploy_base_secrets
     environment:
       <<: *deploy_base_env
       NODE_ENV: production
@@ -127,6 +134,7 @@ steps:
     when:
       - event: [push, manual]
         branch: dev
+    secrets: *deploy_base_secrets
     environment:
       <<: *deploy_base_env
       NODE_ENV: staging
