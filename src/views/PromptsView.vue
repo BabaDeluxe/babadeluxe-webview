@@ -56,7 +56,7 @@
               selectedPromptId === prompt.id
                 ? 'border-accent bg-accentDim'
                 : 'border-borderMuted bg-panel hover:border-accent/50',
-              prompt.isPremium && !isPro ? 'opacity-80' : ''
+              prompt.isPremium && !isPro ? 'opacity-80' : '',
             ]"
             :data-testid="`prompt-list-item-${prompt.id}`"
             :title="prompt.isPremium && !isPro ? 'Upgrade to Pro to use this prompt' : undefined"
@@ -64,7 +64,10 @@
           >
             <div class="flex items-center justify-between gap-2">
               <span class="text-sm font-medium text-deepText truncate">{{ prompt.name }}</span>
-              <i v-if="prompt.isPremium && !isPro" class="i-bi:lock-fill text-accent text-xs" />
+              <i
+                v-if="prompt.isPremium && !isPro"
+                class="i-bi:lock-fill text-accent text-xs"
+              />
             </div>
             <span class="text-xs text-subtleText">/{{ prompt.command || '' }}</span>
           </button>

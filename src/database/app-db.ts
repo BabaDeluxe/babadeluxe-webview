@@ -1,5 +1,11 @@
 import { Dexie, type Table } from 'dexie'
-import type { Conversation, Message, LocalSetting, ContextReference, Prompt } from '@/database/types'
+import type {
+  Conversation,
+  Message,
+  LocalSetting,
+  ContextReference,
+  Prompt,
+} from '@/database/types'
 import type { AbstractLogger } from '@/logger'
 import { SafeTable } from '@/database/safe-table'
 import { ChatRepository } from '@/database/chat-repository'

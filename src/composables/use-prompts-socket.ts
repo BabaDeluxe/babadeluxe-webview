@@ -12,14 +12,20 @@ import { emitWithTimeout } from '@/emit-with-timeout'
 // Types
 // ----------------------------------------------------------------------
 
-export type Prompt = Root.Emission['prompts:promptCreated'] extends (p: infer P) => void ? P & { isPremium?: boolean } : never
+export type Prompt = Root.Emission['prompts:promptCreated'] extends (p: infer P) => void
+  ? P & { isPremium?: boolean }
+  : never
 
 type CreatePromptPayload = Parameters<Root.Actions['prompts:createPrompt']>[0]
 type UpdatePromptPayload = Parameters<Root.Actions['prompts:updatePrompt']>[0]
 type DeletePromptPayload = Parameters<Root.Actions['prompts:deletePrompt']>[0]
 
-type PromptCreatedPayload = Parameters<Root.Emission['prompts:promptCreated']>[0] & { isPremium?: boolean }
-type PromptUpdatedPayload = Parameters<Root.Emission['prompts:promptUpdated']>[0] & { isPremium?: boolean }
+type PromptCreatedPayload = Parameters<Root.Emission['prompts:promptCreated']>[0] & {
+  isPremium?: boolean
+}
+type PromptUpdatedPayload = Parameters<Root.Emission['prompts:promptUpdated']>[0] & {
+  isPremium?: boolean
+}
 type PromptDeletedPayload = Parameters<Root.Emission['prompts:promptDeleted']>[0]
 
 type PromptOperationError = NetworkError | ValidationError | SocketError

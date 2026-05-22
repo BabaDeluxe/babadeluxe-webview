@@ -1,4 +1,4 @@
-import { useSubscriptionStore, type SubscriptionTier } from "@/stores/use-subscription-store"
+import { useSubscriptionStore, type SubscriptionTier } from '@/stores/use-subscription-store'
 import { ref, onBeforeUnmount, readonly, computed, watch } from 'vue'
 import type { SocketManager } from '@/socket-manager'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
