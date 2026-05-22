@@ -1,4 +1,4 @@
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result, ResultAsync } from 'neverthrow'
 import { v4 as uuidv4 } from 'uuid'
 import type { AppDb } from '@/database/app-db'
 import type { Conversation, Message } from '@/database/types'
@@ -115,23 +115,12 @@ export class SyncManager {
   private async _pushOne(conversationId: number): Promise<void> {
     if (!this._adapter) return
 
-    const payloadResult = await this._buildPayload(conversationId)
-    if (payloadResult.isErr()) {
-      this._logger.error('SyncManager: failed to build payload', {
-        conversationId,
-        error: payloadResult.error,
+    await this._buildPayload(conversationId)
+      .andThen((payload) => ResultAsync.fromPromise(this._adapter!.push(payload), (e) => e as AppSyncError))
+      .mapErr((error) => {
+        this._logger.error('SyncManager: push failed', { conversationId, error })
+        this._emit({ state: 'error', error })
       })
-      return
-    }
-
-    const pushResult = await this._adapter.push(payloadResult.value)
-    if (pushResult.isErr()) {
-      this._logger.error('SyncManager: push failed', {
-        conversationId,
-        error: pushResult.error,
-      })
-      this._emit({ state: 'error', error: pushResult.error })
-    }
   }
 
   private async _pushTombstone(conversationId: number, syncVersion: number): Promise<void> {

@@ -1,4 +1,4 @@
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result, ResultAsync } from 'neverthrow'
 import { SyncError, SyncAuthError, ConflictError } from '@/errors'
 import type { ISyncAdapter, SyncPayload, ConversationSnapshot, ConversationSnapshotForUpload } from '@/sync/types'
 import type { DeviceIdService } from '@/sync/device-id'
@@ -97,56 +97,58 @@ export class WebDavSyncAdapter implements ISyncAdapter {
 
   private async _upload(snapshot: ConversationSnapshotForUpload): Promise<Result<void, SyncError>> {
     const url = this._fileUrl(snapshot.id)
-    const body = JSON.stringify({ ...snapshot, deviceId: snapshot.deviceId ?? this._deviceIdService.getOrCreate() }, null, 2)
+    const body = JSON.stringify(
+      { ...snapshot, deviceId: snapshot.deviceId ?? this._deviceIdService.getOrCreate() },
+      null,
+      2
+    )
 
     // Fetch current ETag for optimistic locking
     const etagResult = await this._getEtag(url)
     const etag = etagResult.isOk() ? etagResult.value : null
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...this._authHeader(),
     }
     if (etag) {
-      // If-Match ensures we don't overwrite a newer remote version
-      ;(headers as Record<string, string>)['If-Match'] = etag
+      headers['If-Match'] = etag
     } else {
-      // Prevent race conditions on first push
-      ;(headers as Record<string, string>)['If-None-Match'] = '*'
+      headers['If-None-Match'] = '*'
     }
 
-    try {
-      const res = await fetch(url, { method: 'PUT', headers, body })
-
+    return ResultAsync.fromPromise(fetch(url, { method: 'PUT', headers, body }), (e) =>
+      new SyncError('webdav', `Network error during PUT: ${e instanceof Error ? e.message : String(e)}`, e)
+    ).andThen(async (res) => {
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
       }
-
       if (res.status === 412) {
-        // Precondition Failed — remote has diverged; surface as ConflictError
-        return err(
-          new ConflictError('webdav', snapshot.id, snapshot.syncVersion)
-        )
+        return err(new ConflictError('webdav', snapshot.id, snapshot.syncVersion))
       }
-
       if (!res.ok) {
         return err(new SyncError('webdav', `PUT failed: HTTP ${res.status}`))
       }
-
       return ok(undefined)
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error during PUT: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
-  private async _download(conversationId: number): Promise<Result<ConversationSnapshot | null, SyncError>> {
+  private async _download(
+    conversationId: number
+  ): Promise<Result<ConversationSnapshot | null, SyncError>> {
     const url = this._fileUrl(conversationId)
-    try {
-      const res = await fetch(url, {
+    return ResultAsync.fromPromise(
+      fetch(url, {
         method: 'GET',
         headers: { ...this._authHeader(), Accept: 'application/json' },
-      })
-
+      }),
+      (e) =>
+        new SyncError(
+          'webdav',
+          `Network error during GET: ${e instanceof Error ? e.message : String(e)}`,
+          e
+        )
+    ).andThen(async (res) => {
       if (res.status === 404) return ok(null)
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
@@ -155,25 +157,30 @@ export class WebDavSyncAdapter implements ISyncAdapter {
         return err(new SyncError('webdav', `GET failed: HTTP ${res.status}`))
       }
 
-      try {
-        const snapshot = (await res.json()) as ConversationSnapshot
-        return ok(snapshot)
-      } catch (e) {
-        return err(new SyncError('webdav', `Failed to parse remote snapshot for conversation ${conversationId}`, e))
-      }
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error during GET: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+      return ResultAsync.fromPromise(res.json() as Promise<ConversationSnapshot>, (e) =>
+        new SyncError(
+          'webdav',
+          `Failed to parse remote snapshot for conversation ${conversationId}`,
+          e
+        )
+      )
+    })
   }
 
   private async _remove(conversationId: number): Promise<Result<void, SyncError>> {
     const url = this._fileUrl(conversationId)
-    try {
-      const res = await fetch(url, {
+    return ResultAsync.fromPromise(
+      fetch(url, {
         method: 'DELETE',
         headers: this._authHeader(),
-      })
-
+      }),
+      (e) =>
+        new SyncError(
+          'webdav',
+          `Network error during DELETE: ${e instanceof Error ? e.message : String(e)}`,
+          e
+        )
+    ).andThen(async (res) => {
       if (res.status === 404) return ok(undefined)
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
@@ -182,13 +189,12 @@ export class WebDavSyncAdapter implements ISyncAdapter {
         return err(new SyncError('webdav', `DELETE failed: HTTP ${res.status}`))
       }
       return ok(undefined)
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error during DELETE: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
-  private async _listRemote(): Promise<Result<Array<{ id: number; lastModified?: Date }>, SyncError>> {
-    // PROPFIND depth 1 to list files in the chats/ directory, including modification date
+  private async _listRemote(): Promise<
+    Result<Array<{ id: number; lastModified?: Date }>, SyncError>
+  > {
     const body = `<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:">
   <D:prop>
@@ -197,8 +203,8 @@ export class WebDavSyncAdapter implements ISyncAdapter {
   </D:prop>
 </D:propfind>`
 
-    try {
-      const res = await fetch(this._baseDir(), {
+    return ResultAsync.fromPromise(
+      fetch(this._baseDir(), {
         method: 'PROPFIND',
         headers: {
           ...this._authHeader(),
@@ -206,8 +212,14 @@ export class WebDavSyncAdapter implements ISyncAdapter {
           'Content-Type': 'application/xml',
         },
         body,
-      })
-
+      }),
+      (e) =>
+        new SyncError(
+          'webdav',
+          `Network error during PROPFIND: ${e instanceof Error ? e.message : String(e)}`,
+          e
+        )
+    ).andThen(async (res) => {
       if (res.status === 404) return ok([])
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
@@ -218,34 +230,30 @@ export class WebDavSyncAdapter implements ISyncAdapter {
 
       const xml = await res.text()
       return ok(this._parseMultistatus(xml))
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error during PROPFIND: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
-  private async _getEtag(url: string): Promise<Result<string, SyncError>> {
-    try {
-      const res = await fetch(url, { method: 'HEAD', headers: this._authHeader() })
+  private _getEtag(url: string): ResultAsync<string, SyncError> {
+    return ResultAsync.fromPromise(fetch(url, { method: 'HEAD', headers: this._authHeader() }), (e) =>
+      new SyncError('webdav', `HEAD error: ${e instanceof Error ? e.message : String(e)}`, e)
+    ).andThen((res) => {
       if (!res.ok) return err(new SyncError('webdav', `HEAD failed: HTTP ${res.status}`))
       const etag = res.headers.get('ETag')
       if (!etag) return err(new SyncError('webdav', 'No ETag in HEAD response'))
       return ok(etag)
-    } catch (e) {
-      return err(new SyncError('webdav', `HEAD error: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
   private async _request(method: string, url: string): Promise<Result<void, SyncError>> {
-    try {
-      const res = await fetch(url, { method, headers: this._authHeader() })
+    return ResultAsync.fromPromise(fetch(url, { method, headers: this._authHeader() }), (e) =>
+      new SyncError('webdav', `Network error: ${e instanceof Error ? e.message : String(e)}`, e)
+    ).andThen(async (res) => {
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
       }
       if (!res.ok) return err(new SyncError('webdav', `${method} failed: HTTP ${res.status}`))
       return ok(undefined)
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
   /** Parse a WebDAV 207 Multi-Status XML body and return conversation IDs and mod dates */
