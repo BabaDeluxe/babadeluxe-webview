@@ -41,40 +41,28 @@ variables:
 
         mkdir -p "$DEPLOY_BASE_DIR"
 
-        clone_with_fallbacks() {
+        clone_repo() {
           local slug="$1"
           local path="$2"
           local branch="$3"
 
-          if command -v gh > /dev/null 2>&1; then
-            echo "DEPLOY_VARIANT=primary-gh"
-            if gh repo clone "$slug" "$path" -- -b "$branch"; then
-              return 0
-            fi
-            echo "DEPLOY_VARIANT_FAILED=primary-gh"
-
-            echo "DEPLOY_VARIANT=fallback-git-credential-helper"
-            gh auth setup-git
-            if git clone "https://github.com/$slug.git" "$path" -b "$branch"; then
-              return 0
-            fi
-            echo "DEPLOY_VARIANT_FAILED=fallback-git-credential-helper"
-          else
-            echo "DEPLOY_VARIANT=gh-unavailable-skipping-to-token-url"
-          fi
-
-          echo "DEPLOY_VARIANT=fallback-git-token-url"
-          if git clone "https://x-access-token:$GH_TOKEN@github.com/$slug.git" "$path" -b "$branch"; then
+          echo "DEPLOY_VARIANT=git-askpass"
+          local askpass
+          askpass=$(mktemp)
+          printf '#!/bin/sh\necho "%s"\n' "$GH_TOKEN" > "$askpass"
+          chmod +x "$askpass"
+          if GIT_ASKPASS="$askpass" GIT_USERNAME="x-access-token" git clone "https://github.com/$slug.git" "$path" -b "$branch"; then
+            rm -f "$askpass"
             return 0
           fi
-          echo "DEPLOY_VARIANT_FAILED=fallback-git-token-url"
+          rm -f "$askpass"
 
-          echo "DEPLOY_CLONE_ERROR=all variants exhausted for $slug"
+          echo "DEPLOY_CLONE_ERROR=clone failed for $slug"
           return 1
         }
 
         if [ ! -d "$DEPLOY_PATH/.git" ]; then
-          clone_with_fallbacks "$REPO_SLUG" "$DEPLOY_PATH" "$REPO_BRANCH"
+          clone_repo "$REPO_SLUG" "$DEPLOY_PATH" "$REPO_BRANCH"
         fi
 
         cd "$DEPLOY_PATH"
