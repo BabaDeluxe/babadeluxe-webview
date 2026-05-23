@@ -55,7 +55,7 @@ variables:
 
             echo "DEPLOY_VARIANT=fallback-git-credential-helper"
             gh auth setup-git
-            if git clone "https://github.com/${slug}.git" "$path" -b "$branch"; then
+            if git clone "https://github.com/$slug.git" "$path" -b "$branch"; then
               return 0
             fi
             echo "DEPLOY_VARIANT_FAILED=fallback-git-credential-helper"
@@ -64,7 +64,7 @@ variables:
           fi
 
           echo "DEPLOY_VARIANT=fallback-git-token-url"
-          if git clone "https://x-access-token:${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
+          if git clone "https://x-access-token:$GH_TOKEN@github.com/$slug.git" "$path" -b "$branch"; then
             return 0
           fi
           echo "DEPLOY_VARIANT_FAILED=fallback-git-token-url"
