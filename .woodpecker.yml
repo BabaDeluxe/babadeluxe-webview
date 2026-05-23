@@ -75,6 +75,7 @@ variables:
         corepack use "pnpm@$PNPM_VERSION"
 
         pnpm install --frozen-lockfile < /dev/null
+        pnpm type-check
         rm -rf ./dist
         VITE_APP_URL="$VITE_APP_URL" pnpm build --mode "$VITE_BUILD_MODE" < /dev/null
 
