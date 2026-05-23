@@ -20,6 +20,7 @@ This repo contains the frontend that runs inside the VS Code webview panel. It c
 - **Build:** Vite
 - **Styling:** UnoCSS (Tailwind conventions)
 - **Persistence:** Dexie.js (IndexedDB)
+- **Synchronization:** GitHub (REST)
 - **Real-time:** Socket.io-client
 - **Validation:** Zod + neverthrow
 - **Testing:** Vitest (unit) + Playwright (E2E)
