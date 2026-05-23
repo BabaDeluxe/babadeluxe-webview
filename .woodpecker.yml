@@ -46,18 +46,22 @@ variables:
           local path="$2"
           local branch="$3"
 
-          echo "DEPLOY_VARIANT=primary-gh"
-          if gh repo clone "$slug" "$path" -- -b "$branch"; then
-            return 0
-          fi
-          echo "DEPLOY_VARIANT_FAILED=primary-gh"
+          if command -v gh > /dev/null 2>&1; then
+            echo "DEPLOY_VARIANT=primary-gh"
+            if gh repo clone "$slug" "$path" -- -b "$branch"; then
+              return 0
+            fi
+            echo "DEPLOY_VARIANT_FAILED=primary-gh"
 
-          echo "DEPLOY_VARIANT=fallback-git-credential-helper"
-          gh auth setup-git
-          if git clone "https://github.com/${slug}.git" "$path" -b "$branch"; then
-            return 0
+            echo "DEPLOY_VARIANT=fallback-git-credential-helper"
+            gh auth setup-git
+            if git clone "https://github.com/${slug}.git" "$path" -b "$branch"; then
+              return 0
+            fi
+            echo "DEPLOY_VARIANT_FAILED=fallback-git-credential-helper"
+          else
+            echo "DEPLOY_VARIANT=gh-unavailable-skipping-to-token-url"
           fi
-          echo "DEPLOY_VARIANT_FAILED=fallback-git-credential-helper"
 
           echo "DEPLOY_VARIANT=fallback-git-token-url"
           if git clone "https://x-access-token:${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
