@@ -37,3 +37,4 @@ node_modules/
 # Local temporary files
 *.patch
 fix_*.py
+*_patch.txt

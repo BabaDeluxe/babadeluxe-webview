@@ -1,4 +1,4 @@
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result, ResultAsync } from 'neverthrow'
 import { SyncError, SyncAuthError, ConflictError } from '@/errors'
 import type { ISyncAdapter, SyncPayload, ConversationSnapshot, ConversationSnapshotForUpload } from '@/sync/types'
 import type { DeviceIdService } from '@/sync/device-id'
@@ -12,12 +12,22 @@ export type WebDavAdapterConfig = {
   password: string
 }
 
+import type { AppDb } from '@/database/app-db'
+
+/**
+ * WebDAV Sync Adapter.
+ *
+ * Implements conversation synchronization over WebDAV.
+ * Uses PROPFIND optimization to skip downloading unchanged files.
+ * Provides optimistic locking via ETags and If-Match/If-None-Match headers.
+ */
 export class WebDavSyncAdapter implements ISyncAdapter {
   readonly name = 'webdav'
 
   constructor(
     private readonly _config: WebDavAdapterConfig,
-    private readonly _deviceIdService: DeviceIdService
+    private readonly _deviceIdService: DeviceIdService,
+    private readonly _db: AppDb
   ) {}
 
   async push(payload: SyncPayload): Promise<Result<void, SyncError>> {
@@ -34,13 +44,27 @@ export class WebDavSyncAdapter implements ISyncAdapter {
     return this._upload(snapshot)
   }
 
+  /**
+   * Pulls all conversations from the remote WebDAV server.
+   * Optimized to only fetch files that have a newer modification date than local.
+   */
   async pull(): Promise<Result<SyncPayload[], SyncError>> {
     const listResult = await this._listRemote()
     if (listResult.isErr()) return err(listResult.error)
 
     const payloads: SyncPayload[] = []
 
-    for (const { id } of listResult.value) {
+    for (const { id, lastModified } of listResult.value) {
+      // PROPFIND optimization: Check if we actually need to download this file.
+      // If we have a local version and it's newer or equal to the remote mod date, skip download.
+      // This solves the N+1 requests problem by only fetching changed files.
+      if (lastModified) {
+        const localResult = await this._db.conversation.get(id)
+        if (localResult.isOk() && localResult.value && localResult.value.updatedAt >= lastModified) {
+          continue
+        }
+      }
+
       const downloadResult = await this._download(id)
       if (downloadResult.isErr()) return err(downloadResult.error)
       const snapshot = downloadResult.value
@@ -73,53 +97,58 @@ export class WebDavSyncAdapter implements ISyncAdapter {
 
   private async _upload(snapshot: ConversationSnapshotForUpload): Promise<Result<void, SyncError>> {
     const url = this._fileUrl(snapshot.id)
-    const body = JSON.stringify({ ...snapshot, deviceId: snapshot.deviceId ?? this._deviceIdService.getOrCreate() }, null, 2)
+    const body = JSON.stringify(
+      { ...snapshot, deviceId: snapshot.deviceId ?? this._deviceIdService.getOrCreate() },
+      null,
+      2
+    )
 
     // Fetch current ETag for optimistic locking
     const etagResult = await this._getEtag(url)
     const etag = etagResult.isOk() ? etagResult.value : null
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...this._authHeader(),
     }
     if (etag) {
-      // If-Match ensures we don't overwrite a newer remote version
-      ;(headers as Record<string, string>)['If-Match'] = etag
+      headers['If-Match'] = etag
+    } else {
+      headers['If-None-Match'] = '*'
     }
 
-    try {
-      const res = await fetch(url, { method: 'PUT', headers, body })
-
+    return ResultAsync.fromPromise(fetch(url, { method: 'PUT', headers, body }), (e) =>
+      new SyncError('webdav', `Network error during PUT: ${e instanceof Error ? e.message : String(e)}`, e)
+    ).andThen(async (res) => {
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
       }
-
       if (res.status === 412) {
-        // Precondition Failed — remote has diverged; surface as ConflictError
-        return err(
-          new ConflictError('webdav', snapshot.id, snapshot.syncVersion, -1)
-        )
+        return err(new ConflictError('webdav', snapshot.id, snapshot.syncVersion))
       }
-
       if (!res.ok) {
         return err(new SyncError('webdav', `PUT failed: HTTP ${res.status}`))
       }
-
       return ok(undefined)
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error during PUT: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
-  private async _download(conversationId: number): Promise<Result<ConversationSnapshot | null, SyncError>> {
+  private async _download(
+    conversationId: number
+  ): Promise<Result<ConversationSnapshot | null, SyncError>> {
     const url = this._fileUrl(conversationId)
-    try {
-      const res = await fetch(url, {
+    return ResultAsync.fromPromise(
+      fetch(url, {
         method: 'GET',
         headers: { ...this._authHeader(), Accept: 'application/json' },
-      })
-
+      }),
+      (e) =>
+        new SyncError(
+          'webdav',
+          `Network error during GET: ${e instanceof Error ? e.message : String(e)}`,
+          e
+        )
+    ).andThen(async (res) => {
       if (res.status === 404) return ok(null)
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
@@ -128,25 +157,30 @@ export class WebDavSyncAdapter implements ISyncAdapter {
         return err(new SyncError('webdav', `GET failed: HTTP ${res.status}`))
       }
 
-      try {
-        const snapshot = (await res.json()) as ConversationSnapshot
-        return ok(snapshot)
-      } catch (e) {
-        return err(new SyncError('webdav', `Failed to parse remote snapshot for conversation ${conversationId}`, e))
-      }
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error during GET: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+      return ResultAsync.fromPromise(res.json() as Promise<ConversationSnapshot>, (e) =>
+        new SyncError(
+          'webdav',
+          `Failed to parse remote snapshot for conversation ${conversationId}`,
+          e
+        )
+      )
+    })
   }
 
   private async _remove(conversationId: number): Promise<Result<void, SyncError>> {
     const url = this._fileUrl(conversationId)
-    try {
-      const res = await fetch(url, {
+    return ResultAsync.fromPromise(
+      fetch(url, {
         method: 'DELETE',
         headers: this._authHeader(),
-      })
-
+      }),
+      (e) =>
+        new SyncError(
+          'webdav',
+          `Network error during DELETE: ${e instanceof Error ? e.message : String(e)}`,
+          e
+        )
+    ).andThen(async (res) => {
       if (res.status === 404) return ok(undefined)
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
@@ -155,20 +189,22 @@ export class WebDavSyncAdapter implements ISyncAdapter {
         return err(new SyncError('webdav', `DELETE failed: HTTP ${res.status}`))
       }
       return ok(undefined)
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error during DELETE: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
-  private async _listRemote(): Promise<Result<Array<{ id: number }>, SyncError>> {
-    // PROPFIND depth 1 to list files in the chats/ directory
+  private async _listRemote(): Promise<
+    Result<Array<{ id: number; lastModified?: Date }>, SyncError>
+  > {
     const body = `<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:">
-  <D:prop><D:displayname/></D:prop>
+  <D:prop>
+    <D:displayname/>
+    <D:getlastmodified/>
+  </D:prop>
 </D:propfind>`
 
-    try {
-      const res = await fetch(this._baseDir(), {
+    return ResultAsync.fromPromise(
+      fetch(this._baseDir(), {
         method: 'PROPFIND',
         headers: {
           ...this._authHeader(),
@@ -176,8 +212,14 @@ export class WebDavSyncAdapter implements ISyncAdapter {
           'Content-Type': 'application/xml',
         },
         body,
-      })
-
+      }),
+      (e) =>
+        new SyncError(
+          'webdav',
+          `Network error during PROPFIND: ${e instanceof Error ? e.message : String(e)}`,
+          e
+        )
+    ).andThen(async (res) => {
       if (res.status === 404) return ok([])
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
@@ -187,52 +229,62 @@ export class WebDavSyncAdapter implements ISyncAdapter {
       }
 
       const xml = await res.text()
-      const ids = this._parseMultistatus(xml)
-      return ok(ids.map((id) => ({ id })))
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error during PROPFIND: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+      return ok(this._parseMultistatus(xml))
+    })
   }
 
-  private async _getEtag(url: string): Promise<Result<string, SyncError>> {
-    try {
-      const res = await fetch(url, { method: 'HEAD', headers: this._authHeader() })
+  private _getEtag(url: string): ResultAsync<string, SyncError> {
+    return ResultAsync.fromPromise(fetch(url, { method: 'HEAD', headers: this._authHeader() }), (e) =>
+      new SyncError('webdav', `HEAD error: ${e instanceof Error ? e.message : String(e)}`, e)
+    ).andThen((res) => {
       if (!res.ok) return err(new SyncError('webdav', `HEAD failed: HTTP ${res.status}`))
       const etag = res.headers.get('ETag')
       if (!etag) return err(new SyncError('webdav', 'No ETag in HEAD response'))
       return ok(etag)
-    } catch (e) {
-      return err(new SyncError('webdav', `HEAD error: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
   private async _request(method: string, url: string): Promise<Result<void, SyncError>> {
-    try {
-      const res = await fetch(url, { method, headers: this._authHeader() })
+    return ResultAsync.fromPromise(fetch(url, { method, headers: this._authHeader() }), (e) =>
+      new SyncError('webdav', `Network error: ${e instanceof Error ? e.message : String(e)}`, e)
+    ).andThen(async (res) => {
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError('webdav', `HTTP ${res.status}`))
       }
       if (!res.ok) return err(new SyncError('webdav', `${method} failed: HTTP ${res.status}`))
       return ok(undefined)
-    } catch (e) {
-      return err(new SyncError('webdav', `Network error: ${e instanceof Error ? e.message : String(e)}`, e))
-    }
+    })
   }
 
-  /** Parse a WebDAV 207 Multi-Status XML body and return conversation IDs */
-  private _parseMultistatus(xml: string): number[] {
-    const ids: number[] = []
-    // Simple regex-based parse — avoids DOM parser dependency issues in webview context
-    const hrefPattern = /<[Dd]:[Hh]ref>([^<]+)<\/[Dd]:[Hh]ref>/g
-    let match: RegExpExecArray | null
-    while ((match = hrefPattern.exec(xml)) !== null) {
-      const href = decodeURIComponent(match[1].trim())
+  /** Parse a WebDAV 207 Multi-Status XML body and return conversation IDs and mod dates */
+  private _parseMultistatus(xml: string): Array<{ id: number; lastModified?: Date }> {
+    const results: Array<{ id: number; lastModified?: Date }> = []
+
+    // Each file is in a <D:response> block. Extract them.
+    const responsePattern = /<[Dd]:[Rr]esponse>([\s\S]*?)<\/[Dd]:[Rr]esponse>/g
+    const hrefPattern = /<[Dd]:[Hh]ref>([^<]+)<\/[Dd]:[Hh]ref>/
+    const datePattern = /<[Dd]:[Gg]etlastmodified>([^<]+)<\/[Dd]:[Gg]etlastmodified>/
+
+    let responseMatch: RegExpExecArray | null
+    while ((responseMatch = responsePattern.exec(xml)) !== null) {
+      const block = responseMatch[1]
+
+      const hrefMatch = hrefPattern.exec(block)
+      if (!hrefMatch) continue
+
+      const href = decodeURIComponent(hrefMatch[1].trim())
       const filename = href.split('/').pop() ?? ''
       if (!filename.endsWith(FILE_EXTENSION)) continue
+
       const id = parseInt(filename.replace(FILE_EXTENSION, ''), 10)
-      if (!isNaN(id)) ids.push(id)
+      if (isNaN(id)) continue
+
+      const dateMatch = datePattern.exec(block)
+      const lastModified = dateMatch ? new Date(dateMatch[1]) : undefined
+
+      results.push({ id, lastModified: lastModified && !isNaN(lastModified.getTime()) ? lastModified : undefined })
     }
-    return ids
+    return results
   }
 
   private _authHeader(): Record<string, string> {

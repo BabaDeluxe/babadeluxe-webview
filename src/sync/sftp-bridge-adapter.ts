@@ -1,4 +1,4 @@
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result, ResultAsync } from 'neverthrow'
 import { SyncError, SyncAuthError } from '@/errors'
 import type { ISyncAdapter, SyncPayload, ConversationSnapshot, ConversationSnapshotForUpload } from '@/sync/types'
 import type { DeviceIdService } from '@/sync/device-id'
@@ -107,23 +107,22 @@ export class SftpBridgeAdapter implements ISyncAdapter {
     payload: Record<string, unknown>
   ): Promise<Result<T, SyncError>> {
     const requestId = crypto.randomUUID()
-    const request = { type, requestId, ...payload } as SftpRequest
+    const request = { type, requestId, ...payload }
 
-    const result = await this._bridge.postAndAwait(
-      request as Parameters<typeof this._bridge.postAndAwait>[0],
+    return this._bridge.postAndAwait<any>(
+      request,
       (cb, ms) => setTimeout(cb, ms) as unknown as NodeJS.Timeout,
       (id) => clearTimeout(id as unknown as ReturnType<typeof setTimeout>)
-    )
-
-    if (result.isErr()) {
-      const msg = result.error.message
-      if (msg.includes('auth') || msg.includes('Authentication')) {
-        return err(new SyncAuthError('sftp', msg))
+    ).then((result) => {
+      if (result.isErr()) {
+        const msg = result.error.message
+        if (msg.includes('auth') || msg.includes('Authentication')) {
+          return err(new SyncAuthError('sftp', msg))
+        }
+        return err(new SyncError('sftp', msg, result.error))
       }
-      return err(new SyncError('sftp', msg, result.error))
-    }
-
-    return ok(result.value as T)
+      return ok(result.value as T)
+    })
   }
 
   private _remoteDir(): string {

@@ -88,11 +88,12 @@ export class ConflictError extends BaseError {
     public readonly backend: string,
     public readonly conversationId: number,
     public readonly localVersion: number,
-    public readonly remoteVersion: number,
+    public readonly remoteVersion?: number,
     cause?: unknown
   ) {
+    const remoteStr = remoteVersion !== undefined ? `remote v${remoteVersion}` : 'unknown remote version'
     super(
-      `[sync:${backend}] Conflict on conversation ${conversationId}: local v${localVersion} vs remote v${remoteVersion}`,
+      `[sync:${backend}] Conflict on conversation ${conversationId}: local v${localVersion} vs ${remoteStr}`,
       cause
     )
   }

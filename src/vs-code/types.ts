@@ -120,6 +120,13 @@ export type UnknownIncomingMessage = Readonly<{
   type: string
 }>
 
+export type SftpResponse = Readonly<{
+  type: 'sync:sftp:response'
+  requestId: string
+  error?: string
+  files?: Array<{ path: string; content: string }>
+}>
+
 export type IncomingMessage =
   | ContextSnapshotMessage
   | AutoContextResponse
@@ -128,6 +135,7 @@ export type IncomingMessage =
   | ContextPinSnippetMessage
   | AuthErrorIncomingMessage
   | AuthSessionIncomingMessage
+  | SftpResponse
   | UnknownIncomingMessage
 
 export type PinnedEntry = Readonly<{

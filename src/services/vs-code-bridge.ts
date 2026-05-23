@@ -4,9 +4,9 @@ import type { Result } from 'neverthrow'
 import { err, ok } from 'neverthrow'
 import { NetworkError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
-import type { AutoContextRequest, FileContextResolveRequest } from '@/vs-code/types'
+import type { IncomingMessage } from '@/vs-code/types'
 
-type PendingResolver = (result: Result<unknown[], NetworkError>) => void
+type PendingResolver = (result: Result<IncomingMessage, NetworkError>) => void
 
 export class VsCodeBridge {
   private static _instance: VsCodeBridge
@@ -35,23 +35,23 @@ export class VsCodeBridge {
     apiResult.value.postMessage(message)
   }
 
-  async postAndAwait(
-    request: AutoContextRequest | FileContextResolveRequest,
+  async postAndAwait<T extends IncomingMessage>(
+    request: { type: string; requestId: string } & Record<string, unknown>,
     createTimeout: (cb: () => void, ms: number) => NodeJS.Timeout,
     cancelTimeout: (id: NodeJS.Timeout) => void,
     timeoutMs: number = socketTimeoutMs.vsCodeContext
-  ): Promise<Result<unknown[], NetworkError>> {
+  ): Promise<Result<T, NetworkError>> {
     const apiResult = getVsCodeApi()
-    if (apiResult.isErr()) return err(apiResult.error)
+    if (apiResult.isErr()) return err(new NetworkError(apiResult.error.message, apiResult.error))
 
     const vsCodeApi = apiResult.value
     const requestId = request.requestId
     const requestType = request.type
 
-    return await new Promise<Result<unknown[], NetworkError>>((resolve) => {
+    return await new Promise<Result<T, NetworkError>>((resolve) => {
       let didFinish = false
 
-      const finish = (result: Result<unknown[], NetworkError>) => {
+      const finish = (result: Result<T, NetworkError>) => {
         if (didFinish) return
         didFinish = true
         this._pending.delete(requestId)
@@ -70,7 +70,7 @@ export class VsCodeBridge {
 
       this._pending.set(requestId, (result) => {
         cancelTimeout(timeoutId)
-        finish(result)
+        finish(result as Result<T, NetworkError>)
       })
 
       vsCodeApi.postMessage(request)
@@ -91,6 +91,6 @@ export class VsCodeBridge {
       return
     }
 
-    resolve(ok((message as { items?: unknown[] }).items ?? []))
+    resolve(ok(message as IncomingMessage))
   }
 }
