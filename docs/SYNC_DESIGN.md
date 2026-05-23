@@ -2,7 +2,7 @@
 
 **Feature:** Multi-backend chat synchronisation (GitHub, WebDAV, SFTP)  
 **Repo:** BabaDeluxe/babadeluxe-webview  
-**Status:** Design / Pre-implementation  
+**Status:** Implemented (GitHub) / In Progress (WebDAV, SFTP)
 **Author:** simwai
 
 ---
@@ -61,30 +61,23 @@ chats/
 
 `_manifest.json` exists so a sync can detect deletions without fetching every file.
 
-### 3.2 Chat envelope
+### 3.2 Sync Payload
+
+The implementation uses a `SyncPayload` which includes both the conversation metadata and its messages.
 
 ```ts
-interface SyncChatEnvelope {
-  schemaVersion: 1
-  id: string // UUID v4, stable across devices
-  version: number // monotonically increasing integer, device-local counter
-  updatedAt: string // ISO 8601, informational only — NOT used for conflict resolution
-  deviceId: string // random UUID generated once per installation
-  payload: Chat // the actual chat data from src/database/
+export type SyncPayload = {
+  syncId: string
+  conversation: Conversation & { syncId: string; syncVersion: number }
+  messages: Message[]
+  syncVersion: number
+  deviceId: string
+  deletedAt?: string // ISO 8601 tombstone for deletions
 }
 ```
 
-**Why `version` instead of `updatedAt` for conflicts?**  
+**Why `syncVersion` instead of `updatedAt` for conflicts?**
 Clocks skew. Two devices with clock drift > a few seconds will silently overwrite each other with timestamp-based LWW. A version counter incremented on every write is strictly monotonic per device and survives system clock changes.
-
-### 3.3 Manifest
-
-```ts
-interface SyncManifest {
-  schemaVersion: 1
-  entries: Record<string, { version: number; deviceId: string; deletedAt?: string }>
-}
-```
 
 ---
 
@@ -317,11 +310,11 @@ Credentials are **never** stored in plaintext in `localStorage` or `IndexedDB`. 
 
 ## 12. Implementation Phases
 
-**Phase 1 — Core + GitHub adapter** (highest value, lowest complexity)
+**Phase 1 — Core + GitHub adapter** (✅ COMPLETED)
 
-- `ISyncAdapter`, `SyncManager`, `SyncQueue`, `manifest-differ`, `conflict-resolver`
+- `ISyncAdapter`, `SyncManager`, `SyncQueue`, `conflict-resolver`
 - `GitHubSyncAdapter`
-- `sync-store.ts` with basic UI indicators
+- `use-sync-store.ts` with basic UI indicators
 
 **Phase 2 — WebDAV adapter**
 

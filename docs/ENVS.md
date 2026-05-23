@@ -43,6 +43,7 @@ export function validateEnvConfig(
   const result = envConfigSchema.safeParse(env)
 
   if (!result.success) {
+    // Build a human-readable message from the structured issue list
     const message = result.error.issues
       .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
       .join('; ')
@@ -56,13 +57,18 @@ export function validateEnvConfig(
 The schema uses `superRefine` to enforce conditional requirements:
 
 ```ts
+const offlineModeSchema = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value === 'true')
+
 const envConfigSchema = z
   .object({
     VITE_NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    VITE_OFFLINE_MODE: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
     VITE_SUPABASE_URL: z.string().url().optional(),
     VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
     VITE_SOCKET_URL: z.string().url().optional(),
+    VITE_OFFLINE_MODE: offlineModeSchema,
     VITE_GA_MEASUREMENT_ID: z.string().min(1).optional(),
     VITE_STATSIG_CLIENT_KEY: z.string().min(1).optional(),
   })
