@@ -1,3 +1,8 @@
+# Note: Variables accessed from from_secret environment blocks use single $
+# as normal — Woodpecker injects them as real container env vars, not string
+# substitutions. $$ is only needed for inline YAML string expressions where
+# the Woodpecker pre-processor would evaluate $VAR at parse time.
+
 skip_clone: true
 
 variables:
@@ -31,53 +36,48 @@ variables:
         SUBDOMAIN_DIR="$7"
         VITE_APP_URL="$8"
         VITE_BUILD_MODE="$9"
-        export GH_TOKEN="${10}"
+        GH_TOKEN="${10}"
+
+        echo "REMOTE_CHECK NODE_ENV=$NODE_ENV"
+        echo "REMOTE_CHECK REPO_SLUG=$REPO_SLUG"
+        echo "REMOTE_CHECK GH_TOKEN=$([ -n "$GH_TOKEN" ] && echo '<set>' || echo '<EMPTY>')"
+        [ -n "$NODE_ENV" ]        || { echo "REMOTE FAIL: NODE_ENV empty"; exit 1; }
+        [ -n "$DEPLOY_BASE_DIR" ] || { echo "REMOTE FAIL: DEPLOY_BASE_DIR empty"; exit 1; }
+        [ -n "$GIT_DIR" ]         || { echo "REMOTE FAIL: GIT_DIR empty"; exit 1; }
+        [ -n "$REPO_SLUG" ]       || { echo "REMOTE FAIL: REPO_SLUG empty"; exit 1; }
+        [ -n "$REPO_BRANCH" ]     || { echo "REMOTE FAIL: REPO_BRANCH empty"; exit 1; }
+        [ -n "$PNPM_VERSION" ]    || { echo "REMOTE FAIL: PNPM_VERSION empty"; exit 1; }
+        [ -n "$SUBDOMAIN_DIR" ]   || { echo "REMOTE FAIL: SUBDOMAIN_DIR empty"; exit 1; }
+        [ -n "$VITE_APP_URL" ]    || { echo "REMOTE FAIL: VITE_APP_URL empty"; exit 1; }
+        [ -n "$VITE_BUILD_MODE" ] || { echo "REMOTE FAIL: VITE_BUILD_MODE empty"; exit 1; }
+        [ -n "$GH_TOKEN" ]        || { echo "REMOTE FAIL: GH_TOKEN empty"; exit 1; }
 
         source ~/.bash_profile
         source ~/.nvm/nvm.sh
 
         DEPLOY_PATH="$DEPLOY_BASE_DIR/$GIT_DIR"
         TARGET_PATH="$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
+        BACKUP_DIR="$(mktemp -d)"
 
         mkdir -p "$DEPLOY_BASE_DIR"
 
-        clone_with_fallbacks() {
-          local slug="$1"
-          local path="$2"
-          local branch="$3"
-
-          echo "DEPLOY_VARIANT=primary-gh"
-          if gh repo clone "$slug" "$path" -- -b "$branch"; then
-            return 0
-          fi
-          echo "DEPLOY_VARIANT_FAILED=primary-gh"
-
-          echo "DEPLOY_VARIANT=fallback-git-credential-helper"
-          gh auth setup-git
-          if git clone "https://github.com/${slug}.git" "$path" -b "$branch"; then
-            return 0
-          fi
-          echo "DEPLOY_VARIANT_FAILED=fallback-git-credential-helper"
-
-          echo "DEPLOY_VARIANT=fallback-git-token-url"
-          if git clone "https://x-access-token:${GH_TOKEN}@github.com/${slug}.git" "$path" -b "$branch"; then
-            return 0
-          fi
-          echo "DEPLOY_VARIANT_FAILED=fallback-git-token-url"
-
-          echo "DEPLOY_CLONE_ERROR=all variants exhausted for $slug"
-          return 1
-        }
-
-        if [ ! -d "$DEPLOY_PATH/.git" ]; then
-          clone_with_fallbacks "$REPO_SLUG" "$DEPLOY_PATH" "$REPO_BRANCH"
+        if [ -d "$DEPLOY_PATH" ]; then
+          find "$DEPLOY_PATH" -maxdepth 1 -type f \( -name '.env' -o -name '.env.*' \) \
+            -exec cp -a {} "$BACKUP_DIR"/ \;
+          rm -rf "$DEPLOY_PATH"
         fi
+
+        GIT_TERMINAL_PROMPT=0 \
+          git clone --no-recurse-submodules \
+            "https://x-access-token:$GH_TOKEN@github.com/$REPO_SLUG.git" \
+            "$DEPLOY_PATH" -b "$REPO_BRANCH"
 
         cd "$DEPLOY_PATH"
 
-        git fetch origin "$REPO_BRANCH"
-        git checkout "$REPO_BRANCH"
-        git reset --hard "origin/$REPO_BRANCH"
+        find "$BACKUP_DIR" -maxdepth 1 -type f \( -name '.env' -o -name '.env.*' \) \
+          -exec mv {} "$DEPLOY_PATH"/ \;
+
+        rmdir "$BACKUP_DIR" 2>/dev/null || true
 
         corepack enable
         corepack use "pnpm@$PNPM_VERSION"
@@ -86,8 +86,8 @@ variables:
         rm -rf ./dist
         VITE_APP_URL="$VITE_APP_URL" pnpm build --mode "$VITE_BUILD_MODE" < /dev/null
 
-        test -d ./dist
-        test -f ./dist/index.html
+        test -d ./dist  || { echo "FAIL: build output dist/ missing"; exit 1; }
+        test -f ./dist/index.html || { echo "FAIL: dist/index.html missing"; exit 1; }
 
         mkdir -p "$TARGET_PATH"
         rsync -avz --delete ./dist/ "$TARGET_PATH/"
