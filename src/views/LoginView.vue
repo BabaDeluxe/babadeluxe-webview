@@ -71,10 +71,7 @@
             @update:model-value="handleEmailChange"
           />
 
-          <div
-            v-if="!showSSOInput"
-            class="space-y-1"
-          >
+          <div class="space-y-1">
             <BaseInput
               id="login-password-input"
               :model-value="password"
@@ -90,10 +87,7 @@
             />
           </div>
 
-          <div
-            v-if="!showSSOInput"
-            class="flex items-center justify-between text-sm"
-          >
+          <div class="flex items-center justify-between text-sm">
             <label class="flex items-center gap-2 cursor-pointer group select-none">
               <input
                 v-model="keepSignedIn"
@@ -115,7 +109,6 @@
           </div>
 
           <BaseButton
-            v-if="!showSSOInput"
             variant="primary"
             data-testid="login-submit-button"
             type="submit"
@@ -126,73 +119,56 @@
             {{ isSignUp ? 'Create account' : 'Sign In' }}
           </BaseButton>
 
-          <BaseButton
-            v-if="showSSOInput"
-            variant="primary"
-            data-testid="login-sso-submit-button"
-            type="button"
-            class="w-full justify-center h-12 text-lg font-bold shadow-lg hover:shadow-xl rounded-xl transition-all active:scale-[0.98]"
-            :disabled="isLoading"
-            :loading="isLoading"
-            @click="handleSSOSubmit"
-          >
-            Continue with SSO
-          </BaseButton>
-
           <div class="flex flex-col gap-3 text-center pt-2">
-            <button
-              v-if="authConfig.passkeyEnabled && !isSignUp"
-              type="button"
-              class="text-xs text-subtleText/60 hover:text-accent transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest font-bold group"
-              data-testid="login-passkey-button"
-              @click="handlePasskeyLogin"
-            >
-              <i class="i-ri:fingerprint-line text-sm group-hover:scale-110 transition-transform" />
-              Sign in with Passkey
-            </button>
-
-            <button
-              v-if="authConfig.ssoEnabled && !isSignUp"
-              type="button"
-              class="text-xs text-subtleText/60 hover:text-accent transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest font-bold group"
-              :class="{ 'text-accent': showSSOInput }"
-              data-testid="login-sso-button"
-              @click="showSSOInput = !showSSOInput"
-            >
-              <i
-                class="i-ri:shield-keyhole-line text-sm group-hover:rotate-12 transition-transform"
-              />
-              {{ showSSOInput ? 'Back to password' : 'Sign in with SSO' }}
-            </button>
+            <p class="text-subtleText text-sm">
+              {{ isSignUp ? 'Already have an account?' : "Don't have an account?" }}
+              <button
+                type="button"
+                data-testid="login-toggle-mode-button"
+                class="text-accent hover:text-accent/80 font-bold transition-colors ml-1 focus:outline-none"
+                @click="toggleMode"
+              >
+                {{ isSignUp ? 'Sign In' : 'Create account' }}
+              </button>
+            </p>
           </div>
         </form>
+      </div>
 
-        <!-- Footer -->
-        <div class="text-center text-sm text-subtleText border-t border-borderMuted/30 pt-6">
-          {{ isSignUp ? 'Already have an account?' : "Don't have an account?" }}
-          <button
-            type="button"
-            class="text-accent hover:text-accent/80 font-black ml-2 transition-all hover:underline"
-            data-testid="login-toggle-mode-button"
-            @click="toggleMode"
-          >
-            {{ isSignUp ? 'Sign in' : 'Create account' }}
-          </button>
-        </div>
+      <!-- Footer Info -->
+      <div
+        class="absolute bottom-6 text-center text-subtleText/40 text-[10px] uppercase tracking-widest"
+      >
+        &copy; {{ new Date().getFullYear() }} BabaDeluxe AI. Protected by neural encryption.
       </div>
     </div>
 
-    <!-- Right Pane: Matrix Animation -->
-    <div
-      class="flex-1 hidden md:block relative overflow-hidden bg-slate border-l border-borderMuted/10"
-    >
+    <!-- Right Pane: Cyberpunk Visuals -->
+    <div class="hidden md:flex flex-1 relative bg-black overflow-hidden group">
       <MatrixRain />
+      <div
+        class="absolute inset-0 bg-gradient-to-l from-black/80 via-transparent to-black/60 pointer-events-none"
+      ></div>
+
+      <!-- Floating Stats UI Decoration -->
+      <div
+        class="absolute top-12 right-12 p-4 border border-accent/20 bg-black/40 backdrop-blur-md rounded-lg font-mono text-[10px] text-accent/60 space-y-2 pointer-events-none group-hover:border-accent/40 transition-colors"
+      >
+        <div class="flex justify-between gap-8">
+          <span>CORE_STATUS</span> <span class="text-emerald-500">OPERATIONAL</span>
+        </div>
+        <div class="flex justify-between gap-8"><span>NEURAL_LOAD</span> <span>42.8%</span></div>
+        <div class="flex justify-between gap-8"><span>SYNC_LATENCY</span> <span>12MS</span></div>
+        <div class="w-full h-1 bg-accent/10 rounded-full overflow-hidden mt-2">
+          <div class="h-full bg-accent/40 w-2/3 animate-pulse"></div>
+        </div>
+      </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ResultAsync, ok, err, type Result } from 'neverthrow'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
@@ -206,7 +182,6 @@ import { safeInject } from '@/safe-inject'
 import { AuthError, NetworkError } from '@/errors'
 import { toUserMessage } from '@/error-mapper'
 import { useToastStore } from '@/stores/use-toast-store'
-import { authConfig } from '@/auth/auth-config'
 import type { SupabaseClientType } from '@/main'
 
 const supabase: SupabaseClientType = safeInject(SUPABASE_CLIENT_KEY)
@@ -226,7 +201,6 @@ const emailError = ref<string | undefined>()
 const passwordError = ref<string | undefined>()
 const isLoading = ref(false)
 const hasAttemptedStoredSession = ref(false)
-const showSSOInput = ref(false)
 
 watch(
   error,
@@ -253,7 +227,6 @@ const toggleMode = () => {
   error.value = undefined
   emailError.value = undefined
   passwordError.value = undefined
-  showSSOInput.value = false
 }
 
 const signUpWithEmail = async (
@@ -356,54 +329,6 @@ const handleAuth = async (): Promise<void> => {
     )
   }
 
-  isLoading.value = false
-}
-
-const handleSSOSubmit = async (): Promise<void> => {
-  if (isLoading.value) return
-  isLoading.value = true
-  error.value = undefined
-
-  if (!email.value || !email.value.includes('@')) {
-    emailError.value = 'Valid email is required for SSO'
-    isLoading.value = false
-    return
-  }
-
-  const domain = email.value.split('@')[1]
-  const result = await authProvider.signInWithSSO(domain)
-
-  result.match(
-    () => {
-      logger.log('SSO redirect initiated')
-    },
-    (e) => {
-      error.value = toUserMessage(e)
-    }
-  )
-  isLoading.value = false
-}
-
-const handlePasskeyLogin = async (): Promise<void> => {
-  if (isLoading.value) return
-  isLoading.value = true
-  error.value = undefined
-
-  if (!email.value) {
-    emailError.value = 'Email is required for passkey login'
-    isLoading.value = false
-    return
-  }
-
-  const result = await authProvider.signInWithPasskey(email.value)
-  result.match(
-    () => {
-      logger.log('Passkey login initiated')
-    },
-    (e) => {
-      error.value = toUserMessage(e)
-    }
-  )
   isLoading.value = false
 }
 

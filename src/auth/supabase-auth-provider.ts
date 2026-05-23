@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { type Result, ResultAsync, ok, err } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { AuthError, type NetworkError } from '@/errors'
@@ -13,8 +12,6 @@ export class SupabaseAuthProvider implements AuthProvider {
   ): Promise<Result<void, AuthError | NetworkError>> {
     if (isOfflineMode()) return ok(undefined)
 
-    // VITE_APP_URL is the canonical deployment origin set at build time per environment.
-    // Fallback to window.location.origin for local dev without the env var set.
     const appUrl = import.meta.env.VITE_APP_URL ?? globalThis.location.origin
 
     const result = await ResultAsync.fromPromise(
@@ -41,14 +38,6 @@ export class SupabaseAuthProvider implements AuthProvider {
     }
 
     return ok(undefined)
-  }
-
-  async signInWithPasskey(_email: string): Promise<Result<void, AuthError>> {
-    return err(new AuthError('Passkey requires Zitadel -- not configured'))
-  }
-
-  async signInWithSSO(_domain: string): Promise<Result<void, AuthError>> {
-    return err(new AuthError('SSO requires Zitadel -- not configured'))
   }
 
   async signOut(): Promise<Result<void, AuthError>> {

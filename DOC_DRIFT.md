@@ -18,9 +18,3 @@ This file documents discrepancies between the codebase implementation and the pr
 1.  **Injection Keys:**
     - `docs/ARCHITECTURE.md` mentions `APP_DB_KEY` and `LOGGER_KEY`.
     - `src/injection-keys.ts` includes many more: `ENV_CONFIG_KEY`, `SEARCH_SERVICE_KEY`, `KEY_VALUE_STORE_KEY`, `SUPABASE_CLIENT_KEY`, `SOCKET_MANAGER_KEY`, `ANALYTICS_MANAGER_KEY`, `API_KEY_VALIDATOR_KEY`, `AUTH_PROVIDER_KEY`, and `VSCODE_BRIDGE_KEY`.
-
-## docs/AUTH.md vs src/auth/
-
-1.  **Auth Providers:**
-    - `docs/AUTH.md` mentions VS Code token bridge and Supabase PKCE OAuth.
-    - The codebase (`src/auth/zitadel-auth-provider.ts`) suggests there might be support for Zitadel, which is not mentioned in the docs.
