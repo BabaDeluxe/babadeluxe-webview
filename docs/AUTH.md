@@ -17,10 +17,10 @@ When embedded, the extension host already holds a valid GitHub session from the 
 
 ## Supabase PKCE OAuth
 
-For standalone browser usage (local dev, staging), a standard PKCE flow is used:
+For standalone browser usage (local dev, staging), a standard PKCE flow is used for both **GitHub** and **Google**:
 
-1. User clicks Login → `supabase.auth.signInWithOAuth({ provider: 'github', flowType: 'pkce' })`
-2. GitHub redirects back to the webview with an auth code
+1. User clicks Login → `supabase.auth.signInWithOAuth({ provider: 'github' | 'google', flowType: 'pkce' })`
+2. The provider redirects back to the webview (via `VITE_APP_URL` or `window.location.origin`) with an auth code
 3. Supabase exchanges the code for a session and access token
 4. Access token is passed to the Socket.io connection
 
