@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { type Result, ResultAsync, ok, err } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { AuthError, type NetworkError } from '@/errors'

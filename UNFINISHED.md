@@ -10,7 +10,6 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 
 ## Technical Debt / Refactoring
 
-
 ### Type Safety
 
 - **Prompt Socket Types**: There is a weird cast in `use-prompts-socket.ts` that suggests shared types between the frontend and backend might be misaligned or incomplete. (`src/composables/use-prompts-socket.ts`)

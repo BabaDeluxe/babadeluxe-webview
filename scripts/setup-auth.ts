@@ -4,11 +4,7 @@ import process from 'process'
 
 dotenv.config()
 
-const {
-  SUPABASE_PROJECT_REF,
-  SUPABASE_PAT,
-  VITE_SITE_URL = 'http://localhost:5173',
-} = process.env
+const { SUPABASE_PROJECT_REF, SUPABASE_PAT, VITE_SITE_URL = 'http://localhost:5173' } = process.env
 
 if (!SUPABASE_PROJECT_REF || !SUPABASE_PAT) {
   console.error('Error: SUPABASE_PROJECT_REF and SUPABASE_PAT must be set.')
