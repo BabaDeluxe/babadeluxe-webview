@@ -13,6 +13,7 @@ All environment variables are validated at boot time via Zod in `src/env-validat
 | `VITE_SOCKET_URL`         | ❌ optional                        | Socket.io backend base URL (`http://localhost:3000` in dev)      |
 | `VITE_GA_MEASUREMENT_ID`  | ❌ optional                        | Google Analytics 4 measurement ID (`G-XXXXXXXXXX`)               |
 | `VITE_STATSIG_CLIENT_KEY` | ❌ optional                        | Statsig client SDK key for feature flags                         |
+| `VITE_APP_URL`            | ❌ optional                        | Canonical deployment origin for OAuth redirects                  |
 
 > **Offline mode:** when `VITE_OFFLINE_MODE=true`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are not required and the app runs fully without network auth.
 
