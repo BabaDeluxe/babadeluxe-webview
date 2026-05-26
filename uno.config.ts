@@ -53,6 +53,7 @@ export default defineConfig({
       borderMuted: 'var(--color-border-muted)',
       error: 'var(--color-error)',
       warning: 'var(--color-warning)',
+      success: 'var(--color-success)',
       headingText: 'var(--color-heading-text)',
       bodyText: 'var(--color-body-text)',
     },

@@ -18,6 +18,7 @@
 
   --color-error: #ef4444;
   --color-warning: #f59e0b;
+  --color-success: #16a34a;
 }
 
 html.dark {
@@ -39,6 +40,7 @@ html.dark {
 
   --color-error: #e74c5c;
   --color-warning: #f59e0b;
+  --color-success: #4ade80;
 }
 
 /* General */
