@@ -24,35 +24,31 @@ export class SFTPSyncAdapter implements ISyncAdapter {
   }
 
   async push(payload: SyncPayload): Promise<Result<void, SyncError>> {
-    return this._request({ op: 'push', payload }).then((res) => {
-      if (res.isErr()) return err(res.error)
-      if (res.value.error) return err(new SyncError('sftp', res.value.error))
-      return ok(undefined)
-    })
+    const res = await this._request({ op: 'push', payload })
+    if (res.isErr()) return err(res.error)
+    if (res.value.error) return err(new SyncError('sftp', res.value.error))
+    return ok(undefined)
   }
 
   async pull(since?: string): Promise<Result<SyncPayload[], SyncError>> {
-    return this._request({ op: 'pull', since }).then((res) => {
-      if (res.isErr()) return err(res.error)
-      if (res.value.error) return err(new SyncError('sftp', res.value.error))
-      return ok(res.value.payloads ?? [])
-    })
+    const res = await this._request({ op: 'pull', since })
+    if (res.isErr()) return err(res.error)
+    if (res.value.error) return err(new SyncError('sftp', res.value.error))
+    return ok(res.value.payloads ?? [])
   }
 
   async testConnection(): Promise<Result<void, SyncError>> {
-    return this._request({ op: 'testConnection' }).then((res) => {
-      if (res.isErr()) return err(res.error)
-      if (res.value.error) return err(new SyncError('sftp', res.value.error))
-      return ok(undefined)
-    })
+    const res = await this._request({ op: 'testConnection' })
+    if (res.isErr()) return err(res.error)
+    if (res.value.error) return err(new SyncError('sftp', res.value.error))
+    return ok(undefined)
   }
 
   async notifyDeleted(conversationId: number): Promise<Result<void, SyncError>> {
-    return this._request({ op: 'delete', conversationId }).then((res) => {
-      if (res.isErr()) return err(res.error)
-      if (res.value.error) return err(new SyncError('sftp', res.value.error))
-      return ok(undefined)
-    })
+    const res = await this._request({ op: 'delete', conversationId })
+    if (res.isErr()) return err(res.error)
+    if (res.value.error) return err(new SyncError('sftp', res.value.error))
+    return ok(undefined)
   }
 
   private _request(req: Omit<SftpSyncRequest, 'requestId' | 'type'>): ResultAsync<SftpSyncResponse, SyncError> {
