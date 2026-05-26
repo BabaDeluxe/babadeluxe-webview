@@ -58,6 +58,7 @@ This file documents discrepancies between the codebase implementation and the pr
 **Branch Analyzed:** `dev`
 
 **Files Reviewed:**
+
 - `README.md`
 - `docs/ARCHITECTURE.md`
 - `docs/SYNC_DESIGN.md`
@@ -69,6 +70,7 @@ This file documents discrepancies between the codebase implementation and the pr
 - `CONTRIBUTING.md`
 
 **Regressions Found & Fixed:**
+
 - **Architecture:** `docs/ARCHITECTURE.md` and `babadeluxe-docs/docs/ARCHITECTURE.md` were missing 9+ injection keys and listed stale service paths.
 - **Sync Feature:** `docs/SYNC_DESIGN.md` was stuck in "Design" status despite implementation; paths and interfaces were outdated.
 - **Environment:** `docs/ENVS.md` boot validation examples didn't match the `neverthrow` + `superRefine` implementation in `src/env-validator.ts`.
@@ -76,6 +78,7 @@ This file documents discrepancies between the codebase implementation and the pr
 - **Onboarding:** `getting-started.md` and `README.md` failed to mention the now-implemented GitHub Synchronization feature.
 
 **Files Changed:**
+
 - `README.md`
 - `docs/ARCHITECTURE.md`
 - `docs/SYNC_DESIGN.md`
@@ -89,6 +92,7 @@ This file documents discrepancies between the codebase implementation and the pr
 - `tests/use-settings-socket.test.ts` (Fixed missing DB mocks)
 
 **Test "Non-sense" Fixed:**
+
 - Fixed `useSettings` composable to not hardcode `import.meta.env.MODE === 'test'` as offline mode, which was preventing socket-based integration tests from running their intended logic.
 - Expanded `mockDb` in `use-settings-socket.test.ts` to include `add`, `put`, `update`, and `delete` methods, resolving `TypeError` during test execution.
 - Updated `SettingsView` and `useSettings` mocks to return proper `neverthrow` `Result` types and reactive refs, resolving "Cannot read properties of undefined (reading 'value')" errors.
@@ -100,6 +104,7 @@ This file documents discrepancies between the codebase implementation and the pr
 **Branch Analyzed:** `dev`
 
 **Files Reviewed:**
+
 - `README.md`
 - `docs/ARCHITECTURE.md` (root and submodule)
 - `docs/SYNC_DESIGN.md`
@@ -108,6 +113,7 @@ This file documents discrepancies between the codebase implementation and the pr
 - `babadeluxe-docs/docs/getting-started.md`
 
 **Regressions Found & Fixed:**
+
 - **Sync Feature:** `docs/SYNC_DESIGN.md` was outdated; updated status to "Implemented (GitHub)", replaced stale `SyncChatEnvelope` with `SyncPayload`, and updated implementation phases.
 - **Environment:** `docs/ENVS.md` was missing conditional optionality details for `VITE_OFFLINE_MODE` and had an outdated Zod validation code example.
 - **Debt Tracking:** `UNFINISHED.md` still listed Ollama and DeepSeek model discovery as unfinished, but they are implemented in the frontend.
@@ -115,6 +121,7 @@ This file documents discrepancies between the codebase implementation and the pr
 - **Onboarding:** `README.md` and `getting-started.md` were updated to include GitHub Synchronization as a major feature.
 
 **Files Changed:**
+
 - `README.md`
 - `docs/SYNC_DESIGN.md`
 - `docs/ENVS.md`
