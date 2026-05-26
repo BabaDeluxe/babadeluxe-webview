@@ -2,7 +2,7 @@
 
 **Feature:** Multi-backend chat synchronisation (GitHub, WebDAV, SFTP)  
 **Repo:** BabaDeluxe/babadeluxe-webview  
-**Status:** Implemented (GitHub) / In Progress (WebDAV, SFTP)
+**Status:** Implemented (GitHub) / In Progress (WebDAV, SFTP)  
 **Author:** simwai
 
 ---
@@ -36,7 +36,7 @@
               ┌──────────────┼──────────────┐
               ▼              ▼              ▼
      GitHubSyncAdapter  WebDavSyncAdapter  SftpSyncAdapter
-     (Octokit REST)     (fetch + WebDAV)   (postMessage bridge)
+     (fetch REST)        (webdav package)  (postMessage bridge)
               │              │              │
               ▼              ▼              ▼
          GitHub repo     WebDAV server    VS Code ext-host
@@ -55,11 +55,8 @@ Each chat is serialised to a single JSON file:
 
 ```
 chats/
-  <uuid>.json          ← one file per chat
-  _manifest.json       ← index of all known chat UUIDs + versions
+  <conversationId>.json     ← one file per chat
 ```
-
-`_manifest.json` exists so a sync can detect deletions without fetching every file.
 
 ### 3.2 Sync Payload
 
@@ -76,7 +73,7 @@ export type SyncPayload = {
 }
 ```
 
-**Why `syncVersion` instead of `updatedAt` for conflicts?**
+**Why `syncVersion` instead of `updatedAt` for conflicts?**  
 Clocks skew. Two devices with clock drift > a few seconds will silently overwrite each other with timestamp-based LWW. A version counter incremented on every write is strictly monotonic per device and survives system clock changes.
 
 ---
@@ -92,6 +89,16 @@ export type ISyncAdapter = {
   pull(since?: string): Promise<Result<SyncPayload[], SyncError>>
 }
 ```
+
+All concrete adapters additionally implement, beyond the interface contract:
+
+```ts
+readonly backend: string          // machine-readable backend identifier
+testConnection(): Promise<Result<void, SyncError>>
+notifyDeleted(conversationId: number): Promise<Result<void, SyncError>>
+```
+
+`testConnection` and `notifyDeleted` are called by the settings UI and sync-manager respectively but are not part of the minimal `ISyncAdapter` contract. Every adapter must implement them.
 
 ---
 
@@ -109,37 +116,22 @@ class SyncManager {
     // 1. Drain pending queue items first (handles crash recovery)
     await this.drainQueue()
 
-    // 2. Fetch remote manifest
-    const remoteManifest = (await this.adapter.fetchManifest()) ?? emptyManifest()
-    const localManifest = await this.buildLocalManifest()
+    // 2. Pull all remote payloads
+    const pullResult = await this.adapter.pull()
+    if (pullResult.isErr()) return errorResult(pullResult.error)
 
-    // 3. Diff manifests → classify each chat
-    const diff = diffManifests(localManifest, remoteManifest)
-    //   diff.localOnly   → push to remote
-    //   diff.remoteOnly  → pull from remote
-    //   diff.conflict    → resolve (see §6)
-    //   diff.inSync      → skip
-
-    // 4. Push local-only chats
-    for (const id of diff.localOnly) {
-      await this.queue.enqueue({ op: 'put', id })
+    // 3. Merge remote into local (conflict resolution — see §6)
+    for (const remote of pullResult.value) {
+      await this.mergeRemote(remote)
     }
 
-    // 5. Pull remote-only chats
-    for (const id of diff.remoteOnly) {
-      const envelope = await this.adapter.fetchChat(id)
-      await this.localDb.upsertChat(envelope)
+    // 4. Push local changes
+    const localPayloads = await this.buildLocalPayloads()
+    for (const payload of localPayloads) {
+      await this.queue.enqueue({ op: 'put', id: payload.conversation.id })
     }
 
-    // 6. Resolve conflicts
-    for (const id of diff.conflict) {
-      await this.resolveConflict(id, remoteManifest)
-    }
-
-    // 7. Update remote manifest
-    await this.adapter.putManifest(localManifest)
-
-    return buildResult(diff)
+    return buildResult()
   }
 }
 ```
@@ -175,10 +167,10 @@ localVersion === remoteVersion AND different deviceId → structural merge
 **Structural merge** (equal versions, different devices):
 
 1. Merge message arrays by `message.id` (union, dedup)
-2. For the chat `title`, keep the most recently `updatedAt` value (only field where timestamp is acceptable since it's human-readable, not a conflict gate)
+2. For the chat `title`, keep the most recently `updatedAt` value
 3. Emit a `SyncConflictResolved` event so the UI can optionally toast the user
 
-This covers ~99% of single-user multi-device scenarios without CRDTs.
+Conflict detection at the transport layer uses `ConflictError` from `src/errors.ts` (e.g. GitHub SHA mismatch, WebDAV ETag mismatch). These bubble up through the adapter's `push()` return type as a `SyncError` — the sync-manager catches them, triggers a re-pull, and retries once.
 
 ---
 
@@ -186,60 +178,117 @@ This covers ~99% of single-user multi-device scenarios without CRDTs.
 
 ### 7.1 GitHubSyncAdapter
 
-**Library:** `@octokit/rest` (already a common dep in VS Code extensions)
+**Library:** native `fetch` (no Octokit dependency)
 
 ```
-Remote path:  <owner>/<repo>/chats/<uuid>.json
-              <owner>/<repo>/chats/_manifest.json
+Remote path:  <owner>/<repo>/chats/<conversationId>.json
 ```
 
-- `putChat`: `GET` the file first to obtain its SHA, then `PUT` via `repos.createOrUpdateFileContents`. The SHA requirement enforces optimistic locking — a `409 Conflict` means another device pushed first; retry after fetching.
-- `fetchManifest` / `putManifest`: same pattern.
+- `push`: checks for existing file SHA first, then `PUT` via `repos.createOrUpdateFileContents`. The SHA enforces optimistic locking — a `409` means another device pushed first; the adapter returns `err(new SyncError(...))` and the sync-manager re-pulls.
+- `pull`: lists the `chats/` directory, downloads each `.json` file, returns `SyncPayload[]`.
+- `testConnection`: `GET /repos/<owner>/<repo>` — success = reachable and auth valid.
+- `notifyDeleted`: deletes the file via GitHub REST `DELETE`.
 - **Rate limits:** GitHub REST is 5,000 req/hr authenticated. With debounced sync (min 30s between full syncs), this is safe for realistic usage.
-- **Auth:** Personal Access Token (PAT) with `repo` scope, stored via the existing `src/auth/` mechanism. Never committed to the repo.
+- **Auth:** Personal Access Token (PAT) with `repo` scope, stored via the existing `src/auth/` mechanism.
 
 ### 7.2 WebDavSyncAdapter
 
-**Library:** [`webdav`](https://github.com/perry-mitchell/webdav-client) (browser + Node compatible, ~30 KB)
+**Library:** [`webdav`](https://github.com/perry-mitchell/webdav-client) (browser + Node compatible)
 
 ```
-Remote path:  <base-url>/chats/<uuid>.json
-              <base-url>/chats/_manifest.json
+Remote path:  <base-url>/chats/<conversationId>.json
 ```
 
-- `putChat`: `LOCK` → `PUT` → `UNLOCK` sequence for servers that support WebDAV locking (Nextcloud, Apache). Fallback: `PUT` with `If-Match: <etag>` header for optimistic locking on servers without lock support (Nginx).
-- `fetchManifest`: `PROPFIND` depth 0 to check existence, then `GET`.
-- **Atomic write pattern:** Upload to `<uuid>.json.tmp`, then `MOVE` to `<uuid>.json` (WebDAV `MOVE` is atomic on most servers). Prevents partial reads.
-- **Auth:** Basic auth or bearer token; credentials stored via `src/auth/`.
+**Write strategy — temp-file atomic write + conditional PUT:**
+
+1. Serialize `SyncPayload` to JSON.
+2. `PUT` to `<conversationId>.json.tmp`.
+   - If a prior ETag is known for `<conversationId>.json`, send `If-Match: <etag>` on this PUT.
+   - `412 Precondition Failed` → fetch the remote file, return `err(new ConflictError(...))`.
+   - `401`/`403` → return `err(new SyncAuthError('webdav', ...))`.
+   - Network error → return `err(new SyncError('webdav', ...))`.
+3. `MOVE` `<conversationId>.json.tmp` → `<conversationId>.json` (atomic on most WebDAV servers).
+
+> **Note:** `LOCK`/`UNLOCK` is not used. The temp-file + MOVE pattern provides crash-safe atomicity without requiring server-side locking support (Nextcloud, Nginx WebDAV, Apache with or without locking module all support MOVE).
+
+- `pull`: `PROPFIND /chats/` to list `.json` files. If `since` (ISO timestamp) is provided, filter by `lastmodified` property. Download and parse each as `SyncPayload`.
+- `testConnection`: `PROPFIND <base-url>/chats/` depth 0. `ok(undefined)` on success; `err(new SyncAuthError(...))` on 401/403; `err(new SyncError(...))` otherwise.
+- `notifyDeleted`: `DELETE <conversationId>.json`.
+- **No LOCK/UNLOCK** — not required and reduces compatibility surface.
+- **Auth:** Basic auth via `webdav` client constructor (`{ username, password }`).
 
 ### 7.3 SftpSyncAdapter
 
-**Runtime:** VS Code extension-host (Node.js) only — never runs in the webview sandbox.
+**Runtime:** Webview only — pure `postMessage` proxy. No SSH, no filesystem, no network in the webview.
 
-**Architecture:** The webview sends `postMessage` requests to the extension host (same `src/vs-code/` bridge pattern already in use). The extension host owns the `ssh2`/`ssh2-sftp-client` connection and responds with serialised results.
+**Architecture:** The webview sends typed `SftpSyncRequest` messages to the extension host via `src/vs-code/api.ts`. The extension host owns the `ssh2` connection and replies with `SftpSyncResponse` messages. The adapter listens for the matching `requestId`.
 
 ```
-Remote path:  <remote-dir>/chats/<uuid>.json
-              <remote-dir>/chats/_manifest.json
+Remote path:  <remote-dir>/chats/<conversationId>.json  (managed by extension host)
 ```
 
-- `putChat`: Upload to `<uuid>.json.tmp` via `fastPut`, then `rename` to `<uuid>.json`. SFTP `rename` is atomic on POSIX filesystems.
-- No native locking — the manifest's version counter detects conflicts on next sync.
-- **Connection lifecycle:** Open SSH connection on `connect()`, keep alive with periodic keepalive packets, close on `disconnect()`. Connection errors trigger a reconnect with exponential backoff via `src/retry.ts`.
+**Message types** (defined in `src/vs-code/types.ts`):
+
+```ts
+// Webview → Extension host
+export type SftpSyncRequest = Readonly<{
+  type: 'sftp:sync:request'
+  requestId: string
+  op: 'push' | 'pull' | 'delete' | 'testConnection'
+  payload?: SyncPayload        // present for 'push'
+  conversationId?: number      // present for 'delete'
+  since?: string               // present for 'pull'
+}>
+
+// Extension host → Webview
+export type SftpSyncResponse = Readonly<{
+  type: 'sftp:sync:response'
+  requestId: string
+  error?: string
+  payloads?: SyncPayload[]     // present for 'pull' response
+}>
+```
+
+`SftpSyncResponse` is included in the `IncomingMessage` union.
+
+**Every adapter method follows this round-trip pattern:**
+
+1. Generate `requestId = crypto.randomUUID()`.
+2. Post `SftpSyncRequest` via `src/vs-code/api.ts`.
+3. Register a one-time `sftp:sync:response` listener matching `requestId`.
+4. 30-second timeout → `err(new SyncError('sftp', 'Request timed out'))`.
+5. Response with `error` → `err(new SyncError('sftp', response.error))`.
+6. Clean response → `ok(...)`.
+
+Specific op mappings:
+
+| Method | op | extra fields | success return |
+|---|---|---|---|
+| `push(payload)` | `push` | `payload` | `ok(undefined)` |
+| `pull(since?)` | `pull` | `since` | `ok(response.payloads ?? [])` |
+| `notifyDeleted(id)` | `delete` | `conversationId: id` | `ok(undefined)` |
+| `testConnection()` | `testConnection` | — | `ok(undefined)` |
+
+**Extension-host follow-up** (`babadeluxe-vscode` — separate task, not in this repo):
+
+- `pnpm add ssh2` + add to `bundleDependencies`
+- `pnpm add -D @types/ssh2`
+- Do **not** install `cpu-features` or `sshcrypto` — they are native Node addons incompatible with Electron's ABI
+- Extension-host handler listens for `sftp:sync:request`, executes via `ssh2-sftp-client`, replies with `sftp:sync:response`
 
 ---
 
 ## 8. Error Handling
 
-Builds on `src/errors.ts` and `src/error-mapper.ts`:
+Builds on `src/errors.ts`. The following sync-relevant error classes exist:
 
-| Error class         | Examples                                        | Action                                                                    |
-| ------------------- | ----------------------------------------------- | ------------------------------------------------------------------------- |
-| `SyncAuthError`     | HTTP 401, 403, SSH auth failure                 | Surface to UI immediately, disable sync, prompt re-auth. **Never retry.** |
-| `SyncNetworkError`  | Network timeout, ECONNREFUSED                   | Retry with exponential backoff (use `src/retry.ts`). Max 5 attempts.      |
-| `SyncConflictError` | GitHub SHA mismatch (409), WebDAV ETag mismatch | Fetch remote, resolve conflict, retry once.                               |
-| `SyncDataError`     | Corrupt JSON, schema version mismatch           | Log, skip item, emit warning event.                                       |
-| `SyncStorageError`  | IndexedDB write failure                         | Escalate to user — local DB is broken.                                    |
+| Error class | When used | Action |
+|---|---|---|
+| `SyncAuthError` | HTTP 401/403, SSH auth failure | Surface to UI immediately, disable sync, prompt re-auth. **Never retry.** |
+| `SyncError` | Network timeout, server errors, parse failures, SFTP timeout | Retry with exponential backoff via `src/retry.ts`. Max 5 attempts. |
+| `ConflictError` | GitHub SHA mismatch, WebDAV ETag `412` | Fetch remote, run conflict resolver (§6), retry push once. |
+
+> **No additional error subclasses are defined for sync.** Only `SyncError`, `SyncAuthError`, and `ConflictError` from `src/errors.ts` are used. Do not introduce `SyncNetworkError`, `SyncConflictError`, `SyncDataError`, or similar.
 
 All errors are logged via `src/logger.ts`. The Pinia sync store exposes a `syncStatus` reactive ref (`'idle' | 'syncing' | 'error' | 'conflict'`) for the UI.
 
@@ -247,19 +296,25 @@ All errors are logged via `src/logger.ts`. The Pinia sync store exposes a `syncS
 
 ## 9. File Structure
 
-Implemented files (all under `src/sync/`):
-
 ```
 src/sync/
-  types.ts                   ← interface + shared types
+  types.ts                   ← ISyncAdapter interface + shared types
   sync-manager.ts            ← orchestration logic
   sync-queue.ts              ← IndexedDB-backed queue
   device-id.ts               ← Device identification service
-  github-adapter.ts          ← GitHub REST API adapter
-src/stores/use-sync-store.ts ← Pinia store: syncStatus, lastSyncAt, errors
+  github-adapter.ts          ← GitHub REST API adapter (Phase 1 ✅)
+  webdav-adapter.ts          ← WebDAV adapter (Phase 2)
+  sftp-adapter.ts            ← SFTP postMessage proxy adapter (Phase 3)
+
+src/vs-code/
+  types.ts                   ← Includes SftpSyncRequest + SftpSyncResponse (Phase 3)
+  api.ts                     ← VS Code postMessage bridge (existing, not modified)
+
+src/stores/
+  use-sync-store.ts          ← Pinia store: syncStatus, lastSyncAt, errors
 ```
 
-No changes required to existing `src/database/`, `src/retry.ts`, or `src/errors.ts`.
+No changes required to `sync-manager.ts`, `github-adapter.ts`, `types.ts`, or any Vue component.
 
 ---
 
@@ -276,7 +331,7 @@ interface SyncSettings {
     owner: string
     repo: string
     branch: string // default: 'main'
-    pat: string // stored encrypted
+    pat: string    // stored encrypted
   }
   webdav?: {
     url: string
@@ -285,26 +340,26 @@ interface SyncSettings {
   }
   sftp?: {
     host: string
-    port: number // default: 22
+    port: number   // default: 22
     username: string
-    privateKeyPath: string // extension-host path only
+    password: string // stored encrypted; extension-host uses this for SSH password auth
     remoteDir: string
   }
 }
 ```
 
-Credentials are **never** stored in plaintext in `localStorage` or `IndexedDB`. Use the VS Code `SecretStorage` API (extension-host) or the Web Crypto API (`AES-GCM`, key derived from a device-local secret) for the webview context.
+> **Note:** SFTP uses password-based SSH auth (`username` + `password`). Private key auth is not in scope for the current implementation. Credentials are **never** stored in plaintext — use the VS Code `SecretStorage` API (extension-host) or Web Crypto `AES-GCM` (webview context).
 
 ---
 
 ## 11. Open Questions
 
-| #   | Question                                                                             | Impact                                | Recommendation                                                                                          |
-| --- | ------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| 1   | Push-on-save (debounced) vs. fixed interval?                                         | GitHub rate limits; UX responsiveness | Debounce 30s on-save + 5-min interval as fallback                                                       |
-| 2   | Should sync settings live in the existing settings store or a dedicated Pinia store? | Code organisation                     | Dedicated `sync-store.ts` — keeps sync state (status, errors) separate from config                      |
-| 3   | Scope: sync chats only, or also settings?                                            | Complexity                            | Chats only in v1; settings sync is a separate feature                                                   |
-| 4   | Encryption at rest on remote?                                                        | Privacy                               | Opt-in `AES-GCM` envelope wrapping before upload — design as a wrapper adapter (`EncryptedSyncAdapter`) |
+| # | Question | Impact | Recommendation |
+|---|---|---|---|
+| 1 | Push-on-save (debounced) vs. fixed interval? | GitHub rate limits; UX responsiveness | Debounce 30s on-save + 5-min interval as fallback |
+| 2 | Should sync settings live in the existing settings store or a dedicated Pinia store? | Code organisation | Dedicated `sync-store.ts` — keeps sync state (status, errors) separate from config |
+| 3 | Scope: sync chats only, or also settings? | Complexity | Chats only in v1; settings sync is a separate feature |
+| 4 | Encryption at rest on remote? | Privacy | Opt-in `AES-GCM` envelope wrapping before upload — design as a wrapper adapter (`EncryptedSyncAdapter`) |
 
 ---
 
@@ -316,15 +371,17 @@ Credentials are **never** stored in plaintext in `localStorage` or `IndexedDB`. 
 - `GitHubSyncAdapter`
 - `use-sync-store.ts` with basic UI indicators
 
-**Phase 2 — WebDAV adapter**
+**Phase 2 — WebDAV adapter** (🔄 IN PROGRESS)
 
-- `WebDavSyncAdapter` with ETag optimistic locking
+- `WebDavSyncAdapter` with temp-file atomic write + ETag conditional PUT
+- `webdav` npm package as HTTP client
 - Settings UI for WebDAV credentials
 
-**Phase 3 — SFTP adapter**
+**Phase 3 — SFTP adapter** (🔄 IN PROGRESS)
 
-- `SftpSyncAdapter` + extension-host bridge
-- Extension-side SSH connection manager
+- `SftpSyncAdapter` — pure postMessage proxy in the webview
+- `SftpSyncRequest` / `SftpSyncResponse` message types in `src/vs-code/types.ts`
+- Extension-host SSH handler lives in `babadeluxe-vscode` (separate task)
 
 **Phase 4 — Hardening**
 
