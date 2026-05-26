@@ -1,5 +1,6 @@
 import { ok, err, type Result } from 'neverthrow'
 import { v4 as uuidv4 } from 'uuid'
+import { useTimeoutFn } from '@vueuse/core'
 import type { AppDb } from '@/database/app-db'
 import type { Conversation, Message } from '@/database/types'
 import { SyncError as AppSyncError } from '@/errors'
@@ -21,13 +22,15 @@ type DbMessage = {
   contextReferences?: string
 }
 
+type PendingTimer = ReturnType<typeof useTimeoutFn>
+
 const flushDebounceMs = 2000
 
 export class SyncManager {
   private _adapter: ISyncAdapter | null = null
   private _statusHandlers: StatusHandler[] = []
   private _conflictHandlers: ConflictHandler[] = []
-  private _pending = new Map<number, ReturnType<typeof setTimeout>>()
+  private _pending = new Map<number, PendingTimer>()
 
   constructor(
     private readonly _db: AppDb,
@@ -49,27 +52,43 @@ export class SyncManager {
 
   notifyChanged(conversationId: number): void {
     const existing = this._pending.get(conversationId)
-    if (existing) clearTimeout(existing)
+    if (existing) {
+      existing.stop()
+      existing.start()
+      return
+    }
 
-    const timer = setTimeout(() => {
+    const timer = useTimeoutFn(() => {
       this._pending.delete(conversationId)
       void this._pushOne(conversationId)
-    }, flushDebounceMs)
+    }, flushDebounceMs, { immediate: false })
 
     this._pending.set(conversationId, timer)
+    timer.start()
   }
 
   notifyDeleted(conversationId: number, syncVersion: number): void {
     const existing = this._pending.get(conversationId)
-    if (existing) clearTimeout(existing)
+    if (existing) {
+      existing.stop()
+      this._pending.delete(conversationId)
+    }
     void this._pushTombstone(conversationId, syncVersion)
   }
 
   async syncNow(): Promise<void> {
+    const pendingIds: number[] = []
+
     for (const [id, timer] of this._pending) {
-      clearTimeout(timer)
-      this._pending.delete(id)
+      if (timer.isPending.value) {
+        timer.stop()
+        pendingIds.push(id)
+      }
     }
+    this._pending.clear()
+
+    // Flush all pending pushes before pulling to avoid overwriting local changes
+    await Promise.all(pendingIds.map((id) => this._pushOne(id)))
     await this.pullAll()
   }
 
@@ -256,9 +275,8 @@ export class SyncManager {
     const syncId = conv.syncId ?? uuidv4()
     const syncVersion = (conv.syncVersion ?? 0) + 1
 
-    if (!conv.syncId) {
-      await this._db.conversation.update(conversationId, { syncId, syncVersion })
-    }
+    // Always persist the new syncVersion so subsequent pushes increment correctly
+    await this._db.conversation.update(conversationId, { syncId, syncVersion })
 
     const msgResult = await this._db.message
       .where('conversationId')
