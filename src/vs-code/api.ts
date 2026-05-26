@@ -30,3 +30,10 @@ export function getVsCodeApi(): Result<VsCodeApi, VsCodeAcquireError> {
   cached = acquireResult.value
   return ok(cached)
 }
+
+export function postMessageToVsCode(message: unknown): void {
+  const api = getVsCodeApi()
+  if (api.isOk()) {
+    api.value.postMessage(message)
+  }
+}

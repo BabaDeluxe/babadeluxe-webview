@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { SyncPayload } from '@/sync/types'
 
 export type VsCodeTextRange = Readonly<{
   startLine: number
@@ -68,6 +69,22 @@ export type FileContextResolveRequest = Readonly<{
   filePaths: string[]
 }>
 
+export type SftpSyncRequest = Readonly<{
+  type: 'sftp:sync:request'
+  requestId: string
+  op: 'push' | 'pull' | 'delete' | 'testConnection'
+  payload?: SyncPayload
+  conversationId?: number
+  since?: string
+}>
+
+export type SftpSyncResponse = Readonly<{
+  type: 'sftp:sync:response'
+  requestId: string
+  error?: string
+  payloads?: SyncPayload[]
+}>
+
 export type FileContextResponse = Readonly<{
   type: 'fileContext:response'
   requestId: string
@@ -124,6 +141,7 @@ export type IncomingMessage =
   | ContextSnapshotMessage
   | AutoContextResponse
   | FileContextResponse
+  | SftpSyncResponse
   | ContextPinFileMessage
   | ContextPinSnippetMessage
   | AuthErrorIncomingMessage
