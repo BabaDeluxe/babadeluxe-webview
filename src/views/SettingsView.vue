@@ -275,7 +275,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ResultAsync } from 'neverthrow'
-import { validateSetting } from '@babadeluxe/shared'
+import {
+  validateSetting,
+  type ModelTemperatures,
+  setModelTemperature,
+  resetModelTemperature,
+  defaultTemperature,
+} from '@babadeluxe/shared'
 import { useSettings } from '@/composables/use-settings'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { useApiKeyManagement } from '@/composables/use-api-key-management'
@@ -301,22 +307,6 @@ import { promptInjectionDefaults } from '@/services/prompt-injection-service'
 type Model = {
   label: string
   value: string
-}
-
-type ModelTemperatures = Record<string, number>
-
-function setModelTemperature(
-  current: ModelTemperatures,
-  modelValue: string,
-  value: number
-): ModelTemperatures {
-  return { ...current, [modelValue]: value }
-}
-
-function resetModelTemperature(current: ModelTemperatures, modelValue: string): ModelTemperatures {
-  const next = { ...current }
-  delete next[modelValue]
-  return next
 }
 
 const logger = safeInject(LOGGER_KEY)
@@ -547,8 +537,8 @@ const modelTemperatures = computed<ModelTemperatures>(() => {
   return (s?.settingValue as ModelTemperatures) ?? {}
 })
 
-function getTemperatureForModel(modelValue: string): number | undefined {
-  return modelTemperatures.value[modelValue]
+function getTemperatureForModel(modelValue: string): number {
+  return modelTemperatures.value[modelValue] ?? defaultTemperature
 }
 
 async function persistTemperatures(next: ModelTemperatures): Promise<void> {

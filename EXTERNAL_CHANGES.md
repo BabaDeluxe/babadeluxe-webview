@@ -6,24 +6,35 @@ The following changes are required in external packages to support the current B
 
 ### Consolidation of Feature Branches
 
-I have consolidated the following feature branches in the `babadeluxe-shared` repository into a single coherent state:
+✅ **Resolved** — [babadeluxe-shared PR #7](https://github.com/BabaDeluxe/babadeluxe-shared/pull/7) (`feat/temperature-per-model-v2`) consolidates:
 
 - `feat/prompt-injection-settings`
 - `feat/temperature-per-model`
 
-### Missing Exports
+### Previously Missing Exports
 
-The following types and constants are currently missing from the exported API of `@babadeluxe/shared` but are required by `PromptInjectionSettings.vue` and `prompt-injection-service.ts`:
+✅ **All resolved in shared PR #7.** The following are now exported from `@babadeluxe/shared`:
 
-- `PromptInjectionMode` (type)
-- `PromptInjectionPosition` (type)
-- `PROMPT_INJECTION_DEFAULTS` (constant)
-- `ModelTemperatures` (type)
-- `DEFAULT_TEMPERATURE` (constant)
-- Helper functions: `getModelTemperature`, `setModelTemperature`, `resetModelTemperature`.
+| Export | Kind | Notes |
+|---|---|---|
+| `PromptInjectionMode` | type | |
+| `PromptInjectionPosition` | type | |
+| `promptInjectionDefaults` | const | camelCase (was `PROMPT_INJECTION_DEFAULTS` in earlier drafts) |
+| `ModelTemperatures` | type | |
+| `defaultTemperature` | const | camelCase (was `DEFAULT_TEMPERATURE` in earlier drafts) |
+| `getModelTemperature` | function | |
+| `setModelTemperature` | function | |
+| `resetModelTemperature` | function | |
 
-**Action Taken**:
-I have manually implemented these types and defaults in `src/services/prompt-injection-service.ts` within the webview repository as a temporary workaround.
+### Webview Workarounds Removed
 
-**Action Required**:
-A PR should be opened in `@babadeluxe/shared` merging `feat/prompt-injection-settings` and `feat/temperature-per-model` and ensuring all types/helpers are properly exported. I have verified the merge logic locally.
+This PR removes the local workarounds that were in place while shared PR #7 was pending:
+
+- `src/services/prompt-injection-service.ts` — local `PromptInjectionMode`, `PromptInjectionPosition`, `promptInjectionDefaults` definitions removed; now re-exported from `@babadeluxe/shared`
+- `src/views/SettingsView.vue` — inline `ModelTemperatures` type, `setModelTemperature`, and `resetModelTemperature` copies removed; imported from `@babadeluxe/shared`
+- `getTemperatureForModel` now returns `defaultTemperature` (1.0) instead of `undefined` when no override exists, matching the shared helper contract
+
+### Action Required Before Merging This PR
+
+- Merge [babadeluxe-shared PR #7](https://github.com/BabaDeluxe/babadeluxe-shared/pull/7) first
+- Bump `@babadeluxe/shared` to the version that includes PR #7

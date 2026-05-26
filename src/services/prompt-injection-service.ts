@@ -3,22 +3,18 @@
  *
  * Pure, side-effect-free logic for building the final message array
  * that gets sent to the LLM, respecting the user's injection settings.
+ *
+ * Types and defaults are sourced from @babadeluxe/shared — do not duplicate them here.
  */
 
-export type PromptInjectionMode =
-  | 'always'
-  | 'first-message'
-  | 'every-x-messages'
-  | 'on-prompt-change'
-  | 'manual'
-export type PromptInjectionPosition = 'system' | 'user-prefix' | 'user-suffix'
+export type {
+  PromptInjectionMode,
+  PromptInjectionPosition,
+} from '@babadeluxe/shared'
+export { promptInjectionDefaults } from '@babadeluxe/shared'
 
-export const promptInjectionDefaults = {
-  mode: 'first-message' as PromptInjectionMode,
-  position: 'system' as PromptInjectionPosition,
-  interval: 5,
-  includeHistory: true,
-}
+import type { PromptInjectionMode, PromptInjectionPosition } from '@babadeluxe/shared'
+import { promptInjectionDefaults } from '@babadeluxe/shared'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -123,10 +119,4 @@ export function resolveInjectionContext(
     promptChanged: partial.promptChanged ?? false,
     promptText: partial.promptText,
   }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function validateSetting(key: string, value: unknown): { success: boolean; error?: string } {
-  // Mock validation for now
-  return { success: true }
 }
