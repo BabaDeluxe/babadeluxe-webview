@@ -65,9 +65,6 @@ export class DagBuilder {
   /**
    * Mark `dependant` as depending on `independent`.
    * i.e. `independent` must complete before `dependant` starts.
-   *
-   * Previous name `dependsOn(from, to)` had inverted semantics:
-   * `to` was the node receiving the dependency, which was confusing.
    */
   addDependency(independent: string, dependant: string): Result<this, Error> {
     if (!this.dag.getNode(independent))
@@ -134,6 +131,11 @@ export class DagBuilder {
   }
 
   build(systemCapabilities: Set<string>, format?: PromptFormatter): string {
+    const cycleResult = this.dag.detectCycle()
+    if (cycleResult.isErr()) {
+      console.error(`[DagBuilder] ${cycleResult.error.message}`)
+      return ''
+    }
     const filteredDag = this.filterByCapabilities(systemCapabilities)
     return (format ?? this.defaultFormatter).generate(filteredDag, systemCapabilities)
   }
