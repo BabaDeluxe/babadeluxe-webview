@@ -1,3 +1,4 @@
+import { ok, err, type Result } from 'neverthrow'
 import type { TaskNode } from './types.js'
 
 export class PromptDag {
@@ -19,16 +20,48 @@ export class PromptDag {
     this.nodes.delete(id)
   }
 
+  /**
+   * DFS-based cycle detection. O(V + E).
+   * Returns ok(undefined) when the graph is acyclic,
+   * err(Error) with the offending edge when a back-edge is found.
+   */
+  detectCycle(): Result<void, Error> {
+    const WHITE = 0, GRAY = 1, BLACK = 2
+    const color = new Map<string, number>()
+    for (const n of this.nodes.keys()) color.set(n, WHITE)
+
+    const visit = (id: string): Result<void, Error> => {
+      color.set(id, GRAY)
+      const node = this.nodes.get(id)!
+      for (const dep of node.dependsOn) {
+        if (color.get(dep) === GRAY)
+          return err(new Error(`Cycle detected: "${dep}" -> "${id}" creates a cycle`))
+        if (color.get(dep) === WHITE) {
+          const r = visit(dep)
+          if (r.isErr()) return r
+        }
+      }
+      color.set(id, BLACK)
+      return ok(undefined)
+    }
+
+    for (const id of this.nodes.keys()) {
+      if (color.get(id) === WHITE) {
+        const r = visit(id)
+        if (r.isErr()) return r
+      }
+    }
+    return ok(undefined)
+  }
+
   removeOrphans(): void {
     const allNodes = this.getAllNodes()
     const reachable = new Set<string>()
 
-    // Seed with true source nodes (no dependencies)
     for (const n of allNodes) {
       if (n.dependsOn.length === 0) reachable.add(n.taskId)
     }
 
-    // BFS forward through the graph
     const queue = Array.from(reachable)
     while (queue.length > 0) {
       const current = queue.shift()!
@@ -40,7 +73,6 @@ export class PromptDag {
       }
     }
 
-    // Strip dangling edges then remove unreachable nodes
     for (const node of allNodes) {
       if (reachable.has(node.taskId)) {
         node.dependsOn = node.dependsOn.filter(depId => reachable.has(depId))
@@ -54,21 +86,6 @@ export class PromptDag {
     const nodes = this.getAllNodes()
     if (nodes.length === 0) return []
 
-    // Build inDegree and inverted adjacency map in one pass — O(E) not O(N²)
-    const inDegree = new Map<string, number>()
-    const children = new Map<string, string[]>()
-
-    for (const n of nodes) {
-      if (!inDegree.has(n.taskId)) inDegree.set(n.taskId, 0)
-      if (!children.has(n.taskId)) children.set(n.taskId, [])
-      for (const dep of n.dependsOn) {
-        inDegree.set(n.taskId, (inDegree.get(n.taskId) ?? 0) + 1)
-        if (!children.has(dep)) children.set(dep, [])
-        children.get(dep)!.push(n.taskId)
-      }
-    }
-
-    // Wait — inDegree was double-counted above. Recompute cleanly.
     const inDeg = new Map<string, number>(nodes.map(n => [n.taskId, n.dependsOn.length]))
     const adj = new Map<string, string[]>(nodes.map(n => [n.taskId, []]))
     for (const n of nodes) {

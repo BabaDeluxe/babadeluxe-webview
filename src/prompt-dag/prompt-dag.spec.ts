@@ -89,6 +89,33 @@ describe('PromptDag', () => {
     expect(ids).toContain('child')
     expect(ids).not.toContain('orphan')
   })
+
+  // ─── Cycle detection ────────────────────────────────────────────────────
+
+  it('detectCycle returns ok for an acyclic graph', () => {
+    const dag = new PromptDag()
+    dag.addNode({ taskId: 'a', partId: 'think',    content: '', requiredCapabilities: [], dependsOn: [] })
+    dag.addNode({ taskId: 'b', partId: 'summarize', content: '', requiredCapabilities: [], dependsOn: ['a'] })
+    dag.addNode({ taskId: 'c', partId: 'critique',  content: '', requiredCapabilities: [], dependsOn: ['b'] })
+    expect(dag.detectCycle().isOk()).toBe(true)
+  })
+
+  it('detectCycle returns err for a direct cycle (a -> b -> a)', () => {
+    const dag = new PromptDag()
+    dag.addNode({ taskId: 'a', partId: 'think',    content: '', requiredCapabilities: [], dependsOn: ['b'] })
+    dag.addNode({ taskId: 'b', partId: 'summarize', content: '', requiredCapabilities: [], dependsOn: ['a'] })
+    const result = dag.detectCycle()
+    expect(result.isErr()).toBe(true)
+    expect(result._unsafeUnwrapErr().message).toMatch(/cycle/i)
+  })
+
+  it('detectCycle returns err for a transitive cycle (a -> b -> c -> a)', () => {
+    const dag = new PromptDag()
+    dag.addNode({ taskId: 'a', partId: 'think',    content: '', requiredCapabilities: [], dependsOn: ['c'] })
+    dag.addNode({ taskId: 'b', partId: 'summarize', content: '', requiredCapabilities: [], dependsOn: ['a'] })
+    dag.addNode({ taskId: 'c', partId: 'critique',  content: '', requiredCapabilities: [], dependsOn: ['b'] })
+    expect(dag.detectCycle().isErr()).toBe(true)
+  })
 })
 
 // ─── DagBuilder ──────────────────────────────────────────────────────────────
@@ -121,7 +148,6 @@ describe('DagBuilder', () => {
     expect(builder.addDependency(a, b).isOk()).toBe(true)
     const levels = builder.build(new Set(), new JsonPromptFormatter())
     const plan = JSON.parse(levels)
-    // a must appear before b in tasks
     const ids = plan.tasks.map((t: { id: string }) => t.id)
     expect(ids.indexOf(a)).toBeLessThan(ids.indexOf(b))
   })
@@ -144,6 +170,18 @@ describe('DagBuilder', () => {
   it('build returns empty string when all tasks are filtered', () => {
     const builder = makeBuilder()
     builder.addTask('web')
+    expect(builder.build(new Set())).toBe('')
+  })
+
+  it('build returns empty string when the dag contains a cycle', () => {
+    const builder = makeBuilder()
+    const a = builder.addTask('think')._unsafeUnwrap()
+    const b = builder.addTask('summarize')._unsafeUnwrap()
+    // Manually inject a cycle directly into the dag nodes
+    const nodeA = (builder as any).dag.getNode(a)!
+    const nodeB = (builder as any).dag.getNode(b)!
+    nodeA.dependsOn.push(b)
+    nodeB.dependsOn.push(a)
     expect(builder.build(new Set())).toBe('')
   })
 
@@ -262,6 +300,6 @@ describe('DEFAULT_PRESETS', () => {
   it('every preset.id references a known DEFAULT_PROMPT_PARTS id', () => {
     const partIds = new Set(DEFAULT_PROMPT_PARTS.map(p => p.id))
     for (const preset of DEFAULT_PRESETS)
-      expect(partIds.has(preset.id), `preset "${preset.presetId}" → unknown part "${preset.id}"`).toBe(true)
+      expect(partIds.has(preset.id), `preset "${preset.presetId}" -> unknown part "${preset.id}"`).toBe(true)
   })
 })
