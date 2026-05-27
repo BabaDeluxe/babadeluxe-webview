@@ -4,6 +4,7 @@ import { PromptRegistry } from './prompt-registry.js'
 import { PresetRegistry } from './preset-registry.js'
 import { PromptDag } from './prompt-dag.js'
 import { XmlPromptFormatter } from './formatters/xml.js'
+import { logger } from '../logger.js'
 
 export class DagBuilder {
   /**
@@ -133,7 +134,7 @@ export class DagBuilder {
   build(systemCapabilities: Set<string>, format?: PromptFormatter): string {
     const cycleResult = this.dag.detectCycle()
     if (cycleResult.isErr()) {
-      console.error(`[DagBuilder] ${cycleResult.error.message}`)
+      logger.error('DagBuilder.build() aborted:', cycleResult.error)
       return ''
     }
     const filteredDag = this.filterByCapabilities(systemCapabilities)
