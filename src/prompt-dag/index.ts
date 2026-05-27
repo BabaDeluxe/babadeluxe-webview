@@ -1,4 +1,5 @@
-export type { PromptPartPOJO, TaskNode, PromptPresetPOJO, PromptFormatter } from './types.js'
+export type { PromptPartPOJO, TaskNode, PromptPresetPOJO } from './types.js'
+export type { PromptFormatter } from './formatter-interface.js'
 export { PromptRegistry } from './prompt-registry.js'
 export { PresetRegistry } from './preset-registry.js'
 export { PromptDag } from './prompt-dag.js'

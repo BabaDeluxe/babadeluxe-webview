@@ -134,7 +134,7 @@ export class DagBuilder {
   build(systemCapabilities: Set<string>, format?: PromptFormatter): string {
     const cycleResult = this.dag.detectCycle()
     if (cycleResult.isErr()) {
-      logger.error('DagBuilder.build() aborted:', cycleResult.error)
+      logger.error('DagBuilder.build() aborted — cycle detected:', cycleResult.error)
       return ''
     }
     const filteredDag = this.filterByCapabilities(systemCapabilities)
@@ -152,10 +152,11 @@ export class DagBuilder {
       }
     }
 
+    // Re-wire dependsOn to only kept nodes, then prune any that became
+    // disconnected sources (their upstream was capability-filtered away).
     for (const node of newDag.getAllNodes())
       node.dependsOn = node.dependsOn.filter(depId => keptIds.has(depId))
 
-    newDag.removeOrphans()
     return newDag
   }
 }
