@@ -1,4 +1,4 @@
-import type { PromptFormatter } from '../types.js'
+import type { PromptFormatter } from '../formatter-interface.js'
 import type { PromptDag } from '../prompt-dag.js'
 
 export class XmlPromptFormatter implements PromptFormatter {
@@ -16,7 +16,7 @@ export class XmlPromptFormatter implements PromptFormatter {
         const level = levels[i]
         lines.push(`<parallel level="${i}">`)
         for (const task of level) {
-          lines.push(`  <task id="${task.taskId}" capabilities="${task.requiredCapabilities.join(',')}">`) 
+          lines.push(`  <task id="${task.taskId}" capabilities="${task.requiredCapabilities.join(',')}">`)
           lines.push(`    ${this.escapeXml(task.content)}`)
           lines.push(`  </task>`)
         }
@@ -28,7 +28,7 @@ export class XmlPromptFormatter implements PromptFormatter {
       const sorted = dag.topologicalSort()
       lines.push('<sequential>')
       for (const task of sorted) {
-        lines.push(`<task id="${task.taskId}" capabilities="${task.requiredCapabilities.join(',')}">`) 
+        lines.push(`<task id="${task.taskId}" capabilities="${task.requiredCapabilities.join(',')}">`)
         lines.push(`  ${this.escapeXml(task.content)}`)
         lines.push(`</task>`)
       }

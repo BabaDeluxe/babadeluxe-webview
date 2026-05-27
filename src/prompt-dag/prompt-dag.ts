@@ -21,64 +21,78 @@ export class PromptDag {
 
   removeOrphans(): void {
     const allNodes = this.getAllNodes()
-    const indegree = new Map<string, number>()
-    for (const n of allNodes) indegree.set(n.taskId, n.dependsOn.length)
-
-    const sources = allNodes.filter(n => (indegree.get(n.taskId) ?? 0) === 0)
     const reachable = new Set<string>()
-    const queue = sources.map(s => s.taskId)
-    for (const id of queue) reachable.add(id)
 
+    // Seed with true source nodes (no dependencies)
+    for (const n of allNodes) {
+      if (n.dependsOn.length === 0) reachable.add(n.taskId)
+    }
+
+    // BFS forward through the graph
+    const queue = Array.from(reachable)
     while (queue.length > 0) {
       const current = queue.shift()!
-      for (const [id, node] of this.nodes) {
-        if (node.dependsOn.includes(current) && !reachable.has(id)) {
-          reachable.add(id)
-          queue.push(id)
+      for (const node of allNodes) {
+        if (!reachable.has(node.taskId) && node.dependsOn.includes(current)) {
+          reachable.add(node.taskId)
+          queue.push(node.taskId)
         }
       }
     }
 
+    // Strip dangling edges then remove unreachable nodes
     for (const node of allNodes) {
-      if (reachable.has(node.taskId))
+      if (reachable.has(node.taskId)) {
         node.dependsOn = node.dependsOn.filter(depId => reachable.has(depId))
-    }
-
-    for (const node of allNodes) {
-      if (!reachable.has(node.taskId)) this.removeNode(node.taskId)
+      } else {
+        this.removeNode(node.taskId)
+      }
     }
   }
 
   topologicalLevels(): TaskNode[][] {
-    const levels: TaskNode[][] = []
-    const inDegree = new Map<string, number>()
     const nodes = this.getAllNodes()
+    if (nodes.length === 0) return []
 
-    for (const n of nodes) inDegree.set(n.taskId, n.dependsOn.length)
-    const queue: string[] = []
+    // Build inDegree and inverted adjacency map in one pass — O(E) not O(N²)
+    const inDegree = new Map<string, number>()
+    const children = new Map<string, string[]>()
 
     for (const n of nodes) {
-      if (inDegree.get(n.taskId) === 0) queue.push(n.taskId)
+      if (!inDegree.has(n.taskId)) inDegree.set(n.taskId, 0)
+      if (!children.has(n.taskId)) children.set(n.taskId, [])
+      for (const dep of n.dependsOn) {
+        inDegree.set(n.taskId, (inDegree.get(n.taskId) ?? 0) + 1)
+        if (!children.has(dep)) children.set(dep, [])
+        children.get(dep)!.push(n.taskId)
+      }
     }
 
-    while (queue.length > 0) {
-      const levelSize = queue.length
-      const currentLevel: TaskNode[] = []
-      for (let i = 0; i < levelSize; i++) {
-        const taskId = queue.shift()!
-        const node = this.getNode(taskId)!
-        currentLevel.push(node)
+    // Wait — inDegree was double-counted above. Recompute cleanly.
+    const inDeg = new Map<string, number>(nodes.map(n => [n.taskId, n.dependsOn.length]))
+    const adj = new Map<string, string[]>(nodes.map(n => [n.taskId, []]))
+    for (const n of nodes) {
+      for (const dep of n.dependsOn) {
+        adj.get(dep)?.push(n.taskId)
+      }
+    }
 
-        for (const depNode of nodes) {
-          if (depNode.dependsOn.includes(taskId)) {
-            const newCount = (inDegree.get(depNode.taskId) ?? 1) - 1
-            inDegree.set(depNode.taskId, newCount)
-            if (newCount === 0) queue.push(depNode.taskId)
-          }
+    const levels: TaskNode[][] = []
+    let frontier = nodes.filter(n => inDeg.get(n.taskId) === 0).map(n => n.taskId)
+
+    while (frontier.length > 0) {
+      levels.push(frontier.map(id => this.getNode(id)!))
+      const next: string[] = []
+      for (const id of frontier) {
+        for (const childId of adj.get(id) ?? []) {
+          const newDeg = (inDeg.get(childId) ?? 1) - 1
+          inDeg.set(childId, newDeg)
+          if (newDeg === 0) next.push(childId)
         }
       }
-      if (currentLevel.length > 0) levels.push(currentLevel)
+      frontier = next
     }
+
     return levels
   }
 

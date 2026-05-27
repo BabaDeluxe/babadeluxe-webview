@@ -20,10 +20,6 @@ export interface PromptPresetPOJO extends PromptPartPOJO {
   description?: string
 }
 
-export interface PromptFormatter {
-  generate(dag: PromptDag, systemCapabilities: Set<string>): string
-}
-
-// Forward-declare to avoid circular import — PromptDag is imported by consumers
-import type { PromptDag } from './prompt-dag.js'
-export type { PromptDag }
+// PromptFormatter lives in formatter-interface.ts to avoid a circular import
+// (PromptFormatter references PromptDag, which imports from types.ts).
+export type { PromptFormatter } from './formatter-interface.js'

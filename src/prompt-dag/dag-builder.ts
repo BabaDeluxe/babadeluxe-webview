@@ -1,12 +1,16 @@
 import { ok, err, type Result } from 'neverthrow'
-import type { PromptFormatter } from './types.js'
+import type { PromptFormatter } from './formatter-interface.js'
 import { PromptRegistry } from './prompt-registry.js'
 import { PresetRegistry } from './preset-registry.js'
 import { PromptDag } from './prompt-dag.js'
 import { XmlPromptFormatter } from './formatters/xml.js'
 
 export class DagBuilder {
-  private static defaultFormatter: PromptFormatter = new XmlPromptFormatter()
+  /**
+   * Instance-level default formatter. Assign per-instance to avoid the
+   * static shared-state footgun. Falls back to XmlPromptFormatter.
+   */
+  private defaultFormatter: PromptFormatter = new XmlPromptFormatter()
   private dag = new PromptDag()
   private registry: PromptRegistry
   private presetRegistry: PresetRegistry | null = null
@@ -38,41 +42,53 @@ export class DagBuilder {
     return this
   }
 
+  setDefaultFormatter(formatter: PromptFormatter): this {
+    this.defaultFormatter = formatter
+    return this
+  }
+
   addTask(partId: string): Result<string, Error> {
     const partResult = this.registry.get(partId)
     if (partResult.isErr()) return err(partResult.error)
 
     const taskId = `task_${this.taskCounter++}`
-    const node = {
+    this.dag.addNode({
       taskId,
       partId,
       content: partResult.value.content,
       requiredCapabilities: partResult.value.requiredCapabilities ?? [],
-      dependsOn: [] as string[],
-    }
-    this.dag.addNode(node)
+      dependsOn: [],
+    })
     return ok(taskId)
   }
 
-  dependsOn(fromTaskId: string, toTaskId: string): Result<this, Error> {
-    const fromNode = this.dag.getNode(fromTaskId)
-    if (!fromNode) return err(new Error(`Task "${fromTaskId}" not found`))
-    const toNode = this.dag.getNode(toTaskId)
-    if (!toNode) return err(new Error(`Task "${toTaskId}" not found`))
-    toNode.dependsOn.push(fromTaskId)
+  /**
+   * Mark `dependant` as depending on `independent`.
+   * i.e. `independent` must complete before `dependant` starts.
+   *
+   * Previous name `dependsOn(from, to)` had inverted semantics:
+   * `to` was the node receiving the dependency, which was confusing.
+   */
+  addDependency(independent: string, dependant: string): Result<this, Error> {
+    if (!this.dag.getNode(independent))
+      return err(new Error(`Task "${independent}" not found`))
+    const dependantNode = this.dag.getNode(dependant)
+    if (!dependantNode)
+      return err(new Error(`Task "${dependant}" not found`))
+    dependantNode.dependsOn.push(independent)
     return ok(this)
   }
 
   chain(partIds: string[]): Result<string[], Error> {
     const ids: string[] = []
     for (const partId of partIds) {
-      const taskResult = this.addTask(partId)
-      if (taskResult.isErr()) return err(taskResult.error)
-      ids.push(taskResult.value)
+      const r = this.addTask(partId)
+      if (r.isErr()) return err(r.error)
+      ids.push(r.value)
     }
     for (let i = 0; i < ids.length - 1; i++) {
-      const depResult = this.dependsOn(ids[i], ids[i + 1])
-      if (depResult.isErr()) return err(depResult.error)
+      const r = this.addDependency(ids[i], ids[i + 1])
+      if (r.isErr()) return err(r.error)
     }
     return ok(ids)
   }
@@ -80,15 +96,19 @@ export class DagBuilder {
   parallel(partIds: string[]): Result<string[], Error> {
     const ids: string[] = []
     for (const partId of partIds) {
-      const taskResult = this.addTask(partId)
-      if (taskResult.isErr()) return err(taskResult.error)
-      ids.push(taskResult.value)
+      const r = this.addTask(partId)
+      if (r.isErr()) return err(r.error)
+      ids.push(r.value)
     }
     return ok(ids)
   }
 
-  addPreset(presetId: string, overrides?: { repeat?: number; enabled?: boolean }): Result<string[], Error> {
-    if (!this.presetRegistry) return err(new Error('No preset registry configured'))
+  addPreset(
+    presetId: string,
+    overrides?: { repeat?: number; enabled?: boolean },
+  ): Result<string[], Error> {
+    if (!this.presetRegistry)
+      return err(new Error('No preset registry configured'))
 
     const presetResult = this.presetRegistry.get(presetId)
     if (presetResult.isErr()) return err(presetResult.error)
@@ -100,39 +120,30 @@ export class DagBuilder {
     const repeat = overrides?.repeat ?? preset.repeat ?? 1
     if (repeat < 1) return ok([])
 
-    if (repeat === 1) {
-      const taskResult = this.addTask(preset.id)
-      if (taskResult.isErr()) return err(taskResult.error)
-      return ok([taskResult.value])
-    }
-
     const ids: string[] = []
     for (let i = 0; i < repeat; i++) {
-      const taskResult = this.addTask(preset.id)
-      if (taskResult.isErr()) return err(taskResult.error)
-      ids.push(taskResult.value)
+      const r = this.addTask(preset.id)
+      if (r.isErr()) return err(r.error)
+      ids.push(r.value)
     }
     for (let i = 0; i < ids.length - 1; i++) {
-      const depResult = this.dependsOn(ids[i], ids[i + 1])
-      if (depResult.isErr()) return err(depResult.error)
+      const r = this.addDependency(ids[i], ids[i + 1])
+      if (r.isErr()) return err(r.error)
     }
     return ok(ids)
   }
 
   build(systemCapabilities: Set<string>, format?: PromptFormatter): string {
     const filteredDag = this.filterByCapabilities(systemCapabilities)
-    const formatter = format ?? DagBuilder.defaultFormatter
-    return formatter.generate(filteredDag, systemCapabilities)
+    return (format ?? this.defaultFormatter).generate(filteredDag, systemCapabilities)
   }
 
   private filterByCapabilities(caps: Set<string>): PromptDag {
     const newDag = new PromptDag()
-    const allNodes = this.dag.getAllNodes()
     const keptIds = new Set<string>()
 
-    for (const node of allNodes) {
-      const allMet = node.requiredCapabilities.every(c => caps.has(c))
-      if (allMet) {
+    for (const node of this.dag.getAllNodes()) {
+      if (node.requiredCapabilities.every(c => caps.has(c))) {
         newDag.addNode({ ...node, dependsOn: [...node.dependsOn] })
         keptIds.add(node.taskId)
       }

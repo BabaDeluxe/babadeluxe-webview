@@ -1,4 +1,4 @@
-import type { PromptFormatter } from '../types.js'
+import type { PromptFormatter } from '../formatter-interface.js'
 import type { PromptDag } from '../prompt-dag.js'
 
 export class MarkdownPromptFormatter implements PromptFormatter {
