@@ -39,3 +39,6 @@ import type { VsCodeBridge } from '@/services/vs-code-bridge'
 export const VSCODE_BRIDGE_KEY: InjectionKey<VsCodeBridge> = Symbol('VSCODE_BRIDGE_KEY')
 // export const API_KEY_VALIDATOR_KEY: InjectionKey<IApiKeyValidator> = Symbol('API_KEY_VALIDATOR_KEY')
 // export const AUTH_PROVIDER_KEY: InjectionKey<AuthProvider> = Symbol('authProvider')
+
+import type { GitMessageComposable } from '@/composables/use-git-message'
+export const GIT_MESSAGE_KEY: InjectionKey<GitMessageComposable> = Symbol('GIT_MESSAGE_KEY')

@@ -13,6 +13,8 @@ import { safeInject } from '@/safe-inject'
 import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
 import type { AbstractLogger } from '@/logger'
 import type { SocketManager } from '@/socket-manager'
+import { useGitMessage } from '@/composables/use-git-message'
+import { isGitCommitMessageContext, isGitPrMessageContext } from '@/vs-code/context-type-guards'
 
 export function useAppLogic() {
   const logger: AbstractLogger = safeInject(LOGGER_KEY)
@@ -25,19 +27,39 @@ export function useAppLogic() {
   const { settings, loadSettings } = useSettings()
   const { isDark } = useTheme()
   const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
+  const gitMessage = useGitMessage()
 
   const handleExtensionMessage = (event: MessageEvent) => {
-    const message = event.data
-    if (message?.type !== 'navigate-to' || !message.payload?.view) return
+    const data = event.data
+    if (!data) return
 
-    const targetView = message.payload.view
-    logger.log('Received navigation request from extension:', targetView)
+    if (data.type === 'navigate-to' && data.payload?.view) {
+      const targetView = data.payload.view
+      logger.log('Received navigation request from extension:', targetView)
 
-    const targetRoute = router.getRoutes().find((route) => route.name === targetView)
-    if (targetRoute) {
-      router.push(targetRoute)
-    } else {
-      logger.warn('Unknown view requested:', targetView)
+      const targetRoute = router.getRoutes().find((route) => route.name === targetView)
+      if (targetRoute) {
+        router.push(targetRoute)
+      } else {
+        logger.warn('Unknown view requested:', targetView)
+      }
+      return
+    }
+
+    if (isGitCommitMessageContext(data)) {
+      gitMessage.handleCommitMessageContext(data)
+      if (router.currentRoute.value.path !== '/chat') {
+        router.push('/chat')
+      }
+      return
+    }
+
+    if (isGitPrMessageContext(data)) {
+      gitMessage.handlePrMessageContext(data)
+      if (router.currentRoute.value.path !== '/chat') {
+        router.push('/chat')
+      }
+      return
     }
   }
 
@@ -141,5 +163,6 @@ export function useAppLogic() {
     session,
     handleNewChat,
     handleLogout,
+    gitMessage,
   }
 }

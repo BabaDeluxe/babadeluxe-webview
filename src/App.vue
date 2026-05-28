@@ -204,7 +204,7 @@
 
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { onErrorCaptured } from 'vue'
+import { onErrorCaptured, provide } from 'vue'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
@@ -214,10 +214,13 @@ import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
 import { useAppLogic } from '@/composables/use-app-logic'
 import { useToastStore } from '@/stores/use-toast-store'
 import { logger } from '@/logger'
+import { GIT_MESSAGE_KEY } from '@/injection-keys'
 
 const router = useRouter()
 const toasts = useToastStore()
-const { session, handleNewChat, handleLogout } = useAppLogic()
+const { session, handleNewChat, handleLogout, gitMessage } = useAppLogic()
+
+provide(GIT_MESSAGE_KEY, gitMessage)
 
 onErrorCaptured((err, instance, info) => {
   logger.error('Something crashed', {
