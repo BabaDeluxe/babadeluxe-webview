@@ -11,49 +11,49 @@ export class DagBuilder {
    * Instance-level default formatter. Assign per-instance to avoid the
    * static shared-state footgun. Falls back to XmlPromptFormatter.
    */
-  private defaultFormatter: PromptFormatter = new XmlPromptFormatter()
-  private dag = new PromptDag()
-  private registry: PromptRegistry
-  private presetRegistry: PresetRegistry | null = null
-  private enabledPresets: Set<string> = new Set()
-  private taskCounter = 0
+  private _defaultFormatter: PromptFormatter = new XmlPromptFormatter()
+  private _dag = new PromptDag()
+  private _registry: PromptRegistry
+  private _presetRegistry: PresetRegistry | null = null
+  private _enabledPresets: Set<string> = new Set()
+  private _taskCounter = 0
 
   constructor(registry: PromptRegistry, presetRegistry?: PresetRegistry) {
-    this.registry = registry
+    this._registry = registry
     if (presetRegistry) {
-      this.presetRegistry = presetRegistry
-      this.useDefaultPresets()
+      this._presetRegistry = presetRegistry
+      this._useDefaultPresets()
     }
   }
 
-  private useDefaultPresets(): void {
-    if (!this.presetRegistry) return
-    for (const preset of this.presetRegistry.getAll()) {
-      if (preset.defaultEnabled !== false) this.enabledPresets.add(preset.presetId)
+  private _useDefaultPresets(): void {
+    if (!this._presetRegistry) return
+    for (const preset of this._presetRegistry.getAll()) {
+      if (preset.defaultEnabled !== false) this._enabledPresets.add(preset.presetId)
     }
   }
 
   enablePreset(presetId: string): this {
-    this.enabledPresets.add(presetId)
+    this._enabledPresets.add(presetId)
     return this
   }
 
   disablePreset(presetId: string): this {
-    this.enabledPresets.delete(presetId)
+    this._enabledPresets.delete(presetId)
     return this
   }
 
   setDefaultFormatter(formatter: PromptFormatter): this {
-    this.defaultFormatter = formatter
+    this._defaultFormatter = formatter
     return this
   }
 
   addTask(partId: string): Result<string, Error> {
-    const partResult = this.registry.get(partId)
+    const partResult = this._registry.get(partId)
     if (partResult.isErr()) return err(partResult.error)
 
-    const taskId = `task_${this.taskCounter++}`
-    this.dag.addNode({
+    const taskId = `task_${this._taskCounter++}`
+    this._dag.addNode({
       taskId,
       partId,
       content: partResult.value.content,
@@ -68,9 +68,9 @@ export class DagBuilder {
    * i.e. `independent` must complete before `dependant` starts.
    */
   addDependency(independent: string, dependant: string): Result<this, Error> {
-    if (!this.dag.getNode(independent))
+    if (!this._dag.getNode(independent))
       return err(new Error(`Task "${independent}" not found`))
-    const dependantNode = this.dag.getNode(dependant)
+    const dependantNode = this._dag.getNode(dependant)
     if (!dependantNode)
       return err(new Error(`Task "${dependant}" not found`))
     dependantNode.dependsOn.push(independent)
@@ -105,14 +105,14 @@ export class DagBuilder {
     presetId: string,
     overrides?: { repeat?: number; enabled?: boolean },
   ): Result<string[], Error> {
-    if (!this.presetRegistry)
+    if (!this._presetRegistry)
       return err(new Error('No preset registry configured'))
 
-    const presetResult = this.presetRegistry.get(presetId)
+    const presetResult = this._presetRegistry.get(presetId)
     if (presetResult.isErr()) return err(presetResult.error)
 
     const preset = presetResult.value
-    const isEnabled = overrides?.enabled ?? this.enabledPresets.has(presetId)
+    const isEnabled = overrides?.enabled ?? this._enabledPresets.has(presetId)
     if (!isEnabled) return ok([])
 
     const repeat = overrides?.repeat ?? preset.repeat ?? 1
@@ -132,28 +132,26 @@ export class DagBuilder {
   }
 
   build(systemCapabilities: Set<string>, format?: PromptFormatter): string {
-    const cycleResult = this.dag.detectCycle()
+    const cycleResult = this._dag.detectCycle()
     if (cycleResult.isErr()) {
       logger.error('DagBuilder.build() aborted — cycle detected:', cycleResult.error)
       return ''
     }
-    const filteredDag = this.filterByCapabilities(systemCapabilities)
-    return (format ?? this.defaultFormatter).generate(filteredDag, systemCapabilities)
+    const filteredDag = this._filterByCapabilities(systemCapabilities)
+    return (format ?? this._defaultFormatter).generate(filteredDag, systemCapabilities)
   }
 
-  private filterByCapabilities(caps: Set<string>): PromptDag {
+  private _filterByCapabilities(caps: Set<string>): PromptDag {
     const newDag = new PromptDag()
     const keptIds = new Set<string>()
 
-    for (const node of this.dag.getAllNodes()) {
+    for (const node of this._dag.getAllNodes()) {
       if (node.requiredCapabilities.every(c => caps.has(c))) {
         newDag.addNode({ ...node, dependsOn: [...node.dependsOn] })
         keptIds.add(node.taskId)
       }
     }
 
-    // Re-wire dependsOn to only kept nodes, then prune any that became
-    // disconnected sources (their upstream was capability-filtered away).
     for (const node of newDag.getAllNodes())
       node.dependsOn = node.dependsOn.filter(depId => keptIds.has(depId))
 

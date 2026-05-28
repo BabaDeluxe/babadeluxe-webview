@@ -2,10 +2,10 @@ import { ok, err, type Result } from 'neverthrow'
 import type { PromptPresetPOJO } from './types.js'
 
 export class PresetRegistry {
-  private presets = new Map<string, PromptPresetPOJO>()
+  private _presets = new Map<string, PromptPresetPOJO>()
 
   register(preset: PromptPresetPOJO): void {
-    this.presets.set(preset.presetId, preset)
+    this._presets.set(preset.presetId, preset)
   }
 
   load(presets: PromptPresetPOJO[]): void {
@@ -13,17 +13,11 @@ export class PresetRegistry {
   }
 
   get(presetId: string): Result<PromptPresetPOJO, Error> {
-    const preset = this.presets.get(presetId)
-    return preset
-      ? ok(preset)
-      : err(new Error(`Preset "${presetId}" not found`))
-  }
-
-  has(presetId: string): boolean {
-    return this.presets.has(presetId)
+    const preset = this._presets.get(presetId)
+    return preset ? ok(preset) : err(new Error(`Preset "${presetId}" not found`))
   }
 
   getAll(): PromptPresetPOJO[] {
-    return Array.from(this.presets.values())
+    return Array.from(this._presets.values())
   }
 }

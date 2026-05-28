@@ -2,22 +2,22 @@ import { ok, err, type Result } from 'neverthrow'
 import type { TaskNode } from './types.js'
 
 export class PromptDag {
-  private nodes = new Map<string, TaskNode>()
+  private _nodes = new Map<string, TaskNode>()
 
   addNode(node: TaskNode): void {
-    this.nodes.set(node.taskId, { ...node, dependsOn: [...node.dependsOn] })
+    this._nodes.set(node.taskId, { ...node, dependsOn: [...node.dependsOn] })
   }
 
   getNode(id: string): TaskNode | undefined {
-    return this.nodes.get(id)
+    return this._nodes.get(id)
   }
 
   getAllNodes(): TaskNode[] {
-    return Array.from(this.nodes.values())
+    return Array.from(this._nodes.values())
   }
 
   removeNode(id: string): void {
-    this.nodes.delete(id)
+    this._nodes.delete(id)
   }
 
   /**
@@ -28,11 +28,11 @@ export class PromptDag {
   detectCycle(): Result<void, Error> {
     const WHITE = 0, GRAY = 1, BLACK = 2
     const color = new Map<string, number>()
-    for (const n of this.nodes.keys()) color.set(n, WHITE)
+    for (const n of this._nodes.keys()) color.set(n, WHITE)
 
     const visit = (id: string): Result<void, Error> => {
       color.set(id, GRAY)
-      const node = this.nodes.get(id)!
+      const node = this._nodes.get(id)!
       for (const dep of node.dependsOn) {
         if (color.get(dep) === GRAY)
           return err(new Error(`Cycle detected: "${dep}" -> "${id}" creates a cycle`))
@@ -45,7 +45,7 @@ export class PromptDag {
       return ok(undefined)
     }
 
-    for (const id of this.nodes.keys()) {
+    for (const id of this._nodes.keys()) {
       if (color.get(id) === WHITE) {
         const r = visit(id)
         if (r.isErr()) return r
