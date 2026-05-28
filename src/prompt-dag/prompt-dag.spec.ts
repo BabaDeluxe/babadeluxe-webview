@@ -20,6 +20,13 @@ const PARTS = [
   { id: 'file',      content: 'Use file tools.', requiredCapabilities: ['file_system'] },
 ]
 
+const PRESETS = [
+  { presetId: 'p_think',    id: 'think',    defaultEnabled: true,  repeat: 1 },
+  { presetId: 'p_summarize',id: 'summarize',defaultEnabled: false, repeat: 1 },
+  { presetId: 'p_critique', id: 'critique', defaultEnabled: false, repeat: 2 },
+  { presetId: 'p_web',      id: 'web',      defaultEnabled: true,  repeat: 1 },
+]
+
 function makeRegistry(): PromptRegistry {
   const r = new PromptRegistry()
   r.load(PARTS)
@@ -28,6 +35,12 @@ function makeRegistry(): PromptRegistry {
 
 function makeBuilder(): DagBuilder {
   return new DagBuilder(makeRegistry())
+}
+
+function makeBuilderWithPresets(): DagBuilder {
+  const pr = new PresetRegistry()
+  pr.load(PRESETS)
+  return new DagBuilder(makeRegistry(), pr)
 }
 
 // ─── PromptRegistry ──────────────────────────────────────────────────────────
@@ -194,6 +207,99 @@ describe('DagBuilder', () => {
     expect(b1.build(new Set())).toContain('format_version')
     expect(b2.build(new Set())).toContain('<sequential>')
   })
+
+  // ─── addPreset ─────────────────────────────────────────────────────
+
+  it('addPreset returns err when no preset registry is configured', () => {
+    expect(makeBuilder().addPreset('p_think').isErr()).toBe(true)
+  })
+
+  it('addPreset returns err for unknown presetId', () => {
+    expect(makeBuilderWithPresets().addPreset('nonexistent').isErr()).toBe(true)
+  })
+
+  it('addPreset runs a defaultEnabled=true preset and returns one task id', () => {
+    const builder = makeBuilderWithPresets()
+    const r = builder.addPreset('p_think')
+    expect(r.isOk()).toBe(true)
+    expect(r._unsafeUnwrap()).toHaveLength(1)
+    expect(builder.build(new Set())).toContain('Think step by step')
+  })
+
+  it('addPreset skips a defaultEnabled=false preset and returns empty array', () => {
+    const builder = makeBuilderWithPresets()
+    const r = builder.addPreset('p_summarize')
+    expect(r.isOk()).toBe(true)
+    expect(r._unsafeUnwrap()).toHaveLength(0)
+    expect(builder.build(new Set())).toBe('')
+  })
+
+  it('addPreset with repeat=2 chains two tasks in topological order', () => {
+    const builder = makeBuilderWithPresets()
+    const r = builder.addPreset('p_critique')
+    expect(r.isOk()).toBe(true)
+    const ids = r._unsafeUnwrap()
+    expect(ids).toHaveLength(2)
+    // verify the two tasks are sequential, not parallel
+    const parsed = JSON.parse(builder.build(new Set(), new JsonPromptFormatter()))
+    const taskIds = parsed.tasks.map((t: { id: string }) => t.id)
+    expect(taskIds.indexOf(ids[0])).toBeLessThan(taskIds.indexOf(ids[1]))
+  })
+
+  it('addPreset overrides.enabled=false skips an otherwise-enabled preset', () => {
+    const builder = makeBuilderWithPresets()
+    const r = builder.addPreset('p_think', { enabled: false })
+    expect(r.isOk()).toBe(true)
+    expect(r._unsafeUnwrap()).toHaveLength(0)
+    expect(builder.build(new Set())).toBe('')
+  })
+
+  it('addPreset overrides.enabled=true runs a defaultEnabled=false preset', () => {
+    const builder = makeBuilderWithPresets()
+    const r = builder.addPreset('p_summarize', { enabled: true })
+    expect(r.isOk()).toBe(true)
+    expect(r._unsafeUnwrap()).toHaveLength(1)
+    expect(builder.build(new Set())).toContain('Summarise in 3 bullets')
+  })
+
+  it('addPreset capability-gated part is excluded when cap absent', () => {
+    // p_web maps to part 'web' which requires ['web_search']
+    const builder = makeBuilderWithPresets()
+    builder.addPreset('p_web')
+    expect(builder.build(new Set())).toBe('')
+  })
+
+  it('addPreset capability-gated part is included when cap present', () => {
+    const builder = makeBuilderWithPresets()
+    builder.addPreset('p_web')
+    expect(builder.build(new Set(['web_search']))).toContain('Search the web')
+  })
+
+  // ─── enablePreset / disablePreset ───────────────────────────────────
+
+  it('enablePreset makes a defaultEnabled=false preset run', () => {
+    const builder = makeBuilderWithPresets()
+    builder.enablePreset('p_summarize')
+    builder.addPreset('p_summarize')
+    expect(builder.build(new Set())).toContain('Summarise in 3 bullets')
+  })
+
+  it('disablePreset prevents a defaultEnabled=true preset from running', () => {
+    const builder = makeBuilderWithPresets()
+    builder.disablePreset('p_think')
+    builder.addPreset('p_think')
+    expect(builder.build(new Set())).toBe('')
+  })
+
+  it('enablePreset returns this for chaining', () => {
+    const builder = makeBuilderWithPresets()
+    expect(builder.enablePreset('p_summarize')).toBe(builder)
+  })
+
+  it('disablePreset returns this for chaining', () => {
+    const builder = makeBuilderWithPresets()
+    expect(builder.disablePreset('p_think')).toBe(builder)
+  })
 })
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
@@ -215,6 +321,19 @@ describe('XmlPromptFormatter', () => {
     const builder = makeBuilder()
     builder.addTask('think')
     expect(builder.build(new Set(['parallel_tool_calls']), new XmlPromptFormatter())).toContain('<execution_plan>')
+  })
+
+  it('emits <await_completion> between parallel levels', () => {
+    // Build a 2-level chain: a runs first, b depends on a
+    const builder = makeBuilder()
+    const a = builder.addTask('think')._unsafeUnwrap()
+    const b = builder.addTask('summarize')._unsafeUnwrap()
+    builder.addDependency(a, b)
+    const output = builder.build(new Set(['parallel_tool_calls']), new XmlPromptFormatter())
+    // Two levels → one await_completion between them
+    expect(output).toContain('<await_completion level="0"/>')
+    // Should NOT have one after the last level
+    expect(output).not.toContain('<await_completion level="1"/>')
   })
 
   it('escapes XML special characters in content', () => {
@@ -268,6 +387,30 @@ describe('ToonPromptFormatter', () => {
     builder.addTask('think')
     expect(builder.build(new Set(), new ToonPromptFormatter())).toContain('format_version: 1.0')
   })
+
+  it('_toonValue wraps content containing a comma in double quotes', () => {
+    const dag = new PromptDag()
+    dag.addNode({ taskId: 't0', partId: 'x', content: 'step one, step two', requiredCapabilities: [], dependsOn: [] })
+    const out = new ToonPromptFormatter().generate(dag, new Set())
+    // content contains a comma so it must be quoted
+    expect(out).toContain('"step one, step two"')
+  })
+
+  it('_toonValue wraps content containing a newline in double quotes', () => {
+    const dag = new PromptDag()
+    dag.addNode({ taskId: 't0', partId: 'x', content: 'line one\nline two', requiredCapabilities: [], dependsOn: [] })
+    const out = new ToonPromptFormatter().generate(dag, new Set())
+    expect(out).toContain('"line one\nline two"')
+  })
+
+  it('_toonValue does not quote plain content with no special characters', () => {
+    const dag = new PromptDag()
+    dag.addNode({ taskId: 't0', partId: 'x', content: 'simple', requiredCapabilities: [], dependsOn: [] })
+    const out = new ToonPromptFormatter().generate(dag, new Set())
+    // plain content — no wrapping quotes around the value
+    expect(out).toContain(',simple')
+    expect(out).not.toContain('"simple"')
+  })
 })
 
 // ─── Default parts & presets ─────────────────────────────────────────────────
@@ -301,5 +444,10 @@ describe('DEFAULT_PRESETS', () => {
     const partIds = new Set(DEFAULT_PROMPT_PARTS.map(p => p.id))
     for (const preset of DEFAULT_PRESETS)
       expect(partIds.has(preset.id), `preset "${preset.presetId}" -> unknown part "${preset.id}"`).toBe(true)
+  })
+
+  it('iterative_critique has repeat=2', () => {
+    const preset = DEFAULT_PRESETS.find(p => p.presetId === 'iterative_critique')!
+    expect(preset.repeat).toBe(2)
   })
 })
