@@ -116,6 +116,34 @@ export type AuthErrorIncomingMessage = z.infer<typeof authErrorIncomingMessageSc
 export type AuthSessionIncomingMessage = z.infer<typeof authSessionIncomingMessageSchema>
 export type IncomingAuthMessage = z.infer<typeof incomingAuthMessageSchema>
 
+// --- Git: Commit message ---
+export type GitCommitMessageContext = Readonly<{
+  type: 'git:commitMessageContext'
+  diff: string
+  currentMessage: string
+}>
+
+// --- Git: PR message ---
+export type GitPrMessageContext = Readonly<{
+  type: 'git:prMessageContext'
+  headBranch: string
+  baseBranch: string
+  diff: string
+  commitMessages: string[]
+}>
+
+// --- Outbound results (webview → extension) ---
+export type GitCommitMessageResult = Readonly<{
+  type: 'git:commitMessageResult'
+  message: string
+}>
+
+export type GitPrMessageResult = Readonly<{
+  type: 'git:prMessageResult'
+  title: string
+  body: string
+}>
+
 export type UnknownIncomingMessage = Readonly<{
   type: string
 }>
@@ -128,6 +156,8 @@ export type IncomingMessage =
   | ContextPinSnippetMessage
   | AuthErrorIncomingMessage
   | AuthSessionIncomingMessage
+  | GitCommitMessageContext
+  | GitPrMessageContext
   | UnknownIncomingMessage
 
 export type PinnedEntry = Readonly<{

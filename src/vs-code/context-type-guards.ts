@@ -8,6 +8,8 @@ import type {
   ContextPinFileMessage,
   ContextPinSnippetMessage,
   VsCodeContextItem,
+  GitCommitMessageContext,
+  GitPrMessageContext,
 } from '@/vs-code/types'
 
 const textRangeSchema = z.object({
@@ -86,6 +88,28 @@ const vsCodeContextItemSchema = z.object({
 
 export const isVsCodeContextItem = (value: unknown): value is VsCodeContextItem => {
   return vsCodeContextItemSchema.safeParse(value).success
+}
+
+const gitCommitMessageContextSchema = z.object({
+  type: z.literal('git:commitMessageContext'),
+  diff: z.string(),
+  currentMessage: z.string(),
+})
+
+export const isGitCommitMessageContext = (msg: unknown): msg is GitCommitMessageContext => {
+  return gitCommitMessageContextSchema.safeParse(msg).success
+}
+
+const gitPrMessageContextSchema = z.object({
+  type: z.literal('git:prMessageContext'),
+  headBranch: z.string(),
+  baseBranch: z.string(),
+  diff: z.string(),
+  commitMessages: z.array(z.string()),
+})
+
+export const isGitPrMessageContext = (msg: unknown): msg is GitPrMessageContext => {
+  return gitPrMessageContextSchema.safeParse(msg).success
 }
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
