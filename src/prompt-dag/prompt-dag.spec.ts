@@ -178,8 +178,8 @@ describe('DagBuilder', () => {
     const a = builder.addTask('think')._unsafeUnwrap()
     const b = builder.addTask('summarize')._unsafeUnwrap()
     // Manually inject a cycle directly into the dag nodes
-    const nodeA = (builder as any).dag.getNode(a)!
-    const nodeB = (builder as any).dag.getNode(b)!
+    const nodeA = (builder as any)._dag.getNode(a)!
+    const nodeB = (builder as any)._dag.getNode(b)!
     nodeA.dependsOn.push(b)
     nodeB.dependsOn.push(a)
     expect(builder.build(new Set())).toBe('')

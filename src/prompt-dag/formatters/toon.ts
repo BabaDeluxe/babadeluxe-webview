@@ -23,20 +23,20 @@ export class ToonPromptFormatter implements PromptFormatter {
         if (i < levels.length - 1) lines.push(`    await_completion: true`)
         lines.push(`    tasks[${level.length}]{id,capabilities,content}:`)
         for (const task of level) {
-          lines.push(`      ${task.taskId},${task.requiredCapabilities.join(';') || '-'},${this.toonValue(task.content)}`)
+          lines.push(`      ${task.taskId},${task.requiredCapabilities.join(';') || '-'},${this._toonValue(task.content)}`)
         }
       }
     } else {
       const sorted = dag.topologicalSort()
       lines.push(`tasks[${sorted.length}]{id,capabilities,content}:`)
       for (const task of sorted) {
-        lines.push(`  ${task.taskId},${task.requiredCapabilities.join(';') || '-'},${this.toonValue(task.content)}`)
+        lines.push(`  ${task.taskId},${task.requiredCapabilities.join(';') || '-'},${this._toonValue(task.content)}`)
       }
     }
     return lines.join('\n')
   }
 
-  private toonValue(text: string): string {
+  private _toonValue(text: string): string {
     const needsQuoting = text.includes(',') || text.includes('\n') || text.includes('"')
     return needsQuoting ? `"${text.replace(/"/g, '\\"')}"` : text
   }

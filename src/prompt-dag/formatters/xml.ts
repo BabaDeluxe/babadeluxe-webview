@@ -17,7 +17,7 @@ export class XmlPromptFormatter implements PromptFormatter {
         lines.push(`<parallel level="${i}">`)
         for (const task of level) {
           lines.push(`  <task id="${task.taskId}" capabilities="${task.requiredCapabilities.join(',')}">`)
-          lines.push(`    ${this.escapeXml(task.content)}`)
+          lines.push(`    ${this._escapeXml(task.content)}`)
           lines.push(`  </task>`)
         }
         lines.push(`</parallel>`)
@@ -29,7 +29,7 @@ export class XmlPromptFormatter implements PromptFormatter {
       lines.push('<sequential>')
       for (const task of sorted) {
         lines.push(`<task id="${task.taskId}" capabilities="${task.requiredCapabilities.join(',')}">`)
-        lines.push(`  ${this.escapeXml(task.content)}`)
+        lines.push(`  ${this._escapeXml(task.content)}`)
         lines.push(`</task>`)
       }
       lines.push('</sequential>')
@@ -37,7 +37,7 @@ export class XmlPromptFormatter implements PromptFormatter {
     return lines.join('\n')
   }
 
-  private escapeXml(text: string): string {
+  private _escapeXml(text: string): string {
     return text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
