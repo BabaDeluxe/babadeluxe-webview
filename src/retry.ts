@@ -1,10 +1,6 @@
 import { err, type Result } from 'neverthrow'
 import { RateLimitError } from '@/errors'
 
-// Note: Native Socket.io retry capabilities are used for connection-level retries.
-// This utility is still useful for application-level logic that might need backoff.
-// Refactored to be more concise.
-
 type RetryConfig = {
   maxRetries: number
   initialDelayMilliseconds: number
@@ -28,7 +24,8 @@ export async function retryWithBackoff<T, E>(
   const { maxRetries, initialDelayMilliseconds, backoffMultiplier, maxDelayMilliseconds, logger } =
     { ...defaultRetryConfig, ...config }
 
-  if (maxRetries <= 0) {
+  const isInvalidRetryConfig = maxRetries <= 0
+  if (isInvalidRetryConfig) {
     return err(new RateLimitError(`retryWithBackoff called with maxRetries <= 0 for "${context}"`))
   }
 
@@ -40,11 +37,13 @@ export async function retryWithBackoff<T, E>(
     if (result.isOk()) return result
 
     lastError = result.error
-    if (!(lastError instanceof RateLimitError)) {
+    const isRateLimitError = lastError instanceof RateLimitError
+    if (!isRateLimitError) {
       return err(lastError)
     }
 
-    if (attempt === maxRetries - 1) break
+    const isLastAttempt = attempt === maxRetries - 1
+    if (isLastAttempt) break
 
     const exponentialDelay = initialDelayMilliseconds * Math.pow(backoffMultiplier, attempt)
     const jitter = Math.random() * 0.3 * exponentialDelay

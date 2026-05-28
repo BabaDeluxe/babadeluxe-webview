@@ -38,13 +38,12 @@ const props = withDefaults(defineProps<BaseMessageBubbleProps>(), {
   ariaLabel: 'Message',
 })
 
-const bubbleClass = computed(() => {
-  const variants = {
-    primary: 'bg-panel text-deepText border border-borderMuted',
-    secondary: 'bg-codeBg text-subtleText border border-borderMuted',
-  }
-  return variants[props.variant]
-})
+const bubbleVariants = {
+  primary: 'bg-panel text-deepText border border-borderMuted',
+  secondary: 'bg-codeBg text-subtleText border border-borderMuted',
+} as const
+
+const bubbleClass = computed(() => bubbleVariants[props.variant])
 
 const alignmentClass = computed(() => {
   return props.align === 'right'

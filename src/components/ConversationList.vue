@@ -7,7 +7,7 @@
         v-for="conversation in conversations"
         :key="conversation.id ?? -1"
         :title="conversation.title || 'Untitled'"
-        :subtitle="String(getMessageCount(conversation.id)) + ' messages'"
+        :subtitle="`${getMessageCount(conversation.id)} messages`"
         :is-active="conversation.id === currentConversationId"
         :data-testid-prefix="testIdPrefix"
         @click="emit('select', conversation)"
