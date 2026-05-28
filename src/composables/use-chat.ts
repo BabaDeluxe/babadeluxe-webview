@@ -12,6 +12,7 @@ import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { localStorageKeys } from '@/constants'
 import { LOGGER_KEY, KEY_VALUE_STORE_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import { GIT_MESSAGE_KEY } from '@/injection-keys'
 import { finalizeStreamingMessage } from '@/streaming-helpers'
 import { safeInject } from '@/safe-inject'
 import { AuthError, InitializationError, ChatError } from '@/errors'
@@ -95,6 +96,27 @@ export function useChat() {
   )
 
   const isLoadingConversations = ref(false)
+  const gitMessage = safeInject(GIT_MESSAGE_KEY)
+
+  watch(
+    () => gitMessage.pendingCommitContext.value,
+    (context) => {
+      if (!context) return
+      currentMessage.value = `Generate a commit message for this diff:\n\n${context.diff}`
+      gitMessage.pendingCommitContext.value = null
+    }
+  )
+
+  watch(
+    () => gitMessage.pendingPrContext.value,
+    (context) => {
+      if (!context) return
+      currentMessage.value = `Generate a PR title and description for merging ${context.headBranch} into ${context.baseBranch}.\n\nCommits:\n${context.commitMessages.join(
+        "\n"
+      )}\n\nDiff:\n${context.diff}`
+      gitMessage.pendingPrContext.value = null
+    }
+  )
 
   const {
     prompts,

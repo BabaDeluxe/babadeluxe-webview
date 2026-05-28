@@ -214,11 +214,14 @@ import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
 import { useAppLogic } from '@/composables/use-app-logic'
 import { useToastStore } from '@/stores/use-toast-store'
 import { logger } from '@/logger'
+import { GIT_MESSAGE_KEY } from '@/injection-keys'
 
 const router = useRouter()
 const route = useRoute()
 const toasts = useToastStore()
-const { session, handleNewChat, handleLogout } = useAppLogic()
+const { session, handleNewChat, handleLogout, gitMessage } = useAppLogic()
+
+provide(GIT_MESSAGE_KEY, gitMessage)
 
 const isHeaderVisible = computed(() => {
   const hasActiveSession = Boolean(session.value)
