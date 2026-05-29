@@ -2,7 +2,8 @@ import { ref, type Ref } from 'vue'
 import { ok, err, type Result } from 'neverthrow'
 import type { Message, ContextReference } from '@/database/types'
 import type { AppDb } from '@/database/app-db'
-import { DbError, ChatError, MessageNotFoundError } from '@/errors'
+import type { DbError} from '@/errors';
+import { ChatError, MessageNotFoundError } from '@/errors'
 import { decodeContextReferences } from '@/database/serializers'
 
 export function useMessageManagement(
@@ -51,7 +52,10 @@ export function useMessageManagement(
     return ok(undefined)
   }
 
-  async function updateMessageContent(messageId: number, content: string): Promise<Result<void, DbError>> {
+  async function updateMessageContent(
+    messageId: number,
+    content: string
+  ): Promise<Result<void, DbError>> {
     const result = await appDb.chatRepository.updateMessage(messageId, content)
     if (result.isErr()) return err(result.error)
 

@@ -3,7 +3,8 @@ import { ok, err, type Result } from 'neverthrow'
 import type { Conversation } from '@/database/types'
 import type { AppDb } from '@/database/app-db'
 import type { AbstractLogger } from '@/logger'
-import { DbError, ChatError } from '@/errors'
+import type { DbError} from '@/errors';
+import { ChatError } from '@/errors'
 
 export function useConversationListState(appDb: AppDb, logger: AbstractLogger) {
   const conversations = ref<Conversation[]>([])

@@ -42,6 +42,63 @@
     </div>
 
     <template v-else-if="isReady">
+      <section
+        id="subscription"
+        class="flex flex-col gap-4"
+      >
+        <div class="flex items-center justify-between">
+          <h2 class="text-headingText text-xl font-semibold">Subscription</h2>
+          <Transition
+            enter-active-class="transition duration-300 ease-out"
+            enter-from-class="transform translate-y-1 opacity-0"
+            enter-to-class="transform translate-y-0 opacity-100"
+            leave-active-class="transition duration-200 ease-in"
+            leave-from-class="transform translate-y-0 opacity-100"
+            leave-to-class="transform translate-y-1 opacity-0"
+          >
+            <span
+              v-if="justUpdated"
+              class="text-accent text-sm font-medium"
+            >
+              Plan updated ✓
+            </span>
+          </Transition>
+        </div>
+
+        <SubscriptionCancellationBanner
+          :cancel-at-period-end="cancelAtPeriodEnd ?? false"
+          :current-period-end="currentPeriodEnd"
+          :tier="subscriptionTier"
+          @reactivate="redirectToCustomerPortal"
+        />
+
+        <div
+          class="bg-panel border border-borderMuted rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        >
+          <div class="flex flex-col gap-1">
+            <div class="text-subtleText text-xs uppercase tracking-wider font-semibold">
+              Current Plan
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-deepText font-bold text-lg">{{ subscriptionTierName }}</span>
+              <span
+                class="px-2 py-0.5 rounded-full text-xs font-medium border"
+                :class="statusPillClasses"
+              >
+                {{ subscriptionStatusLabel }}
+              </span>
+            </div>
+          </div>
+
+          <BaseButton
+            variant="secondary"
+            @click="redirectToCustomerPortal"
+          >
+            Manage billing →
+          </BaseButton>
+        </div>
+      </section>
+
       <AppearanceSection
         :is-dark="isDark"
         @toggle-theme="handleThemeToggle"
@@ -87,6 +144,7 @@ import { validateSetting } from '@babadeluxe/shared'
 import { useSettings } from '@/composables/use-settings'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { useApiKeyManagement } from '@/composables/use-api-key-management'
+import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { useToastStore } from '@/stores/use-toast-store'
 import { useTheme } from '@/composables/use-theme'
 import { toUserMessage } from '@/error-mapper'
@@ -97,6 +155,7 @@ import GeneralSettingsSection from '@/components/settings/GeneralSettingsSection
 import PromptBehaviourSection from '@/components/settings/PromptBehaviourSection.vue'
 import ModelPreferencesSection from '@/components/settings/ModelPreferencesSection.vue'
 import ApiKeySection from '@/components/settings/ApiKeySection.vue'
+import SubscriptionCancellationBanner from '@/components/settings/SubscriptionCancellationBanner.vue'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
@@ -137,6 +196,14 @@ const toasts = useToastStore()
 const { settings, upsertSetting, loadSettings } = useSettings()
 const { models, reloadModels } = useModelsSocket()
 const { isDark, toggleDark } = useTheme()
+const {
+  subscriptionTier,
+  subscriptionStatus,
+  cancelAtPeriodEnd,
+  currentPeriodEnd,
+  justUpdated,
+  redirectToCustomerPortal,
+} = useSubscriptionSocket()
 
 const currentUserId = ref<string>()
 
@@ -361,6 +428,31 @@ const fetchUserId = async (): Promise<void> => {
     }
   )
 }
+
+const subscriptionTierName = computed(() => {
+  if (!subscriptionTier.value) return 'Hobby'
+  return (
+    subscriptionTier.value.charAt(0).toUpperCase() + subscriptionTier.value.slice(1).toLowerCase()
+  )
+})
+
+const subscriptionStatusLabel = computed(() => {
+  if (cancelAtPeriodEnd.value) return 'Cancelling'
+  if (!subscriptionStatus.value) return 'Active'
+
+  const status = subscriptionStatus.value.toLowerCase()
+  if (status === 'active') return 'Active'
+  if (status === 'past_due' || status === 'unpaid') return 'Past Due'
+  return status.charAt(0).toUpperCase() + status.slice(1)
+})
+
+const statusPillClasses = computed(() => {
+  const label = subscriptionStatusLabel.value
+  if (label === 'Active') return 'bg-accent/10 border-accent/30 text-accent'
+  if (label === 'Cancelling') return 'bg-warning/10 border-warning/30 text-warning'
+  if (label === 'Past Due') return 'bg-error/10 border-error/30 text-error'
+  return 'bg-subtleText/10 border-subtleText/30 text-subtleText'
+})
 
 onMounted(async () => {
   await fetchUserId()

@@ -1,4 +1,4 @@
-import { skipIfNoBackend } from "./helpers/skip-if-no-backend"
+import { skipIfNoBackend } from './helpers/skip-if-no-backend'
 import { expect } from '@playwright/test'
 import { authTest as test } from './helpers/fixtures'
 import { createLocatorDealer, locators } from './helpers/locators'
@@ -6,10 +6,14 @@ import { safeGoto } from './helpers/safe-navigation'
 import { gotoOptions } from './helpers/test-data'
 
 test.describe.configure({ mode: 'serial' })
-  test.beforeEach(() => { skipIfNoBackend() })
+test.beforeEach(() => {
+  skipIfNoBackend()
+})
 
 test.describe('Prompts View', () => {
-  test.beforeEach(() => { skipIfNoBackend() })
+  test.beforeEach(() => {
+    skipIfNoBackend()
+  })
   test.beforeEach(async ({ page }) => {
     await safeGoto(page, '/prompts', gotoOptions)
   })

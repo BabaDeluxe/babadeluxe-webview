@@ -32,6 +32,7 @@ This file documents discrepancies between the codebase implementation and the pr
 **Branch Analyzed:** `dev`
 
 **Files Reviewed:**
+
 - `README.md`
 - `docs/AUTH.md`
 - `docs/ENVS.md`
@@ -40,11 +41,13 @@ This file documents discrepancies between the codebase implementation and the pr
 - `src/views/LoginView.vue`
 
 **Regressions Found & Fixed:**
+
 - **Authentication:** `docs/AUTH.md` and `README.md` were missing Google OAuth support, despite it being implemented and used in `LoginView.vue`.
 - **Environment:** `docs/ENVS.md` was missing `VITE_APP_URL`, which is used for canonical OAuth redirects in `SupabaseAuthProvider.ts`.
 - **Architecture (Submodule):** `babadeluxe-docs/docs/ARCHITECTURE.md` was significantly out of sync with the root architecture doc, missing the entire Dependency Injection section and the `ChatRepository` refactor details.
 
 **Files Changed:**
+
 - `README.md`
 - `docs/AUTH.md`
 - `docs/ENVS.md`
