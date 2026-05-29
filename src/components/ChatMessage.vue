@@ -44,8 +44,10 @@
       </div>
 
       <template #actions>
+
         <ChatMessageActions
           v-if="!isEditing"
+          :message-id="id"
           :role="role"
           :message-content="content"
           :is-edit-enabled="props.isEditEnabled && role === 'user'"

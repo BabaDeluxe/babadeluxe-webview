@@ -1,0 +1,24 @@
+<<<<<<< SEARCH
+    <div v-if="isHeaderVisible">
+=======
+    <AnonymousTrialBanner v-if="!session && !isOfflineMode()" />
+
+    <div v-if="isHeaderVisible">
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+import { useAppLogic } from '@/composables/use-app-logic'
+import { useToastStore } from '@/stores/use-toast-store'
+import { logger } from '@/logger'
+import { GIT_MESSAGE_KEY } from '@/injection-keys'
+
+const router = useRouter()
+=======
+import { useAppLogic } from '@/composables/use-app-logic'
+import { useToastStore } from '@/stores/use-toast-store'
+import { logger } from '@/logger'
+import { GIT_MESSAGE_KEY } from '@/injection-keys'
+import AnonymousTrialBanner from '@/components/AnonymousTrialBanner.vue'
+import { isOfflineMode } from '@/env-validator'
+
+const router = useRouter()
+>>>>>>> REPLACE

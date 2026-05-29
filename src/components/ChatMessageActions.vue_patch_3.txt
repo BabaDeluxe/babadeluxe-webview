@@ -1,0 +1,76 @@
+<<<<<<< SEARCH
+import { computed, ref } from 'vue'
+=======
+import { computed, ref } from 'vue'
+import { useTts } from '@/composables/use-tts'
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+interface ChatMessageActionsProps {
+  role: 'user' | 'assistant'
+  messageContent: string
+=======
+interface ChatMessageActionsProps {
+  messageId: number
+  role: 'user' | 'assistant'
+  messageContent: string
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+      <!-- Delete -->
+      <BaseButton
+        v-if="isDeletable"
+        data-testid="message-delete-button"
+        variant="ghost"
+        icon="i-weui:delete-outlined"
+        class="w-full text-error"
+        type="button"
+        @click="handleDelete(close)"
+      >
+        Delete Message
+      </BaseButton>
+    </template>
+=======
+      <!-- TTS -->
+      <BaseButton
+        data-testid="message-tts-button"
+        variant="ghost"
+        :icon="ttsIcon"
+        class="w-full text-subtleText"
+        type="button"
+        :title="ttsTooltip"
+        @click="handleTts(close)"
+      >
+        <span>{{ isPlayingThis ? 'Stop' : 'Play aloud' }}</span>
+      </BaseButton>
+
+      <!-- Speed Control (only when playing) -->
+      <div v-if="isPlayingThis" class="px-2 py-1 flex flex-col gap-1">
+        <span class="text-[10px] text-subtleText uppercase font-bold px-1">Speed</span>
+        <div class="flex gap-1">
+          <button
+            v-for="s in [0.75, 1, 1.25, 1.5]"
+            :key="s"
+            @click="setSpeed(s)"
+            class="px-1.5 py-0.5 rounded text-[10px] transition-colors"
+            :class="ttsSpeed === s ? 'bg-accent text-white' : 'bg-slate/50 text-subtleText hover:bg-slate'"
+          >
+            {{ s }}x
+          </button>
+        </div>
+      </div>
+
+      <div class="border-t border-borderMuted my-1" />
+
+      <!-- Delete -->
+      <BaseButton
+        v-if="isDeletable"
+        data-testid="message-delete-button"
+        variant="ghost"
+        icon="i-weui:delete-outlined"
+        class="w-full text-error"
+        type="button"
+        @click="handleDelete(close)"
+      >
+        Delete Message
+      </BaseButton>
+    </template>
+>>>>>>> REPLACE

@@ -1,0 +1,24 @@
+<<<<<<< SEARCH
+    const authProvider = createAuthProvider(this._supabase)
+    app.provide(AUTH_PROVIDER_KEY, authProvider)
+    app.provide(VSCODE_BRIDGE_KEY, VsCodeBridge.getInstance())
+=======
+    const authProvider = createAuthProvider(this._supabase)
+    app.provide(AUTH_PROVIDER_KEY, authProvider)
+    app.provide(VSCODE_BRIDGE_KEY, VsCodeBridge.getInstance())
+
+    const anonSessionService = new AnonSessionService(this._envConfig)
+    const anonSocketService = new AnonSocketService(this._envConfig.VITE_SOCKET_URL)
+    app.provide(ANON_SESSION_SERVICE_KEY, anonSessionService)
+    app.provide(ANON_SOCKET_SERVICE_KEY, anonSocketService)
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+import { createAuthProvider } from '@/auth/create-auth-provider'
+import { VsCodeBridge } from '@/services/vs-code-bridge'
+=======
+import { createAuthProvider } from '@/auth/create-auth-provider'
+import { VsCodeBridge } from '@/services/vs-code-bridge'
+import { AnonSessionService } from '@/services/anon-session-service'
+import { AnonSocketService } from '@/services/anon-socket-service'
+import { ANON_SESSION_SERVICE_KEY, ANON_SOCKET_SERVICE_KEY } from '@/injection-keys'
+>>>>>>> REPLACE

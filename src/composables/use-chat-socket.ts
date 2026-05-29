@@ -1,9 +1,12 @@
 import { computed, getCurrentScope, onScopeDispose, watch } from 'vue'
 import { err, ResultAsync, type Result } from 'neverthrow'
-import { LOGGER_KEY } from '@/injection-keys'
+
+import { LOGGER_KEY, SUPABASE_CLIENT_KEY, ANON_SOCKET_SERVICE_KEY } from '@/injection-keys'
 import type { AbstractLogger } from '@/logger'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
+
 import { ChatError, NetworkError, RateLimitError } from '@/errors'
+import { useAnonTrialStore } from '@/stores/use-anon-trial-store'
 import type { SocketManager } from '@/socket-manager'
 import { safeInject } from '@/safe-inject'
 import { socketTimeoutMs } from '@/constants'
@@ -141,7 +144,9 @@ export function useChatSocket() {
     { immediate: true }
   )
 
+
   const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+  const supabase = safeInject(SUPABASE_CLIENT_KEY)
 
   const streamingMessageIds = computed(() => store.streamingMessageIds)
 
@@ -190,6 +195,7 @@ export function useChatSocket() {
     }
   }
 
+
   const sendMessageOnce = async (
     messageId: number,
     provider: string,
@@ -201,6 +207,43 @@ export function useChatSocket() {
       onError?: (errorMessage: string) => void
     }
   ): Promise<Result<void, NetworkError | ChatError | RateLimitError>> => {
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (!session && !isOfflineMode()) {
+      const anonSocketService = safeInject(ANON_SOCKET_SERVICE_KEY)
+
+      const timeoutId = createTimeout(() => {
+        logger.error(`Timeout waiting for anon stream completion for message ${messageId}`)
+        handlers.onError?.('Server timeout')
+      }, socketTimeoutMs.chatSend)
+
+      registerStreamingHandlers(messageId, {
+        onChunk: handlers.onChunk,
+        onComplete: (fullContent) => {
+          cancelTimeout(timeoutId)
+          handlers.onComplete(fullContent)
+        },
+        onError: (errorMessage) => {
+          cancelTimeout(timeoutId)
+          handlers.onError?.(errorMessage)
+        },
+      })
+
+      const emitResult = await anonSocketService.sendMessage({
+        messageId,
+        provider,
+        modelId,
+        messages,
+      })
+
+      if (emitResult.isErr()) {
+        cancelTimeout(timeoutId)
+        return err(new NetworkError('Anon socket emit failed', emitResult.error))
+      }
+
+      return ok(undefined)
+    }
+
     const chatSocket = chatSocketRef.value
     if (!chatSocket) {
       return err(new NetworkError('Chat socket not initialized'))

@@ -1,0 +1,39 @@
+<<<<<<< SEARCH
+import { useChat } from '@/composables/use-chat'
+import { useScrollToBottom } from '@/composables/use-scroll-to-bottom'
+
+defineOptions({ name: 'ChatView' })
+=======
+import { useChat } from '@/composables/use-chat'
+import { useScrollToBottom } from '@/composables/use-scroll-to-bottom'
+import { useAnonTrialStore } from '@/stores/use-anon-trial-store'
+import { useAppLogic } from '@/composables/use-app-logic'
+import AnonPoolDegraded from '@/components/AnonPoolDegraded.vue'
+
+defineOptions({ name: 'ChatView' })
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+const {
+  chatInputRef,
+=======
+const anonTrialStore = useAnonTrialStore()
+const { initAnonTrial } = useAppLogic()
+
+const {
+  chatInputRef,
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+      <!-- Empty state -->
+      <BaseEmptyState
+        v-else-if="messages.length === 0"
+=======
+      <!-- Degraded Pool state -->
+      <AnonPoolDegraded
+        v-if="anonTrialStore.poolDegraded && messages.length === 0"
+        @retry="initAnonTrial"
+      />
+
+      <!-- Empty state -->
+      <BaseEmptyState
+        v-else-if="messages.length === 0"
+>>>>>>> REPLACE

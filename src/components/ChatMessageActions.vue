@@ -66,6 +66,38 @@
         class="border-t border-borderMuted my-1"
       />
 
+
+      <!-- TTS -->
+      <BaseButton
+        data-testid="message-tts-button"
+        variant="ghost"
+        :icon="ttsIcon"
+        class="w-full text-subtleText"
+        type="button"
+        :title="ttsTooltip"
+        @click="handleTts(close)"
+      >
+        <span>{{ isPlayingThis ? 'Stop' : 'Play aloud' }}</span>
+      </BaseButton>
+
+      <!-- Speed Control (only when playing) -->
+      <div v-if="isPlayingThis" class="px-2 py-1 flex flex-col gap-1">
+        <span class="text-[10px] text-subtleText uppercase font-bold px-1">Speed</span>
+        <div class="flex gap-1">
+          <button
+            v-for="s in [0.75, 1, 1.25, 1.5]"
+            :key="s"
+            @click="setSpeed(s)"
+            class="px-1.5 py-0.5 rounded text-[10px] transition-colors"
+            :class="ttsSpeed === s ? 'bg-accent text-white' : 'bg-slate/50 text-subtleText hover:bg-slate'"
+          >
+            {{ s }}x
+          </button>
+        </div>
+      </div>
+
+      <div class="border-t border-borderMuted my-1" />
+
       <!-- Delete -->
       <BaseButton
         v-if="isDeletable"
@@ -83,7 +115,9 @@
 </template>
 
 <script setup lang="ts">
+
 import { computed, ref } from 'vue'
+import { useTts } from '@/composables/use-tts'
 import { useClipboard } from '@vueuse/core'
 import { useToastStore } from '@/stores/use-toast-store'
 import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
@@ -91,7 +125,9 @@ import BaseDropdown, { type DropdownGroup } from '@/components/BaseDropdown.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import { useModelsSocket } from '@/composables/use-models-socket'
 
+
 interface ChatMessageActionsProps {
+  messageId: number
   role: 'user' | 'assistant'
   messageContent: string
   isEditEnabled?: boolean
@@ -141,7 +177,31 @@ const modelGroups = computed<DropdownGroup[]>(() =>
 
 const isEditable = computed(() => props.isEditEnabled && props.role === 'user')
 const isRewritable = computed(() => props.isRewriteEnabled && props.role === 'assistant')
+
 const isDeletable = computed(() => props.isDeleteEnabled)
+
+const { currentlyPlayingId, status, speak, stop, ttsSpeed, setSpeed } = useTts()
+const isPlayingThis = computed(() => currentlyPlayingId.value === props.messageId)
+const ttsIcon = computed(() => {
+  if (!isPlayingThis.value) return 'i-bi:volume-up'
+  if (status.value === 'loading') return 'i-svg-spinners:180-ring'
+  return 'i-bi:stop-fill'
+})
+
+const ttsTooltip = computed(() => {
+  if (!isPlayingThis.value) return 'Play aloud'
+  if (status.value === 'loading') return 'Loading voice model...'
+  return 'Stop'
+})
+
+async function handleTts(close: () => void) {
+  if (isPlayingThis.value && status.value !== 'loading') {
+    stop()
+  } else {
+    await speak(props.messageId, props.messageContent)
+  }
+  close()
+}
 
 async function handleCopy(close: () => void): Promise<void> {
   if (!isClipboardSupported.value) return

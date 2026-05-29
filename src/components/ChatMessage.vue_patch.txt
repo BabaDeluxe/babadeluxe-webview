@@ -1,0 +1,12 @@
+<<<<<<< SEARCH
+        <ChatMessageActions
+          v-if="!isEditing"
+          :role="role"
+          :message-content="content"
+=======
+        <ChatMessageActions
+          v-if="!isEditing"
+          :message-id="id"
+          :role="role"
+          :message-content="content"
+>>>>>>> REPLACE

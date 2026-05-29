@@ -2,12 +2,13 @@
   <div class="flex items-center gap-2">
     <slot name="prepend" />
 
+
     <BaseTextField
       ref="inputRef"
       v-model:value="computedValue"
       variant="message"
-      :placeholder="placeholder"
-      :disabled="isSubmitting"
+      :placeholder="isInputBlocked ? 'Trial exhausted' : placeholder"
+      :disabled="isSubmitting || isInputBlocked"
       data-testid="chat-input"
       class="flex-1"
       @keydown="handleKeydown"
@@ -37,9 +38,11 @@
 </template>
 
 <script setup lang="ts">
+
 import { computed, useTemplateRef } from 'vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseTextField from '@/components/BaseTextField.vue'
+import { useAnonTrialStore } from '@/stores/use-anon-trial-store'
 
 interface ChatInputProps {
   value: string
@@ -48,6 +51,10 @@ interface ChatInputProps {
   submitIcon?: string
   abortIcon?: string
 }
+
+
+const anonStore = useAnonTrialStore()
+const isInputBlocked = computed(() => anonStore.isInputBlocked)
 
 const props = withDefaults(defineProps<ChatInputProps>(), {
   placeholder: 'Message...',

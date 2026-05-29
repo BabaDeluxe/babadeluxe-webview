@@ -354,7 +354,12 @@ const navigateAfterLogin = async (): Promise<void> => {
   }
 }
 
+
 onMounted(() => {
+  if (router.currentRoute.value.name === 'register') {
+    isSignUp.value = true
+  }
+
   void (async () => {
     if (!vsCodeAuth.isRunningInsideVsCode() || hasAttemptedStoredSession.value) return
 
