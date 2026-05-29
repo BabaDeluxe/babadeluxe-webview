@@ -27,6 +27,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import BaseButton from '@/components/BaseButton.vue'
+import { formatTierName } from '@/settings-utils'
 
 const props = defineProps<{
   cancelAtPeriodEnd: boolean
@@ -38,10 +39,7 @@ defineEmits<{
   reactivate: []
 }>()
 
-const tierName = computed(() => {
-  if (!props.tier) return 'Pro'
-  return props.tier.charAt(0).toUpperCase() + props.tier.slice(1).toLowerCase()
-})
+const tierName = computed(() => formatTierName(props.tier))
 
 const formattedEndDate = computed(() => {
   if (!props.currentPeriodEnd) return ''

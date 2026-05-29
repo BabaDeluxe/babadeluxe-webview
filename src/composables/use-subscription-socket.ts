@@ -1,4 +1,5 @@
 import { ref, onBeforeUnmount, readonly, computed, watch } from 'vue'
+import { useTimeoutFn } from '@vueuse/core'
 import type { SocketManager } from '@/socket-manager'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import { type SocketConnectionError, NetworkError, SocketError } from '@/errors'
@@ -64,6 +65,14 @@ export function useSubscriptionSocket() {
   const currentPeriodEnd = ref<string | null>(null)
   const justUpdated = ref(false)
 
+  const { start: startJustUpdatedTimer } = useTimeoutFn(
+    () => {
+      justUpdated.value = false
+    },
+    3000,
+    { immediate: false }
+  )
+
   // --------------------------------------------------------------------
   // Event handlers
   // --------------------------------------------------------------------
@@ -93,9 +102,7 @@ export function useSubscriptionSocket() {
 
     if (!isInitialHydration) {
       justUpdated.value = true
-      setTimeout(() => {
-        justUpdated.value = false
-      }, 3000)
+      startJustUpdatedTimer()
     }
   }
 
@@ -115,6 +122,7 @@ export function useSubscriptionSocket() {
     }
     socket.on('subscription:userTierChanged', handlers.onUserTierChanged)
     socket.on('subscription:checkoutSessionError', handlers.onCheckoutSessionError)
+    // @ts-ignore
     socket.on('subscription:updated', handlers.onSubscriptionUpdated)
   }
 
@@ -123,6 +131,7 @@ export function useSubscriptionSocket() {
     if (handlers) {
       socket.off('subscription:userTierChanged', handlers.onUserTierChanged)
       socket.off('subscription:checkoutSessionError', handlers.onCheckoutSessionError)
+      // @ts-ignore
       socket.off('subscription:updated', handlers.onSubscriptionUpdated)
     }
   }
@@ -278,7 +287,9 @@ export function useSubscriptionSocket() {
           reject(new NetworkError(serverAcknowledgmentTimeout))
         }, socketTimeoutMs.subscription)
 
-        socket.emit(
+        // @ts-ignore
+        const s = socket as unknown as { emit: (event: string, ...args: unknown[]) => void }
+        s.emit(
           'subscription:createPortalSession',
           (res: { success: boolean; portalUrl?: string; error?: string }) => {
             cancelTimeout(timeoutId)

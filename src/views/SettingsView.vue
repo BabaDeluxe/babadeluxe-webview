@@ -148,6 +148,7 @@ import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { useToastStore } from '@/stores/use-toast-store'
 import { useTheme } from '@/composables/use-theme'
 import { toUserMessage } from '@/error-mapper'
+import { formatTierName } from '@/settings-utils'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import AppearanceSection from '@/components/settings/AppearanceSection.vue'
@@ -429,12 +430,7 @@ const fetchUserId = async (): Promise<void> => {
   )
 }
 
-const subscriptionTierName = computed(() => {
-  if (!subscriptionTier.value) return 'Hobby'
-  return (
-    subscriptionTier.value.charAt(0).toUpperCase() + subscriptionTier.value.slice(1).toLowerCase()
-  )
-})
+const subscriptionTierName = computed(() => formatTierName(subscriptionTier.value))
 
 const subscriptionStatusLabel = computed(() => {
   if (cancelAtPeriodEnd.value) return 'Cancelling'

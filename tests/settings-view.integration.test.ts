@@ -12,7 +12,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { ref, readonly } from 'vue'
 import type { AsyncInjectable } from '@/injection-keys'
-import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import {
+  API_KEY_VALIDATOR_KEY,
+  LOGGER_KEY,
+  SUPABASE_CLIENT_KEY,
+  SOCKET_MANAGER_KEY,
+} from '@/injection-keys'
 import type { IApiKeyValidator } from '@/api-key-validator'
 import SettingsView from '@/views/SettingsView.vue'
 
