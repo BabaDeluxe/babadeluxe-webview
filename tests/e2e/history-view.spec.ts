@@ -1,9 +1,11 @@
+import { skipIfNoBackend } from "./helpers/skip-if-no-backend"
 import { expect } from '@playwright/test'
 import { authTest as test } from './helpers/fixtures'
 import { seedHistoryViewData } from './helpers/test-data'
 import { createLocatorDealer, locators } from './helpers/locators'
 
 test.describe('History View E2E', () => {
+  test.beforeEach(() => { skipIfNoBackend() })
   test.beforeEach(async ({ page }) => {
     await seedHistoryViewData(page)
     await page.waitForTimeout(2000)

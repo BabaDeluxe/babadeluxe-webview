@@ -1,3 +1,4 @@
+import { skipIfNoBackend } from "./helpers/skip-if-no-backend"
 import { expect } from '@playwright/test'
 import { authTest as test } from './helpers/fixtures'
 import { seedChatViewData } from './helpers/test-data'
@@ -6,6 +7,7 @@ import { createLocatorDealer, locators } from './helpers/locators'
 import { logger } from '@/logger'
 
 test.describe('Chat View E2E', () => {
+  test.beforeEach(() => { skipIfNoBackend() })
   test.beforeEach(async ({ page, db }) => {
     await seedChatViewData(page)
 
@@ -20,6 +22,7 @@ test.describe('Chat View E2E', () => {
   })
 
   test.describe('socket & basic send', () => {
+  test.beforeEach(() => { skipIfNoBackend() })
     test.beforeEach(async ({ page }) => {
       await page.goto('/chat')
     })
@@ -121,6 +124,7 @@ test.describe('Chat View E2E', () => {
   })
 
   test.describe('edit user message', () => {
+  test.beforeEach(() => { skipIfNoBackend() })
     test('user can edit message content', async ({ page, db }) => {
       const dealer = createLocatorDealer(page, {
         [locators.message1]: { isVisible: true },

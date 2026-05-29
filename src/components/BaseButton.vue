@@ -73,9 +73,7 @@ const computedClasses = computed(() => {
 
   const selectedClasses =
     props.isSelected && props.variant === 'icon'
-      ? // Icon variant: highlight text only — no background fill on selection
-        // to preserve the transparent/borderless icon button appearance.
-        'text-deepText'
+      ? 'text-deepText'
       : props.isSelected
         ? 'bg-borderMuted text-deepText'
         : ''

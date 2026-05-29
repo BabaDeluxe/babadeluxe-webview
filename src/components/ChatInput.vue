@@ -4,7 +4,7 @@
 
     <BaseTextField
       ref="inputRef"
-      v-model:value="_value"
+      v-model:value="computedValue"
       variant="message"
       :placeholder="placeholder"
       :disabled="isSubmitting"
@@ -64,14 +64,17 @@ const emit = defineEmits<{
 
 const inputRef = useTemplateRef<InstanceType<typeof BaseTextField>>('inputRef')
 
-const _value = computed({
+const computedValue = computed({
   get: () => props.value,
   set: (val) => {
     emit('update:value', val)
   },
 })
 
-const isSubmitDisabled = computed(() => props.value.trim().length === 0 || props.isSubmitting)
+const isSubmitDisabled = computed(() => {
+  const isInputEmpty = props.value.trim().length === 0
+  return isInputEmpty || props.isSubmitting
+})
 
 function handleSubmit() {
   const trimmed = props.value.trim()
@@ -80,7 +83,10 @@ function handleSubmit() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey) {
+  const isEnterPressed = event.key === 'Enter'
+  const isModifierPressed = event.shiftKey || event.ctrlKey
+
+  if (isEnterPressed && !isModifierPressed) {
     event.preventDefault()
     handleSubmit()
   }
