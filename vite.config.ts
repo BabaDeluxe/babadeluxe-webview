@@ -40,6 +40,9 @@ export default defineConfig(({ mode }) => {
       },
     },
     assetsInclude: ['**/*.svg', '**/*.jpg', '**/*.jpeg', '**/*.png'],
+    optimizeDeps: {
+      include: ['webdav'],
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('src', import.meta.url)),
