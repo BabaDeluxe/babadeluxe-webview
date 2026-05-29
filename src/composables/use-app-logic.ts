@@ -9,12 +9,15 @@ import { useTheme } from '@/composables/use-theme'
 import { useConversationStore } from '@/stores/use-conversation-store'
 import { useStorage } from '@vueuse/core'
 import { localStorageKeys } from '@/constants'
+
 import { safeInject } from '@/safe-inject'
-import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import { LOGGER_KEY, SUPABASE_CLIENT_KEY, SOCKET_MANAGER_KEY, ANON_SESSION_SERVICE_KEY, ANON_SOCKET_SERVICE_KEY } from '@/injection-keys'
 import type { AbstractLogger } from '@/logger'
 import type { SocketManager } from '@/socket-manager'
+
 import { useGitMessage } from '@/composables/use-git-message'
 import { isGitCommitMessageContext, isGitPrMessageContext } from '@/vs-code/context-type-guards'
+import { useAnonTrialStore } from '@/stores/use-anon-trial-store'
 
 export function useAppLogic() {
   const logger: AbstractLogger = safeInject(LOGGER_KEY)
@@ -27,7 +30,11 @@ export function useAppLogic() {
   const { settings, loadSettings } = useSettings()
   const { isDark } = useTheme()
   const currentConversationId = useStorage<number>(localStorageKeys.currentConversationId, 0)
+
   const gitMessage = useGitMessage()
+  const anonTrialStore = useAnonTrialStore()
+  const anonSessionService = safeInject(ANON_SESSION_SERVICE_KEY)
+  const anonSocketService = safeInject(ANON_SOCKET_SERVICE_KEY)
 
   const handleExtensionMessage = (event: MessageEvent) => {
     const data = event.data
@@ -156,8 +163,43 @@ export function useAppLogic() {
       return
     }
 
+
     session.value = data.session
+
+    if (!session.value && !isOfflineMode()) {
+      await initAnonTrial()
+    }
   })
+
+  const initAnonTrial = async () => {
+    const isExhausted = localStorage.getItem('anon-trial-exhausted') === 'true'
+    if (isExhausted) {
+      anonTrialStore.exhausted = true
+      return
+    }
+
+    const result = await anonSessionService.init()
+    result.match(
+      (response) => {
+        if (response.degraded) {
+          anonTrialStore.poolDegraded = true
+        } else {
+          anonTrialStore.setSession({
+            token: response.token,
+            cap: response.cap,
+            used: response.used,
+          })
+          anonSocketService.connect(response.token)
+        }
+      },
+      (err) => {
+        logger.error('Failed to init anon session', { error: err })
+        // Silent fail or degraded? Instructions say if degraded set store.poolDegraded
+        // If it's a network error, maybe we should also treat it as degraded for UX
+        anonTrialStore.poolDegraded = true
+      }
+    )
+  }
 
   return {
     session,

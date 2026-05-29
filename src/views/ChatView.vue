@@ -56,6 +56,13 @@
         />
       </div>
 
+
+      <!-- Degraded Pool state -->
+      <AnonPoolDegraded
+        v-if="anonTrialStore.poolDegraded && messages.length === 0"
+        @retry="initAnonTrial"
+      />
+
       <!-- Empty state -->
       <BaseEmptyState
         v-else-if="messages.length === 0"
@@ -147,10 +154,18 @@ import BaseSpinner from '@/components/BaseSpinner.vue'
 import SubscriptionModal from '@/components/SubscriptionModal.vue'
 import ChatInputBlock from '@/components/ChatInputBlock.vue'
 import ScrollToBottomButton from '@/components/ScrollToBottomButton.vue'
+
 import { useChat } from '@/composables/use-chat'
 import { useScrollToBottom } from '@/composables/use-scroll-to-bottom'
+import { useAnonTrialStore } from '@/stores/use-anon-trial-store'
+import { useAppLogic } from '@/composables/use-app-logic'
+import AnonPoolDegraded from '@/components/AnonPoolDegraded.vue'
 
 defineOptions({ name: 'ChatView' })
+
+
+const anonTrialStore = useAnonTrialStore()
+const { initAnonTrial } = useAppLogic()
 
 const {
   chatInputRef,

@@ -1,0 +1,21 @@
+<<<<<<< SEARCH
+import AppearanceSection from '@/components/settings/AppearanceSection.vue'
+=======
+import AppearanceSection from '@/components/settings/AppearanceSection.vue'
+import AudioSection from '@/components/settings/AudioSection.vue'
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+      <AppearanceSection
+        :is-dark="isDark"
+        @toggle-theme="handleThemeToggle"
+      />
+=======
+      <AppearanceSection
+        :is-dark="isDark"
+        @toggle-theme="handleThemeToggle"
+      />
+
+      <div class="border-t border-borderMuted/20 my-4" />
+
+      <AudioSection />
+>>>>>>> REPLACE

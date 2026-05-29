@@ -41,4 +41,10 @@ export const VSCODE_BRIDGE_KEY: InjectionKey<VsCodeBridge> = Symbol('VSCODE_BRID
 // export const AUTH_PROVIDER_KEY: InjectionKey<AuthProvider> = Symbol('authProvider')
 
 import type { GitMessageComposable } from '@/composables/use-git-message'
+
 export const GIT_MESSAGE_KEY: InjectionKey<GitMessageComposable> = Symbol('GIT_MESSAGE_KEY')
+
+import type { AnonSessionService } from '@/services/anon-session-service'
+import type { AnonSocketService } from '@/services/anon-socket-service'
+export const ANON_SESSION_SERVICE_KEY: InjectionKey<AnonSessionService> = Symbol('ANON_SESSION_SERVICE_KEY')
+export const ANON_SOCKET_SERVICE_KEY: InjectionKey<AnonSocketService> = Symbol('ANON_SOCKET_SERVICE_KEY')

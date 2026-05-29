@@ -2,6 +2,9 @@
   <div
     class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText overflow-x-hidden"
   >
+
+    <AnonymousTrialBanner v-if="!session && !isOfflineMode()" />
+
     <div v-if="isHeaderVisible">
       <header
         class="flex flex-row items-center justify-between p-2 bg-panel border-b border-borderMuted/20 h-14"
@@ -211,10 +214,13 @@ import BaseAvatar from '@/components/BaseAvatar.vue'
 import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
 import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
+
 import { useAppLogic } from '@/composables/use-app-logic'
 import { useToastStore } from '@/stores/use-toast-store'
 import { logger } from '@/logger'
 import { GIT_MESSAGE_KEY } from '@/injection-keys'
+import AnonymousTrialBanner from '@/components/AnonymousTrialBanner.vue'
+import { isOfflineMode } from '@/env-validator'
 
 const router = useRouter()
 const route = useRoute()

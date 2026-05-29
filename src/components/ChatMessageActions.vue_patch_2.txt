@@ -1,0 +1,32 @@
+<<<<<<< SEARCH
+const isDeletable = computed(() => props.isDeleteEnabled)
+
+async function handleCopy(close: () => void): Promise<void> {
+=======
+const isDeletable = computed(() => props.isDeleteEnabled)
+
+const { currentlyPlayingId, status, speak, stop, ttsSpeed, setSpeed } = useTts()
+const isPlayingThis = computed(() => currentlyPlayingId.value === props.messageId)
+const ttsIcon = computed(() => {
+  if (!isPlayingThis.value) return 'i-bi:volume-up'
+  if (status.value === 'loading') return 'i-svg-spinners:180-ring'
+  return 'i-bi:stop-fill'
+})
+
+const ttsTooltip = computed(() => {
+  if (!isPlayingThis.value) return 'Play aloud'
+  if (status.value === 'loading') return 'Loading voice model...'
+  return 'Stop'
+})
+
+async function handleTts(close: () => void) {
+  if (isPlayingThis.value && status.value !== 'loading') {
+    stop()
+  } else {
+    await speak(props.messageId, props.messageContent)
+  }
+  close()
+}
+
+async function handleCopy(close: () => void): Promise<void> {
+>>>>>>> REPLACE

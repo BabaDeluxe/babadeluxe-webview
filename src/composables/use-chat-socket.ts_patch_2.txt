@@ -1,0 +1,96 @@
+<<<<<<< SEARCH
+  const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+
+  const streamingMessageIds = computed(() => store.streamingMessageIds)
+=======
+  const { createTimeout, cancelTimeout } = useTrackedTimeouts()
+  const anonTrialStore = useAnonTrialStore()
+  const supabase = safeInject(SUPABASE_CLIENT_KEY)
+
+  const streamingMessageIds = computed(() => store.streamingMessageIds)
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+import { SocketError, NetworkError, ChatError, RateLimitError } from '@/errors'
+=======
+import { SocketError, NetworkError, ChatError, RateLimitError } from '@/errors'
+import { useAnonTrialStore } from '@/stores/use-anon-trial-store'
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+import { safeInject } from '@/safe-inject'
+import { LOGGER_KEY, SOCKET_MANAGER_KEY } from '@/injection-keys'
+import type { AbstractLogger } from '@/logger'
+=======
+import { safeInject } from '@/safe-inject'
+import { LOGGER_KEY, SOCKET_MANAGER_KEY, SUPABASE_CLIENT_KEY, ANON_SOCKET_SERVICE_KEY } from '@/injection-keys'
+import type { AbstractLogger } from '@/logger'
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  const sendMessageOnce = async (
+    messageId: number,
+    provider: string,
+    modelId: string,
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    handlers: {
+      onChunk: (chunk: string) => void
+      onComplete: (fullContent: string) => void
+      onError?: (errorMessage: string) => void
+    }
+  ): Promise<Result<void, NetworkError | ChatError | RateLimitError>> => {
+    const chatSocket = chatSocketRef.value
+    if (!chatSocket) {
+      return err(new NetworkError('Chat socket not initialized'))
+    }
+=======
+  const sendMessageOnce = async (
+    messageId: number,
+    provider: string,
+    modelId: string,
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    handlers: {
+      onChunk: (chunk: string) => void
+      onComplete: (fullContent: string) => void
+      onError?: (errorMessage: string) => void
+    }
+  ): Promise<Result<void, NetworkError | ChatError | RateLimitError>> => {
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (!session && !isOfflineMode()) {
+      const anonSocketService = safeInject(ANON_SOCKET_SERVICE_KEY)
+
+      const timeoutId = createTimeout(() => {
+        logger.error(`Timeout waiting for anon stream completion for message ${messageId}`)
+        handlers.onError?.('Server timeout')
+      }, socketTimeoutMs.chatSend)
+
+      registerStreamingHandlers(messageId, {
+        onChunk: handlers.onChunk,
+        onComplete: (fullContent) => {
+          cancelTimeout(timeoutId)
+          handlers.onComplete(fullContent)
+        },
+        onError: (errorMessage) => {
+          cancelTimeout(timeoutId)
+          handlers.onError?.(errorMessage)
+        },
+      })
+
+      const emitResult = await anonSocketService.sendMessage({
+        messageId,
+        provider,
+        modelId,
+        messages,
+      })
+
+      if (emitResult.isErr()) {
+        cancelTimeout(timeoutId)
+        return err(new NetworkError('Anon socket emit failed', emitResult.error))
+      }
+
+      return ok(undefined)
+    }
+
+    const chatSocket = chatSocketRef.value
+    if (!chatSocket) {
+      return err(new NetworkError('Chat socket not initialized'))
+    }
+>>>>>>> REPLACE

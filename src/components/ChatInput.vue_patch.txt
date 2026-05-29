@@ -1,0 +1,33 @@
+<<<<<<< SEARCH
+    <BaseTextField
+      ref="inputRef"
+      v-model:value="computedValue"
+      variant="message"
+      :placeholder="placeholder"
+      :disabled="isSubmitting"
+=======
+    <BaseTextField
+      ref="inputRef"
+      v-model:value="computedValue"
+      variant="message"
+      :placeholder="isInputBlocked ? 'Trial exhausted' : placeholder"
+      :disabled="isSubmitting || isInputBlocked"
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+import { computed, useTemplateRef } from 'vue'
+import BaseButton from '@/components/BaseButton.vue'
+import BaseTextField from '@/components/BaseTextField.vue'
+=======
+import { computed, useTemplateRef } from 'vue'
+import BaseButton from '@/components/BaseButton.vue'
+import BaseTextField from '@/components/BaseTextField.vue'
+import { useAnonTrialStore } from '@/stores/use-anon-trial-store'
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+const props = withDefaults(defineProps<ChatInputProps>(), {
+=======
+const anonStore = useAnonTrialStore()
+const isInputBlocked = computed(() => anonStore.isInputBlocked)
+
+const props = withDefaults(defineProps<ChatInputProps>(), {
+>>>>>>> REPLACE

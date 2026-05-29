@@ -42,10 +42,15 @@
     </div>
 
     <template v-else-if="isReady">
+
       <AppearanceSection
         :is-dark="isDark"
         @toggle-theme="handleThemeToggle"
       />
+
+      <div class="border-t border-borderMuted/20 my-4" />
+
+      <AudioSection />
 
       <GeneralSettingsSection
         :settings="generalSettings"
@@ -92,7 +97,9 @@ import { useTheme } from '@/composables/use-theme'
 import { toUserMessage } from '@/error-mapper'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import BaseButton from '@/components/BaseButton.vue'
+
 import AppearanceSection from '@/components/settings/AppearanceSection.vue'
+import AudioSection from '@/components/settings/AudioSection.vue'
 import GeneralSettingsSection from '@/components/settings/GeneralSettingsSection.vue'
 import PromptBehaviourSection from '@/components/settings/PromptBehaviourSection.vue'
 import ModelPreferencesSection from '@/components/settings/ModelPreferencesSection.vue'

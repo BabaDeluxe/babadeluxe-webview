@@ -1,5 +1,7 @@
 import { type App as VueApp, type Ref, createApp, ref, readonly } from 'vue'
+
 import { createPinia } from 'pinia'
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createColorino, themePalettes } from 'colorino'
 import 'virtual:uno.css'
@@ -32,8 +34,12 @@ import { useToastStore } from '@/stores/use-toast-store'
 import { AnalyticsManager } from '@/analytics/analytics-manager'
 import { GoogleAnalyticsProvider } from '@/analytics/providers/google-analytics-provider'
 import { StatsigProvider } from '@/analytics/providers/statsig-provider'
+
 import { createAuthProvider } from '@/auth/create-auth-provider'
 import { VsCodeBridge } from '@/services/vs-code-bridge'
+import { AnonSessionService } from '@/services/anon-session-service'
+import { AnonSocketService } from '@/services/anon-socket-service'
+import { ANON_SESSION_SERVICE_KEY, ANON_SOCKET_SERVICE_KEY } from '@/injection-keys'
 
 export type SupabaseClientType = SupabaseClient
 
@@ -80,7 +86,9 @@ class AppInitializer {
 
   private _createApp(): VueApp {
     const app = createApp(App)
+
     const pinia = createPinia()
+    pinia.use(piniaPluginPersistedstate)
 
     app.use(pinia)
 
@@ -123,9 +131,15 @@ class AppInitializer {
 
     app.provide(SUPABASE_CLIENT_KEY, this._supabase)
 
+
     const authProvider = createAuthProvider(this._supabase)
     app.provide(AUTH_PROVIDER_KEY, authProvider)
     app.provide(VSCODE_BRIDGE_KEY, VsCodeBridge.getInstance())
+
+    const anonSessionService = new AnonSessionService(this._envConfig)
+    const anonSocketService = new AnonSocketService(this._envConfig.VITE_SOCKET_URL)
+    app.provide(ANON_SESSION_SERVICE_KEY, anonSessionService)
+    app.provide(ANON_SOCKET_SERVICE_KEY, anonSocketService)
 
     if (isBackendless) {
       this._apiKeyValidatorValue.value = new LocalApiKeyValidator()

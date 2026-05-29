@@ -1,0 +1,16 @@
+<<<<<<< SEARCH
+import { createPinia } from 'pinia'
+=======
+import { createPinia } from 'pinia'
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    const pinia = createPinia()
+
+    app.use(pinia)
+=======
+    const pinia = createPinia()
+    pinia.use(piniaPluginPersistedstate)
+
+    app.use(pinia)
+>>>>>>> REPLACE

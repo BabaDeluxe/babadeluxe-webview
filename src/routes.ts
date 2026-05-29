@@ -19,6 +19,12 @@ export function createAppRouter(supabase: SupabaseClient): Router {
         meta: { layout: 'blank' },
       },
       {
+        path: '/register',
+        name: 'register',
+        component: async () => import('./views/LoginView.vue'),
+        meta: { layout: 'blank' },
+      },
+      {
         path: '/reset-password',
         name: 'reset-password',
         component: async () => import('./views/ResetPasswordView.vue'),
@@ -63,6 +69,7 @@ export function createAppRouter(supabase: SupabaseClient): Router {
         to.path === '/' ||
         to.path === '' ||
         to.path === '/login' ||
+        to.path === '/register' ||
         to.path === '/reset-password' ||
         to.path === '/auth/callback'
       ) {
@@ -78,7 +85,7 @@ export function createAppRouter(supabase: SupabaseClient): Router {
 
     if (
       !to.meta.requiresAuth &&
-      (to.path === '/' || to.path === '' || to.path === '/login' || to.path === '/auth/callback') &&
+      (to.path === '/' || to.path === '' || to.path === '/login' || to.path === '/register' || to.path === '/auth/callback') &&
       session
     ) {
       return { path: '/chat' }
