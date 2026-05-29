@@ -12,7 +12,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { ref, readonly } from 'vue'
 import type { AsyncInjectable } from '@/injection-keys'
-import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import {
+  API_KEY_VALIDATOR_KEY,
+  LOGGER_KEY,
+  SUPABASE_CLIENT_KEY,
+  SOCKET_MANAGER_KEY,
+} from '@/injection-keys'
 import type { IApiKeyValidator } from '@/api-key-validator'
 import SettingsView from '@/views/SettingsView.vue'
 
@@ -44,6 +49,17 @@ vi.mock('@/env-validator', () => ({
   isOfflineMode: () => true,
 }))
 
+vi.mock('@/composables/use-subscription-socket', () => ({
+  useSubscriptionSocket: () => ({
+    subscriptionTier: ref('PRO'),
+    subscriptionStatus: ref('active'),
+    cancelAtPeriodEnd: ref(false),
+    currentPeriodEnd: ref('2025-12-31'),
+    justUpdated: ref(false),
+    redirectToCustomerPortal: vi.fn(),
+  }),
+}))
+
 const makeValidator = (): IApiKeyValidator => ({ validate: vi.fn() })
 
 const mountWithInjectable = (injectable: AsyncInjectable<IApiKeyValidator>): VueWrapper =>
@@ -56,6 +72,10 @@ const mountWithInjectable = (injectable: AsyncInjectable<IApiKeyValidator>): Vue
           auth: {
             getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }),
           },
+        },
+        [SOCKET_MANAGER_KEY as symbol]: {
+          subscriptionSocket: { on: vi.fn(), off: vi.fn() },
+          chatSocket: { on: vi.fn(), off: vi.fn() },
         },
       },
       stubs: {

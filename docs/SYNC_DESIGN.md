@@ -235,9 +235,9 @@ export type SftpSyncRequest = Readonly<{
   type: 'sftp:sync:request'
   requestId: string
   op: 'push' | 'pull' | 'delete' | 'testConnection'
-  payload?: SyncPayload        // present for 'push'
-  conversationId?: number      // present for 'delete'
-  since?: string               // present for 'pull'
+  payload?: SyncPayload // present for 'push'
+  conversationId?: number // present for 'delete'
+  since?: string // present for 'pull'
 }>
 
 // Extension host → Webview
@@ -245,7 +245,7 @@ export type SftpSyncResponse = Readonly<{
   type: 'sftp:sync:response'
   requestId: string
   error?: string
-  payloads?: SyncPayload[]     // present for 'pull' response
+  payloads?: SyncPayload[] // present for 'pull' response
 }>
 ```
 
@@ -262,12 +262,12 @@ export type SftpSyncResponse = Readonly<{
 
 Specific op mappings:
 
-| Method | op | extra fields | success return |
-|---|---|---|---|
-| `push(payload)` | `push` | `payload` | `ok(undefined)` |
-| `pull(since?)` | `pull` | `since` | `ok(response.payloads ?? [])` |
-| `notifyDeleted(id)` | `delete` | `conversationId: id` | `ok(undefined)` |
-| `testConnection()` | `testConnection` | — | `ok(undefined)` |
+| Method              | op               | extra fields         | success return                |
+| ------------------- | ---------------- | -------------------- | ----------------------------- |
+| `push(payload)`     | `push`           | `payload`            | `ok(undefined)`               |
+| `pull(since?)`      | `pull`           | `since`              | `ok(response.payloads ?? [])` |
+| `notifyDeleted(id)` | `delete`         | `conversationId: id` | `ok(undefined)`               |
+| `testConnection()`  | `testConnection` | —                    | `ok(undefined)`               |
 
 **Extension-host follow-up** (`babadeluxe-vscode` — separate task, not in this repo):
 
@@ -282,11 +282,11 @@ Specific op mappings:
 
 Builds on `src/errors.ts`. The following sync-relevant error classes exist:
 
-| Error class | When used | Action |
-|---|---|---|
-| `SyncAuthError` | HTTP 401/403, SSH auth failure | Surface to UI immediately, disable sync, prompt re-auth. **Never retry.** |
-| `SyncError` | Network timeout, server errors, parse failures, SFTP timeout | Retry with exponential backoff via `src/retry.ts`. Max 5 attempts. |
-| `ConflictError` | GitHub SHA mismatch, WebDAV ETag `412` | Fetch remote, run conflict resolver (§6), retry push once. |
+| Error class     | When used                                                    | Action                                                                    |
+| --------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `SyncAuthError` | HTTP 401/403, SSH auth failure                               | Surface to UI immediately, disable sync, prompt re-auth. **Never retry.** |
+| `SyncError`     | Network timeout, server errors, parse failures, SFTP timeout | Retry with exponential backoff via `src/retry.ts`. Max 5 attempts.        |
+| `ConflictError` | GitHub SHA mismatch, WebDAV ETag `412`                       | Fetch remote, run conflict resolver (§6), retry push once.                |
 
 > **No additional error subclasses are defined for sync.** Only `SyncError`, `SyncAuthError`, and `ConflictError` from `src/errors.ts` are used. Do not introduce `SyncNetworkError`, `SyncConflictError`, `SyncDataError`, or similar.
 
@@ -331,7 +331,7 @@ interface SyncSettings {
     owner: string
     repo: string
     branch: string // default: 'main'
-    pat: string    // stored encrypted
+    pat: string // stored encrypted
   }
   webdav?: {
     url: string
@@ -340,7 +340,7 @@ interface SyncSettings {
   }
   sftp?: {
     host: string
-    port: number   // default: 22
+    port: number // default: 22
     username: string
     password: string // stored encrypted; extension-host uses this for SSH password auth
     remoteDir: string
@@ -354,12 +354,12 @@ interface SyncSettings {
 
 ## 11. Open Questions
 
-| # | Question | Impact | Recommendation |
-|---|---|---|---|
-| 1 | Push-on-save (debounced) vs. fixed interval? | GitHub rate limits; UX responsiveness | Debounce 30s on-save + 5-min interval as fallback |
-| 2 | Should sync settings live in the existing settings store or a dedicated Pinia store? | Code organisation | Dedicated `sync-store.ts` — keeps sync state (status, errors) separate from config |
-| 3 | Scope: sync chats only, or also settings? | Complexity | Chats only in v1; settings sync is a separate feature |
-| 4 | Encryption at rest on remote? | Privacy | Opt-in `AES-GCM` envelope wrapping before upload — design as a wrapper adapter (`EncryptedSyncAdapter`) |
+| #   | Question                                                                             | Impact                                | Recommendation                                                                                          |
+| --- | ------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1   | Push-on-save (debounced) vs. fixed interval?                                         | GitHub rate limits; UX responsiveness | Debounce 30s on-save + 5-min interval as fallback                                                       |
+| 2   | Should sync settings live in the existing settings store or a dedicated Pinia store? | Code organisation                     | Dedicated `sync-store.ts` — keeps sync state (status, errors) separate from config                      |
+| 3   | Scope: sync chats only, or also settings?                                            | Complexity                            | Chats only in v1; settings sync is a separate feature                                                   |
+| 4   | Encryption at rest on remote?                                                        | Privacy                               | Opt-in `AES-GCM` envelope wrapping before upload — design as a wrapper adapter (`EncryptedSyncAdapter`) |
 
 ---
 

@@ -58,10 +58,14 @@ export class SyncManager {
       return
     }
 
-    const timer = useTimeoutFn(() => {
-      this._pending.delete(conversationId)
-      void this._pushOne(conversationId)
-    }, flushDebounceMs, { immediate: false })
+    const timer = useTimeoutFn(
+      () => {
+        this._pending.delete(conversationId)
+        void this._pushOne(conversationId)
+      },
+      flushDebounceMs,
+      { immediate: false }
+    )
 
     this._pending.set(conversationId, timer)
     timer.start()

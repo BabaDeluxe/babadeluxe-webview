@@ -64,3 +64,11 @@ export function getApiProviders() {
     }
   })
 }
+
+/**
+ * Format raw tier name (e.g. "PRO") to human-readable format (e.g. "Pro")
+ */
+export function formatTierName(tier: string | null): string {
+  if (!tier) return 'Hobby'
+  return tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase()
+}

@@ -1,4 +1,5 @@
 import { ref, onBeforeUnmount, readonly, computed, watch } from 'vue'
+import { useTimeoutFn } from '@vueuse/core'
 import type { SocketManager } from '@/socket-manager'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import { type SocketConnectionError, NetworkError, SocketError } from '@/errors'
@@ -10,15 +11,24 @@ import {
   subscriptionSocketConnectionFailed,
   serverAcknowledgmentTimeout,
   failedToCreateCheckoutSession,
+  failedToCreatePortalSession,
 } from '@/composables/constants'
 
 // ----------------------------------------------------------------------
 // Types for attached handlers (both sockets)
 // ----------------------------------------------------------------------
+export interface SubscriptionUpdatedPayload {
+  tier: string
+  status: string
+  currentPeriodEnd: string
+  cancelAtPeriodEnd: boolean
+}
+
 type AttachedHandlers = Readonly<{
   onUserTierChanged: (payload: { tier: string }) => void
   onCheckoutSessionError: (payload: { error: string }) => void
   onMessageLimitReached: () => void // from chat socket
+  onSubscriptionUpdated: (payload: SubscriptionUpdatedPayload) => void
 }>
 
 /**
@@ -49,6 +59,20 @@ export function useSubscriptionSocket() {
   const isMessageLimitReached = ref(false)
   const isDismissed = ref(false)
 
+  const subscriptionTier = ref<string | null>(null)
+  const subscriptionStatus = ref<string | null>(null)
+  const cancelAtPeriodEnd = ref<boolean | null>(null)
+  const currentPeriodEnd = ref<string | null>(null)
+  const justUpdated = ref(false)
+
+  const { start: startJustUpdatedTimer } = useTimeoutFn(
+    () => {
+      justUpdated.value = false
+    },
+    3000,
+    { immediate: false }
+  )
+
   // --------------------------------------------------------------------
   // Event handlers
   // --------------------------------------------------------------------
@@ -68,17 +92,38 @@ export function useSubscriptionSocket() {
     isDismissed.value = false
   }
 
+  const onSubscriptionUpdated = (payload: SubscriptionUpdatedPayload) => {
+    const isInitialHydration = subscriptionTier.value === null && subscriptionStatus.value === null
+
+    subscriptionTier.value = payload.tier
+    subscriptionStatus.value = payload.status
+    cancelAtPeriodEnd.value = payload.cancelAtPeriodEnd
+    currentPeriodEnd.value = payload.currentPeriodEnd
+
+    if (!isInitialHydration) {
+      justUpdated.value = true
+      startJustUpdatedTimer()
+    }
+  }
+
   // --------------------------------------------------------------------
   // Attachment helpers (each socket gets its own WeakMap)
   // --------------------------------------------------------------------
   const attachSubscriptionListeners = (socket: SocketManager['subscriptionSocket']) => {
     let handlers = subscriptionHandlersBySocket.get(socket)
     if (!handlers) {
-      handlers = { onUserTierChanged, onCheckoutSessionError, onMessageLimitReached }
+      handlers = {
+        onUserTierChanged,
+        onCheckoutSessionError,
+        onMessageLimitReached,
+        onSubscriptionUpdated,
+      }
       subscriptionHandlersBySocket.set(socket, handlers)
     }
     socket.on('subscription:userTierChanged', handlers.onUserTierChanged)
     socket.on('subscription:checkoutSessionError', handlers.onCheckoutSessionError)
+    // @ts-ignore
+    socket.on('subscription:updated', handlers.onSubscriptionUpdated)
   }
 
   const detachSubscriptionListeners = (socket: SocketManager['subscriptionSocket']) => {
@@ -86,13 +131,20 @@ export function useSubscriptionSocket() {
     if (handlers) {
       socket.off('subscription:userTierChanged', handlers.onUserTierChanged)
       socket.off('subscription:checkoutSessionError', handlers.onCheckoutSessionError)
+      // @ts-ignore
+      socket.off('subscription:updated', handlers.onSubscriptionUpdated)
     }
   }
 
   const attachChatListeners = (socket: SocketManager['chatSocket']) => {
     let handlers = chatHandlersBySocket.get(socket)
     if (!handlers) {
-      handlers = { onUserTierChanged, onCheckoutSessionError, onMessageLimitReached } // reuse type
+      handlers = {
+        onUserTierChanged,
+        onCheckoutSessionError,
+        onMessageLimitReached,
+        onSubscriptionUpdated,
+      } // reuse type
       chatHandlersBySocket.set(socket, handlers)
     }
     socket.on('subscription:messageLimitReached', handlers.onMessageLimitReached)
@@ -205,13 +257,85 @@ export function useSubscriptionSocket() {
     return err(networkError)
   }
 
+  const redirectToCustomerPortal = async (): Promise<Result<void, SocketConnectionError>> => {
+    const socket = subscriptionSocketRef.value
+    if (!socket) {
+      const e = new SocketError(subscriptionSocketNotConnected)
+      error.value = e
+      return err(e)
+    }
+
+    isUpgrading.value = true
+    error.value = undefined
+
+    const waitResult = await socket.waitForConnection()
+
+    if (waitResult.isErr()) {
+      isUpgrading.value = false
+      const rootError = waitResult.error
+      const mappedError =
+        rootError instanceof NetworkError || rootError instanceof SocketError
+          ? rootError
+          : new NetworkError(subscriptionSocketConnectionFailed, rootError)
+      error.value = mappedError
+      return err(mappedError)
+    }
+
+    const responseResult = await ResultAsync.fromPromise(
+      new Promise<{ success: boolean; portalUrl?: string; error?: string }>((resolve, reject) => {
+        const timeoutId = createTimeout(() => {
+          reject(new NetworkError(serverAcknowledgmentTimeout))
+        }, socketTimeoutMs.subscription)
+
+        // @ts-ignore
+        const s = socket as unknown as { emit: (event: string, ...args: unknown[]) => void }
+        s.emit(
+          'subscription:createPortalSession',
+          (res: { success: boolean; portalUrl?: string; error?: string }) => {
+            cancelTimeout(timeoutId)
+            resolve(res)
+          }
+        )
+      }),
+      (error) => {
+        return error instanceof NetworkError
+          ? error
+          : new NetworkError(failedToCreatePortalSession, error)
+      }
+    )
+
+    isUpgrading.value = false
+
+    if (responseResult.isErr()) {
+      error.value = responseResult.error
+      return err(responseResult.error)
+    }
+
+    const response = responseResult.value
+
+    if (response.success && response.portalUrl) {
+      window.location.href = response.portalUrl
+      return ok(undefined)
+    }
+
+    const networkError = new NetworkError(response.error ?? failedToCreatePortalSession)
+    error.value = networkError
+    return err(networkError)
+  }
+
   return {
     isUpgrading: readonly(isUpgrading),
     error: readonly(error),
     isMessageLimitReached: readonly(isMessageLimitReached),
     redirectToCheckout,
+    redirectToCustomerPortal,
     isConnected: computed(() => subscriptionSocketRef.value?.isConnected ?? false),
     shouldShowModal: readonly(shouldShowModal),
     dismissModal,
+    subscriptionTier: readonly(subscriptionTier),
+    subscriptionStatus: readonly(subscriptionStatus),
+    cancelAtPeriodEnd: readonly(cancelAtPeriodEnd),
+    currentPeriodEnd: readonly(currentPeriodEnd),
+    justUpdated: readonly(justUpdated),
   }
 }
