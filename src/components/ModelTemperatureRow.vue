@@ -46,14 +46,10 @@
 import { ref, computed, watch } from 'vue'
 import { temperatureLabel } from '@/model-preferences'
 import BaseButton from '@/components/BaseButton.vue'
-
-interface Model {
-  label: string
-  value: string
-}
+import type { IModel } from '@/model-interface'
 
 interface Props {
-  model: Model
+  model: IModel
   temperature?: number
 }
 

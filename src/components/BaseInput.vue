@@ -45,7 +45,7 @@
         :aria-label="showPassword ? 'Hide password' : 'Show password'"
         tabindex="-1"
         class="absolute right-2 text-subtleText/50 hover:text-accent transition-colors"
-        @click="togglePassword"
+        @click="() => togglePassword()"
       >
         <span
           v-if="showPassword"
@@ -96,8 +96,7 @@
 
 <script setup lang="ts">
 import { ref, computed, useId } from 'vue'
-import BaseButton from '@/components/BaseButton.vue'
-
+import { useToggle } from '@vueuse/core'
 type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid'
 
 interface BaseInputProps {
@@ -143,7 +142,7 @@ const emit = defineEmits<{
 
 const inputId = useId()
 const errorId = computed(() => `${inputId}-error`)
-const showPassword = ref(false)
+const [showPassword, togglePassword] = useToggle(false)
 const inputRef = ref<HTMLInputElement>()
 
 const computedType = computed(() => {
@@ -175,10 +174,6 @@ function handleInput(event: Event) {
   const target = event.target as HTMLInputElement
   const value = props.type === 'number' ? Number(target.value) : target.value
   emit('update:modelValue', value)
-}
-
-function togglePassword() {
-  showPassword.value = !showPassword.value
 }
 
 defineExpose({

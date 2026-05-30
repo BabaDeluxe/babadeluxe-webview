@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@babadeluxe/shared':
-        specifier: ^0.21.0
-        version: 0.21.0(socket.io@4.8.3)(typescript@5.8.3)
+        specifier: ^0.22.0
+        version: 0.22.0(socket.io@4.8.3)(typescript@5.8.3)
       '@lottiefiles/dotlottie-vue':
         specifier: ^0.10.1
         version: 0.10.15(vue@3.5.32(typescript@5.8.3))
@@ -225,9 +225,8 @@ packages:
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
 
-  '@babadeluxe/shared@0.21.0':
-    resolution: {integrity: sha512-3ijAcOSSwxe+XGgBtIiVGWl3eKD6F0/9LuFHVnrVjhVhS9lAyOpUAXW0WVKK7TuneBC6LL3aA9pmf4Dau+tKgw==, tarball: http://npflared.simonwaiblinger.workers.dev/@babadeluxe/shared/-/@babadeluxe/shared-0.21.0.tgz}
-    engines: {node: '>=20.19 <24'}
+  '@babadeluxe/shared@0.22.0':
+    resolution: {integrity: sha512-zyYuarS6Sj7t4T5iuCqZXq3L0VeK1O30UBao1J9NeVSEUdYdi64dp3CWI8ToFqU5T5zGrpJVfUe6yNneYkHVLQ==, tarball: http://npflared.simonwaiblinger.workers.dev/@babadeluxe/shared/-/@babadeluxe/shared-0.22.0.tgz}
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -2400,8 +2399,8 @@ packages:
     resolution: {integrity: sha512-HqD3yTBfnBxIrbnM1DoD6Pcq8NECnh8d4As1Qgh0z5Gg3jRRIqijury0CL3ghu/edArpUYiYqQiDUQBIs4np3Q==}
     engines: {node: '>=10.0.0'}
 
-  engine.io@6.6.7:
-    resolution: {integrity: sha512-DgOngfDKM2EviOH3Mr9m7ks1q8roetLy/IMmYthAYzbpInMbYc/GS+fWFA3rl1gvwKVsQrVV61fo5emD1y3OJQ==}
+  engine.io@6.6.8:
+    resolution: {integrity: sha512-2agL3ueZhqxoVrfmntO8yuVj+uNSlIOnhykYHk3Cq0ShYPdUjjUiSJrQvXjq01I9jAuI0Zl2YO8Evv5Mqytm5g==}
     engines: {node: '>=10.2.0'}
 
   enhance-visitors@1.0.0:
@@ -4102,8 +4101,8 @@ packages:
     resolution: {integrity: sha512-dWUG8F5sIIARXih1DTaQAX4SsiTXhInKf1buxdY9DIg4ZYPZK5nGM1VRIYmEbDbsHt7USo99xSLFu5Q1IqTmsg==}
     engines: {node: '>= 18'}
 
-  socket.io-adapter@2.5.6:
-    resolution: {integrity: sha512-DkkO/dz7MGln0dHn5bmN3pPy+JmywNICWrJqVWiVOyvXjWQFIv9c2h24JrQLLFJ2aQVQf/Cvl1vblnd4r2apLQ==}
+  socket.io-adapter@2.5.7:
+    resolution: {integrity: sha512-e0LyK91f3cUxTmv95/KzoLg47+zF+s/sbxRGDNsyG4dmIP8ZSX8ax6byOxfJXeNNtS/8AZlfD+uP7gBeR7DLlg==}
 
   socket.io-client@4.8.3:
     resolution: {integrity: sha512-uP0bpjWrjQmUt5DTHq9RuoCBdFJF10cdX9X+a368j/Ft0wmaVgxlrjvK3kjvgCODOMMOz9lcaRzxmso0bTWZ/g==}
@@ -4701,6 +4700,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.20.1:
+    resolution: {integrity: sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   wsl-utils@0.1.0:
     resolution: {integrity: sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw==}
     engines: {node: '>=18'}
@@ -4788,7 +4799,7 @@ snapshots:
       '@csstools/css-tokenizer': 3.0.4
       lru-cache: 10.4.3
 
-  '@babadeluxe/shared@0.21.0(socket.io@4.8.3)(typescript@5.8.3)':
+  '@babadeluxe/shared@0.22.0(socket.io@4.8.3)(typescript@5.8.3)':
     dependencies:
       dotenv: 17.4.1
       neverthrow: 8.2.0
@@ -7020,7 +7031,7 @@ snapshots:
 
   engine.io-parser@5.2.3: {}
 
-  engine.io@6.6.7:
+  engine.io@6.6.8:
     dependencies:
       '@types/cors': 2.8.19
       '@types/node': 22.19.17
@@ -7031,7 +7042,7 @@ snapshots:
       cors: 2.8.6
       debug: 4.4.3
       engine.io-parser: 5.2.3
-      ws: 8.18.3
+      ws: 8.20.1
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -8989,10 +9000,10 @@ snapshots:
 
   smol-toml@1.6.1: {}
 
-  socket.io-adapter@2.5.6:
+  socket.io-adapter@2.5.7:
     dependencies:
       debug: 4.4.3
-      ws: 8.18.3
+      ws: 8.20.1
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -9027,8 +9038,8 @@ snapshots:
       base64id: 2.0.0
       cors: 2.8.6
       debug: 4.4.3
-      engine.io: 6.6.7
-      socket.io-adapter: 2.5.6
+      engine.io: 6.6.8
+      socket.io-adapter: 2.5.7
       socket.io-parser: 4.2.6
     transitivePeerDependencies:
       - bufferutil
@@ -9679,6 +9690,8 @@ snapshots:
   ws@8.18.3: {}
 
   ws@8.20.0: {}
+
+  ws@8.20.1: {}
 
   wsl-utils@0.1.0:
     dependencies:
