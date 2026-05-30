@@ -1,16 +1,14 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { SyncStatus, SyncBackend, ConflictInfo } from '@/sync/types'
+import { type SyncStatus, type SyncBackend, type ConflictInfo, type SyncConfig } from '@/sync/types'
 import { SyncManager } from '@/sync/sync-manager'
 import { GitHubSyncAdapter } from '@/sync/github-adapter'
+import { WebDavSyncAdapter } from '@/sync/webdav-adapter'
+import { GitLabSyncAdapter } from '@/sync/gitlab-adapter'
+import { AzureDevOpsSyncAdapter } from '@/sync/azure-devops-adapter'
 import { DeviceIdService } from '@/sync/device-id'
 import { safeInject } from '@/safe-inject'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
-
-export type SyncConfig =
-  | { backend: 'github'; token: string; owner: string; repo: string; branch?: string }
-  | { backend: 'webdav'; url: string; username: string; password: string }
-  | { backend: 'sftp'; host: string; port: number; username: string; privateKey: string }
 
 export const useSyncStore = defineStore('sync', () => {
   const db = safeInject(APP_DB_KEY)
@@ -46,18 +44,21 @@ export const useSyncStore = defineStore('sync', () => {
       return
     }
 
+    let adapter = null
+
     if (config.backend === 'github') {
-      const adapter = new GitHubSyncAdapter(
-        {
-          token: config.token,
-          owner: config.owner,
-          repo: config.repo,
-          branch: config.branch,
-        },
-        deviceIdService
-      )
+      adapter = new GitHubSyncAdapter(config)
+    } else if (config.backend === 'webdav') {
+      adapter = new WebDavSyncAdapter(config)
+    } else if (config.backend === 'gitlab') {
+      adapter = new GitLabSyncAdapter(config)
+    } else if (config.backend === 'azure-devops') {
+      adapter = new AzureDevOpsSyncAdapter(config)
+    }
+
+    if (adapter) {
       manager.setAdapter(adapter)
-      activeBackend.value = 'github'
+      activeBackend.value = config.backend as SyncBackend
 
       const testResult = await adapter.testConnection()
       if (testResult.isErr()) {

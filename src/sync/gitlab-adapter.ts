@@ -2,22 +2,21 @@
 import { ok, err, type Result } from 'neverthrow'
 import { SyncError, SyncAuthError, RateLimitError } from '@/errors'
 import { BaseSyncAdapter } from '@/sync/base-adapter'
-import { type FetchFn, type GitHubConfig, type FetchResponse } from '@/sync/types'
+import { type FetchFn, type GitLabConfig, type FetchResponse } from '@/sync/types'
 
-export class GitHubSyncAdapter extends BaseSyncAdapter {
-  readonly name = 'github'
-  private readonly _branch: string
+export class GitLabSyncAdapter extends BaseSyncAdapter {
+  readonly name = 'gitlab'
+  private readonly _apiBase: string
 
-  constructor(private readonly _config: GitHubConfig) {
-    super('https://api.github.com')
-    this._branch = _config.branch || 'main'
+  constructor(private readonly _config: GitLabConfig) {
+    const apiBase = _config.apiBase || 'https://gitlab.com/api/v4'
+    super(apiBase)
+    this._apiBase = apiBase
   }
 
   async testConnection(): Promise<Result<void, SyncError>> {
     try {
-      const res = await this._getFetch()(
-        `https://api.github.com/repos/${this._config.owner}/${this._config.repo}`
-      )
+      const res = await this._getFetch()(`${this._apiBase}/user`)
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError(this.name, `HTTP ${res.status}`))
       }
@@ -37,12 +36,10 @@ export class GitHubSyncAdapter extends BaseSyncAdapter {
         headers: {
           ...options.headers,
           Authorization: `Bearer ${this._config.token}`,
-          Accept: 'application/vnd.github.v3+json',
-          'X-GitHub-Api-Version': '2022-11-28',
         },
       })
-      if (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0') {
-        throw new RateLimitError('GitHub rate limit exceeded')
+      if (res.status === 429) {
+        throw new RateLimitError('GitLab rate limit exceeded')
       }
       return res as FetchResponse
     }
@@ -50,47 +47,46 @@ export class GitHubSyncAdapter extends BaseSyncAdapter {
 
   protected async _putFile(shardUrl: string, path: string, content: string): Promise<void> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `${shardUrl}/${path}` : path
-    const url = `https://api.github.com/repos/${this._config.owner}/${this._config.repo}/contents/${prefixedPath}`
+    const encodedPath = encodeURIComponent(prefixedPath)
+    const url = `${this._apiBase}/projects/${this._config.projectId}/repository/files/${encodedPath}`
 
-    const getRes = await this._getFetch()(`${url}?ref=${this._branch}`)
-    let sha: string | undefined
-    if (getRes.ok) {
-      const data = (await getRes.json()) as { sha: string }
-      sha = data.sha
-    }
+    const checkRes = await this._getFetch()(`${url}?ref=main`, { method: 'HEAD' })
+    const method = checkRes.ok ? 'PUT' : 'POST'
 
     const res = await this._getFetch()(url, {
-      method: 'PUT',
+      method,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: `sync: write ${path}`,
+        branch: 'main',
         content,
-        branch: this._branch,
-        sha,
+        commit_message: `sync: write ${path}`,
+        encoding: 'base64',
       }),
     })
 
     if (!res.ok) {
-      throw new Error(`Failed to PUT file ${path}: ${res.status}`)
+      throw new Error(`Failed to ${method} file ${path}: ${res.status}`)
     }
   }
 
   protected async _getFile(shardUrl: string, path: string): Promise<string | null> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `${shardUrl}/${path}` : path
-    const url = `https://api.github.com/repos/${this._config.owner}/${this._config.repo}/contents/${prefixedPath}?ref=${this._branch}`
+    const encodedPath = encodeURIComponent(prefixedPath)
+    const url = `${this._apiBase}/projects/${this._config.projectId}/repository/files/${encodedPath}?ref=main`
     const res = await this._getFetch()(url)
     if (res.status === 404) return null
     if (!res.ok) throw new Error(`Failed to GET file ${path}: ${res.status}`)
     const data = (await res.json()) as { content: string }
-    return data.content.replace(/\n/g, '')
+    return data.content
   }
 
   protected async _isShardFull(): Promise<boolean> {
     const res = await this._getFetch()(
-      `https://api.github.com/repos/${this._config.owner}/${this._config.repo}`
+      `${this._apiBase}/projects/${this._config.projectId}?statistics=true`
     )
     if (!res.ok) return false
-    const data = (await res.json()) as { size: number }
-    const size = (data.size || 0) * 1024
+    const data = (await res.json()) as { statistics: { repository_size: number } }
+    const size = data.statistics?.repository_size || 0
     return size > 4800000000
   }
 

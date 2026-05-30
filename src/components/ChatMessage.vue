@@ -133,7 +133,8 @@ const contextBadges = computed(() => {
 
     if (!isFile) {
       const sanitizedSnippet = ref.snippetText.trim().replace(/\s+/g, ' ')
-      subtitle = sanitizedSnippet.length > 60 ? `${sanitizedSnippet.slice(0, 60)}…` : sanitizedSnippet
+      subtitle =
+        sanitizedSnippet.length > 60 ? `${sanitizedSnippet.slice(0, 60)}…` : sanitizedSnippet
       tooltip = path ? `${path}\n\n${ref.snippetText}` : ref.snippetText
     }
 
