@@ -1,16 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { GitHubSyncAdapter } from '@/sync/github-adapter'
+import { GitHubBackendDriver } from '@/sync/github-adapter'
+import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { SyncAuthError, RateLimitError } from '@/errors'
 import { type SyncPayload } from '@/sync/types'
 
-describe('GitHubSyncAdapter', () => {
+describe('GitHub Sync', () => {
   const config = { token: 't', owner: 'o', repo: 'r' }
-  let adapter: GitHubSyncAdapter
+  let driver: GitHubBackendDriver
+  let service: ShardedSyncService
 
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-    adapter = new GitHubSyncAdapter(config)
+    driver = new GitHubBackendDriver(config)
+    service = new ShardedSyncService(driver)
   })
 
   it('should push files using GitHub API and include fresh SHA', async () => {
@@ -59,7 +62,7 @@ describe('GitHubSyncAdapter', () => {
       deviceId: 'd',
     } as unknown as SyncPayload
 
-    await adapter.push(payload)
+    await service.push(payload)
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('repos/o/r/contents/keys/101.000.md'),
@@ -80,7 +83,7 @@ describe('GitHubSyncAdapter', () => {
       json: async () => ({}),
     } as any)
 
-    const result = await adapter.testConnection()
+    const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr()).toBeInstanceOf(SyncAuthError)
   })
@@ -95,7 +98,7 @@ describe('GitHubSyncAdapter', () => {
       json: async () => ({}),
     } as any)
 
-    const result = await adapter.testConnection()
+    const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr()).toBeInstanceOf(RateLimitError)
   })

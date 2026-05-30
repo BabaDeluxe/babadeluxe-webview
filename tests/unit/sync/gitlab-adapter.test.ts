@@ -1,17 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/naming-convention */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { GitLabSyncAdapter } from '@/sync/gitlab-adapter'
+import { GitLabBackendDriver } from '@/sync/gitlab-adapter'
+import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { SyncAuthError, RateLimitError } from '@/errors'
 import { type SyncPayload } from '@/sync/types'
 
-describe('GitLabSyncAdapter', () => {
+describe('GitLab Sync', () => {
   const config = { token: 't', projectId: '123' }
-  let adapter: GitLabSyncAdapter
+  let driver: GitLabBackendDriver
+  let service: ShardedSyncService
 
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-    adapter = new GitLabSyncAdapter(config)
+    driver = new GitLabBackendDriver(config)
+    service = new ShardedSyncService(driver)
   })
 
   it('should push files using GitLab API', async () => {
@@ -66,7 +69,7 @@ describe('GitLabSyncAdapter', () => {
       deviceId: 'd',
     } as unknown as SyncPayload
 
-    await adapter.push(payload)
+    await service.push(payload)
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('projects/123/repository/files/keys%2F456.000.md'),
@@ -89,7 +92,7 @@ describe('GitLabSyncAdapter', () => {
       headers: { get: () => null },
     } as any)
 
-    const result = await adapter.testConnection()
+    const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr()).toBeInstanceOf(SyncAuthError)
   })
@@ -104,7 +107,7 @@ describe('GitLabSyncAdapter', () => {
       headers: { get: () => null },
     } as any)
 
-    const result = await adapter.testConnection()
+    const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr()).toBeInstanceOf(RateLimitError)
   })

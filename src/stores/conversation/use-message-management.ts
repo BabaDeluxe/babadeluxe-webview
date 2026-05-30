@@ -1,6 +1,6 @@
-import { ref, type Ref } from 'vue'
+import { type Ref } from 'vue'
 import { ok, err, type Result } from 'neverthrow'
-import type { Message, ContextReference } from '@/database/types'
+import type { Message } from '@/database/types'
 import type { AppDb } from '@/database/app-db'
 import type { DbError } from '@/errors'
 import { ChatError, MessageNotFoundError } from '@/errors'

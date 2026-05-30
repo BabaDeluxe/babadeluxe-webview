@@ -1,16 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { WebDavSyncAdapter } from '@/sync/webdav-adapter'
+import { WebDavBackendDriver } from '@/sync/webdav-adapter'
+import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { SyncAuthError } from '@/errors'
 import { type SyncPayload } from '@/sync/types'
 
-describe('WebDavSyncAdapter', () => {
+describe('WebDav Sync', () => {
   const config = { url: 'https://dav.test/', username: 'u', password: 'p' }
-  let adapter: WebDavSyncAdapter
+  let driver: WebDavBackendDriver
+  let service: ShardedSyncService
 
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-    adapter = new WebDavSyncAdapter(config)
+    driver = new WebDavBackendDriver(config)
+    service = new ShardedSyncService(driver)
   })
 
   it('should perform offline check with HEAD', async () => {
@@ -23,7 +26,7 @@ describe('WebDavSyncAdapter', () => {
       syncVersion: 1,
       deviceId: 'd',
     } as unknown as SyncPayload
-    const result = await adapter.push(payload)
+    const result = await service.push(payload)
 
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr().message).toContain('Offline')
@@ -73,7 +76,7 @@ describe('WebDavSyncAdapter', () => {
       deviceId: 'd',
     } as unknown as SyncPayload
 
-    await adapter.push(payload)
+    await service.push(payload)
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('_sync/shard_map.json'),
@@ -106,8 +109,52 @@ describe('WebDavSyncAdapter', () => {
       headers: { get: () => null },
     } as any)
 
-    const result = await adapter.testConnection()
+    const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr()).toBeInstanceOf(SyncAuthError)
+  })
+
+  it('should return empty array if a chunk is missing during pull', async () => {
+    const fetchMock = vi.mocked(fetch)
+    fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
+      const urlStr = String(url)
+      const method = init?.method?.toUpperCase() || 'GET'
+      if (method === 'HEAD') return { ok: true, status: 200 } as any
+      if (urlStr.includes('shard_map.json'))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ n: 1, shards: [{ index: 0, url: config.url, readOnly: false }] }),
+        } as any
+      if (urlStr.includes('.sync_metadata.json'))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            keys: {
+              test: {
+                path: 'keys/test.000.md',
+                parts: ['keys/test.000.md', 'keys/test.001.md'],
+                sha256: 'h',
+                ts: 0,
+              },
+            },
+          }),
+        } as any
+      if (urlStr.includes('test.000.md'))
+        return {
+          ok: true,
+          status: 200,
+          text: async () => 'chunk1',
+          headers: { get: () => null },
+        } as any
+      if (urlStr.includes('test.001.md'))
+        return { ok: false, status: 404, headers: { get: () => null } } as any
+      return { ok: true, status: 200, headers: { get: () => null } } as any
+    })
+
+    const result = await service.pull()
+    expect(result.isOk()).toBe(true)
+    expect(result._unsafeUnwrap()).toHaveLength(0)
   })
 })

@@ -1,25 +1,31 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { ok, err, type Result } from 'neverthrow'
 import { SyncError, SyncAuthError, RateLimitError } from '@/errors'
-import { BaseSyncAdapter } from '@/sync/base-adapter'
-import { type FetchFn, type AzureDevOpsConfig, type FetchResponse } from '@/sync/types'
+import {
+  type FetchFn,
+  type AzureDevOpsConfig,
+  type FetchResponse,
+  type ISyncBackendDriver,
+} from '@/sync/types'
 
-export class AzureDevOpsSyncAdapter extends BaseSyncAdapter {
+export class AzureDevOpsBackendDriver implements ISyncBackendDriver {
   readonly name = 'azure-devops'
   private readonly _apiBase: string
   private readonly _auth: string
 
   constructor(private readonly _config: AzureDevOpsConfig) {
-    const apiBase =
+    this._apiBase =
       _config.apiBase || `https://dev.azure.com/${_config.org}/${_config.project}/_apis`
-    super(apiBase)
-    this._apiBase = apiBase
     this._auth = `Basic ${btoa(':' + this._config.pat)}`
+  }
+
+  getRootUrl(): string {
+    return this._apiBase
   }
 
   async testConnection(): Promise<Result<void, SyncError>> {
     try {
-      const res = await this._getFetch()(
+      const res = await this.getFetch()(
         `${this._apiBase}/git/repositories/${this._config.repo}?api-version=7.1`
       )
       if (res.status === 401 || res.status === 403) {
@@ -30,11 +36,11 @@ export class AzureDevOpsSyncAdapter extends BaseSyncAdapter {
       }
       return ok(undefined)
     } catch (e) {
-      return err(this._handleError(e))
+      return err(new SyncError(this.name, e instanceof Error ? e.message : String(e), e))
     }
   }
 
-  protected _getFetch(): FetchFn {
+  getFetch(): FetchFn {
     return async (url, options = {}) => {
       const res = await fetch(url, {
         ...options,
@@ -50,17 +56,17 @@ export class AzureDevOpsSyncAdapter extends BaseSyncAdapter {
     }
   }
 
-  protected async _putFile(shardUrl: string, path: string, content: string): Promise<void> {
+  async putFile(shardUrl: string, path: string, content: string): Promise<void> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `/${shardUrl}/${path}` : `/${path}`
 
-    const refsRes = await this._getFetch()(
+    const refsRes = await this.getFetch()(
       `${this._apiBase}/git/repositories/${this._config.repo}/refs?filter=heads/main&api-version=7.1`
     )
     if (!refsRes.ok) throw new Error(`Failed to fetch refs: ${refsRes.status}`)
     const refsData = (await refsRes.json()) as { value: Array<{ objectId: string }> }
     const oldObjectId = refsData.value?.[0]?.objectId || '0000000000000000000000000000000000000000'
 
-    const itemRes = await this._getFetch()(
+    const itemRes = await this.getFetch()(
       `${this._apiBase}/git/repositories/${
         this._config.repo
       }/items?path=${encodeURIComponent(prefixedPath)}&api-version=7.1`,
@@ -84,7 +90,7 @@ export class AzureDevOpsSyncAdapter extends BaseSyncAdapter {
       ],
     }
 
-    const res = await this._getFetch()(
+    const res = await this.getFetch()(
       `${this._apiBase}/git/repositories/${this._config.repo}/pushes?api-version=7.1`,
       {
         method: 'POST',
@@ -98,19 +104,19 @@ export class AzureDevOpsSyncAdapter extends BaseSyncAdapter {
     }
   }
 
-  protected async _getFile(shardUrl: string, path: string): Promise<string | null> {
+  async getFile(shardUrl: string, path: string): Promise<string | null> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `/${shardUrl}/${path}` : `/${path}`
     const url = `${this._apiBase}/git/repositories/${
       this._config.repo
     }/items?path=${encodeURIComponent(prefixedPath)}&includeContent=true&api-version=7.1`
-    const res = await this._getFetch()(url)
+    const res = await this.getFetch()(url)
     if (res.status === 404) return null
     if (!res.ok) throw new Error(`Failed to GET file ${path}: ${res.status}`)
     return await res.text()
   }
 
-  protected async _isShardFull(): Promise<boolean> {
-    const res = await this._getFetch()(
+  async isShardFull(): Promise<boolean> {
+    const res = await this.getFetch()(
       `${this._apiBase}/git/repositories/${this._config.repo}?api-version=7.1`
     )
     if (!res.ok) return false
@@ -119,7 +125,7 @@ export class AzureDevOpsSyncAdapter extends BaseSyncAdapter {
     return size > 8000000000
   }
 
-  protected async _createNewShardFolder(index: number): Promise<string> {
+  async createNewShardFolder(index: number): Promise<string> {
     return `shard-${index}`
   }
 }

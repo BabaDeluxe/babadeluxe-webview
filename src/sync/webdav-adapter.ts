@@ -1,22 +1,28 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { ok, err, type Result } from 'neverthrow'
 import { SyncError, SyncAuthError } from '@/errors'
-import { BaseSyncAdapter } from '@/sync/base-adapter'
-import { loadMetadata } from '@/sync/shard-utils'
-import { type WebDavConfig, type FetchFn, type FetchResponse } from '@/sync/types'
+import {
+  type WebDavConfig,
+  type FetchFn,
+  type FetchResponse,
+  type ISyncBackendDriver,
+} from '@/sync/types'
 
-export class WebDavSyncAdapter extends BaseSyncAdapter {
+export class WebDavBackendDriver implements ISyncBackendDriver {
   readonly name = 'webdav'
   private readonly _auth: string
 
   constructor(private readonly _config: WebDavConfig) {
-    super(_config.url)
     this._auth = `Basic ${btoa(this._config.username + ':' + this._config.password)}`
+  }
+
+  getRootUrl(): string {
+    return this._config.url
   }
 
   async testConnection(): Promise<Result<void, SyncError>> {
     try {
-      const res = await this._getFetch()(this._config.url, {
+      const res = await this.getFetch()(this._config.url, {
         method: 'PROPFIND',
         headers: {
           Depth: '0',
@@ -33,11 +39,11 @@ export class WebDavSyncAdapter extends BaseSyncAdapter {
 
       return ok(undefined)
     } catch (e) {
-      return err(this._handleError(e))
+      return err(new SyncError(this.name, e instanceof Error ? e.message : String(e), e))
     }
   }
 
-  protected _getFetch(): FetchFn {
+  getFetch(): FetchFn {
     return async (url, options = {}) => {
       const res = await fetch(url, {
         ...options,
@@ -50,7 +56,7 @@ export class WebDavSyncAdapter extends BaseSyncAdapter {
     }
   }
 
-  protected async _putFile(shardUrl: string, path: string, content: string): Promise<void> {
+  async putFile(shardUrl: string, path: string, content: string): Promise<void> {
     const url = shardUrl.endsWith('/') ? `${shardUrl}${path}` : `${shardUrl}/${path}`
 
     if (path.includes('/')) {
@@ -59,11 +65,11 @@ export class WebDavSyncAdapter extends BaseSyncAdapter {
       for (let i = 0; i < parts.length - 1; i++) {
         const folder = parts[i]
         current = current.endsWith('/') ? `${current}${folder}` : `${current}/${folder}`
-        await this._getFetch()(current, { method: 'MKCOL' }).catch(() => {})
+        await this.getFetch()(current, { method: 'MKCOL' }).catch(() => {})
       }
     }
 
-    const res = await this._getFetch()(url, {
+    const res = await this.getFetch()(url, {
       method: 'PUT',
       body: content,
     })
@@ -73,25 +79,31 @@ export class WebDavSyncAdapter extends BaseSyncAdapter {
     }
   }
 
-  protected async _getFile(shardUrl: string, path: string): Promise<string | null> {
+  async getFile(shardUrl: string, path: string): Promise<string | null> {
     const url = shardUrl.endsWith('/') ? `${shardUrl}${path}` : `${shardUrl}/${path}`
-    const res = await this._getFetch()(url)
+    const res = await this.getFetch()(url)
     if (res.status === 404) return null
     if (!res.ok) throw new Error(`Failed to GET file ${path}: ${res.status}`)
     return await res.text()
   }
 
-  protected async _isShardFull(shardUrl: string): Promise<boolean> {
-    const metadata = await loadMetadata(this._getFetch(), shardUrl)
+  async isShardFull(shardUrl: string): Promise<boolean> {
+    const url = shardUrl.endsWith('/')
+      ? `${shardUrl}.sync_metadata.json`
+      : `${shardUrl}/.sync_metadata.json`
+    const res = await this.getFetch()(url)
+    if (res.status === 404) return false
+    if (!res.ok) throw new Error(`Failed to load metadata: ${res.status}`)
+    const metadata = (await res.json()) as { keys: Record<string, unknown> }
     return Object.keys(metadata.keys).length >= 50000
   }
 
-  protected async _createNewShardFolder(index: number): Promise<string> {
+  async createNewShardFolder(index: number): Promise<string> {
     const folder = `shard-${index}`
     const url = this._config.url.endsWith('/')
       ? `${this._config.url}${folder}`
       : `${this._config.url}/${folder}`
-    const res = await this._getFetch()(url, { method: 'MKCOL' })
+    const res = await this.getFetch()(url, { method: 'MKCOL' })
     if (!res.ok && res.status !== 405) {
       throw new Error(`Failed to create shard folder ${folder}: ${res.status}`)
     }

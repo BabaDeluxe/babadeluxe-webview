@@ -1,22 +1,28 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { ok, err, type Result } from 'neverthrow'
 import { SyncError, SyncAuthError, RateLimitError } from '@/errors'
-import { BaseSyncAdapter } from '@/sync/base-adapter'
-import { type FetchFn, type GitLabConfig, type FetchResponse } from '@/sync/types'
+import {
+  type FetchFn,
+  type GitLabConfig,
+  type FetchResponse,
+  type ISyncBackendDriver,
+} from '@/sync/types'
 
-export class GitLabSyncAdapter extends BaseSyncAdapter {
+export class GitLabBackendDriver implements ISyncBackendDriver {
   readonly name = 'gitlab'
   private readonly _apiBase: string
 
   constructor(private readonly _config: GitLabConfig) {
-    const apiBase = _config.apiBase || 'https://gitlab.com/api/v4'
-    super(apiBase)
-    this._apiBase = apiBase
+    this._apiBase = _config.apiBase || 'https://gitlab.com/api/v4'
+  }
+
+  getRootUrl(): string {
+    return this._apiBase
   }
 
   async testConnection(): Promise<Result<void, SyncError>> {
     try {
-      const res = await this._getFetch()(`${this._apiBase}/user`)
+      const res = await this.getFetch()(`${this._apiBase}/user`)
       if (res.status === 401 || res.status === 403) {
         return err(new SyncAuthError(this.name, `HTTP ${res.status}`))
       }
@@ -25,11 +31,12 @@ export class GitLabSyncAdapter extends BaseSyncAdapter {
       }
       return ok(undefined)
     } catch (e) {
-      return err(this._handleError(e))
+      if (e instanceof RateLimitError) return err(e)
+      return err(new SyncError(this.name, e instanceof Error ? e.message : String(e), e))
     }
   }
 
-  protected _getFetch(): FetchFn {
+  getFetch(): FetchFn {
     return async (url, options = {}) => {
       const res = await fetch(url, {
         ...options,
@@ -45,15 +52,15 @@ export class GitLabSyncAdapter extends BaseSyncAdapter {
     }
   }
 
-  protected async _putFile(shardUrl: string, path: string, content: string): Promise<void> {
+  async putFile(shardUrl: string, path: string, content: string): Promise<void> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `${shardUrl}/${path}` : path
     const encodedPath = encodeURIComponent(prefixedPath)
     const url = `${this._apiBase}/projects/${this._config.projectId}/repository/files/${encodedPath}`
 
-    const checkRes = await this._getFetch()(`${url}?ref=main`, { method: 'HEAD' })
+    const checkRes = await this.getFetch()(`${url}?ref=main`, { method: 'HEAD' })
     const method = checkRes.ok ? 'PUT' : 'POST'
 
-    const res = await this._getFetch()(url, {
+    const res = await this.getFetch()(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -69,19 +76,19 @@ export class GitLabSyncAdapter extends BaseSyncAdapter {
     }
   }
 
-  protected async _getFile(shardUrl: string, path: string): Promise<string | null> {
+  async getFile(shardUrl: string, path: string): Promise<string | null> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `${shardUrl}/${path}` : path
     const encodedPath = encodeURIComponent(prefixedPath)
     const url = `${this._apiBase}/projects/${this._config.projectId}/repository/files/${encodedPath}?ref=main`
-    const res = await this._getFetch()(url)
+    const res = await this.getFetch()(url)
     if (res.status === 404) return null
     if (!res.ok) throw new Error(`Failed to GET file ${path}: ${res.status}`)
     const data = (await res.json()) as { content: string }
     return data.content
   }
 
-  protected async _isShardFull(): Promise<boolean> {
-    const res = await this._getFetch()(
+  async isShardFull(): Promise<boolean> {
+    const res = await this.getFetch()(
       `${this._apiBase}/projects/${this._config.projectId}?statistics=true`
     )
     if (!res.ok) return false
@@ -90,7 +97,7 @@ export class GitLabSyncAdapter extends BaseSyncAdapter {
     return size > 4800000000
   }
 
-  protected async _createNewShardFolder(index: number): Promise<string> {
+  async createNewShardFolder(index: number): Promise<string> {
     return `shard-${index}`
   }
 }

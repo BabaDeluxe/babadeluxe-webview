@@ -1,11 +1,18 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { type SyncStatus, type SyncBackend, type ConflictInfo, type SyncConfig } from '@/sync/types'
+import {
+  type SyncStatus,
+  type SyncBackend,
+  type ConflictInfo,
+  type SyncConfig,
+  type ISyncAdapter,
+} from '@/sync/types'
 import { SyncManager } from '@/sync/sync-manager'
-import { GitHubSyncAdapter } from '@/sync/github-adapter'
-import { WebDavSyncAdapter } from '@/sync/webdav-adapter'
-import { GitLabSyncAdapter } from '@/sync/gitlab-adapter'
-import { AzureDevOpsSyncAdapter } from '@/sync/azure-devops-adapter'
+import { ShardedSyncService } from '@/sync/sharded-sync-service'
+import { GitHubBackendDriver } from '@/sync/github-adapter'
+import { WebDavBackendDriver } from '@/sync/webdav-adapter'
+import { GitLabBackendDriver } from '@/sync/gitlab-adapter'
+import { AzureDevOpsBackendDriver } from '@/sync/azure-devops-adapter'
 import { DeviceIdService } from '@/sync/device-id'
 import { safeInject } from '@/safe-inject'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
@@ -44,16 +51,16 @@ export const useSyncStore = defineStore('sync', () => {
       return
     }
 
-    let adapter = null
+    let adapter: ISyncAdapter | null = null
 
     if (config.backend === 'github') {
-      adapter = new GitHubSyncAdapter(config)
+      adapter = new ShardedSyncService(new GitHubBackendDriver(config))
     } else if (config.backend === 'webdav') {
-      adapter = new WebDavSyncAdapter(config)
+      adapter = new ShardedSyncService(new WebDavBackendDriver(config))
     } else if (config.backend === 'gitlab') {
-      adapter = new GitLabSyncAdapter(config)
+      adapter = new ShardedSyncService(new GitLabBackendDriver(config))
     } else if (config.backend === 'azure-devops') {
-      adapter = new AzureDevOpsSyncAdapter(config)
+      adapter = new ShardedSyncService(new AzureDevOpsBackendDriver(config))
     }
 
     if (adapter) {

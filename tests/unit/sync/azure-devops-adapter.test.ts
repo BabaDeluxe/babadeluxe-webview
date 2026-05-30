@@ -1,16 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { AzureDevOpsSyncAdapter } from '@/sync/azure-devops-adapter'
+import { AzureDevOpsBackendDriver } from '@/sync/azure-devops-adapter'
+import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { SyncAuthError } from '@/errors'
 import { type SyncPayload } from '@/sync/types'
 
-describe('AzureDevOpsSyncAdapter', () => {
+describe('Azure DevOps Sync', () => {
   const config = { org: 'o', project: 'p', repo: 'r', pat: 'token' }
-  let adapter: AzureDevOpsSyncAdapter
+  let driver: AzureDevOpsBackendDriver
+  let service: ShardedSyncService
 
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-    adapter = new AzureDevOpsSyncAdapter(config)
+    driver = new AzureDevOpsBackendDriver(config)
+    service = new ShardedSyncService(driver)
   })
 
   it('should push files using Azure DevOps API with fresh oldObjectId', async () => {
@@ -65,7 +69,7 @@ describe('AzureDevOpsSyncAdapter', () => {
       deviceId: 'd',
     } as unknown as SyncPayload
 
-    await adapter.push(payload)
+    await service.push(payload)
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('refs?filter=heads/main'),
@@ -91,7 +95,7 @@ describe('AzureDevOpsSyncAdapter', () => {
       headers: { get: () => null },
     } as any)
 
-    const result = await adapter.testConnection()
+    const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr()).toBeInstanceOf(SyncAuthError)
   })

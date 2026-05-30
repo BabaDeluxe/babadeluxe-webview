@@ -23,11 +23,29 @@ export type ConversationSnapshotForUpload = ConversationSnapshot & {
   deviceId: string
 }
 
+/**
+ * High-level service interface for the Sync Store.
+ */
 export type ISyncAdapter = {
   readonly name: string
   push(payload: SyncPayload): Promise<Result<void, SyncError>>
-  pull(since?: string): Promise<Result<SyncPayload[], SyncError>>
+  pull(): Promise<Result<SyncPayload[], SyncError>>
   testConnection(): Promise<Result<void, SyncError>>
+}
+
+/**
+ * Backend-specific driver interface.
+ * Implements the raw transport logic for a specific service (GitHub, GitLab, etc.)
+ */
+export interface ISyncBackendDriver {
+  readonly name: string
+  testConnection(): Promise<Result<void, SyncError>>
+  getFetch(): FetchFn
+  putFile(shardUrl: string, path: string, content: string): Promise<void>
+  getFile(shardUrl: string, path: string): Promise<string | null>
+  isShardFull(shardUrl: string): Promise<boolean>
+  createNewShardFolder(index: number): Promise<string>
+  getRootUrl(): string
 }
 
 export type SyncBackend = 'github' | 'webdav' | 'gitlab' | 'azure-devops' | 'sftp' | 'none'

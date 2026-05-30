@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SyncManager } from '@/sync/sync-manager'
-import { WebDavSyncAdapter } from '@/sync/webdav-adapter'
+import { WebDavBackendDriver } from '@/sync/webdav-adapter'
+import { ShardedSyncService } from '@/sync/sharded-sync-service'
 
 describe('Sync Integration', () => {
   let db: any
   let logger: any
-  let adapter: WebDavSyncAdapter
+  let driver: WebDavBackendDriver
+  let service: ShardedSyncService
   let manager: SyncManager
 
   beforeEach(() => {
@@ -37,9 +39,10 @@ describe('Sync Integration', () => {
       log: vi.fn(),
       trace: vi.fn(),
     }
-    adapter = new WebDavSyncAdapter({ url: 'https://dav.test/', username: 'u', password: 'p' })
+    driver = new WebDavBackendDriver({ url: 'https://dav.test/', username: 'u', password: 'p' })
+    service = new ShardedSyncService(driver)
     manager = new SyncManager(db, logger, 'device-1')
-    manager.setAdapter(adapter)
+    manager.setAdapter(service)
   })
 
   it('should push and pull conversations correctly through SyncManager', async () => {
