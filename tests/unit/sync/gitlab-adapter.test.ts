@@ -6,55 +6,59 @@ import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { SyncAuthError, RateLimitError } from '@/errors'
 import { type SyncPayload } from '@/sync/types'
 
+// Mock got
+vi.mock('got', () => {
+  const got: any = vi.fn()
+  got.extend = vi.fn().mockReturnThis()
+  got.get = vi.fn()
+  got.put = vi.fn()
+  got.post = vi.fn()
+  got.head = vi.fn()
+  got.delete = vi.fn()
+  return { default: got }
+})
+
+import got from 'got'
+
 describe('GitLab Sync', () => {
   const config = { token: 't', projectId: '123' }
   let driver: GitLabBackendDriver
   let service: ShardedSyncService
 
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn())
+    vi.clearAllMocks()
     driver = new GitLabBackendDriver(config)
     service = new ShardedSyncService(driver)
   })
 
   it('should push files using GitLab API', async () => {
-    const fetchMock = vi.mocked(fetch)
+    const gotMock = vi.mocked(got) as any
 
-    fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
-      const urlStr = String(url)
-      const method = init?.method?.toUpperCase() || 'GET'
-
-      if (method === 'HEAD')
-        return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as any
-      if (urlStr.includes('shard_map.json'))
+    gotMock.mockImplementation(async (url: string, init?: any) => {
+      if (url.includes('shard_map.json'))
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({
+          statusCode: 200,
+          body: JSON.stringify({
             n: 1,
             shards: [{ index: 0, url: 'https://gitlab.com/api/v4', readOnly: false }],
           }),
-        } as any
-      if (urlStr.includes('.sync_metadata.json') && method !== 'PUT')
+        }
+      if (url.includes('.sync_metadata.json') && init?.method !== 'PUT')
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({ keys: {} }),
-        } as any
-      if (urlStr.includes('statistics=true'))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ statistics: { repository_size: 1000 } }),
-        } as any
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({}),
-        text: async () => '',
-        headers: { get: () => null },
-      } as any
+          statusCode: 200,
+          body: JSON.stringify({ keys: {} }),
+        }
+      return { statusCode: 200, body: '', headers: {} }
     })
+
+    gotMock.get.mockImplementation(async (url: string) => {
+      if (url.includes('statistics=true'))
+        return { statusCode: 200, body: { statistics: { repository_size: 1000 } } }
+      return { statusCode: 200, body: {} }
+    })
+
+    gotMock.head.mockResolvedValue({ statusCode: 200 })
+    gotMock.put.mockResolvedValue({ statusCode: 200, body: {} })
 
     const payload = {
       conversation: {
@@ -71,26 +75,23 @@ describe('GitLab Sync', () => {
 
     await service.push(payload)
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(gotMock.put).toHaveBeenCalledWith(
       expect.stringContaining('projects/123/repository/files/keys%2F456.000.md'),
       expect.objectContaining({
-        method: expect.stringMatching(/PUT|POST/),
-        headers: expect.objectContaining({
-          Authorization: 'Bearer t',
+        json: expect.objectContaining({
+          branch: 'main',
         }),
       })
     )
   })
 
   it('should handle GitLab 401 Unauthorized', async () => {
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => 'Unauthorized',
-      json: async () => ({}),
-      headers: { get: () => null },
-    } as any)
+    const gotMock = vi.mocked(got) as any
+    gotMock.get.mockResolvedValue({
+      statusCode: 401,
+      body: 'Unauthorized',
+      headers: {},
+    })
 
     const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
@@ -98,14 +99,12 @@ describe('GitLab Sync', () => {
   })
 
   it('should handle GitLab 429 Rate Limit', async () => {
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 429,
-      text: async () => 'Too Many Requests',
-      json: async () => ({}),
-      headers: { get: () => null },
-    } as any)
+    const gotMock = vi.mocked(got) as any
+    gotMock.get.mockResolvedValue({
+      statusCode: 429,
+      body: 'Too Many Requests',
+      headers: {},
+    })
 
     const result = await service.testConnection()
     expect(result.isErr()).toBe(true)

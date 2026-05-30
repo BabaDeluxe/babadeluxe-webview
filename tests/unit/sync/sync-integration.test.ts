@@ -4,6 +4,20 @@ import { SyncManager } from '@/sync/sync-manager'
 import { WebDavBackendDriver } from '@/sync/webdav-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 
+// Mock got
+vi.mock('got', () => {
+  const got: any = vi.fn()
+  got.get = vi.fn()
+  got.put = vi.fn()
+  got.post = vi.fn()
+  got.head = vi.fn()
+  got.delete = vi.fn()
+  got.extend = vi.fn().mockReturnValue(got)
+  return { default: got }
+})
+
+import got from 'got'
+
 describe('Sync Integration', () => {
   let db: any
   let logger: any
@@ -12,7 +26,7 @@ describe('Sync Integration', () => {
   let manager: SyncManager
 
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn())
+    vi.clearAllMocks()
 
     // Mock DB
     db = {
@@ -45,43 +59,24 @@ describe('Sync Integration', () => {
     manager.setAdapter(service)
   })
 
-  it('should push and pull conversations correctly through SyncManager', async () => {
-    const fetchMock = vi.mocked(fetch)
+  it('should push and pull conversations correctly through SyncManager using got', async () => {
+    const gotMock = vi.mocked(got) as any
 
-    fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
-      const urlStr = String(url)
-      const method = init?.method?.toUpperCase() || 'GET'
-      if (method === 'HEAD') return { ok: true, status: 200 } as any
-      if (urlStr.includes('shard_map.json'))
+    gotMock.mockImplementation(async (url: string) => {
+      if (url.includes('shard_map.json')) {
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({
+          statusCode: 200,
+          body: JSON.stringify({
             n: 1,
             shards: [{ index: 0, url: 'https://dav.test/', readOnly: false }],
           }),
-        } as any
-
-      const snapshot = {
-        id: 1,
-        syncVersion: 2,
-        conversation: {
-          id: 1,
-          title: 'Remote',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          isActive: 1,
-        },
-        messages: [],
-        deviceId: 'device-2',
+          headers: {},
+        }
       }
-      const content = btoa(unescape(encodeURIComponent(JSON.stringify(snapshot, null, 2))))
-
-      if (urlStr.includes('.sync_metadata.json'))
+      if (url.includes('.sync_metadata.json')) {
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({
+          statusCode: 200,
+          body: JSON.stringify({
             keys: {
               '1': {
                 path: 'keys/1.000.md',
@@ -91,23 +86,50 @@ describe('Sync Integration', () => {
               },
             },
           }),
-        } as any
-      if (urlStr.includes('keys/1.000.md')) {
-        return {
-          ok: true,
-          status: 200,
-          text: async () => content,
-          headers: { get: () => null },
-        } as any
+          headers: {},
+        }
       }
-      return {
-        ok: true,
-        status: 200,
-        text: async () => '',
-        json: async () => ({}),
-        headers: { get: () => null },
-      } as any
+      return { statusCode: 200, body: '', headers: {} }
     })
+
+    gotMock.get.mockImplementation(async (url: string) => {
+      if (url === 'keys/1.000.md') {
+        const snapshot = {
+          id: 1,
+          syncVersion: 2,
+          conversation: {
+            id: 1,
+            title: 'Remote',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            isActive: 1,
+          },
+          messages: [],
+          deviceId: 'device-2',
+        }
+        const content = btoa(unescape(encodeURIComponent(JSON.stringify(snapshot, null, 2))))
+        return { statusCode: 200, body: content, headers: {} }
+      }
+      if (url === '.sync_metadata.json') {
+        return {
+          statusCode: 200,
+          body: {
+            keys: {
+              '1': {
+                path: 'keys/1.000.md',
+                sha256: 'ignore',
+                ts: Date.now(),
+                parts: ['keys/1.000.md'],
+              },
+            },
+          },
+          headers: {},
+        }
+      }
+      return { statusCode: 404 }
+    })
+
+    gotMock.head.mockResolvedValue({ statusCode: 200 })
 
     db.conversation.get.mockResolvedValue({ isOk: () => true, isErr: () => false, value: null })
 

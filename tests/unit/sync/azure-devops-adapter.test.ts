@@ -1,10 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AzureDevOpsBackendDriver } from '@/sync/azure-devops-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { SyncAuthError } from '@/errors'
 import { type SyncPayload } from '@/sync/types'
+
+// Mock got
+vi.mock('got', () => {
+  const got: any = vi.fn()
+  got.extend = vi.fn().mockReturnThis()
+  got.get = vi.fn()
+  got.put = vi.fn()
+  got.post = vi.fn()
+  got.head = vi.fn()
+  got.delete = vi.fn()
+  return { default: got }
+})
+
+import got from 'got'
 
 describe('Azure DevOps Sync', () => {
   const config = { org: 'o', project: 'p', repo: 'r', pat: 'token' }
@@ -12,49 +25,39 @@ describe('Azure DevOps Sync', () => {
   let service: ShardedSyncService
 
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn())
+    vi.clearAllMocks()
     driver = new AzureDevOpsBackendDriver(config)
     service = new ShardedSyncService(driver)
   })
 
   it('should push files using Azure DevOps API with fresh oldObjectId', async () => {
-    const fetchMock = vi.mocked(fetch)
+    const gotMock = vi.mocked(got) as any
 
-    fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
-      const urlStr = String(url)
-      const method = init?.method?.toUpperCase() || 'GET'
-
-      if (method === 'HEAD')
-        return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as any
-      if (urlStr.includes('shard_map.json'))
+    gotMock.mockImplementation(async (url: string, init?: any) => {
+      if (url.includes('shard_map.json'))
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({
+          statusCode: 200,
+          body: JSON.stringify({
             n: 1,
             shards: [{ index: 0, url: 'https://dev.azure.com/o/p/_apis', readOnly: false }],
           }),
-        } as any
-      if (urlStr.includes('.sync_metadata.json') && method !== 'PUT')
+        }
+      if (url.includes('.sync_metadata.json') && init?.method !== 'PUT')
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({ keys: {} }),
-        } as any
-      if (urlStr.includes('refs?filter=heads/main'))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ value: [{ objectId: 'fresh-sha' }] }),
-        } as any
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({}),
-        text: async () => '',
-        headers: { get: () => null },
-      } as any
+          statusCode: 200,
+          body: JSON.stringify({ keys: {} }),
+        }
+      return { statusCode: 200, body: '', headers: {} }
     })
+
+    gotMock.get.mockImplementation(async (url: string) => {
+      if (url.includes('/refs'))
+        return { statusCode: 200, body: { value: [{ objectId: 'fresh-sha' }] } }
+      return { statusCode: 200, body: {} }
+    })
+
+    gotMock.head.mockResolvedValue({ statusCode: 200 })
+    gotMock.post.mockResolvedValue({ statusCode: 200, body: {} })
 
     const payload = {
       conversation: {
@@ -71,29 +74,30 @@ describe('Azure DevOps Sync', () => {
 
     await service.push(payload)
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('refs?filter=heads/main'),
+    expect(gotMock.get).toHaveBeenCalledWith(
+      expect.stringContaining('git/repositories/r/refs'),
       expect.anything()
     )
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('pushes?api-version=7.1'),
+    expect(gotMock.post).toHaveBeenCalledWith(
+      expect.stringContaining('git/repositories/r/pushes'),
       expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('fresh-sha'),
+        json: expect.objectContaining({
+          refUpdates: expect.arrayContaining([
+            expect.objectContaining({ oldObjectId: 'fresh-sha' }),
+          ]),
+        }),
       })
     )
   })
 
   it('should handle Azure DevOps 401 Unauthorized', async () => {
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => 'Unauthorized',
-      json: async () => ({}),
-      headers: { get: () => null },
-    } as any)
+    const gotMock = vi.mocked(got) as any
+    gotMock.get.mockResolvedValue({
+      statusCode: 401,
+      body: 'Unauthorized',
+      headers: {},
+    })
 
     const result = await service.testConnection()
     expect(result.isErr()).toBe(true)

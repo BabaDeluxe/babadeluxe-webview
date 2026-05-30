@@ -34,16 +34,48 @@ export type ISyncAdapter = {
 }
 
 /**
+ * Simplified Got-like interface for backend drivers.
+ * Provides consistency while allowing the use of 'got' or its polyfills.
+ */
+export interface GotResponse<T = unknown> {
+  body: T
+  statusCode: number
+  headers: Record<string, string | string[] | undefined>
+  rawBody: Buffer | string
+}
+
+export interface GotOptions {
+  headers?: Record<string, string | undefined>
+  json?: unknown
+  body?: string | Buffer
+  method?: string
+  searchParams?: Record<string, string | number | undefined>
+  throwHttpErrors?: boolean
+  responseType?: 'json' | 'text' | 'buffer'
+}
+
+export interface GotInstance {
+  (url: string, options?: GotOptions): Promise<GotResponse>
+  get: <T = unknown>(url: string, options?: GotOptions) => Promise<GotResponse<T>>
+  put: <T = unknown>(url: string, options?: GotOptions) => Promise<GotResponse<T>>
+  post: <T = unknown>(url: string, options?: GotOptions) => Promise<GotResponse<T>>
+  patch: <T = unknown>(url: string, options?: GotOptions) => Promise<GotResponse<T>>
+  head: (url: string, options?: GotOptions) => Promise<GotResponse<void>>
+  delete: <T = unknown>(url: string, options?: GotOptions) => Promise<GotResponse<T>>
+  extend: (options: GotOptions) => GotInstance
+}
+
+/**
  * Backend-specific driver interface.
- * Implements the raw transport logic for a specific service (GitHub, GitLab, etc.)
+ * Implements the raw transport logic for a specific service using 'got'.
  */
 export interface ISyncBackendDriver {
   readonly name: string
   testConnection(): Promise<Result<void, SyncError>>
-  getFetch(): FetchFn
+  getGot(): GotInstance
   putFile(shardUrl: string, path: string, content: string): Promise<void>
   getFile(shardUrl: string, path: string): Promise<string | null>
-  isShardFull(shardUrl: string): Promise<boolean>
+  isShardFull(shardUrl?: string): Promise<boolean>
   createNewShardFolder(index: number): Promise<string>
   getRootUrl(): string
 }

@@ -6,6 +6,10 @@ import {
   type SyncPayload,
   type ConversationSnapshot,
   type ConversationSnapshotForUpload,
+  type FetchFn,
+  type GotInstance,
+  type GotOptions,
+  type FetchResponse,
 } from '@/sync/types'
 import {
   hashKey,
@@ -20,7 +24,7 @@ import {
 
 /**
  * Orchestrates sharding, chunking, and metadata management using a backend driver.
- * Follows the "Composition over Inheritance" principle.
+ * Uses 'got' for all network requests.
  */
 export class ShardedSyncService implements ISyncAdapter {
   constructor(private readonly _driver: ISyncBackendDriver) {}
@@ -43,7 +47,7 @@ export class ShardedSyncService implements ISyncAdapter {
     const key = conversationId
 
     try {
-      const fetchFn = this._driver.getFetch()
+      const fetchFn = this._mapGotToFetch()
       const shardMap = await loadShardMap(fetchFn, rootUrl)
       let index = await shardIndex(key, shardMap.n)
       let shard = shardMap.shards.find((s) => s.index === index)!
@@ -94,10 +98,9 @@ export class ShardedSyncService implements ISyncAdapter {
     if (offline) return err(new SyncError(this.name, 'Offline'))
 
     try {
-      const fetchFn = this._driver.getFetch()
+      const fetchFn = this._mapGotToFetch()
       const shardMap = await loadShardMap(fetchFn, rootUrl)
 
-      // Parallelize shard processing
       const shardResults = await Promise.all(
         shardMap.shards.map(async (shard) => {
           const metadata = await loadMetadata(fetchFn, shard.url)
@@ -105,9 +108,6 @@ export class ShardedSyncService implements ISyncAdapter {
 
           for (const [key, entry] of Object.entries(metadata.keys)) {
             const paths = entry.parts || [entry.path]
-
-            // Fetch chunks for this key (parallel or sequential depending on backend constraints)
-            // Sequential for now to preserve memory and handle large values safely
             const chunks: string[] = []
             let failed = false
             for (const path of paths) {
@@ -147,10 +147,32 @@ export class ShardedSyncService implements ISyncAdapter {
 
   private async _checkOffline(url: string): Promise<boolean> {
     try {
-      const res = await fetch(url, { method: 'HEAD' })
-      return !res.ok && res.status !== 401 && res.status !== 403 && res.status !== 405
+      const gotInstance = this._driver.getGot()
+      const res = await gotInstance.head(url, { throwHttpErrors: false })
+      return res.statusCode >= 400 && ![401, 403, 405].includes(res.statusCode)
     } catch {
       return true
+    }
+  }
+
+  private _mapGotToFetch(): FetchFn {
+    const gotInstance = this._driver.getGot() as unknown as GotInstance
+    return async (url: string, options: RequestInit = {}): Promise<FetchResponse> => {
+      const gotOptions: GotOptions = {
+        method: options.method || 'GET',
+        body: options.body as string | Buffer,
+        headers: options.headers as Record<string, string>,
+        throwHttpErrors: false,
+        responseType: 'text',
+      }
+      const res = await gotInstance(url, gotOptions)
+      return {
+        ok: res.statusCode < 400,
+        status: res.statusCode,
+        json: async () => JSON.parse(res.body as string),
+        text: async () => res.body as string,
+        headers: { get: (name: string) => (res.headers[name.toLowerCase()] as string) || null },
+      }
     }
   }
 

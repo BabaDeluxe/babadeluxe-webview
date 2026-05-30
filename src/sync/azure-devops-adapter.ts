@@ -1,22 +1,25 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { ok, err, type Result } from 'neverthrow'
 import { SyncError, SyncAuthError, RateLimitError } from '@/errors'
-import {
-  type FetchFn,
-  type AzureDevOpsConfig,
-  type FetchResponse,
-  type ISyncBackendDriver,
-} from '@/sync/types'
+import { type AzureDevOpsConfig, type ISyncBackendDriver, type GotInstance } from '@/sync/types'
+import got from 'got'
 
 export class AzureDevOpsBackendDriver implements ISyncBackendDriver {
   readonly name = 'azure-devops'
   private readonly _apiBase: string
-  private readonly _auth: string
+  private readonly _got: GotInstance
 
   constructor(private readonly _config: AzureDevOpsConfig) {
     this._apiBase =
       _config.apiBase || `https://dev.azure.com/${_config.org}/${_config.project}/_apis`
-    this._auth = `Basic ${btoa(':' + this._config.pat)}`
+    this._got = got.extend({
+      prefixUrl: this._apiBase,
+      headers: {
+        Authorization: `Basic ${btoa(':' + this._config.pat)}`,
+      },
+      throwHttpErrors: false,
+      responseType: 'json',
+    }) as unknown as GotInstance
   }
 
   getRootUrl(): string {
@@ -25,14 +28,17 @@ export class AzureDevOpsBackendDriver implements ISyncBackendDriver {
 
   async testConnection(): Promise<Result<void, SyncError>> {
     try {
-      const res = await this.getFetch()(
-        `${this._apiBase}/git/repositories/${this._config.repo}?api-version=7.1`
-      )
-      if (res.status === 401 || res.status === 403) {
-        return err(new SyncAuthError(this.name, `HTTP ${res.status}`))
+      const res = await this._got.get(`git/repositories/${this._config.repo}`, {
+        searchParams: { 'api-version': '7.1' },
+      })
+      if (res.statusCode === 401 || res.statusCode === 403) {
+        return err(new SyncAuthError(this.name, `HTTP ${res.statusCode}`))
       }
-      if (!res.ok) {
-        return err(new SyncError(this.name, `HTTP ${res.status}`))
+      if (res.statusCode === 429) {
+        return err(new RateLimitError('Azure DevOps rate limit exceeded'))
+      }
+      if (res.statusCode >= 400) {
+        return err(new SyncError(this.name, `HTTP ${res.statusCode}`))
       }
       return ok(undefined)
     } catch (e) {
@@ -40,39 +46,25 @@ export class AzureDevOpsBackendDriver implements ISyncBackendDriver {
     }
   }
 
-  getFetch(): FetchFn {
-    return async (url, options = {}) => {
-      const res = await fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          Authorization: this._auth,
-        },
-      })
-      if (res.status === 429) {
-        throw new RateLimitError('Azure DevOps rate limit exceeded')
-      }
-      return res as FetchResponse
-    }
+  getGot(): GotInstance {
+    return this._got
   }
 
   async putFile(shardUrl: string, path: string, content: string): Promise<void> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `/${shardUrl}/${path}` : `/${path}`
 
-    const refsRes = await this.getFetch()(
-      `${this._apiBase}/git/repositories/${this._config.repo}/refs?filter=heads/main&api-version=7.1`
+    const refsRes = await this._got.get<{ value: Array<{ objectId: string }> }>(
+      `git/repositories/${this._config.repo}/refs`,
+      { searchParams: { filter: 'heads/main', 'api-version': '7.1' } }
     )
-    if (!refsRes.ok) throw new Error(`Failed to fetch refs: ${refsRes.status}`)
-    const refsData = (await refsRes.json()) as { value: Array<{ objectId: string }> }
-    const oldObjectId = refsData.value?.[0]?.objectId || '0000000000000000000000000000000000000000'
+    if (refsRes.statusCode >= 400) throw new Error(`Failed to fetch refs: ${refsRes.statusCode}`)
+    const oldObjectId =
+      refsRes.body.value?.[0]?.objectId || '0000000000000000000000000000000000000000'
 
-    const itemRes = await this.getFetch()(
-      `${this._apiBase}/git/repositories/${
-        this._config.repo
-      }/items?path=${encodeURIComponent(prefixedPath)}&api-version=7.1`,
-      { method: 'HEAD' }
-    )
-    const changeType = itemRes.ok ? 'edit' : 'add'
+    const itemRes = await this._got.head(`git/repositories/${this._config.repo}/items`, {
+      searchParams: { path: prefixedPath, 'api-version': '7.1' },
+    })
+    const changeType = itemRes.statusCode === 200 ? 'edit' : 'add'
 
     const body = {
       refUpdates: [{ name: 'refs/heads/main', oldObjectId }],
@@ -90,38 +82,36 @@ export class AzureDevOpsBackendDriver implements ISyncBackendDriver {
       ],
     }
 
-    const res = await this.getFetch()(
-      `${this._apiBase}/git/repositories/${this._config.repo}/pushes?api-version=7.1`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
-    )
+    const res = await this._got.post(`git/repositories/${this._config.repo}/pushes`, {
+      searchParams: { 'api-version': '7.1' },
+      json: body,
+    })
 
-    if (!res.ok) {
-      throw new Error(`Failed to push file ${path}: ${res.status}`)
+    if (res.statusCode >= 400) {
+      throw new Error(`Failed to push file ${path}: ${res.statusCode}`)
     }
   }
 
   async getFile(shardUrl: string, path: string): Promise<string | null> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `/${shardUrl}/${path}` : `/${path}`
-    const url = `${this._apiBase}/git/repositories/${
-      this._config.repo
-    }/items?path=${encodeURIComponent(prefixedPath)}&includeContent=true&api-version=7.1`
-    const res = await this.getFetch()(url)
-    if (res.status === 404) return null
-    if (!res.ok) throw new Error(`Failed to GET file ${path}: ${res.status}`)
-    return await res.text()
+    const url = `git/repositories/${this._config.repo}/items`
+    const res = await this._got.get(url, {
+      searchParams: { path: prefixedPath, includeContent: 'true', 'api-version': '7.1' },
+      responseType: 'text',
+    })
+
+    if (res.statusCode === 404) return null
+    if (res.statusCode >= 400) throw new Error(`Failed to GET file ${path}: ${res.statusCode}`)
+
+    return res.body as string
   }
 
   async isShardFull(): Promise<boolean> {
-    const res = await this.getFetch()(
-      `${this._apiBase}/git/repositories/${this._config.repo}?api-version=7.1`
-    )
-    if (!res.ok) return false
-    const data = (await res.json()) as { size: number }
-    const size = data.size || 0
+    const res = await this._got.get<{ size: number }>(`git/repositories/${this._config.repo}`, {
+      searchParams: { 'api-version': '7.1' },
+    })
+    if (res.statusCode >= 400) return false
+    const size = res.body.size || 0
     return size > 8000000000
   }
 

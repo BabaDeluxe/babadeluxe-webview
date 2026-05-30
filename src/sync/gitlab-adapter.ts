@@ -1,19 +1,24 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { ok, err, type Result } from 'neverthrow'
 import { SyncError, SyncAuthError, RateLimitError } from '@/errors'
-import {
-  type FetchFn,
-  type GitLabConfig,
-  type FetchResponse,
-  type ISyncBackendDriver,
-} from '@/sync/types'
+import { type GitLabConfig, type ISyncBackendDriver, type GotInstance } from '@/sync/types'
+import got from 'got'
 
 export class GitLabBackendDriver implements ISyncBackendDriver {
   readonly name = 'gitlab'
   private readonly _apiBase: string
+  private readonly _got: GotInstance
 
   constructor(private readonly _config: GitLabConfig) {
-    this._apiBase = _config.apiBase || 'https://gitlab.com/api/v4'
+    this._apiBase = this._config.apiBase || 'https://gitlab.com/api/v4'
+    this._got = got.extend({
+      prefixUrl: this._apiBase,
+      headers: {
+        Authorization: `Bearer ${this._config.token}`,
+      },
+      throwHttpErrors: false,
+      responseType: 'json',
+    }) as unknown as GotInstance
   }
 
   getRootUrl(): string {
@@ -22,78 +27,69 @@ export class GitLabBackendDriver implements ISyncBackendDriver {
 
   async testConnection(): Promise<Result<void, SyncError>> {
     try {
-      const res = await this.getFetch()(`${this._apiBase}/user`)
-      if (res.status === 401 || res.status === 403) {
-        return err(new SyncAuthError(this.name, `HTTP ${res.status}`))
+      const res = await this._got.get('user')
+      if (res.statusCode === 401 || res.statusCode === 403) {
+        return err(new SyncAuthError(this.name, `HTTP ${res.statusCode}`))
       }
-      if (!res.ok) {
-        return err(new SyncError(this.name, `HTTP ${res.status}`))
+      if (res.statusCode === 429) {
+        return err(new RateLimitError('GitLab rate limit exceeded'))
+      }
+      if (res.statusCode >= 400) {
+        return err(new SyncError(this.name, `HTTP ${res.statusCode}`))
       }
       return ok(undefined)
     } catch (e) {
-      if (e instanceof RateLimitError) return err(e)
       return err(new SyncError(this.name, e instanceof Error ? e.message : String(e), e))
     }
   }
 
-  getFetch(): FetchFn {
-    return async (url, options = {}) => {
-      const res = await fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          Authorization: `Bearer ${this._config.token}`,
-        },
-      })
-      if (res.status === 429) {
-        throw new RateLimitError('GitLab rate limit exceeded')
-      }
-      return res as FetchResponse
-    }
+  getGot(): GotInstance {
+    return this._got
   }
 
   async putFile(shardUrl: string, path: string, content: string): Promise<void> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `${shardUrl}/${path}` : path
     const encodedPath = encodeURIComponent(prefixedPath)
-    const url = `${this._apiBase}/projects/${this._config.projectId}/repository/files/${encodedPath}`
+    const url = `projects/${this._config.projectId}/repository/files/${encodedPath}`
 
-    const checkRes = await this.getFetch()(`${url}?ref=main`, { method: 'HEAD' })
-    const method = checkRes.ok ? 'PUT' : 'POST'
+    const checkRes = await this._got.head(url, { searchParams: { ref: 'main' } })
+    const method = checkRes.statusCode < 400 ? 'put' : 'post'
 
-    const res = await this.getFetch()(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const res = await this._got[method](url, {
+      json: {
         branch: 'main',
         content,
         commit_message: `sync: write ${path}`,
         encoding: 'base64',
-      }),
+      },
     })
 
-    if (!res.ok) {
-      throw new Error(`Failed to ${method} file ${path}: ${res.status}`)
+    if (res.statusCode >= 400) {
+      throw new Error(`Failed to ${method.toUpperCase()} file ${path}: ${res.statusCode}`)
     }
   }
 
   async getFile(shardUrl: string, path: string): Promise<string | null> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `${shardUrl}/${path}` : path
     const encodedPath = encodeURIComponent(prefixedPath)
-    const url = `${this._apiBase}/projects/${this._config.projectId}/repository/files/${encodedPath}?ref=main`
-    const res = await this.getFetch()(url)
-    if (res.status === 404) return null
-    if (!res.ok) throw new Error(`Failed to GET file ${path}: ${res.status}`)
-    const data = (await res.json()) as { content: string }
-    return data.content
+    const url = `projects/${this._config.projectId}/repository/files/${encodedPath}`
+    const res = await this._got.get<{ content: string }>(url, {
+      searchParams: { ref: 'main' },
+    })
+
+    if (res.statusCode === 404) return null
+    if (res.statusCode >= 400) throw new Error(`Failed to GET file ${path}: ${res.statusCode}`)
+
+    return res.body.content
   }
 
   async isShardFull(): Promise<boolean> {
-    const res = await this.getFetch()(
-      `${this._apiBase}/projects/${this._config.projectId}?statistics=true`
+    const res = await this._got.get<{ statistics: { repository_size: number } }>(
+      `projects/${this._config.projectId}`,
+      { searchParams: { statistics: 'true' } }
     )
-    if (!res.ok) return false
-    const data = (await res.json()) as { statistics: { repository_size: number } }
-    const size = data.statistics?.repository_size || 0
+    if (res.statusCode >= 400) return false
+    const size = res.body.statistics?.repository_size || 0
     return size > 4800000000
   }
 

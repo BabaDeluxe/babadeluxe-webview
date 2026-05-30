@@ -5,49 +5,58 @@ import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { SyncAuthError, RateLimitError } from '@/errors'
 import { type SyncPayload } from '@/sync/types'
 
+// Mock got
+vi.mock('got', () => {
+  const got: any = vi.fn()
+  got.extend = vi.fn().mockReturnThis()
+  got.get = vi.fn()
+  got.put = vi.fn()
+  got.post = vi.fn()
+  got.head = vi.fn()
+  got.delete = vi.fn()
+  return { default: got }
+})
+
+import got from 'got'
+
 describe('GitHub Sync', () => {
   const config = { token: 't', owner: 'o', repo: 'r' }
   let driver: GitHubBackendDriver
   let service: ShardedSyncService
 
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn())
+    vi.clearAllMocks()
     driver = new GitHubBackendDriver(config)
     service = new ShardedSyncService(driver)
   })
 
   it('should push files using GitHub API and include fresh SHA', async () => {
-    const fetchMock = vi.mocked(fetch)
+    const gotMock = vi.mocked(got) as any
 
-    fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
-      const urlStr = String(url)
-      const method = init?.method?.toUpperCase() || 'GET'
-
-      if (method === 'HEAD')
-        return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as any
-      if (urlStr.includes('shard_map.json'))
+    gotMock.mockImplementation(async (url: string, init?: any) => {
+      if (url.includes('shard_map.json'))
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({
+          statusCode: 200,
+          body: JSON.stringify({
             n: 1,
             shards: [{ index: 0, url: 'https://api.github.com', readOnly: false }],
           }),
-        } as any
-      if (urlStr.includes('.sync_metadata.json') && method !== 'PUT')
+        }
+      if (url.includes('.sync_metadata.json') && init?.method !== 'PUT')
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({ keys: {} }),
-        } as any
-      if (urlStr.includes('/contents/') && method === 'GET')
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ sha: 'github-blob-sha' }),
-        } as any
-      return { ok: true, status: 200, json: async () => ({}), text: async () => '' } as any
+          statusCode: 200,
+          body: JSON.stringify({ keys: {} }),
+        }
+      return { statusCode: 200, body: '', headers: {} }
     })
+
+    gotMock.get.mockImplementation(async (url: string) => {
+      if (url.includes('/contents/')) return { statusCode: 200, body: { sha: 'github-blob-sha' } }
+      return { statusCode: 200, body: {} }
+    })
+
+    gotMock.put.mockResolvedValue({ statusCode: 200, body: {} })
+    gotMock.head.mockResolvedValue({ statusCode: 200 })
 
     const payload = {
       conversation: {
@@ -64,24 +73,23 @@ describe('GitHub Sync', () => {
 
     await service.push(payload)
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(gotMock.put).toHaveBeenCalledWith(
       expect.stringContaining('repos/o/r/contents/keys/101.000.md'),
       expect.objectContaining({
-        method: 'PUT',
-        body: expect.stringContaining('github-blob-sha'),
+        json: expect.objectContaining({
+          sha: 'github-blob-sha',
+        }),
       })
     )
   })
 
   it('should handle 401 Unauthorized', async () => {
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => 'Unauthorized',
-      headers: { get: () => null },
-      json: async () => ({}),
-    } as any)
+    const gotMock = vi.mocked(got) as any
+    gotMock.get.mockResolvedValue({
+      statusCode: 401,
+      body: 'Unauthorized',
+      headers: {},
+    })
 
     const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
@@ -89,14 +97,12 @@ describe('GitHub Sync', () => {
   })
 
   it('should handle 403 Rate Limit', async () => {
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 403,
-      headers: { get: (n: string) => (n === 'x-ratelimit-remaining' ? '0' : null) },
-      text: async () => 'Rate limit',
-      json: async () => ({}),
-    } as any)
+    const gotMock = vi.mocked(got) as any
+    gotMock.get.mockResolvedValue({
+      statusCode: 403,
+      headers: { 'x-ratelimit-remaining': '0' },
+      body: 'Rate limit',
+    })
 
     const result = await service.testConnection()
     expect(result.isErr()).toBe(true)
