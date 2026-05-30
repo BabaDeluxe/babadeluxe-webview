@@ -177,6 +177,8 @@
 import { ref, computed } from 'vue'
 import BaseButton from '@/components/BaseButton.vue'
 import type { UserSettingWithValidation } from '@babadeluxe/shared'
+import { useSyncStore } from '@/stores/use-sync-store'
+import type { SyncConfig } from '@/sync/types'
 
 const props = defineProps<{
   settings: UserSettingWithValidation[]
@@ -186,6 +188,7 @@ const emit = defineEmits<{
   (event: 'field-changed', fieldName: string, value: string): void
 }>()
 
+const syncStore = useSyncStore()
 const activeBackend = computed(() => getSetting('syncBackend') || 'none')
 
 const testing = ref(false)
@@ -208,10 +211,58 @@ async function testConnection() {
   testing.value = true
   testResult.value = null
 
-  // Simulation for now
-  setTimeout(() => {
+  let config: SyncConfig | null = null
+  const backend = activeBackend.value
+
+  if (backend === 'github') {
+    config = {
+      backend: 'github',
+      token: getSetting('githubToken'),
+      owner: getSetting('githubOwner'),
+      repo: getSetting('githubRepo'),
+    }
+  } else if (backend === 'webdav') {
+    config = {
+      backend: 'webdav',
+      url: getSetting('webdavUrl'),
+      username: getSetting('webdavUsername'),
+      password: getSetting('webdavPassword'),
+    }
+  } else if (backend === 'gitlab') {
+    config = {
+      backend: 'gitlab',
+      token: getSetting('gitlabToken'),
+      projectId: getSetting('gitlabProjectId'),
+    }
+  } else if (backend === 'azure-devops') {
+    config = {
+      backend: 'azure-devops',
+      org: getSetting('azureDevOpsOrg'),
+      project: getSetting('azureDevOpsProject'),
+      repo: getSetting('azureDevOpsRepo'),
+      pat: getSetting('azureDevOpsPat'),
+    }
+  }
+
+  if (!config) {
     testing.value = false
-    testResult.value = { success: true, message: 'Connection successful (simulated)' }
-  }, 1000)
+    return
+  }
+
+  try {
+    const result = await syncStore.testConnection(config)
+    if (result.isOk()) {
+      testResult.value = { success: true, message: 'Connection successful' }
+    } else {
+      testResult.value = { success: false, message: `Connection failed: ${result.error.message}` }
+    }
+  } catch (e) {
+    testResult.value = {
+      success: false,
+      message: `Error: ${e instanceof Error ? e.message : String(e)}`,
+    }
+  } finally {
+    testing.value = false
+  }
 }
 </script>

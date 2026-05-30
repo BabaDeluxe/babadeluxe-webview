@@ -16,6 +16,8 @@ import { AzureDevOpsBackendDriver } from '@/sync/azure-devops-adapter'
 import { DeviceIdService } from '@/sync/device-id'
 import { safeInject } from '@/safe-inject'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
+import type { SyncError } from '@/errors'
+import type { Result } from 'neverthrow'
 
 export const useSyncStore = defineStore('sync', () => {
   const db = safeInject(APP_DB_KEY)
@@ -44,6 +46,19 @@ export const useSyncStore = defineStore('sync', () => {
     status.value.state === 'success' ? status.value.lastSyncAt : null
   )
 
+  function createAdapter(config: SyncConfig): ISyncAdapter | null {
+    if (config.backend === 'github') {
+      return new ShardedSyncService(new GitHubBackendDriver(config))
+    } else if (config.backend === 'webdav') {
+      return new ShardedSyncService(new WebDavBackendDriver(config))
+    } else if (config.backend === 'gitlab') {
+      return new ShardedSyncService(new GitLabBackendDriver(config))
+    } else if (config.backend === 'azure-devops') {
+      return new ShardedSyncService(new AzureDevOpsBackendDriver(config))
+    }
+    return null
+  }
+
   async function configure(config: SyncConfig | null): Promise<void> {
     if (!config) {
       manager.setAdapter(null)
@@ -51,17 +66,7 @@ export const useSyncStore = defineStore('sync', () => {
       return
     }
 
-    let adapter: ISyncAdapter | null = null
-
-    if (config.backend === 'github') {
-      adapter = new ShardedSyncService(new GitHubBackendDriver(config))
-    } else if (config.backend === 'webdav') {
-      adapter = new ShardedSyncService(new WebDavBackendDriver(config))
-    } else if (config.backend === 'gitlab') {
-      adapter = new ShardedSyncService(new GitLabBackendDriver(config))
-    } else if (config.backend === 'azure-devops') {
-      adapter = new ShardedSyncService(new AzureDevOpsBackendDriver(config))
-    }
+    const adapter = createAdapter(config)
 
     if (adapter) {
       manager.setAdapter(adapter)
@@ -78,6 +83,14 @@ export const useSyncStore = defineStore('sync', () => {
     }
 
     logger.warn(`Sync adapter '${config.backend}' not yet implemented`)
+  }
+
+  async function testConnection(config: SyncConfig): Promise<Result<void, SyncError>> {
+    const adapter = createAdapter(config)
+    if (!adapter) {
+      throw new Error(`Sync adapter '${config.backend}' not yet implemented`)
+    }
+    return await adapter.testConnection()
   }
 
   function notifyChanged(conversationId: number): void {
@@ -105,6 +118,7 @@ export const useSyncStore = defineStore('sync', () => {
     hasConflict,
     lastSyncAt,
     configure,
+    testConnection,
     notifyChanged,
     notifyDeleted,
     syncNow,
