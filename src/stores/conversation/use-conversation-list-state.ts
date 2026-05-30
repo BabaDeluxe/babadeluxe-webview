@@ -2,10 +2,10 @@ import { ref } from 'vue'
 import { ok, err, type Result } from 'neverthrow'
 import type { Conversation } from '@/database/types'
 import type { AppDb } from '@/database/app-db'
-import type { AbstractLogger } from '@/logger'
-import { DbError, ChatError } from '@/errors'
+import type { DbError } from '@/errors'
+import { ChatError } from '@/errors'
 
-export function useConversationListState(appDb: AppDb, logger: AbstractLogger) {
+export function useConversationListState(appDb: AppDb) {
   const conversations = ref<Conversation[]>([])
   const isLoadingConversations = ref(false)
   const messageCountsByConversation = ref<Map<number, number>>(new Map())

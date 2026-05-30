@@ -1,16 +1,23 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { SyncStatus, SyncBackend, ConflictInfo } from '@/sync/types'
+import {
+  type SyncStatus,
+  type SyncBackend,
+  type ConflictInfo,
+  type SyncConfig,
+  type ISyncAdapter,
+} from '@/sync/types'
 import { SyncManager } from '@/sync/sync-manager'
-import { GitHubSyncAdapter } from '@/sync/github-adapter'
+import { ShardedSyncService } from '@/sync/sharded-sync-service'
+import { GitHubBackendDriver } from '@/sync/github-adapter'
+import { WebDavBackendDriver } from '@/sync/webdav-adapter'
+import { GitLabBackendDriver } from '@/sync/gitlab-adapter'
+import { AzureDevOpsBackendDriver } from '@/sync/azure-devops-adapter'
 import { DeviceIdService } from '@/sync/device-id'
 import { safeInject } from '@/safe-inject'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
-
-export type SyncConfig =
-  | { backend: 'github'; token: string; owner: string; repo: string; branch?: string }
-  | { backend: 'webdav'; url: string; username: string; password: string }
-  | { backend: 'sftp'; host: string; port: number; username: string; privateKey: string }
+import type { SyncError } from '@/errors'
+import type { Result } from 'neverthrow'
 
 export const useSyncStore = defineStore('sync', () => {
   const db = safeInject(APP_DB_KEY)
@@ -39,6 +46,19 @@ export const useSyncStore = defineStore('sync', () => {
     status.value.state === 'success' ? status.value.lastSyncAt : null
   )
 
+  function createAdapter(config: SyncConfig): ISyncAdapter | null {
+    if (config.backend === 'github') {
+      return new ShardedSyncService(new GitHubBackendDriver(config))
+    } else if (config.backend === 'webdav') {
+      return new ShardedSyncService(new WebDavBackendDriver(config))
+    } else if (config.backend === 'gitlab') {
+      return new ShardedSyncService(new GitLabBackendDriver(config))
+    } else if (config.backend === 'azure-devops') {
+      return new ShardedSyncService(new AzureDevOpsBackendDriver(config))
+    }
+    return null
+  }
+
   async function configure(config: SyncConfig | null): Promise<void> {
     if (!config) {
       manager.setAdapter(null)
@@ -46,18 +66,11 @@ export const useSyncStore = defineStore('sync', () => {
       return
     }
 
-    if (config.backend === 'github') {
-      const adapter = new GitHubSyncAdapter(
-        {
-          token: config.token,
-          owner: config.owner,
-          repo: config.repo,
-          branch: config.branch,
-        },
-        deviceIdService
-      )
+    const adapter = createAdapter(config)
+
+    if (adapter) {
       manager.setAdapter(adapter)
-      activeBackend.value = 'github'
+      activeBackend.value = config.backend as SyncBackend
 
       const testResult = await adapter.testConnection()
       if (testResult.isErr()) {
@@ -70,6 +83,14 @@ export const useSyncStore = defineStore('sync', () => {
     }
 
     logger.warn(`Sync adapter '${config.backend}' not yet implemented`)
+  }
+
+  async function testConnection(config: SyncConfig): Promise<Result<void, SyncError>> {
+    const adapter = createAdapter(config)
+    if (!adapter) {
+      throw new Error(`Sync adapter '${config.backend}' not yet implemented`)
+    }
+    return await adapter.testConnection()
   }
 
   function notifyChanged(conversationId: number): void {
@@ -97,6 +118,7 @@ export const useSyncStore = defineStore('sync', () => {
     hasConflict,
     lastSyncAt,
     configure,
+    testConnection,
     notifyChanged,
     notifyDeleted,
     syncNow,

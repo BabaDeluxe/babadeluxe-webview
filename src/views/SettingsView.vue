@@ -71,6 +71,10 @@
         @temperature-reset="handleTemperatureReset"
       />
 
+      <SyncSettingsSection
+        :settings="settings"
+        @field-changed="handleFieldChange"
+      />
       <ApiKeySection
         :api-providers="apiProviders"
         :field-states="fieldStates"
@@ -97,6 +101,7 @@ import GeneralSettingsSection from '@/components/settings/GeneralSettingsSection
 import PromptBehaviourSection from '@/components/settings/PromptBehaviourSection.vue'
 import ModelPreferencesSection from '@/components/settings/ModelPreferencesSection.vue'
 import ApiKeySection from '@/components/settings/ApiKeySection.vue'
+import SyncSettingsSection from '@/components/settings/SyncSettingsSection.vue'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'

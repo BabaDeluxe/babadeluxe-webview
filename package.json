@@ -76,6 +76,7 @@
     "culori": "^4.0.2",
     "dexie": "^4.2.0",
     "dompurify": "^3.3.1",
+    "got": "^13.0.0",
     "highlight.js": "^11.11.1",
     "katex": "^0.16.30",
     "markdown-it-code-copy": "^0.2.3",

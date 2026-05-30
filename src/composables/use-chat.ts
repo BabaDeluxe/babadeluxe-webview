@@ -112,7 +112,7 @@ export function useChat() {
     (context) => {
       if (!context) return
       currentMessage.value = `Generate a PR title and description for merging ${context.headBranch} into ${context.baseBranch}.\n\nCommits:\n${context.commitMessages.join(
-        "\n"
+        '\n'
       )}\n\nDiff:\n${context.diff}`
       gitMessage.pendingPrContext.value = null
     }

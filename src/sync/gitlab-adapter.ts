@@ -1,22 +1,20 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { ok, err, type Result } from 'neverthrow'
 import { SyncError, SyncAuthError, RateLimitError } from '@/errors'
-import { type GitHubConfig, type ISyncBackendDriver, type GotInstance } from '@/sync/types'
+import { type GitLabConfig, type ISyncBackendDriver, type GotInstance } from '@/sync/types'
 import got from 'got'
 
-export class GitHubBackendDriver implements ISyncBackendDriver {
-  readonly name = 'github'
-  private readonly _branch: string
+export class GitLabBackendDriver implements ISyncBackendDriver {
+  readonly name = 'gitlab'
+  private readonly _apiBase: string
   private readonly _got: GotInstance
 
-  constructor(private readonly _config: GitHubConfig) {
-    this._branch = _config.branch || 'main'
+  constructor(private readonly _config: GitLabConfig) {
+    this._apiBase = this._config.apiBase || 'https://gitlab.com/api/v4'
     this._got = got.extend({
-      prefixUrl: 'https://api.github.com',
+      prefixUrl: this._apiBase,
       headers: {
         Authorization: `Bearer ${this._config.token}`,
-        Accept: 'application/vnd.github.v3+json',
-        'X-GitHub-Api-Version': '2022-11-28',
       },
       throwHttpErrors: false,
       responseType: 'json',
@@ -24,17 +22,17 @@ export class GitHubBackendDriver implements ISyncBackendDriver {
   }
 
   getRootUrl(): string {
-    return 'https://api.github.com'
+    return this._apiBase
   }
 
   async testConnection(): Promise<Result<void, SyncError>> {
     try {
-      const res = await this._got.get(`repos/${this._config.owner}/${this._config.repo}`)
+      const res = await this._got.get('user')
       if (res.statusCode === 401 || res.statusCode === 403) {
-        if (res.statusCode === 403 && res.headers['x-ratelimit-remaining'] === '0') {
-          return err(new RateLimitError('GitHub rate limit exceeded'))
-        }
         return err(new SyncAuthError(this.name, `HTTP ${res.statusCode}`))
+      }
+      if (res.statusCode === 429) {
+        return err(new RateLimitError('GitLab rate limit exceeded'))
       }
       if (res.statusCode >= 400) {
         return err(new SyncError(this.name, `HTTP ${res.statusCode}`))
@@ -51,49 +49,47 @@ export class GitHubBackendDriver implements ISyncBackendDriver {
 
   async putFile(shardUrl: string, path: string, content: string): Promise<void> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `${shardUrl}/${path}` : path
-    const url = `repos/${this._config.owner}/${this._config.repo}/contents/${prefixedPath}`
+    const encodedPath = encodeURIComponent(prefixedPath)
+    const url = `projects/${this._config.projectId}/repository/files/${encodedPath}`
 
-    const getRes = await this._got.get<{ sha: string }>(url, {
-      searchParams: { ref: this._branch },
-    })
-    let sha: string | undefined
-    if (getRes.statusCode === 200) {
-      sha = getRes.body.sha
-    }
+    const checkRes = await this._got.head(url, { searchParams: { ref: 'main' } })
+    const method = checkRes.statusCode < 400 ? 'put' : 'post'
 
-    const res = await this._got.put(url, {
+    const res = await this._got[method](url, {
       json: {
-        message: `sync: write ${path}`,
+        branch: 'main',
         content,
-        branch: this._branch,
-        sha,
+        commit_message: `sync: write ${path}`,
+        encoding: 'base64',
       },
     })
 
     if (res.statusCode >= 400) {
-      throw new Error(`Failed to PUT file ${path}: ${res.statusCode}`)
+      throw new Error(`Failed to ${method.toUpperCase()} file ${path}: ${res.statusCode}`)
     }
   }
 
   async getFile(shardUrl: string, path: string): Promise<string | null> {
     const prefixedPath = shardUrl.startsWith('shard-') ? `${shardUrl}/${path}` : path
-    const url = `repos/${this._config.owner}/${this._config.repo}/contents/${prefixedPath}`
+    const encodedPath = encodeURIComponent(prefixedPath)
+    const url = `projects/${this._config.projectId}/repository/files/${encodedPath}`
     const res = await this._got.get<{ content: string }>(url, {
-      searchParams: { ref: this._branch },
+      searchParams: { ref: 'main' },
     })
 
     if (res.statusCode === 404) return null
     if (res.statusCode >= 400) throw new Error(`Failed to GET file ${path}: ${res.statusCode}`)
 
-    return res.body.content.replace(/\n/g, '')
+    return res.body.content
   }
 
   async isShardFull(): Promise<boolean> {
-    const res = await this._got.get<{ size: number }>(
-      `repos/${this._config.owner}/${this._config.repo}`
+    const res = await this._got.get<{ statistics: { repository_size: number } }>(
+      `projects/${this._config.projectId}`,
+      { searchParams: { statistics: 'true' } }
     )
     if (res.statusCode >= 400) return false
-    const size = (res.body.size || 0) * 1024
+    const size = res.body.statistics?.repository_size || 0
     return size > 4800000000
   }
 

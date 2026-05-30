@@ -1,10 +1,12 @@
-import { skipIfNoBackend } from "./helpers/skip-if-no-backend"
+import { skipIfNoBackend } from './helpers/skip-if-no-backend'
 import { expect } from '@playwright/test'
 import { authTest as test } from './helpers/fixtures'
 import { createLocatorDealer, locators } from './helpers/locators'
 
 test.describe('App navigation', () => {
-  test.beforeEach(() => { skipIfNoBackend() })
+  test.beforeEach(() => {
+    skipIfNoBackend()
+  })
   test('header history link navigates to /history', async ({ page, browserName }) => {
     await page.goto('/chat', {
       waitUntil: browserName === 'webkit' ? 'commit' : 'domcontentloaded',
