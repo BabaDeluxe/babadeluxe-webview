@@ -63,6 +63,7 @@ export const API_KEY_VALIDATOR_KEY: InjectionKey<AsyncInjectable<IApiKeyValidato
   Symbol('API_KEY_VALIDATOR_KEY')
 export const AUTH_PROVIDER_KEY: InjectionKey<AuthProvider> = Symbol('authProvider')
 export const VSCODE_BRIDGE_KEY: InjectionKey<VsCodeBridge> = Symbol('VSCODE_BRIDGE_KEY')
+export const GIT_MESSAGE_KEY: InjectionKey<GitMessageComposable> = Symbol('GIT_MESSAGE_KEY')
 ```
 
 ```ts
@@ -182,5 +183,4 @@ graph TD
 | `src/sync/`        | Chat synchronization logic (GitHub, etc.)                   |
 | `src/components/`  | `Base*` design system components and feature widgets        |
 | `src/views/`       | Route-level pages: Chat, History, Prompts, Settings         |
-| `src/validators/`  | Zod schemas for runtime validation                          |
 | `src/services/`    | Domain services: `VsCodeBridge`, `ApiKeyValidator`, search  |
