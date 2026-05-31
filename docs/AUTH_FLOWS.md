@@ -8,9 +8,9 @@ This document describes every authentication path the webview supports, the code
 
 Before any auth logic runs, the app detects its runtime environment synchronously at router creation time (`src/routes.ts`):
 
-```ts
+````ts
 const { isInVsCode } = useIsInVsCode()
-```
+```text
 
 `useIsInVsCode` calls `getVsCodeApi()` which probes `globalThis.acquireVsCodeApi`. This is injected exclusively by the VS Code webview host — it is `undefined` in every normal browser. The result drives two decisions:
 
@@ -35,7 +35,7 @@ const { isInVsCode } = useIsInVsCode()
 
 **Context:** webview is embedded in the BabaDeluxe VS Code extension.
 
-```
+```text
 User opens VS Code extension
         │
         ▼
@@ -59,7 +59,7 @@ session?    no session
    ▼             ▼
 router →    error state
  /chat
-```
+```text
 
 **Key files:**
 
@@ -77,7 +77,7 @@ router →    error state
 
 **Context:** user opens `app.babadeluxe.com` or staging in a normal browser.
 
-```
+```text
 User clicks "Sign in with GitHub"
         │
         ▼
@@ -102,7 +102,7 @@ session?    no session  ← race condition guard (see below)
 router →    error state + toast
  /chat         "Session could not be verified"
  (or ?redirect)
-```
+```text
 
 **Key files:**
 
@@ -115,7 +115,7 @@ router →    error state + toast
 
 **Context:** Supabase is configured for implicit flow; tokens arrive in the URL hash.
 
-```
+```text
 Supabase redirects to /auth/callback#access_token=...&refresh_token=...
         │
         ▼
@@ -136,7 +136,7 @@ session?    no session
    ▼             ▼
 router →    error state + toast
  /chat
-```
+```text
 
 **Notes:**
 
@@ -149,7 +149,7 @@ router →    error state + toast
 
 **Context:** user signs in with email + password on the login screen.
 
-```
+```text
 User submits LoginView form
         │
         ▼
@@ -162,7 +162,7 @@ success?    error
 router →    inline form error
  /chat
  (or ?redirect)
-```
+```text
 
 **Key files:**
 
@@ -172,7 +172,7 @@ router →    inline form error
 
 ## Flow 5 — Password Reset
 
-```
+```text
 User requests reset → email sent by Supabase
         │
         ▼
@@ -192,7 +192,7 @@ supabase.auth.updateUser({ password })
         │
         ▼
 router → /chat
-```
+```text
 
 **Key files:**
 
@@ -227,3 +227,4 @@ The Supabase project's allowed redirect URLs must include:
 | Production  | `https://app.babadeluxe.com/auth/callback`         |
 
 Missing entries will cause OAuth providers to reject the redirect with `redirect_uri_mismatch`.
+````

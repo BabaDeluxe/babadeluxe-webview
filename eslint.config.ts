@@ -3,6 +3,7 @@ import { defineConfigWithVueTs, vueTsConfigs } from '@vue/eslint-config-typescri
 import pluginVue from 'eslint-plugin-vue'
 import pluginVitest from '@vitest/eslint-plugin'
 import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
+import markdown from '@eslint/markdown'
 
 // To allow more languages other than `ts` in `.vue` files, uncomment the following lines:
 // import { configureVueProject } from '@vue/eslint-config-typescript'
@@ -15,6 +16,11 @@ export default defineConfigWithVueTs(
     files: ['**/*.{ts,mts,tsx,vue}'],
   },
 
+  ...markdown.configs.recommended.map((config) => ({
+    ...config,
+    name: config.name ? `markdown/${config.name}` : undefined,
+  })),
+
   globalIgnores([
     '**/dist/**',
     '**/dist-ssr/**',
@@ -23,10 +29,14 @@ export default defineConfigWithVueTs(
     '**/node_modules/**',
     '**/.*/**',
     '**/babadeluxe-*/**',
-    'agents.md',
+    'AGENTS.md',
+    '**/agent-resources/**',
   ]),
 
-  pluginVue.configs['flat/recommended'],
+  ...pluginVue.configs['flat/recommended'].map((config) => ({
+    ...config,
+    files: ['**/*.vue'],
+  })),
   vueTsConfigs.recommended,
 
   {
@@ -338,6 +348,15 @@ export default defineConfigWithVueTs(
           modifiers: ['requiresQuotes'],
         },
       ],
+    },
+  },
+
+  {
+    files: ['**/*.md'],
+    rules: {
+      '@typescript-eslint/no-confusing-void-expression': 'off',
+      '@typescript-eslint/consistent-type-imports': 'off',
+      '@typescript-eslint/naming-convention': 'off',
     },
   },
 

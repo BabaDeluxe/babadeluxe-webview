@@ -32,6 +32,7 @@ This file documents discrepancies between the codebase implementation and the pr
 **Branch Analyzed:** `dev`
 
 **Files Reviewed:**
+
 - `README.md`
 - `docs/AUTH.md`
 - `docs/ENVS.md`
@@ -40,11 +41,13 @@ This file documents discrepancies between the codebase implementation and the pr
 - `src/views/LoginView.vue`
 
 **Regressions Found & Fixed:**
+
 - **Authentication:** `docs/AUTH.md` and `README.md` were missing Google OAuth support, despite it being implemented and used in `LoginView.vue`.
 - **Environment:** `docs/ENVS.md` was missing `VITE_APP_URL`, which is used for canonical OAuth redirects in `SupabaseAuthProvider.ts`.
 - **Architecture (Submodule):** `babadeluxe-docs/docs/ARCHITECTURE.md` was significantly out of sync with the root architecture doc, missing the entire Dependency Injection section and the `ChatRepository` refactor details.
 
 **Files Changed:**
+
 - `README.md`
 - `docs/AUTH.md`
 - `docs/ENVS.md`
@@ -128,4 +131,41 @@ This file documents discrepancies between the codebase implementation and the pr
 - `UNFINISHED.md`
 - `babadeluxe-docs/docs/ARCHITECTURE.md`
 - `babadeluxe-docs/docs/getting-started.md`
+- `DOC_DRIFT.md`
+
+---
+
+## Pass Summary: 2026-05-31
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+
+- `docs/ARCHITECTURE.md`
+- `docs/ENVS.md`
+- `docs/SYNC_DESIGN.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `src/injection-keys.ts`
+- `src/env-validator.ts`
+- `src/sync/sync-manager.ts`
+- `src/sync/sync-queue.ts`
+- `src/database/key-value-store.ts`
+
+**Regressions Found & Fixed:**
+
+- **Architecture:** `docs/ARCHITECTURE.md` was missing `GIT_MESSAGE_KEY` and listed a non-existent `src/validators/` directory.
+- **Environment:** `docs/ENVS.md` failed to mention that `VITE_APP_URL` is currently bypassed by centralized Zod validation.
+- **Sync Design:** `docs/SYNC_DESIGN.md` had stale information about `SyncQueue` being a persistent IndexedDB queue; it is currently an in-memory map.
+- **Tooling:** Integrated `@eslint/markdown` for linting `.md` files and updated `package.json` scripts.
+
+**Files Changed:**
+
+- `docs/ARCHITECTURE.md`
+- `docs/AUTH_FLOWS.md`
+- `docs/CI_CD_ENV.md`
+- `docs/ENVS.md`
+- `docs/HTTP.md`
+- `docs/SYNC_DESIGN.md`
+- `eslint.config.ts`
+- `package.json`
 - `DOC_DRIFT.md`

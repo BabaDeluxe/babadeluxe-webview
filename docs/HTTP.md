@@ -18,14 +18,14 @@ All backend communication goes through Socket.io — there are no REST calls fro
 
 All socket emissions go through `emitWithTimeout`, which wraps the Socket.io callback-style API into a `ResultAsync<T, Error>`.
 
-```ts
+````ts
 // WRONG — fromThrowable is for sync functions.
 // It wraps the Promise itself as the Ok value instead of awaiting it.
 const result = await ResultAsync.fromThrowable(emitPromise, mapError)()
 
 // CORRECT — fromPromise awaits the already-constructed Promise.
 const result = await ResultAsync.fromPromise(emitPromise, mapError)
-```
+```text
 
 The `||` → `??` change in the error fallback is intentional: `||` would swallow a valid `0` or `false` error value; `??` only falls back on `null`/`undefined`.
 
@@ -39,7 +39,7 @@ export async function retryWithBackoff<T, E>(
   context: string,
   config: Partial<RetryConfig> = {}
 ): Promise<Result<T, E | RateLimitError>>
-```
+```text
 
 ### Config defaults
 
@@ -57,13 +57,13 @@ Only `RateLimitError` triggers a retry. Any other error type short-circuits imme
 ```ts
 const jitter = Math.random() * 0.3 * exponentialDelay
 const delay = Math.min(exponentialDelay + jitter, maxDelayMilliseconds)
-```
+```text
 
 Jitter is up to 30% of the base delay, preventing thundering herd on concurrent retries.
 
 ## Error Hierarchy
 
-```
+```text
 Error
 └── AppError (base)
     ├── DbError                  — IndexedDB / Dexie failures
@@ -75,7 +75,7 @@ Error
     ├── MessageUpdateError       — Failed to update an existing message
     ├── NetworkError             — Generic network layer failures
     └── ValidationError          — Zod schema mismatch at runtime
-```
+```text
 
 Every error class carries a `cause?: unknown` for wrapping lower-level errors without losing the original stack. Consumer code matches on the class type — no string comparison on `error.message`.
 
@@ -86,3 +86,4 @@ Every error class carries a `cause?: unknown` for wrapping lower-level errors wi
 - Use `Result.fromThrowable(syncFn, mapError)` for synchronous functions that might throw
 - Use `.match()` or `.isErr()` at call sites — never access `.value` without checking
 - Chain with `.andThen()` / `.map()` — avoid nested `if (result.isOk())` pyramids
+````

@@ -46,8 +46,8 @@
     }
   },
   "scripts": {
-    "lint": "concurrently \"eslint . --ext .ts,.vue --config eslint.config.ts --ignore pnpm-lock.yaml --concurrency auto\" \"prettier --check \"**/*.{ts,vue,html,md}\"\"",
-    "format": "concurrently \"eslint . --fix --ext .ts,.vue --ignore pnpm-lock.yaml --concurrency auto\" \"prettier --write \"**/*.{ts,vue,html,md}\"\"",
+    "lint": "concurrently \"eslint . --config eslint.config.ts --ignore pnpm-lock.yaml --concurrency auto\" \"prettier --check \"**/*.{ts,vue,html,md}\"\"",
+    "format": "concurrently \"eslint . --fix --ignore pnpm-lock.yaml --concurrency auto\" \"prettier --write \"**/*.{ts,vue,html,md}\"\"",
     "dev": "vite",
     "dev-performance": "vite --profile --open",
     "preview": "vite preview",
@@ -100,6 +100,7 @@
     "@commitlint/cli": "20.5.3",
     "@commitlint/config-conventional": "20.5.3",
     "@commitlint/types": "20.5.0",
+    "@eslint/markdown": "^8.0.2",
     "@iconify-json/ant-design": "^1.2.5",
     "@iconify-json/bi": "^1.2.7",
     "@iconify-json/fluent": "^1.2.39",

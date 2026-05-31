@@ -20,14 +20,14 @@ BabaDeluxe Webview uses **Vite's built-in mode system** to load environment-spec
 
 ## Environment Files
 
-```
+````text
 .env                  # Shared base — committed, localhost defaults
 .env.development      # Local dev overrides (if any)
 .env.staging          # Staging-specific values — committed
 .env.production       # Production-specific values — committed
 .env.local            # Machine-local secrets — gitignored, never committed
 .env.local.example    # Template for .env.local — committed
-```
+```text
 
 Only `VITE_*`-prefixed variables are exposed to the browser bundle. All others are Node-only and never reach `import.meta.env`.
 
@@ -46,7 +46,7 @@ const isNotProd = import.meta.env.MODE !== 'production'
 
 // ❌ Unreliable — Vite overwrites NODE_ENV to 'production' on every build
 const isNotProd = process.env.NODE_ENV !== 'production'
-```
+```text
 
 ---
 
@@ -85,13 +85,13 @@ The first deploy uses `gh repo clone`. Authenticate once on the server:
 ```bash
 gh auth login
 # Choose: GitHub.com → HTTPS → Login with a web browser (or paste token)
-```
+```text
 
 For non-interactive / headless environments, add to `~/.bash_profile`:
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
-```
+```text
 
 ### 4. Server Directory Structure
 
@@ -119,7 +119,7 @@ server {
         try_files $uri $uri/ /index.html;
     }
 }
-```
+```text
 
 ---
 
@@ -137,13 +137,13 @@ environment:
   VITE_BUILD_MODE: staging
   REPO_BRANCH: dev
   VITE_APP_URL: https://app-staging.babadeluxe.com
-```
+```text
 
 Effective build command on the remote server:
 
 ```bash
 VITE_APP_URL="https://app-staging.babadeluxe.com" pnpm build --mode staging
-```
+```text
 
 This causes Vite to load `.env` + `.env.staging`, and sets `import.meta.env.MODE` to `'staging'`.
 
@@ -157,13 +157,13 @@ environment:
   VITE_BUILD_MODE: production
   REPO_BRANCH: master
   VITE_APP_URL: https://app.babadeluxe.com
-```
+```text
 
 Effective build command on the remote server:
 
 ```bash
 VITE_APP_URL="https://app.babadeluxe.com" pnpm build --mode production
-```
+```text
 
 This causes Vite to load `.env` + `.env.production`, and sets `import.meta.env.MODE` to `'production'`.
 
@@ -189,7 +189,7 @@ Use `import.meta.env.MODE` for any client-side branching on environment. The can
 
 ```ts
 const isNotProd = import.meta.env.MODE !== 'production'
-```
+```text
 
 This evaluates to `true` in local dev and staging, and `false` in production. Vite replaces `import.meta.env.MODE` with a string literal at build time, so dead-code elimination fully strips non-production branches from the production bundle.
 
@@ -202,17 +202,18 @@ This evaluates to `true` in local dev and staging, and `false` in production. Vi
 
 ```bash
 pnpm dev
-```
+```text
 
 To test a staging or production build locally:
 
 ```bash
 pnpm build --mode staging
 pnpm build --mode production
-```
+```text
 
 > `VITE_APP_URL` will default to the committed value in the respective env file. Override inline if needed:
 >
 > ```bash
 > VITE_APP_URL=http://localhost:5100 pnpm build --mode staging
-> ```
+> ```text
+````
