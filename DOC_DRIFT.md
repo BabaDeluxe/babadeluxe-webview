@@ -129,3 +129,36 @@ This file documents discrepancies between the codebase implementation and the pr
 - `babadeluxe-docs/docs/ARCHITECTURE.md`
 - `babadeluxe-docs/docs/getting-started.md`
 - `DOC_DRIFT.md`
+
+---
+
+## Pass Summary: 2026-05-31
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+
+- `docs/ARCHITECTURE.md`
+- `docs/ENVS.md`
+- `docs/SYNC_DESIGN.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `src/injection-keys.ts`
+- `src/env-validator.ts`
+- `src/sync/sync-manager.ts`
+- `src/sync/sync-queue.ts`
+- `src/database/key-value-store.ts`
+
+**Regressions Found & Fixed:**
+
+- **Architecture:** `docs/ARCHITECTURE.md` was missing `GIT_MESSAGE_KEY` and listed a non-existent `src/validators/` directory.
+- **Environment:** `docs/ENVS.md` failed to mention that `VITE_APP_URL` is currently bypassed by centralized Zod validation.
+- **Sync Design:** `docs/SYNC_DESIGN.md` had stale information about `SyncQueue` being a persistent IndexedDB queue; it is currently an in-memory map.
+- **Persistence (Submodule):** `babadeluxe-docs/docs/ARCHITECTURE.md` incorrectly claimed API keys are stored encrypted in the webview's IndexedDB.
+
+**Files Changed:**
+
+- `docs/ARCHITECTURE.md`
+- `docs/ENVS.md`
+- `docs/SYNC_DESIGN.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md` (via submodule commit)
+- `DOC_DRIFT.md`

@@ -108,48 +108,24 @@ notifyDeleted(conversationId: number): Promise<Result<void, SyncError>>
 // src/sync/sync-manager.ts
 
 class SyncManager {
-  private queue: SyncQueue // persisted to IndexedDB
-  private adapter: ISyncAdapter
+  private _pending = new Map<number, PendingTimer>()
+  private _adapter: ISyncAdapter | null = null
 
-  /** Called on app start and on a debounced timer after saves. */
-  async sync(): Promise<SyncResult> {
-    // 1. Drain pending queue items first (handles crash recovery)
-    await this.drainQueue()
-
+  /** Called on on-save or manual sync trigger. */
+  async syncNow(): Promise<void> {
+    // 1. Flush all pending pushes
+    // ...
     // 2. Pull all remote payloads
-    const pullResult = await this.adapter.pull()
-    if (pullResult.isErr()) return errorResult(pullResult.error)
-
-    // 3. Merge remote into local (conflict resolution — see §6)
-    for (const remote of pullResult.value) {
-      await this.mergeRemote(remote)
-    }
-
-    // 4. Push local changes
-    const localPayloads = await this.buildLocalPayloads()
-    for (const payload of localPayloads) {
-      await this.queue.enqueue({ op: 'put', id: payload.conversation.id })
-    }
-
-    return buildResult()
+    // ...
   }
 }
 ```
 
-### 5.1 SyncQueue (crash safety)
+### 5.1 Pending Changes
 
-`SyncQueue` is an IndexedDB object store (`sync_queue`) with entries:
+Currently, pending changes are managed in-memory via a `_pending` map in `SyncManager`. Changes are debounced (2s) before being pushed to the remote adapter.
 
-```ts
-{
-  id: string
-  op: 'put' | 'delete'
-  retries: number
-  enqueuedAt: number
-}
-```
-
-On app start, `drainQueue()` replays any items that survived a crash before the previous sync completed.
+> **Note:** Persistent crash safety (via an IndexedDB-backed `SyncQueue`) is currently NOT implemented. If the app is closed while changes are pending, they will not be synced until the next manual or on-save trigger.
 
 ---
 
@@ -235,9 +211,9 @@ export type SftpSyncRequest = Readonly<{
   type: 'sftp:sync:request'
   requestId: string
   op: 'push' | 'pull' | 'delete' | 'testConnection'
-  payload?: SyncPayload        // present for 'push'
-  conversationId?: number      // present for 'delete'
-  since?: string               // present for 'pull'
+  payload?: SyncPayload // present for 'push'
+  conversationId?: number // present for 'delete'
+  since?: string // present for 'pull'
 }>
 
 // Extension host → Webview
@@ -245,7 +221,7 @@ export type SftpSyncResponse = Readonly<{
   type: 'sftp:sync:response'
   requestId: string
   error?: string
-  payloads?: SyncPayload[]     // present for 'pull' response
+  payloads?: SyncPayload[] // present for 'pull' response
 }>
 ```
 
@@ -262,12 +238,12 @@ export type SftpSyncResponse = Readonly<{
 
 Specific op mappings:
 
-| Method | op | extra fields | success return |
-|---|---|---|---|
-| `push(payload)` | `push` | `payload` | `ok(undefined)` |
-| `pull(since?)` | `pull` | `since` | `ok(response.payloads ?? [])` |
-| `notifyDeleted(id)` | `delete` | `conversationId: id` | `ok(undefined)` |
-| `testConnection()` | `testConnection` | — | `ok(undefined)` |
+| Method              | op               | extra fields         | success return                |
+| ------------------- | ---------------- | -------------------- | ----------------------------- |
+| `push(payload)`     | `push`           | `payload`            | `ok(undefined)`               |
+| `pull(since?)`      | `pull`           | `since`              | `ok(response.payloads ?? [])` |
+| `notifyDeleted(id)` | `delete`         | `conversationId: id` | `ok(undefined)`               |
+| `testConnection()`  | `testConnection` | —                    | `ok(undefined)`               |
 
 **Extension-host follow-up** (`babadeluxe-vscode` — separate task, not in this repo):
 
@@ -282,11 +258,11 @@ Specific op mappings:
 
 Builds on `src/errors.ts`. The following sync-relevant error classes exist:
 
-| Error class | When used | Action |
-|---|---|---|
-| `SyncAuthError` | HTTP 401/403, SSH auth failure | Surface to UI immediately, disable sync, prompt re-auth. **Never retry.** |
-| `SyncError` | Network timeout, server errors, parse failures, SFTP timeout | Retry with exponential backoff via `src/retry.ts`. Max 5 attempts. |
-| `ConflictError` | GitHub SHA mismatch, WebDAV ETag `412` | Fetch remote, run conflict resolver (§6), retry push once. |
+| Error class     | When used                                                    | Action                                                                    |
+| --------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `SyncAuthError` | HTTP 401/403, SSH auth failure                               | Surface to UI immediately, disable sync, prompt re-auth. **Never retry.** |
+| `SyncError`     | Network timeout, server errors, parse failures, SFTP timeout | Retry with exponential backoff via `src/retry.ts`. Max 5 attempts.        |
+| `ConflictError` | GitHub SHA mismatch, WebDAV ETag `412`                       | Fetch remote, run conflict resolver (§6), retry push once.                |
 
 > **No additional error subclasses are defined for sync.** Only `SyncError`, `SyncAuthError`, and `ConflictError` from `src/errors.ts` are used. Do not introduce `SyncNetworkError`, `SyncConflictError`, `SyncDataError`, or similar.
 
@@ -300,7 +276,7 @@ All errors are logged via `src/logger.ts`. The Pinia sync store exposes a `syncS
 src/sync/
   types.ts                   ← ISyncAdapter interface + shared types
   sync-manager.ts            ← orchestration logic
-  sync-queue.ts              ← IndexedDB-backed queue
+  sync-queue.ts              ← (Reserved for future use/Refactoring)
   device-id.ts               ← Device identification service
   github-adapter.ts          ← GitHub REST API adapter (Phase 1 ✅)
   webdav-adapter.ts          ← WebDAV adapter (Phase 2)
@@ -331,7 +307,7 @@ interface SyncSettings {
     owner: string
     repo: string
     branch: string // default: 'main'
-    pat: string    // stored encrypted
+    pat: string // stored encrypted
   }
   webdav?: {
     url: string
@@ -340,7 +316,7 @@ interface SyncSettings {
   }
   sftp?: {
     host: string
-    port: number   // default: 22
+    port: number // default: 22
     username: string
     password: string // stored encrypted; extension-host uses this for SSH password auth
     remoteDir: string
@@ -354,12 +330,12 @@ interface SyncSettings {
 
 ## 11. Open Questions
 
-| # | Question | Impact | Recommendation |
-|---|---|---|---|
-| 1 | Push-on-save (debounced) vs. fixed interval? | GitHub rate limits; UX responsiveness | Debounce 30s on-save + 5-min interval as fallback |
-| 2 | Should sync settings live in the existing settings store or a dedicated Pinia store? | Code organisation | Dedicated `sync-store.ts` — keeps sync state (status, errors) separate from config |
-| 3 | Scope: sync chats only, or also settings? | Complexity | Chats only in v1; settings sync is a separate feature |
-| 4 | Encryption at rest on remote? | Privacy | Opt-in `AES-GCM` envelope wrapping before upload — design as a wrapper adapter (`EncryptedSyncAdapter`) |
+| #   | Question                                                                             | Impact                                | Recommendation                                                                                          |
+| --- | ------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1   | Push-on-save (debounced) vs. fixed interval?                                         | GitHub rate limits; UX responsiveness | Debounce 30s on-save + 5-min interval as fallback                                                       |
+| 2   | Should sync settings live in the existing settings store or a dedicated Pinia store? | Code organisation                     | Dedicated `sync-store.ts` — keeps sync state (status, errors) separate from config                      |
+| 3   | Scope: sync chats only, or also settings?                                            | Complexity                            | Chats only in v1; settings sync is a separate feature                                                   |
+| 4   | Encryption at rest on remote?                                                        | Privacy                               | Opt-in `AES-GCM` envelope wrapping before upload — design as a wrapper adapter (`EncryptedSyncAdapter`) |
 
 ---
 
