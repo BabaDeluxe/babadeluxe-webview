@@ -32,6 +32,7 @@ This file documents discrepancies between the codebase implementation and the pr
 **Branch Analyzed:** `dev`
 
 **Files Reviewed:**
+
 - `README.md`
 - `docs/AUTH.md`
 - `docs/ENVS.md`
@@ -40,11 +41,13 @@ This file documents discrepancies between the codebase implementation and the pr
 - `src/views/LoginView.vue`
 
 **Regressions Found & Fixed:**
+
 - **Authentication:** `docs/AUTH.md` and `README.md` were missing Google OAuth support, despite it being implemented and used in `LoginView.vue`.
 - **Environment:** `docs/ENVS.md` was missing `VITE_APP_URL`, which is used for canonical OAuth redirects in `SupabaseAuthProvider.ts`.
 - **Architecture (Submodule):** `babadeluxe-docs/docs/ARCHITECTURE.md` was significantly out of sync with the root architecture doc, missing the entire Dependency Injection section and the `ChatRepository` refactor details.
 
 **Files Changed:**
+
 - `README.md`
 - `docs/AUTH.md`
 - `docs/ENVS.md`
@@ -153,12 +156,10 @@ This file documents discrepancies between the codebase implementation and the pr
 - **Architecture:** `docs/ARCHITECTURE.md` was missing `GIT_MESSAGE_KEY` and listed a non-existent `src/validators/` directory.
 - **Environment:** `docs/ENVS.md` failed to mention that `VITE_APP_URL` is currently bypassed by centralized Zod validation.
 - **Sync Design:** `docs/SYNC_DESIGN.md` had stale information about `SyncQueue` being a persistent IndexedDB queue; it is currently an in-memory map.
-- **Persistence (Submodule):** `babadeluxe-docs/docs/ARCHITECTURE.md` incorrectly claimed API keys are stored encrypted in the webview's IndexedDB.
 
 **Files Changed:**
 
 - `docs/ARCHITECTURE.md`
 - `docs/ENVS.md`
 - `docs/SYNC_DESIGN.md`
-- `babadeluxe-docs/docs/ARCHITECTURE.md` (via submodule commit)
 - `DOC_DRIFT.md`
