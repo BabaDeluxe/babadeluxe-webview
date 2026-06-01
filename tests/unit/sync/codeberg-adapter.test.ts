@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { GitHubBackendDriver } from '@/sync/github-adapter'
+import { CodebergBackendDriver } from '@/sync/codeberg-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { type SyncPayload } from '@/sync/types'
 
-describe('GitHub Sync', () => {
-  const config = { token: 't', owner: 'o', repo: 'r' }
-  let driver: GitHubBackendDriver
+describe('Codeberg Sync', () => {
+  const config = { token: 't', repo: 'o/r' }
+  let driver: CodebergBackendDriver
   let service: ShardedSyncService
 
   beforeEach(() => {
@@ -24,26 +24,26 @@ describe('GitHub Sync', () => {
           }
         if (url.includes('.sync_metadata.json'))
           return { ok: true, status: 200, json: async () => ({ keys: {} }), text: async () => '' }
-        if (url.includes('keys/101.000.md') && init?.method === 'PUT')
+        if (url.includes('keys/789.000.md') && init?.method === 'PUT')
           return { ok: true, status: 200, json: async () => ({}), text: async () => '' }
-        if (url.includes('keys/101.000.md'))
+        if (url.includes('keys/789.000.md'))
           return {
             ok: true,
             status: 200,
-            json: async () => ({ sha: 'github-blob-sha' }),
+            json: async () => ({ sha: 'cb-sha' }),
             text: async () => '',
           }
         return { ok: true, status: 200, json: async () => ({}), text: async () => '{}' }
       })
     )
-    driver = new GitHubBackendDriver(config)
+    driver = new CodebergBackendDriver(config)
     service = new ShardedSyncService(driver)
   })
 
-  it('should push files using GitHub API', async () => {
+  it('should push files using Codeberg API', async () => {
     const payload = {
       conversation: {
-        id: 101,
+        id: 789,
         title: 'T',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -57,10 +57,10 @@ describe('GitHub Sync', () => {
     const result = await service.push(payload)
     expect(result.isOk()).toBe(true)
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('keys/101.000.md'),
+      expect.stringContaining('keys/789.000.md'),
       expect.objectContaining({
         method: 'PUT',
-        body: expect.stringContaining('github-blob-sha'),
+        body: expect.stringContaining('cb-sha'),
       })
     )
   })

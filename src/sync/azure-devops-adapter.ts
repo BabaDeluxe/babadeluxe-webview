@@ -1,70 +1,42 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-import { ok, err, type Result } from 'neverthrow'
-import { SyncError, SyncAuthError, RateLimitError } from '@/errors'
-import { type AzureDevOpsConfig, type ISyncBackendDriver, type GotInstance } from '@/sync/types'
-import got from 'got'
+import { BaseBackendDriver } from './base-driver'
+import { type AzureDevOpsConfig } from '@/sync/types'
 
-export class AzureDevOpsBackendDriver implements ISyncBackendDriver {
+export class AzureDevOpsBackendDriver extends BaseBackendDriver {
   readonly name = 'azure-devops'
   private readonly _apiBase: string
-  private readonly _got: GotInstance
 
   constructor(private readonly _config: AzureDevOpsConfig) {
+    super()
     this._apiBase =
       _config.apiBase || `https://dev.azure.com/${_config.org}/${_config.project}/_apis`
-    this._got = got.extend({
-      prefixUrl: this._apiBase,
-      headers: {
-        Authorization: `Basic ${btoa(':' + this._config.pat)}`,
-      },
-      throwHttpErrors: false,
-      responseType: 'json',
-    }) as unknown as GotInstance
   }
 
   getRootUrl(): string {
-    return this._apiBase
+    return `git/repositories/${this._config.repo}/`
   }
 
-  async testConnection(): Promise<Result<void, SyncError>> {
-    try {
-      const res = await this._got.get(`git/repositories/${this._config.repo}`, {
-        searchParams: { 'api-version': '7.1' },
-      })
-      if (res.statusCode === 401 || res.statusCode === 403) {
-        return err(new SyncAuthError(this.name, `HTTP ${res.statusCode}`))
-      }
-      if (res.statusCode === 429) {
-        return err(new RateLimitError('Azure DevOps rate limit exceeded'))
-      }
-      if (res.statusCode >= 400) {
-        return err(new SyncError(this.name, `HTTP ${res.statusCode}`))
-      }
-      return ok(undefined)
-    } catch (e) {
-      return err(new SyncError(this.name, e instanceof Error ? e.message : String(e), e))
+  protected _getHeaders(): Record<string, string> {
+    return {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      Authorization: `Basic ${btoa(':' + this._config.pat)}`,
+      'Content-Type': 'application/json',
     }
   }
 
-  getGot(): GotInstance {
-    return this._got
+  protected async _performTestCall() {
+    return this._fetch(`${this._apiBase}/git/repositories/${this._config.repo}?api-version=7.1`)
   }
 
   async putFile(shardUrl: string, path: string, content: string): Promise<void> {
-    const prefixedPath = shardUrl.startsWith('shard-') ? `/${shardUrl}/${path}` : `/${path}`
+    const baseUrl = `${this._apiBase}/${shardUrl}`
+    const refsRes = await this._fetch(`${baseUrl}refs?filter=heads/main&api-version=7.1`)
+    const refsData = (await refsRes.json()) as { value?: Array<{ objectId: string }> }
+    const oldObjectId = refsData.value?.[0]?.objectId || '0000000000000000000000000000000000000000'
 
-    const refsRes = await this._got.get<{ value: Array<{ objectId: string }> }>(
-      `git/repositories/${this._config.repo}/refs`,
-      { searchParams: { filter: 'heads/main', 'api-version': '7.1' } }
-    )
-    if (refsRes.statusCode >= 400) throw new Error(`Failed to fetch refs: ${refsRes.statusCode}`)
-    const oldObjectId =
-      refsRes.body.value?.[0]?.objectId || '0000000000000000000000000000000000000000'
-
-    const itemRes = await this._got.head(`git/repositories/${this._config.repo}/items`, {
-      searchParams: { path: prefixedPath, 'api-version': '7.1' },
+    const itemRes = await this._fetch(`${baseUrl}items?path=/${path}&api-version=7.1`, {
+      method: 'HEAD',
     })
-    const changeType = itemRes.statusCode === 200 ? 'edit' : 'add'
+    const changeType = itemRes.ok ? 'edit' : 'add'
 
     const body = {
       refUpdates: [{ name: 'refs/heads/main', oldObjectId }],
@@ -74,48 +46,41 @@ export class AzureDevOpsBackendDriver implements ISyncBackendDriver {
           changes: [
             {
               changeType,
-              item: { path: prefixedPath },
+              item: { path: `/${path}` },
               newContent: { content, contentType: 'base64Encoded' },
             },
           ],
         },
       ],
     }
-
-    const res = await this._got.post(`git/repositories/${this._config.repo}/pushes`, {
-      searchParams: { 'api-version': '7.1' },
-      json: body,
+    const res = await this._fetch(`${baseUrl}pushes?api-version=7.1`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     })
-
-    if (res.statusCode >= 400) {
-      throw new Error(`Failed to push file ${path}: ${res.statusCode}`)
-    }
+    if (!res.ok) throw new Error(`Failed to push file ${path}: ${res.status}`)
   }
 
   async getFile(shardUrl: string, path: string): Promise<string | null> {
-    const prefixedPath = shardUrl.startsWith('shard-') ? `/${shardUrl}/${path}` : `/${path}`
-    const url = `git/repositories/${this._config.repo}/items`
-    const res = await this._got.get(url, {
-      searchParams: { path: prefixedPath, includeContent: 'true', 'api-version': '7.1' },
-      responseType: 'text',
-    })
-
-    if (res.statusCode === 404) return null
-    if (res.statusCode >= 400) throw new Error(`Failed to GET file ${path}: ${res.statusCode}`)
-
-    return res.body as string
+    const url = `${this._apiBase}/${shardUrl}items?path=/${path}&includeContent=true&api-version=7.1`
+    const res = await this._fetch(url)
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error(`Failed to GET file ${path}: ${res.status}`)
+    return res.text()
   }
 
-  async isShardFull(): Promise<boolean> {
-    const res = await this._got.get<{ size: number }>(`git/repositories/${this._config.repo}`, {
-      searchParams: { 'api-version': '7.1' },
-    })
-    if (res.statusCode >= 400) return false
-    const size = res.body.size || 0
-    return size > 8000000000
+  async isShardFull(shardUrl: string): Promise<boolean> {
+    const res = await this._fetch(`${this._apiBase}/${shardUrl}?api-version=7.1`)
+    if (!res.ok) return false
+    const data = (await res.json()) as { size?: number }
+    return (data.size || 0) * 1024 > 4800000000
   }
 
   async createNewShardFolder(index: number): Promise<string> {
-    return `shard-${index}`
+    const res = await this._fetch(`${this._apiBase}/git/repositories?api-version=7.1`, {
+      method: 'POST',
+      body: JSON.stringify({ name: `shard-${index}` }),
+    })
+    if (!res.ok) throw new Error(`Failed to create repo: ${res.status}`)
+    return `git/repositories/shard-${index}/`
   }
 }
