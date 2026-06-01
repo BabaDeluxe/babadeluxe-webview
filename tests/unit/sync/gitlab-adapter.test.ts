@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { GitLabBackendDriver } from '@/sync/gitlab-adapter'
+import { GitLabProviderDriver } from '@/sync/gitlab-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { type SyncPayload } from '@/sync/types'
 
 describe('GitLab Sync', () => {
   const config = { token: 't', projectId: 'p' }
-  let driver: GitLabBackendDriver
+  let driver: GitLabProviderDriver
   let service: ShardedSyncService
 
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: unknown) => {
+        const options = init as RequestInit | undefined
         if (url.includes('shard_map.json'))
           return {
             ok: true,
@@ -26,13 +27,13 @@ describe('GitLab Sync', () => {
           return { ok: true, status: 200, json: async () => ({ keys: {} }), text: async () => '' }
         if (
           url.includes('projects/p/repository/files/keys%2F456.000.md') &&
-          init?.method === 'HEAD'
+          options?.method === 'HEAD'
         )
           return { ok: true, status: 200, json: async () => ({}), text: async () => '' }
         return { ok: true, status: 200, json: async () => ({}), text: async () => '{}' }
       })
     )
-    driver = new GitLabBackendDriver(config)
+    driver = new GitLabProviderDriver(config)
     service = new ShardedSyncService(driver)
   })
 

@@ -2,7 +2,7 @@ import { ok, err, type Result } from 'neverthrow'
 import { SyncError } from '@/errors'
 import {
   type ISyncAdapter,
-  type ISyncBackendDriver,
+  type ISyncProviderDriver,
   type SyncPayload,
   type ConversationSnapshot,
   type ConversationSnapshotForUpload,
@@ -27,7 +27,7 @@ import {
 export class ShardedSyncService implements ISyncAdapter {
   private readonly _maxConcurrency = 5
 
-  constructor(private readonly _driver: ISyncBackendDriver) {}
+  constructor(private readonly _driver: ISyncProviderDriver) {}
 
   get name(): string {
     return this._driver.name
@@ -158,7 +158,7 @@ export class ShardedSyncService implements ISyncAdapter {
    */
   private _getFetch(): FetchFn {
     return async (url: string, options: unknown = {}): Promise<FetchResponse> => {
-      const res = await fetch(url, options)
+      const res = await fetch(url, options as RequestInit)
       return {
         ok: res.ok,
         status: res.status,

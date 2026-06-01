@@ -1,6 +1,6 @@
-import { BaseBackendDriver } from './base-driver'
+import { BaseProviderDriver } from './base-provider-driver'
 
-export abstract class GitBaseBackendDriver extends BaseBackendDriver {
+export abstract class GitBaseProviderDriver extends BaseProviderDriver {
   protected abstract _repoSizePath: string
 
   async isShardFull(): Promise<boolean> {

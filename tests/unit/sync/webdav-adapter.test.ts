@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { WebDavBackendDriver } from '@/sync/webdav-adapter'
+import { WebDavProviderDriver } from '@/sync/webdav-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { type SyncPayload } from '@/sync/types'
 
 describe('WebDav Sync', () => {
   const config = { url: 'https://dav.com/', username: 'u', password: 'p' }
-  let driver: WebDavBackendDriver
+  let driver: WebDavProviderDriver
   let service: ShardedSyncService
 
   beforeEach(() => {
@@ -27,7 +27,7 @@ describe('WebDav Sync', () => {
         return { ok: true, status: 200, json: async () => ({}), text: async () => 'ok' }
       })
     )
-    driver = new WebDavBackendDriver(config)
+    driver = new WebDavProviderDriver(config)
     service = new ShardedSyncService(driver)
   })
 

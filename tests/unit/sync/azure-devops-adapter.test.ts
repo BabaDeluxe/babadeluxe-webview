@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { AzureDevOpsBackendDriver } from '@/sync/azure-devops-adapter'
+import { AzureDevOpsProviderDriver } from '@/sync/azure-devops-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { type SyncPayload } from '@/sync/types'
 
 describe('Azure DevOps Sync', () => {
   const config = { org: 'o', project: 'p', repo: 'r', pat: 't' }
-  let driver: AzureDevOpsBackendDriver
+  let driver: AzureDevOpsProviderDriver
   let service: ShardedSyncService
 
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: unknown) => {
+        const options = init as RequestInit | undefined
         if (url.includes('shard_map.json'))
           return {
             ok: true,
@@ -31,12 +32,12 @@ describe('Azure DevOps Sync', () => {
             json: async () => ({ value: [{ objectId: 'old-sha' }] }),
             text: async () => '',
           }
-        if (url.includes('items?path=/keys/101.000.md') && init?.method === 'HEAD')
+        if (url.includes('items?path=/keys/101.000.md') && options?.method === 'HEAD')
           return { ok: true, status: 200, json: async () => ({}), text: async () => '' }
         return { ok: true, status: 200, json: async () => ({}), text: async () => '{}' }
       })
     )
-    driver = new AzureDevOpsBackendDriver(config)
+    driver = new AzureDevOpsProviderDriver(config)
     service = new ShardedSyncService(driver)
   })
 

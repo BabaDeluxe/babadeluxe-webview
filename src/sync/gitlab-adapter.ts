@@ -1,7 +1,7 @@
-import { GitBaseBackendDriver } from './git-base-driver'
+import { GitBaseProviderDriver } from './git-base-provider-driver'
 import { type GitLabConfig } from '@/sync/types'
 
-export class GitLabBackendDriver extends GitBaseBackendDriver {
+export class GitLabProviderDriver extends GitBaseProviderDriver {
   readonly name = 'gitlab'
   private readonly _apiBase: string
   protected readonly _repoSizePath: string

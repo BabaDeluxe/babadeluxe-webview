@@ -1,6 +1,11 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { type SyncStatus, type SyncBackend, type ConflictInfo, type SyncConfig } from '@/sync/types'
+import {
+  type SyncStatus,
+  type SyncProvider,
+  type ConflictInfo,
+  type SyncConfig,
+} from '@/sync/types'
 import { SyncManager } from '@/sync/sync-manager'
 import { SyncAdapterFactory } from '@/sync/driver-factory'
 import { DeviceIdService } from '@/sync/device-id'
@@ -18,7 +23,7 @@ export const useSyncStore = defineStore('sync', () => {
   const manager = new SyncManager(db, logger, deviceId)
 
   const status = ref<SyncStatus>({ state: 'idle' })
-  const activeBackend = ref<SyncBackend | null>(null)
+  const activeProvider = ref<SyncProvider | null>(null)
   const conflict = ref<ConflictInfo | null>(null)
 
   manager.onStatusChange((s) => {
@@ -39,7 +44,7 @@ export const useSyncStore = defineStore('sync', () => {
   async function configure(config: SyncConfig | null): Promise<void> {
     if (!config) {
       manager.setAdapter(null)
-      activeBackend.value = null
+      activeProvider.value = null
       return
     }
 
@@ -47,7 +52,7 @@ export const useSyncStore = defineStore('sync', () => {
 
     if (adapter) {
       manager.setAdapter(adapter)
-      activeBackend.value = config.backend as SyncBackend
+      activeProvider.value = config.provider as SyncProvider
 
       const testResult = await adapter.testConnection()
       if (testResult.isErr()) {
@@ -59,14 +64,11 @@ export const useSyncStore = defineStore('sync', () => {
       return
     }
 
-    logger.warn(`Sync adapter '${config.backend}' not yet implemented`)
+    logger.warn(`Sync adapter for provider '${config.provider}' not yet implemented`)
   }
 
   async function testConnection(config: SyncConfig): Promise<Result<void, SyncError>> {
     const adapter = SyncAdapterFactory.create(config)
-    if (!adapter) {
-      throw new Error(`Sync adapter '${config.backend}' not yet implemented`)
-    }
     return await adapter.testConnection()
   }
 
@@ -89,7 +91,7 @@ export const useSyncStore = defineStore('sync', () => {
 
   return {
     status,
-    activeBackend,
+    activeProvider,
     conflict,
     isSyncing,
     hasConflict,

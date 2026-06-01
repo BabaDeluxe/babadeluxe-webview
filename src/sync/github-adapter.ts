@@ -1,7 +1,7 @@
-import { GitBaseBackendDriver } from './git-base-driver'
+import { GitBaseProviderDriver } from './git-base-provider-driver'
 import { type GitHubConfig } from '@/sync/types'
 
-export class GitHubBackendDriver extends GitBaseBackendDriver {
+export class GitHubProviderDriver extends GitBaseProviderDriver {
   readonly name = 'github'
   private readonly _branch: string
   protected readonly _repoSizePath: string
@@ -17,13 +17,13 @@ export class GitHubBackendDriver extends GitBaseBackendDriver {
   }
 
   protected _getHeaders(): Record<string, string> {
+    /* eslint-disable @typescript-eslint/naming-convention */
     return {
-      /* eslint-disable @typescript-eslint/naming-convention */
       Authorization: `Bearer ${this._config.token}`,
       Accept: 'application/vnd.github.v3+json',
       'X-GitHub-Api-Version': '2022-11-28',
-      /* eslint-enable @typescript-eslint/naming-convention */
     }
+    /* eslint-enable @typescript-eslint/naming-convention */
   }
 
   protected async _performTestCall() {

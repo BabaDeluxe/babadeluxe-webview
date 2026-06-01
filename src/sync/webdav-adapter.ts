@@ -1,7 +1,7 @@
-import { BaseBackendDriver } from './base-driver'
+import { BaseProviderDriver } from './base-provider-driver'
 import { type WebDavConfig } from '@/sync/types'
 
-export class WebDavBackendDriver extends BaseBackendDriver {
+export class WebDavProviderDriver extends BaseProviderDriver {
   readonly name = 'webdav'
   private readonly _createdDirs = new Set<string>()
 

@@ -1,7 +1,7 @@
-import { GitBaseBackendDriver } from './git-base-driver'
+import { GitBaseProviderDriver } from './git-base-provider-driver'
 import { type CodebergConfig } from '@/sync/types'
 
-export class CodebergBackendDriver extends GitBaseBackendDriver {
+export class CodebergProviderDriver extends GitBaseProviderDriver {
   readonly name = 'codeberg'
   protected readonly _repoSizePath: string
 

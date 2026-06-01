@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { GitHubBackendDriver } from '@/sync/github-adapter'
+import { GitHubProviderDriver } from '@/sync/github-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { type SyncPayload } from '@/sync/types'
 
 describe('GitHub Sync', () => {
   const config = { token: 't', owner: 'o', repo: 'r' }
-  let driver: GitHubBackendDriver
+  let driver: GitHubProviderDriver
   let service: ShardedSyncService
 
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: unknown) => {
+        const options = init as RequestInit | undefined
         if (url.includes('shard_map.json'))
           return {
             ok: true,
@@ -24,7 +25,7 @@ describe('GitHub Sync', () => {
           }
         if (url.includes('.sync_metadata.json'))
           return { ok: true, status: 200, json: async () => ({ keys: {} }), text: async () => '' }
-        if (url.includes('keys/101.000.md') && init?.method === 'PUT')
+        if (url.includes('keys/101.000.md') && options?.method === 'PUT')
           return { ok: true, status: 200, json: async () => ({}), text: async () => '' }
         if (url.includes('keys/101.000.md'))
           return {
@@ -36,7 +37,7 @@ describe('GitHub Sync', () => {
         return { ok: true, status: 200, json: async () => ({}), text: async () => '{}' }
       })
     )
-    driver = new GitHubBackendDriver(config)
+    driver = new GitHubProviderDriver(config)
     service = new ShardedSyncService(driver)
   })
 

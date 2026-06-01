@@ -1,7 +1,7 @@
-import { BaseBackendDriver } from './base-driver'
+import { BaseProviderDriver } from './base-provider-driver'
 import { type AzureDevOpsConfig } from '@/sync/types'
 
-export class AzureDevOpsBackendDriver extends BaseBackendDriver {
+export class AzureDevOpsProviderDriver extends BaseProviderDriver {
   readonly name = 'azure-devops'
   private readonly _apiBase: string
 

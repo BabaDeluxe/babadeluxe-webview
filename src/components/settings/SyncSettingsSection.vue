@@ -9,29 +9,29 @@
 
     <div class="flex flex-col gap-6">
       <div class="flex flex-col gap-1.5">
-        <label class="text-sm text-subtleText">Storage Backend</label>
+        <label class="text-sm text-subtleText">Storage Provider</label>
         <select
-          :value="activeBackend"
+          :value="activeProvider"
           class="bg-panel border border-borderMuted rounded-lg px-3 py-2.5 text-sm outline-none focus:border-accent text-bodyText transition-all"
-          @change="handleBackendChange"
+          @change="handleProviderChange"
         >
           <option value="none">Disabled</option>
           <option
-            v-for="b in backends"
-            :key="b.id"
-            :value="b.id"
+            v-for="p in providers"
+            :key="p.id"
+            :value="p.id"
           >
-            {{ b.label }}
+            {{ p.label }}
           </option>
         </select>
       </div>
 
       <div
-        v-if="currentBackendConfig"
+        v-if="currentProviderConfig"
         class="flex flex-col gap-4 pl-4 border-l-2 border-accent/30"
       >
         <div
-          v-for="(row, idx) in currentBackendConfig.fields"
+          v-for="(row, idx) in currentProviderConfig.fields"
           :key="Array.isArray(row) ? idx : row.key"
           :class="Array.isArray(row) ? 'grid grid-cols-2 gap-4' : ''"
         >
@@ -59,7 +59,7 @@
       </div>
 
       <div
-        v-if="activeBackend !== 'none'"
+        v-if="activeProvider !== 'none'"
         class="flex flex-col gap-3"
       >
         <div class="flex items-center gap-3">
@@ -93,7 +93,7 @@ import BaseButton from '@/components/BaseButton.vue'
 import BaseInput from '@/components/BaseInput.vue'
 import type { UserSettingWithValidation } from '@babadeluxe/shared'
 import { useSyncStore } from '@/stores/use-sync-store'
-import type { SyncBackend } from '@/sync/types'
+import type { SyncProvider } from '@/sync/types'
 
 const props = defineProps<{
   settings: UserSettingWithValidation[]
@@ -103,7 +103,7 @@ const emit = defineEmits<{
   (event: 'field-changed', fieldName: string, value: string): void
 }>()
 
-const backends = [
+const providers = [
   {
     id: 'github',
     label: 'GitHub',
@@ -166,22 +166,22 @@ const backends = [
 ] as const
 
 const syncStore = useSyncStore()
-const activeBackend = ref<SyncBackend>('none')
+const activeProvider = ref<SyncProvider>('none')
 const localValues = ref<Record<string, string>>({})
 
-const currentBackendConfig = computed(() => backends.find((b) => b.id === activeBackend.value))
+const currentProviderConfig = computed(() => providers.find((p) => p.id === activeProvider.value))
 
 watch(
   () => props.settings,
   (newSettings) => {
     const find = (k: string) =>
       (newSettings.find((s) => s.settingKey === k)?.settingValue as string) || ''
-    activeBackend.value = (find('syncBackend') as SyncBackend) || 'none'
+    activeProvider.value = (find('syncProvider') as SyncProvider) || 'none'
 
     const nextValues: Record<string, string> = {}
-    backends.forEach((b) => {
+    providers.forEach((p) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(b.fields as any).flat().forEach((f: any) => {
+      ;(p.fields as any).flat().forEach((f: any) => {
         nextValues[f.key] = find(f.key)
       })
     })
@@ -198,10 +198,10 @@ function handleInput(key: string, value: string) {
   debouncedEmit(key, value)
 }
 
-function handleBackendChange(e: Event) {
-  const val = (e.target as HTMLSelectElement).value as SyncBackend
-  activeBackend.value = val
-  emit('field-changed', 'syncBackend', val)
+function handleProviderChange(e: Event) {
+  const val = (e.target as HTMLSelectElement).value as SyncProvider
+  activeProvider.value = val
+  emit('field-changed', 'syncProvider', val)
 }
 
 const testing = ref(false)
@@ -211,18 +211,18 @@ async function testConnection() {
   testing.value = true
   testResult.value = null
 
-  const backend = activeBackend.value
-  const config: Record<string, unknown> = { backend }
+  const provider = activeProvider.value
+  const config: Record<string, unknown> = { provider }
 
-  const bDef = backends.find((b) => b.id === backend)
-  if (!bDef) {
+  const pDef = providers.find((p) => p.id === provider)
+  if (!pDef) {
     testing.value = false
     return
   }
 
   // Map local keys to flat config keys expected by testConnection
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(bDef.fields as any).flat().forEach((f: any) => {
+  ;(pDef.fields as any).flat().forEach((f: any) => {
     const keyMap: Record<string, string> = {
       githubToken: 'token',
       githubOwner: 'owner',

@@ -2,7 +2,7 @@ import { type Result } from 'neverthrow'
 import { type SyncError } from '@/errors'
 import type { Conversation, Message } from '@/database/chat-repository'
 
-export type SyncBackend = 'none' | 'github' | 'gitlab' | 'codeberg' | 'webdav' | 'azure-devops'
+export type SyncProvider = 'none' | 'github' | 'gitlab' | 'codeberg' | 'webdav' | 'azure-devops'
 
 export interface SyncPayload {
   syncId: string
@@ -24,7 +24,7 @@ export interface ConversationSnapshot {
 export type ConversationSnapshotForUpload = ConversationSnapshot
 
 export interface SyncConfig {
-  backend: SyncBackend
+  provider: SyncProvider
   token?: string
   owner?: string
   repo?: string
@@ -52,7 +52,7 @@ export interface ISyncAdapter {
   pull(): Promise<Result<SyncPayload[], SyncError>>
 }
 
-export interface ISyncBackendDriver {
+export interface ISyncProviderDriver {
   readonly name: string
   testConnection(): Promise<Result<void, SyncError>>
   getRootUrl(): string

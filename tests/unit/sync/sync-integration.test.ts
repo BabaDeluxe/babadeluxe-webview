@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SyncManager } from '@/sync/sync-manager'
-import { WebDavBackendDriver } from '@/sync/webdav-adapter'
+import { WebDavProviderDriver } from '@/sync/webdav-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { ok } from 'neverthrow'
+import type { AppDb } from '@/database/app-db'
+import type { AbstractLogger } from '@/logger'
 
 describe('Sync Integration', () => {
   let db: unknown
-  let driver: WebDavBackendDriver
+  let driver: WebDavProviderDriver
   let service: ShardedSyncService
   let manager: SyncManager
   let logger: unknown
@@ -19,6 +21,7 @@ describe('Sync Integration', () => {
           .mockResolvedValue(ok({ id: 1, title: 'Local', syncId: 'webdav:1', syncVersion: 1 })),
         put: vi.fn().mockResolvedValue(ok(1)),
         delete: vi.fn().mockResolvedValue(ok(undefined)),
+        update: vi.fn().mockResolvedValue(ok(undefined)),
       },
       message: {
         where: vi.fn().mockReturnValue({
@@ -86,15 +89,16 @@ describe('Sync Integration', () => {
       })
     )
 
-    driver = new WebDavBackendDriver({ url: 'https://dav.com/', username: 'u', password: 'p' })
+    driver = new WebDavProviderDriver({ url: 'https://dav.com/', username: 'u', password: 'p' })
     service = new ShardedSyncService(driver)
-    manager = new SyncManager(db as unknown, logger, 'device-1')
+    manager = new SyncManager(db as AppDb, logger as AbstractLogger, 'device-1')
     manager.setAdapter(service)
   })
 
   it('should push and pull conversations correctly through SyncManager', async () => {
     await manager.pullAll()
-    expect(db.conversation.put).toHaveBeenCalledWith(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((db as any).conversation.put).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 1,
         title: 'Remote',

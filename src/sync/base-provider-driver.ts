@@ -1,8 +1,8 @@
 import { ok, err, type Result } from 'neverthrow'
 import { SyncError, SyncAuthError, RateLimitError } from '@/errors'
-import type { ISyncBackendDriver } from '@/sync/types'
+import type { ISyncProviderDriver } from '@/sync/types'
 
-export abstract class BaseBackendDriver implements ISyncBackendDriver {
+export abstract class BaseProviderDriver implements ISyncProviderDriver {
   abstract readonly name: string
 
   abstract getRootUrl(): string

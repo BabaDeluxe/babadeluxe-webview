@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { CodebergBackendDriver } from '@/sync/codeberg-adapter'
+import { CodebergProviderDriver } from '@/sync/codeberg-adapter'
 import { ShardedSyncService } from '@/sync/sharded-sync-service'
 import { type SyncPayload } from '@/sync/types'
 
 describe('Codeberg Sync', () => {
   const config = { token: 't', repo: 'o/r' }
-  let driver: CodebergBackendDriver
+  let driver: CodebergProviderDriver
   let service: ShardedSyncService
 
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: unknown) => {
+        const options = init as RequestInit | undefined
         if (url.includes('shard_map.json'))
           return {
             ok: true,
@@ -24,7 +25,7 @@ describe('Codeberg Sync', () => {
           }
         if (url.includes('.sync_metadata.json'))
           return { ok: true, status: 200, json: async () => ({ keys: {} }), text: async () => '' }
-        if (url.includes('keys/789.000.md') && init?.method === 'PUT')
+        if (url.includes('keys/789.000.md') && options?.method === 'PUT')
           return { ok: true, status: 200, json: async () => ({}), text: async () => '' }
         if (url.includes('keys/789.000.md'))
           return {
@@ -36,7 +37,7 @@ describe('Codeberg Sync', () => {
         return { ok: true, status: 200, json: async () => ({}), text: async () => '{}' }
       })
     )
-    driver = new CodebergBackendDriver(config)
+    driver = new CodebergProviderDriver(config)
     service = new ShardedSyncService(driver)
   })
 

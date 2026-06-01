@@ -1,17 +1,17 @@
-import { GitHubBackendDriver } from './github-adapter'
-import { GitLabBackendDriver } from './gitlab-adapter'
-import { CodebergBackendDriver } from './codeberg-adapter'
-import { WebDavBackendDriver } from './webdav-adapter'
-import { AzureDevOpsBackendDriver } from './azure-devops-adapter'
+import { GitHubProviderDriver } from './github-adapter'
+import { GitLabProviderDriver } from './gitlab-adapter'
+import { CodebergProviderDriver } from './codeberg-adapter'
+import { WebDavProviderDriver } from './webdav-adapter'
+import { AzureDevOpsProviderDriver } from './azure-devops-adapter'
 import { ShardedSyncService } from './sharded-sync-service'
 import type { ISyncAdapter, SyncConfig } from './types'
 
 export class SyncAdapterFactory {
   static create(config: SyncConfig): ISyncAdapter {
     let driver
-    switch (config.backend) {
+    switch (config.provider) {
       case 'github':
-        driver = new GitHubBackendDriver({
+        driver = new GitHubProviderDriver({
           token: config.token!,
           owner: config.owner!,
           repo: config.repo!,
@@ -19,27 +19,27 @@ export class SyncAdapterFactory {
         })
         break
       case 'gitlab':
-        driver = new GitLabBackendDriver({
+        driver = new GitLabProviderDriver({
           token: config.token!,
           projectId: config.projectId!,
           apiBase: config.apiBase,
         })
         break
       case 'codeberg':
-        driver = new CodebergBackendDriver({
+        driver = new CodebergProviderDriver({
           token: config.token!,
           repo: config.repo!,
         })
         break
       case 'webdav':
-        driver = new WebDavBackendDriver({
+        driver = new WebDavProviderDriver({
           url: config.url!,
           username: config.username!,
           password: config.password!,
         })
         break
       case 'azure-devops':
-        driver = new AzureDevOpsBackendDriver({
+        driver = new AzureDevOpsProviderDriver({
           org: config.org!,
           project: config.project!,
           repo: config.repo!,
@@ -48,7 +48,7 @@ export class SyncAdapterFactory {
         })
         break
       default:
-        throw new Error(`Unsupported sync backend: ${config.backend}`)
+        throw new Error(`Unsupported sync provider: ${config.provider}`)
     }
     return new ShardedSyncService(driver)
   }
