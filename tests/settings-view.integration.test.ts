@@ -16,16 +16,24 @@ import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/inject
 import type { IApiKeyValidator } from '@/api-key-validator'
 import SettingsView from '@/views/SettingsView.vue'
 
+import { ok } from 'neverthrow'
 vi.mock('@/composables/use-settings', () => ({
   useSettings: () => ({
-    settings: reactive({ value: [] }),
-    upsertSetting: vi.fn(),
-    loadSettings: vi.fn().mockResolvedValue(undefined),
+    // settings: reactive({ value: [] }),
+    // upsertSetting: vi.fn(),
+    // loadSettings: vi.fn().mockResolvedValue(undefined),
+
+    settings: ref([]),
+    upsertSetting: vi.fn().mockResolvedValue(ok(undefined)),
+    loadSettings: vi.fn().mockResolvedValue(ok(undefined)),
   }),
 }))
 
 vi.mock('@/composables/use-models-socket', () => ({
-  useModelsSocket: () => ({ reloadModels: vi.fn() }),
+  useModelsSocket: () => ({
+    models: ref({}),
+    reloadModels: vi.fn().mockResolvedValue(ok(undefined)),
+  }),
 }))
 
 vi.mock('@/composables/use-theme', () => ({

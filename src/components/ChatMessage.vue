@@ -100,37 +100,41 @@ const errorMessage = ref('')
 defineExpose({ markdownRef })
 
 const contextBadges = computed(() => {
-  if (props.role !== 'assistant') return []
-  const refs = props.contextReferences ?? []
+  const isAssistant = props.role === 'assistant'
+  if (!isAssistant) return []
 
-  const uniqueRefs = new Map<string, ContextReference>()
+  const references = props.contextReferences ?? []
+  const uniqueReferencesMap = new Map<string, ContextReference>()
   const filePaths: string[] = []
 
-  for (const ref of refs) {
-    const key =
+  for (const ref of references) {
+    const uniqueKey =
       ref.type === 'file' ? `file:${ref.filePath}` : `snippet:${ref.filePath}:${ref.snippetText}`
 
-    if (!uniqueRefs.has(key)) {
-      uniqueRefs.set(key, ref)
-      if (ref.filePath) filePaths.push(ref.filePath)
+    if (!uniqueReferencesMap.has(uniqueKey)) {
+      uniqueReferencesMap.set(uniqueKey, ref)
+      if (ref.filePath) {
+        filePaths.push(ref.filePath)
+      }
     }
   }
 
-  const displayMap = getDisambiguatedPaths(filePaths)
+  const disambiguatedPathsMap = getDisambiguatedPaths(filePaths)
 
-  return Array.from(uniqueRefs.values()).map((ref) => {
+  return Array.from(uniqueReferencesMap.values()).map((ref) => {
     const isFile = ref.type === 'file'
     const path = ref.filePath ?? ''
     const fileName = getBaseName(path)
 
-    const title = displayMap.get(path) ?? (path ? fileName : 'Snippet')
+    const title = disambiguatedPathsMap.get(path) ?? (path ? fileName : 'Snippet')
 
     let subtitle = ''
     let tooltip = path
 
     if (!isFile) {
-      const preview = ref.snippetText.trim().replace(/\s+/g, ' ')
-      subtitle = preview.length > 60 ? `${preview.slice(0, 60)}…` : preview
+      const sanitizedSnippet = ref.snippetText.trim().replace(/\s+/g, ' ')
+      subtitle =
+        sanitizedSnippet.length > 60 ? `${sanitizedSnippet.slice(0, 60)}…` : sanitizedSnippet
       tooltip = path ? `${path}\n\n${ref.snippetText}` : ref.snippetText
     }
 

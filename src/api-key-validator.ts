@@ -5,8 +5,8 @@ import type { SocketManager } from '@/socket-manager'
 import { type ApiKeyValidationError, NetworkError, ValidationError, RateLimitError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
 
-const supportedProviders = ['openai', 'anthropic', 'google'] as const
-type SupportedProvider = (typeof supportedProviders)[number]
+const validLlmProviders = ['openai', 'anthropic', 'google'] as const
+type ValidLlmProvider = (typeof validLlmProviders)[number]
 
 const defaultSuccessStatusCode = 200
 
@@ -82,21 +82,21 @@ export class ApiKeyValidator implements IApiKeyValidator {
       return err(new ValidationError(`Invalid provider: ${provider}`))
     }
 
-    const waitResult = await this._validationSocket.waitForConnection()
+    const connectionResult = await this._validationSocket.waitForConnection()
 
-    if (waitResult.isErr()) {
+    if (connectionResult.isErr()) {
       this._logger.error('Failed to connect to validation socket', {
         provider,
-        error: waitResult.error,
+        error: connectionResult.error,
       })
-      return err(waitResult.error)
+      return err(connectionResult.error)
     }
 
     return this._emitValidateApiKey(provider, apiKey)
   }
 
-  private _isValidProvider(provider: string): provider is SupportedProvider {
-    return supportedProviders.includes(provider as SupportedProvider)
+  private _isValidProvider(provider: string): provider is ValidLlmProvider {
+    return validLlmProviders.includes(provider as ValidLlmProvider)
   }
 
   private _isValidationSuccessResponse(response: unknown): response is ValidationSuccessResponse {
@@ -109,16 +109,16 @@ export class ApiKeyValidator implements IApiKeyValidator {
   }
 
   private async _emitValidateApiKey(
-    provider: SupportedProvider,
+    provider: ValidLlmProvider,
     apiKey: string
   ): Promise<Result<ValidationSuccess, ApiKeyValidationError>> {
-    const timeoutMs = socketTimeoutMs.validation
+    const validationTimeoutMs = socketTimeoutMs.validation
 
     return await ResultAsync.fromPromise(
       new Promise<ValidationSuccess>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
-          reject(new NetworkError(`Validation request timeout after ${timeoutMs}ms`))
-        }, timeoutMs)
+          reject(new NetworkError(`Validation request timeout after ${validationTimeoutMs}ms`))
+        }, validationTimeoutMs)
 
         this._validationSocket.emit(
           'validation:validateApiKey',

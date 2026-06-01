@@ -9,8 +9,6 @@ export type AuthSession = {
 
 export interface AuthProvider {
   signInWithOAuth(provider: 'github' | 'google'): Promise<Result<void, AuthError | NetworkError>>
-  signInWithPasskey(email: string): Promise<Result<void, AuthError>>
-  signInWithSSO(domain: string): Promise<Result<void, AuthError>>
   signOut(): Promise<Result<void, AuthError>>
   getAccessToken(): Promise<string | null>
   onSessionChange(cb: (session: AuthSession | null) => void): () => void

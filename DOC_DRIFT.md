@@ -24,3 +24,111 @@ This file documents discrepancies between the codebase implementation and the pr
 1.  **Auth Providers:**
     - `docs/AUTH.md` mentions VS Code token bridge and Supabase PKCE OAuth.
     - The codebase (`src/auth/zitadel-auth-provider.ts`) suggests there might be support for Zitadel, which is not mentioned in the docs.
+
+---
+
+## Pass Summary: 2025-05-24
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+
+- `README.md`
+- `docs/AUTH.md`
+- `docs/ENVS.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `src/auth/supabase-auth-provider.ts`
+- `src/views/LoginView.vue`
+
+**Regressions Found & Fixed:**
+
+- **Authentication:** `docs/AUTH.md` and `README.md` were missing Google OAuth support, despite it being implemented and used in `LoginView.vue`.
+- **Environment:** `docs/ENVS.md` was missing `VITE_APP_URL`, which is used for canonical OAuth redirects in `SupabaseAuthProvider.ts`.
+- **Architecture (Submodule):** `babadeluxe-docs/docs/ARCHITECTURE.md` was significantly out of sync with the root architecture doc, missing the entire Dependency Injection section and the `ChatRepository` refactor details.
+
+**Files Changed:**
+
+- `README.md`
+- `docs/AUTH.md`
+- `docs/ENVS.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `DOC_DRIFT.md`
+
+---
+
+## Pass Summary: 2025-05-22
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `docs/ENVS.md`
+- `UNFINISHED.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `babadeluxe-docs/docs/getting-started.md`
+- `babadeluxe-docs/docs/CONTRIBUTING.md`
+- `CONTRIBUTING.md`
+
+**Regressions Found & Fixed:**
+
+- **Architecture:** `docs/ARCHITECTURE.md` and `babadeluxe-docs/docs/ARCHITECTURE.md` were missing 9+ injection keys and listed stale service paths.
+- **Sync Feature:** `docs/SYNC_DESIGN.md` was stuck in "Design" status despite implementation; paths and interfaces were outdated.
+- **Environment:** `docs/ENVS.md` boot validation examples didn't match the `neverthrow` + `superRefine` implementation in `src/env-validator.ts`.
+- **Debt Tracking:** `UNFINISHED.md` listed completed refactors (AppDb → ChatRepository) as pending.
+- **Onboarding:** `getting-started.md` and `README.md` failed to mention the now-implemented GitHub Synchronization feature.
+
+**Files Changed:**
+
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `docs/ENVS.md`
+- `UNFINISHED.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `babadeluxe-docs/docs/getting-started.md`
+- `DOC_DRIFT.md`
+- `src/composables/use-settings.ts` (Fixed test-mode logic)
+- `tests/settings-view.integration.test.ts` (Fixed mock types)
+- `tests/use-settings-socket.test.ts` (Fixed missing DB mocks)
+
+**Test "Non-sense" Fixed:**
+
+- Fixed `useSettings` composable to not hardcode `import.meta.env.MODE === 'test'` as offline mode, which was preventing socket-based integration tests from running their intended logic.
+- Expanded `mockDb` in `use-settings-socket.test.ts` to include `add`, `put`, `update`, and `delete` methods, resolving `TypeError` during test execution.
+- Updated `SettingsView` and `useSettings` mocks to return proper `neverthrow` `Result` types and reactive refs, resolving "Cannot read properties of undefined (reading 'value')" errors.
+
+---
+
+## Pass Summary: 2026-05-23
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+
+- `README.md`
+- `docs/ARCHITECTURE.md` (root and submodule)
+- `docs/SYNC_DESIGN.md`
+- `docs/ENVS.md`
+- `UNFINISHED.md`
+- `babadeluxe-docs/docs/getting-started.md`
+
+**Regressions Found & Fixed:**
+
+- **Sync Feature:** `docs/SYNC_DESIGN.md` was outdated; updated status to "Implemented (GitHub)", replaced stale `SyncChatEnvelope` with `SyncPayload`, and updated implementation phases.
+- **Environment:** `docs/ENVS.md` was missing conditional optionality details for `VITE_OFFLINE_MODE` and had an outdated Zod validation code example.
+- **Debt Tracking:** `UNFINISHED.md` still listed Ollama and DeepSeek model discovery as unfinished, but they are implemented in the frontend.
+- **Architecture:** `babadeluxe-docs/docs/ARCHITECTURE.md` was missing the "Dependency Injection" section and its 11 injection keys, and the "Persistence" section didn't mention the `ChatRepository` refactor.
+- **Onboarding:** `README.md` and `getting-started.md` were updated to include GitHub Synchronization as a major feature.
+
+**Files Changed:**
+
+- `README.md`
+- `docs/SYNC_DESIGN.md`
+- `docs/ENVS.md`
+- `UNFINISHED.md`
+- `babadeluxe-docs/docs/ARCHITECTURE.md`
+- `babadeluxe-docs/docs/getting-started.md`
+- `DOC_DRIFT.md`

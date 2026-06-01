@@ -173,13 +173,14 @@ graph TD
 
 ## Project Structure
 
-| Directory          | Purpose                                                          |
-| :----------------- | :--------------------------------------------------------------- |
-| `src/composables/` | Reusable Composition API logic                                   |
-| `src/stores/`      | Pinia stores for conversations, context, and UI state            |
-| `src/database/`    | Dexie.js layer: `SafeTable`, `KeyValueDb`, `ChatRepository`      |
-| `src/vs-code/`     | Message bridge, type guards, and VS Code protocols               |
-| `src/components/`  | `Base*` design system components and feature widgets             |
-| `src/views/`       | Route-level pages: Chat, History, Prompts, Settings              |
-| `src/validators/`  | Zod schemas for runtime validation                               |
-| `src/services/`    | Domain services: `ChatContextManager`, `ApiKeyValidator`, search |
+| Directory          | Purpose                                                     |
+| :----------------- | :---------------------------------------------------------- |
+| `src/composables/` | Reusable Composition API logic                              |
+| `src/stores/`      | Pinia stores for conversations, context, and UI state       |
+| `src/database/`    | Dexie.js layer: `SafeTable`, `KeyValueDb`, `ChatRepository` |
+| `src/vs-code/`     | Type guards and VS Code protocols                           |
+| `src/sync/`        | Chat synchronization logic (GitHub, etc.)                   |
+| `src/components/`  | `Base*` design system components and feature widgets        |
+| `src/views/`       | Route-level pages: Chat, History, Prompts, Settings         |
+| `src/validators/`  | Zod schemas for runtime validation                          |
+| `src/services/`    | Domain services: `VsCodeBridge`, `ApiKeyValidator`, search  |

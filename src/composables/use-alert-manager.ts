@@ -21,12 +21,14 @@ export function useAlertManager() {
 
   const addAlert = (alert: Omit<Alert, 'id'> & { id?: string }) => {
     const id = alert.id ?? Date.now().toString()
-    // Remove existing with same ID to update (e.g. updating error message)
     const existingIndex = alerts.value.findIndex((a) => a.id === id)
+
+    const newAlert = { ...alert, id }
+
     if (existingIndex !== -1) {
-      alerts.value.splice(existingIndex, 1, { ...alert, id })
+      alerts.value.splice(existingIndex, 1, newAlert)
     } else {
-      alerts.value.push({ ...alert, id })
+      alerts.value.push(newAlert)
     }
   }
 

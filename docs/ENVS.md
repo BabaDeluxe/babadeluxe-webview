@@ -13,6 +13,7 @@ All environment variables are validated at boot time via Zod in `src/env-validat
 | `VITE_SOCKET_URL`         | ❌ optional                        | Socket.io backend base URL (`http://localhost:3000` in dev)      |
 | `VITE_GA_MEASUREMENT_ID`  | ❌ optional                        | Google Analytics 4 measurement ID (`G-XXXXXXXXXX`)               |
 | `VITE_STATSIG_CLIENT_KEY` | ❌ optional                        | Statsig client SDK key for feature flags                         |
+| `VITE_APP_URL`            | ❌ optional                        | Canonical deployment origin for OAuth redirects                  |
 
 > **Offline mode:** when `VITE_OFFLINE_MODE=true`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are not required and the app runs fully without network auth.
 
@@ -37,9 +38,19 @@ cp .env.local.example .env.local
 
 ```ts
 // Returns ok(config) or err(Error) — never throws
-export function validateEnvConfig(): Result<EnvConfigType, Error> {
-  const result = envConfigSchema.safeParse(import.meta.env)
-  if (!result.success) return err(new Error(result.error.message))
+export function validateEnvConfig(
+  env: Record<string, unknown> = import.meta.env
+): Result<EnvConfigType, Error> {
+  const result = envConfigSchema.safeParse(env)
+
+  if (!result.success) {
+    // Build a human-readable message from the structured issue list
+    const message = result.error.issues
+      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+      .join('; ')
+    return err(new Error(message))
+  }
+
   return ok(result.data)
 }
 ```
@@ -47,21 +58,41 @@ export function validateEnvConfig(): Result<EnvConfigType, Error> {
 The schema uses `superRefine` to enforce conditional requirements:
 
 ```ts
+const offlineModeSchema = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value === 'true')
+
 const envConfigSchema = z
   .object({
     VITE_NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    VITE_OFFLINE_MODE: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
     VITE_SUPABASE_URL: z.string().url().optional(),
     VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
     VITE_SOCKET_URL: z.string().url().optional(),
+    VITE_OFFLINE_MODE: offlineModeSchema,
     VITE_GA_MEASUREMENT_ID: z.string().min(1).optional(),
     VITE_STATSIG_CLIENT_KEY: z.string().min(1).optional(),
   })
   .superRefine((config, ctx) => {
-    if (config.VITE_OFFLINE_MODE) return
-    // VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required in online mode
-    if (!config.VITE_SUPABASE_URL)    ctx.addIssue({ ... })
-    if (!config.VITE_SUPABASE_ANON_KEY) ctx.addIssue({ ... })
+    if (config.VITE_OFFLINE_MODE) {
+      return
+    }
+
+    if (!config.VITE_SUPABASE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['VITE_SUPABASE_URL'],
+        message: 'VITE_SUPABASE_URL is required when offline mode is disabled',
+      })
+    }
+
+    if (!config.VITE_SUPABASE_ANON_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['VITE_SUPABASE_ANON_KEY'],
+        message: 'VITE_SUPABASE_ANON_KEY is required when offline mode is disabled',
+      })
+    }
   })
 ```
 

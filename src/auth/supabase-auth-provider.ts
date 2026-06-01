@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { type Result, ResultAsync, ok, err } from 'neverthrow'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { AuthError, type NetworkError } from '@/errors'
@@ -41,14 +40,6 @@ export class SupabaseAuthProvider implements AuthProvider {
     }
 
     return ok(undefined)
-  }
-
-  async signInWithPasskey(_email: string): Promise<Result<void, AuthError>> {
-    return err(new AuthError('Passkey requires Zitadel -- not configured'))
-  }
-
-  async signInWithSSO(_domain: string): Promise<Result<void, AuthError>> {
-    return err(new AuthError('SSO requires Zitadel -- not configured'))
   }
 
   async signOut(): Promise<Result<void, AuthError>> {

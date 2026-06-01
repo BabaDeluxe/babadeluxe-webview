@@ -1,14 +1,13 @@
 # Authentication
 
-The webview supports three authentication strategies depending on where it runs and which identity provider is configured.
+The webview supports two authentication strategies depending on where it runs.
 
 ## Strategies
 
-| Strategy             | When                                 | Implementation                  |
-| :------------------- | :----------------------------------- | :------------------------------ |
-| VS Code token bridge | Embedded in the extension            | `useVsCodeAuth`                 |
-| Supabase PKCE OAuth  | Standalone browser / dev             | `SupabaseAuthProvider`          |
-| Zitadel PKCE OAuth   | Enterprise / self-hosted deployments | `ZitadelAuthProvider` (planned) |
+| Strategy             | When                      | Implementation         |
+| :------------------- | :------------------------ | :--------------------- |
+| VS Code token bridge | Embedded in the extension | `useVsCodeAuth`        |
+| Supabase PKCE OAuth  | Standalone browser / dev  | `SupabaseAuthProvider` |
 
 ## VS Code Bridge Auth
 
@@ -18,22 +17,12 @@ When embedded, the extension host already holds a valid GitHub session from the 
 
 ## Supabase PKCE OAuth
 
-For standalone browser usage (local dev, staging), a standard PKCE flow is used:
+For standalone browser usage (local dev, staging), a standard PKCE flow is used for both **GitHub** and **Google**:
 
-1. User clicks Login → `supabase.auth.signInWithOAuth({ provider: 'github', flowType: 'pkce' })`
-2. GitHub redirects back to the webview with an auth code
+1. User clicks Login → `supabase.auth.signInWithOAuth({ provider: 'github' | 'google', flowType: 'pkce' })`
+2. The provider redirects back to the webview (via `VITE_APP_URL` or `window.location.origin`) with an auth code
 3. Supabase exchanges the code for a session and access token
 4. Access token is passed to the Socket.io connection
-
-## Zitadel PKCE OAuth _(planned — tracked in [#100](https://github.com/BabaDeluxe/babadeluxe-webview/issues/100))_
-
-`src/auth/zitadel-auth-provider.ts` implements the `AuthProvider` interface and is wired up via `create-auth-provider.ts`. The following methods are currently stubbed and return `err(...)` until the full session flow is implemented:
-
-- `signInWithOAuth` — Zitadel PKCE/redirect flow
-- `signInWithPasskey` — WebAuthn passkey flow (scope TBD)
-- `signInWithSSO` — Enterprise SSO (scope TBD)
-
-Once complete, Zitadel will be the preferred provider for self-hosted and enterprise deployments. `SupabaseAuthProvider` explicitly disables `signInWithPasskey` and `signInWithSSO` until Zitadel configuration is finalised.
 
 ## Full Auth Flow
 

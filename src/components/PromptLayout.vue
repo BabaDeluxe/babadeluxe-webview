@@ -14,7 +14,7 @@
     <div
       class="relative flex items-center justify-center flex-shrink-0 group touch-none select-none"
       :class="[
-        direction === 'vertical' ? 'cursor-row-resize' : 'cursor-col-resize',
+        direction === 'vertical' ? 'py-3 cursor-row-resize' : 'px-3 cursor-col-resize',
         isDragging ? 'bg-accent/10' : '',
       ]"
       @pointerdown="$emit('start-dragging', $event)"

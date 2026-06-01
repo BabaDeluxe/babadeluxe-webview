@@ -4,10 +4,10 @@
   <img src="https://img.shields.io/badge/license-EUPL%201.2-6a5acd?style=flat-rounded" alt="license">
   <img src="https://img.shields.io/badge/code_style-XO-8a2be2?style=flat-rounded" alt="code style: xo">
   <img src="https://img.shields.io/badge/vue-3-b06ab3?style=flat-rounded" alt="vue 3">
-  <img src="https://img.shields.io/badge/node-%3E%3D20-9a56bf?style=flat-rounded" alt="node version">
+  <img src="https://img.shields.io/badge/node-%3E%3D20.19%20%3C24-9a56bf?style=flat-rounded" alt="node version">
 </p>
 
-> **The chat UI for BabaDeluxe AI Coder.** A Vue 3 webview embedded in the VS Code extension, with full support for real-time streaming, Mermaid diagrams, KaTeX math, and persistent local chat history.
+> **The chat UI for BabaDeluxe AI Coder.** A Vue 3 webview embedded in the VS Code extension, with full support for real-time streaming, Mermaid diagrams, KaTeX math, and persistent local chat history, and GitHub synchronization.
 
 ## Overview
 
@@ -20,6 +20,7 @@ This repo contains the frontend that runs inside the VS Code webview panel. It c
 - **Build:** Vite
 - **Styling:** UnoCSS (Tailwind conventions)
 - **Persistence:** Dexie.js (IndexedDB)
+- **Synchronization:** GitHub (REST)
 - **Real-time:** Socket.io-client
 - **Validation:** Zod + neverthrow
 - **Testing:** Vitest (unit) + Playwright (E2E)
@@ -114,7 +115,7 @@ flowchart LR
 Two strategies depending on where the webview runs:
 
 - **Embedded in VS Code** — auth tokens are bridged from the extension host via `useVsCodeAuth`, no re-login needed
-- **Standalone browser** — standard Supabase PKCE OAuth flow (GitHub / Email)
+- **Standalone browser** — standard Supabase PKCE OAuth flow (GitHub / Google / Email)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'actorBkg': '#2a1758', 'actorBorder': '#7c3aed', 'actorTextColor': '#e2d9f3', 'actorLineColor': '#7c3aed', 'signalColor': '#c4b5fd', 'signalTextColor': '#e2d9f3', 'labelBoxBkgColor': '#1a0f3a', 'labelBoxBorderColor': '#4c1d95', 'labelTextColor': '#c4b5fd', 'loopTextColor': '#e2d9f3', 'noteBkgColor': '#1a0f3a', 'noteTextColor': '#c4b5fd', 'noteBorderColor': '#4c1d95', 'activationBkgColor': '#4c1d95', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
@@ -139,7 +140,7 @@ sequenceDiagram
     rect rgb(15, 26, 42)
         note right of User: Scenario 2 — Standalone Browser
         User->>Webview: Clicks Login
-        Webview->>Supabase: OAuth Flow (PKCE / implicit)
+        Webview->>Supabase: OAuth Flow (PKCE)
         Supabase-->>Webview: Redirect to /auth/callback
         Webview->>Supabase: exchangeCodeForSession / setSession
         Webview->>Webview: verifySession() — confirm getSession() != null
@@ -186,7 +187,7 @@ graph TD
 
 ## Prerequisites
 
-- **Node.js**: v20.19.0+ or v22.12.0+
+- **Node.js**: v20.19.0+ or v22.12.0+ (specifically `<24`)
 - **Package Manager**: PNPM v9+
 
 ## Getting Started
