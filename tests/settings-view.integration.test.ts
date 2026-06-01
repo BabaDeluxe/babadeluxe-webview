@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import type { AsyncInjectable } from '@/injection-keys'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import type { IApiKeyValidator } from '@/api-key-validator'
@@ -32,6 +32,7 @@ vi.mock('@/composables/use-settings', () => ({
 vi.mock('@/composables/use-models-socket', () => ({
   useModelsSocket: () => ({
     models: ref({}),
+    groupedModels: ref([]),
     reloadModels: vi.fn().mockResolvedValue(ok(undefined)),
   }),
 }))

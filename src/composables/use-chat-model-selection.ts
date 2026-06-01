@@ -1,4 +1,4 @@
-import { computed, watch, type Ref } from 'vue'
+import { watch, type Ref } from 'vue'
 import { findPreferredModel } from '@/model-preferences'
 import type { ModelItemGroup, ModelItem } from '@/composables/use-models-socket'
 

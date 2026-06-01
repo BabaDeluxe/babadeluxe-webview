@@ -1,0 +1,28 @@
+
+> @babadeluxe/webview@0.1.0 lint /app
+> concurrently "eslint . --ext .ts,.vue --config eslint.config.ts --ignore pnpm-lock.yaml --concurrency auto" "prettier --check "**/*.{ts,vue,html,md}""
+
+[1] Checking formatting...
+[1] All matched files use Prettier code style!
+[1] prettier --check **/*.{ts,vue,html,md} exited with code 0
+[0]
+[0] /app/pnpm-lock.yaml
+[0]   0:0  warning  File ignored because no matching configuration was supplied
+[0]
+[0] /app/src/composables/use-chat-model-selection.ts
+[0]   1:10  error  'computed' is defined but never used  @typescript-eslint/no-unused-vars
+[0]
+[0] /app/src/stores/conversation/use-conversation-list-state.ts
+[0]   9:56  error  'logger' is defined but never used  @typescript-eslint/no-unused-vars
+[0]
+[0] /app/src/stores/conversation/use-message-management.ts
+[0]   1:10  error  'ref' is defined but never used               @typescript-eslint/no-unused-vars
+[0]   3:24  error  'ContextReference' is defined but never used  @typescript-eslint/no-unused-vars
+[0]
+[0] /app/src/views/SettingsView.vue
+[0]   132:34  error  `import()` type annotations are forbidden  @typescript-eslint/consistent-type-imports
+[0]
+[0] ✖ 6 problems (5 errors, 1 warning)
+[0]
+[0] eslint . --ext .ts,.vue --config eslint.config.ts --ignore pnpm-lock.yaml --concurrency auto exited with code 1
+ ELIFECYCLE  Command failed with exit code 1.
