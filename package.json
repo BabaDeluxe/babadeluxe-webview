@@ -62,7 +62,7 @@
     "publish-patch": "pnpm build && pnpm version patch && pnpm publish",
     "publish-minor": "pnpm build && pnpm version minor && pnpm publish",
     "publish-major": "pnpm build && pnpm version major && pnpm publish",
-    "prepare": "husky",
+    "prepare": "husky && git submodule update --init --recursive",
     "type-check": "vue-tsc --build",
     "build-only": "vite build",
     "find-dead-code": "knip"
