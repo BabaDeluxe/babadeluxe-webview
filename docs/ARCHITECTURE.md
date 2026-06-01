@@ -184,3 +184,34 @@ graph TD
 | `src/views/`       | Route-level pages: Chat, History, Prompts, Settings         |
 | `src/validators/`  | Zod schemas for runtime validation                          |
 | `src/services/`    | Domain services: `VsCodeBridge`, `ApiKeyValidator`, search  |
+
+## Synchronization (One-Way Sharded Sync)
+
+BabaDeluxe supports syncing conversation history to external storage providers (GitHub, GitLab, Codeberg, WebDAV, Azure DevOps). The system is designed for high reliability and scale.
+
+### Architecture
+
+The sync layer uses a **Strategy Pattern** with a central orchestrator (`ShardedSyncService`) and specialized drivers for each provider.
+
+- **Sharding**: To overcome platform limits (e.g., file count or repository size), the system automatically shards data across multiple folders/repositories.
+- **Chunking**: Large conversations are split into 95MB chunks to ensure stability and compatibility with Git-based providers.
+- **Last-Write-Wins**: The strategy is strictly one-way (push local to remote, pull remote to local) with a last-write-wins conflict resolution.
+- **Plain Overwrite**: Every write is a plain overwrite (no ETags or conditional headers) to simplify transport logic and ensure eventual consistency.
+
+### Data Flow
+
+1. **Serialize**: Conversation + Messages -> JSON Snapshot -> Base64.
+2. **Shard Route**: `hash(conversationId) % n`.
+3. **Threshold Check**: If shard is full (50k keys or 4.8GB), create a new shard and update the shard map.
+4. **Put Chunks**: Upload parts to `keys/<id>.<part>.md`.
+5. **Update Metadata**: Update `.sync_metadata.json` in the shard root.
+
+### Sync Providers
+
+| Provider         | Strategy                           | Shard Threshold |
+| :--------------- | :--------------------------------- | :-------------- |
+| **GitHub**       | Repository Contents API            | 4.8 GB          |
+| **GitLab**       | Repository Files API               | 4.8 GB          |
+| **Codeberg**     | Forgejo Files API                  | 4.8 GB          |
+| **Azure DevOps** | Git Repositories API               | 4.8 GB          |
+| **WebDAV**       | Standard WebDAV (PUT/GET/PROPFIND) | 50,000 Keys     |
