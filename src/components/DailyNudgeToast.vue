@@ -1,47 +1,57 @@
 <script setup lang="ts">
-import {useMessageLimit} from '@/composables/useMessageLimit'
+import { useMessageLimit } from '@/composables/useMessageLimit'
+import { logStatsigEvent } from '@/lib/statsig'
 
-const {showNudge, onUpgrade, dismissNudge} = useMessageLimit()
+const { shouldShowNudge, dismissNudge, onUpgradeClick } = useMessageLimit()
 
-function handleUpgrade() {
-  dismissNudge()
-  onUpgrade()
+const UPGRADE_URL = import.meta.env.VITE_UPGRADE_URL as string ?? 'https://babadeluxe.com/#pricing'
+
+function handleUpgradeClick() {
+  logStatsigEvent('nudge_clicked')
+  onUpgradeClick()
 }
 </script>
 
 <template>
-  <Transition name="slide-up">
+  <Transition name="toast-slide">
     <div
-      v-if="showNudge"
+      v-if="shouldShowNudge"
       role="status"
       aria-live="polite"
-      class="fixed bottom-20 right-4 z-40 flex max-w-xs items-center gap-3 rounded-xl bg-[var(--color-primary)] px-4 py-3 text-white shadow-lg"
+      class="fixed bottom-20 right-4 z-40 flex max-w-xs items-center gap-3 rounded-xl bg-primary px-4 py-3 shadow-lg"
     >
-      <span class="text-sm leading-snug">✨ Go unlimited — upgrade to Pro</span>
-      <button
-        type="button"
-        class="whitespace-nowrap text-xs font-bold underline underline-offset-2 hover:no-underline"
-        @click="handleUpgrade"
+      <span class="text-sm text-primary-foreground">
+        ✨ Unlimited messages with Pro
+      </span>
+      <a
+        :href="UPGRADE_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="shrink-0 text-xs font-bold text-primary-foreground underline underline-offset-2"
+        @click="handleUpgradeClick"
       >
         See plans
-      </button>
+      </a>
       <button
         type="button"
         aria-label="Dismiss"
-        class="ml-1 opacity-70 transition-opacity hover:opacity-100"
+        class="ml-auto shrink-0 text-primary-foreground/70 transition-colors hover:text-primary-foreground"
         @click="dismissNudge"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-          <path d="M18 6 6 18M6 6l12 12"/>
-        </svg>
+        ✕
       </button>
     </div>
   </Transition>
 </template>
 
 <style scoped>
-.slide-up-enter-active { transition: transform 250ms cubic-bezier(0.16,1,0.3,1), opacity 200ms ease; }
-.slide-up-leave-active { transition: transform 200ms ease, opacity 150ms ease; }
-.slide-up-enter-from { transform: translateY(16px); opacity: 0; }
-.slide-up-leave-to { transform: translateY(8px); opacity: 0; }
+.toast-slide-enter-active,
+.toast-slide-leave-active {
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.toast-slide-enter-from,
+.toast-slide-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
+}
 </style>
