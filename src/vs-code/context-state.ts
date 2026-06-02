@@ -4,6 +4,8 @@ import type {
   SuggestedEntry,
   VsCodeTextRange,
   ContextSnapshotMessage,
+  ActiveEditorEntry,
+  DiagnosticItem,
 } from '@/vs-code/types'
 import { normalizePath, compact, createPathSet } from '@/vs-code/context-utils'
 import { isTextRange } from '@/vs-code/context-type-guards'
@@ -15,6 +17,12 @@ export function useContextState() {
 
   const suggestedByPath = ref(new Map<string, SuggestedEntry>())
   const contextRevision = ref(0)
+
+  // --- Active editor (ephemeral, replaced on each editor:activeChanged) ---
+  const activeEditor = ref<ActiveEditorEntry | null>(null)
+
+  // --- Diagnostics (silent map, merged into socket payload) ---
+  const diagnosticsMap = ref(new Map<string, ReadonlyArray<DiagnosticItem>>())
 
   const bumpContextRevision = (): void => {
     contextRevision.value += 1
@@ -188,8 +196,53 @@ export function useContextState() {
     pinnedById.value = new Map()
     pinnedIdsByPath.value = new Map()
     suggestedByPath.value = new Map()
+    activeEditor.value = null
+    diagnosticsMap.value = new Map()
     bumpContextRevision()
   }
+
+  /**
+   * Update the ephemeral active editor entry.
+   * Suppressed if the file is already present in the pinned set
+   * (to avoid showing the same file twice in the context UI).
+   */
+  const setActiveEditor = (
+    entry: ActiveEditorEntry,
+  ): void => {
+    const key = normalizePath(entry.filePath)
+    if (key && pinnedIdsByPath.value.has(key)) {
+      // File already pinned — no need for a duplicate active entry
+      return
+    }
+    activeEditor.value = entry
+    // No contextRevision bump: active editor change is not a user-visible
+    // context mutation, just an ambient signal for the AI.
+  }
+
+  /**
+   * Update the diagnostics map for a given file path.
+   * An empty array clears the stored entry.
+   */
+  const setDiagnostics = (
+    filePath: string,
+    diagnostics: ReadonlyArray<DiagnosticItem>,
+  ): void => {
+    const next = new Map(diagnosticsMap.value)
+    if (diagnostics.length === 0) {
+      next.delete(filePath)
+    } else {
+      next.set(filePath, diagnostics)
+    }
+    diagnosticsMap.value = next
+  }
+
+  /**
+   * Returns diagnostics for a given file if any exist, otherwise undefined.
+   * Use this when building the socket payload to optionally attach diagnostics.
+   */
+  const getDiagnosticsForFile = (
+    filePath: string,
+  ): ReadonlyArray<DiagnosticItem> | undefined => diagnosticsMap.value.get(filePath)
 
   return {
     pinnedPaths,
@@ -197,6 +250,8 @@ export function useContextState() {
     pinnedIdsByPath,
     suggestedByPath,
     contextRevision,
+    activeEditor,
+    diagnosticsMap,
     bumpContextRevision,
     upsertPinnedEntry,
     ensurePinnedPath,
@@ -205,5 +260,8 @@ export function useContextState() {
     pinSnippetLocal,
     applySnapshot,
     clearAllState,
+    setActiveEditor,
+    setDiagnostics,
+    getDiagnosticsForFile,
   }
 }
