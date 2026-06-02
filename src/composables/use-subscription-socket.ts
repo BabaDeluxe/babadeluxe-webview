@@ -24,7 +24,7 @@ type AttachedHandlers = Readonly<{
 /**
  * We use a WeakMap to store the attached handlers for each socket instance.
  * This ensures that when the socket changes, we can easily detach the old handlers
- * and re‑attach them to the new socket without creating duplicate listeners.
+ * and re-attach them to the new socket without creating duplicate listeners.
  * The WeakMap also allows the garbage collector to clean up entries when a socket
  * is no longer referenced.
  *
@@ -48,12 +48,14 @@ export function useSubscriptionSocket() {
   const error = ref<NetworkError | SocketError | undefined>()
   const isMessageLimitReached = ref(false)
   const isDismissed = ref(false)
+  const isPro = ref(false)
 
   // --------------------------------------------------------------------
   // Event handlers
   // --------------------------------------------------------------------
   const onUserTierChanged = (payload: { tier: string }) => {
-    if (payload.tier === 'PRO') {
+    isPro.value = payload.tier === 'PRO'
+    if (isPro.value) {
       isMessageLimitReached.value = false
       isDismissed.value = false
     }
@@ -209,6 +211,7 @@ export function useSubscriptionSocket() {
     isUpgrading: readonly(isUpgrading),
     error: readonly(error),
     isMessageLimitReached: readonly(isMessageLimitReached),
+    isPro: readonly(isPro),
     redirectToCheckout,
     isConnected: computed(() => subscriptionSocketRef.value?.isConnected ?? false),
     shouldShowModal: readonly(shouldShowModal),
