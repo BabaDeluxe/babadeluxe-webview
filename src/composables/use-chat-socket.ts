@@ -17,12 +17,14 @@ type CompleteHandler = (fullContent: string) => void
 type ErrorHandler = (errorMessage: string) => void
 
 type MessageChunkPayload = { messageId: number; chunk: string; sequence: number }
+type ReasoningChunkPayload = { messageId: number; chunk: string; sequence: number }
 type MessageCompletePayload = { messageId: number; fullContent: string }
 type ChatErrorPayload = { messageId?: number; error: string }
 type MessageDeletedPayload = { messageId: number }
 
 type AttachedHandlers = Readonly<{
   onChunk: (payload: MessageChunkPayload) => void
+  onReasoningChunk: (payload: ReasoningChunkPayload) => void
   onComplete: (payload: MessageCompletePayload) => void
   onChatError: (payload: ChatErrorPayload) => void
   onDeleted: (payload: MessageDeletedPayload) => void
@@ -50,6 +52,13 @@ function ensureChatSocketListeners(
       })
 
       state.onChunk?.(payload.chunk)
+    }
+
+    const onReasoningChunk = (payload: ReasoningChunkPayload) => {
+      const state = store.getMessageState(payload.messageId)
+      if (!state) return
+
+      state.onReasoningChunk?.(payload.chunk)
     }
 
     const onComplete = (payload: MessageCompletePayload) => {
@@ -85,16 +94,26 @@ function ensureChatSocketListeners(
       store.deleteMessageState(payload.messageId)
     }
 
-    handlers = { onChunk, onComplete, onChatError, onDeleted }
+    handlers = {
+      onChunk,
+      onReasoningChunk,
+      onComplete,
+      onChatError,
+      onDeleted,
+    } as unknown as AttachedHandlers
     handlersBySocket.set(chatSocket, handlers)
   }
 
   chatSocket.off('chat:messageChunk', handlers.onChunk)
+  // @ts-expect-error - reasoningChunk is not in Emission but exists on socket
+  chatSocket.off('chat:reasoningChunk', handlers.onReasoningChunk)
   chatSocket.off('chat:messageComplete', handlers.onComplete)
   chatSocket.off('chat:chatError', handlers.onChatError)
   chatSocket.off('chat:messageDeleted', handlers.onDeleted)
 
   chatSocket.on('chat:messageChunk', handlers.onChunk)
+  // @ts-expect-error - reasoningChunk is not in Emission but exists on socket
+  chatSocket.on('chat:reasoningChunk', handlers.onReasoningChunk)
   chatSocket.on('chat:messageComplete', handlers.onComplete)
   chatSocket.on('chat:chatError', handlers.onChatError)
   chatSocket.on('chat:messageDeleted', handlers.onDeleted)
@@ -104,6 +123,7 @@ export function registerStreamingHandlers(
   messageId: number,
   handlers: {
     onChunk?: ChunkHandler
+    onReasoningChunk?: ChunkHandler
     onComplete?: CompleteHandler
     onError?: ErrorHandler
   }
@@ -113,6 +133,7 @@ export function registerStreamingHandlers(
 
   store.setMessageState(messageId, {
     onChunk: handlers.onChunk ?? existing?.onChunk,
+    onReasoningChunk: handlers.onReasoningChunk ?? existing?.onReasoningChunk,
     onComplete: handlers.onComplete ?? existing?.onComplete,
     onError: handlers.onError ?? existing?.onError,
     isStreaming: true,
@@ -197,6 +218,7 @@ export function useChatSocket() {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     handlers: {
       onChunk: (chunk: string) => void
+      onReasoningChunk?: (chunk: string) => void
       onComplete: (fullContent: string) => void
       onError?: (errorMessage: string) => void
     }
@@ -232,6 +254,7 @@ export function useChatSocket() {
 
         registerStreamingHandlers(messageId, {
           onChunk: handlers.onChunk,
+          onReasoningChunk: handlers.onReasoningChunk,
           onComplete: (fullContent) => {
             handlers.onComplete(fullContent)
             completion.finishOk()
@@ -304,6 +327,7 @@ export function useChatSocket() {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     handlers: {
       onChunk: (chunk: string) => void
+      onReasoningChunk?: (chunk: string) => void
       onComplete: (fullContent: string) => void
       onError?: (errorMessage: string) => void
     }

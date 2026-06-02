@@ -54,6 +54,7 @@ class AppInitializer {
 
   private _envConfig!: EnvConfigType
   private _supabase!: SupabaseClientType
+  private _analyticsManager!: AnalyticsManager
 
   async bootstrap(): Promise<void> {
     this._validateEnv()
@@ -138,6 +139,7 @@ class AppInitializer {
 
   private _provideAnalytics(app: VueApp): void {
     const analyticsManager = new AnalyticsManager()
+    this._analyticsManager = analyticsManager
 
     if (this._envConfig.VITE_GA_MEASUREMENT_ID) {
       analyticsManager.addProvider(
@@ -179,6 +181,10 @@ class AppInitializer {
     const {
       data: { session },
     } = await this._supabase.auth.getSession()
+
+    if (session?.user?.id) {
+      this._analyticsManager.identify(session.user.id, { email: session.user.email })
+    }
 
     if (!session?.access_token) {
       this._logger.warn('No active session found. Router will handle redirect to /.')

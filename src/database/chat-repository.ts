@@ -15,6 +15,7 @@ type DbMessage = {
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
+  reasoning?: string
   contextReferences?: string
 }
 
@@ -36,6 +37,7 @@ type CreateMessageInput = {
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
+  reasoning?: string
   contextReferences?: ContextReference[]
 }
 
@@ -74,6 +76,7 @@ export class ChatRepository {
         isStreaming: message.isStreaming,
         model: message.model,
         systemPrompt: message.systemPrompt,
+        reasoning: message.reasoning,
         contextReferences: decodeContextReferences(message.contextReferences),
       }))
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
@@ -108,6 +111,7 @@ export class ChatRepository {
         isStreaming: message.isStreaming,
         model: message.model,
         systemPrompt: message.systemPrompt,
+        reasoning: message.reasoning,
         contextReferences: decodeContextReferences(message.contextReferences),
       }))
 
@@ -122,6 +126,7 @@ export class ChatRepository {
       isStreaming: input.isStreaming ?? false,
       model: input.model,
       systemPrompt: input.systemPrompt,
+      reasoning: input.reasoning,
       contextReferences: encodeContextReferences(input.contextReferences),
     })
 

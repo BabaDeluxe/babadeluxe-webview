@@ -25,6 +25,7 @@
       :is-loading="isLoading"
       :is-submitting="isSubmitting"
       :placeholder="placeholder"
+      :at-sources="atSources"
       :data-testid="testId"
       :submit-button-data-testid="submitButtonTestId"
       :abort-button-data-testid="abortButtonTestId"
@@ -70,6 +71,7 @@ import ContextRootBar from '@/components/ContextRootBar.vue'
 import ChatInputControls from '@/components/ChatInputControls.vue'
 import type { DropdownItem, DropdownGroup } from '@/components/BaseDropdown.vue'
 import type { VsCodeContextItem } from '@/vs-code/types'
+import type { AtPickerItem } from '@/composables/use-at-picker'
 
 defineProps<{
   modelValue: string
@@ -93,6 +95,7 @@ defineProps<{
   isLoadingModels: boolean
   contextUsageWarning: string
   lastContextUsage: number
+  atSources: AtPickerItem[]
 }>()
 
 const emit = defineEmits<{

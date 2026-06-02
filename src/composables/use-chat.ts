@@ -22,6 +22,7 @@ import { useChatContextHandler } from '@/composables/use-chat-context-handler'
 import { useChatStreaming } from '@/composables/use-chat-streaming'
 import { useChatHistory } from '@/composables/use-chat-history'
 import { useChatInput } from '@/composables/use-chat-input'
+import type { AtPickerItem } from '@/composables/use-at-picker'
 import { isOfflineMode } from '@/env-validator'
 
 type ChatMessageInstance = InstanceType<typeof ChatMessage>
@@ -145,6 +146,25 @@ export function useChat() {
 
   const { groupedModels, isLoadingModels, modelsLoadedCount } = useModelsSocket()
   const { shouldShowModal, dismissModal } = useSubscriptionSocket()
+
+  const atSources = computed<AtPickerItem[]>(() => {
+    const promptSources: AtPickerItem[] = prompts.value.map((p) => ({
+      id: `prompt:${p.id}`,
+      label: p.name,
+      type: 'prompt',
+      icon: 'i-hugeicons:quill-write-02',
+    }))
+
+    // TODO: Spaces from store
+    const spaceSources: AtPickerItem[] = []
+
+    // TODO: Superpowers
+    const superpowerSources: AtPickerItem[] = []
+
+    return [...spaceSources, ...promptSources, ...superpowerSources]
+  })
+
+  const activeSources = computed(() => chatInputRef.value?.activeSources ?? [])
 
   const promptOptions = computed(() => {
     if (isLoadingPrompts.value) {
@@ -761,6 +781,8 @@ export function useChat() {
     contextUsageWarning,
     lastContextUsage,
     shouldShowModal,
+    atSources,
+    activeSources,
     registerMessageComponent,
     handleSendMessage,
     handleAbortMessage,

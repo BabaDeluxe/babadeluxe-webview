@@ -1,5 +1,11 @@
 <template>
   <div v-bind="$attrs">
+    <ReasoningBlock
+      v-if="role === 'assistant'"
+      :reasoning="reasoning"
+      :is-streaming="isStreaming"
+      class="mb-2 lg:max-w-80vw ml-12"
+    />
     <BaseMessageBubble
       :data-testid="`message-${id}`"
       :variant="role === 'user' ? 'primary' : 'secondary'"
@@ -69,6 +75,7 @@ import ChatMessageActions from '@/components/ChatMessageActions.vue'
 import MarkdownRenderer from '@/components/ChatMarkdownRenderer.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
 import ContextBadge from '@/components/ContextBadge.vue'
+import ReasoningBlock from '@/components/chat/ReasoningBlock.vue'
 import { getDisambiguatedPaths } from '@/path-disambiguation'
 
 defineOptions({ inheritAttrs: false })

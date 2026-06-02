@@ -33,6 +33,7 @@
           :prompt-options="promptOptions"
           :grouped-models="groupedModels"
           :is-loading-models="isLoadingModels"
+          :at-sources="atSources"
           :context-usage-warning="contextUsageWarning"
           :last-context-usage="lastContextUsage"
           @submit="handleSendMessage"
@@ -119,6 +120,7 @@
           :prompt-options="promptOptions"
           :grouped-models="groupedModels"
           :is-loading-models="isLoadingModels"
+          :at-sources="atSources"
           :context-usage-warning="contextUsageWarning"
           :last-context-usage="lastContextUsage"
           @submit="handleSendMessage"
@@ -175,6 +177,8 @@ const {
   contextUsageWarning,
   lastContextUsage,
   shouldShowModal,
+  atSources,
+  activeSources,
   registerMessageComponent,
   handleSendMessage,
   handleAbortMessage,
