@@ -109,6 +109,11 @@ import { useModelsSocket } from '@/composables/use-models-socket'
 import { useSettings } from '@/composables/use-settings'
 import { useApiKeyManagement } from '@/composables/use-api-key-management'
 import { isOfflineMode } from '@/env-validator'
+import type { IApiKeyValidator } from '@/api-key-validator'
+import type {
+  PromptInjectionMode,
+  PromptInjectionPosition,
+} from '@/services/prompt-injection-service'
 
 const logger = safeInject(LOGGER_KEY)
 const apiKeyValidator = safeInject(API_KEY_VALIDATOR_KEY)
@@ -116,7 +121,7 @@ const supabase = safeInject(SUPABASE_CLIENT_KEY)
 const toasts = useToastStore()
 
 const { settings, upsertSetting, loadSettings } = useSettings()
-const { reloadModels } = useModelsSocket()
+const { reloadModels, groupedModels } = useModelsSocket()
 const { isDark, toggleDark } = useTheme()
 useOllamaSettings()
 
@@ -128,9 +133,7 @@ const currentUserId = ref<string>()
 // resolvedValidator are unreachable while isReady is false.
 const isReady = computed(() => apiKeyValidator.isReady && apiKeyValidator.value !== undefined)
 
-const resolvedValidator = computed(
-  () => apiKeyValidator.value as import('@/api-key-validator').IApiKeyValidator
-)
+const resolvedValidator = computed(() => apiKeyValidator.value as IApiKeyValidator)
 
 const { apiProviders, fieldStates, hydrateFieldStates, handleApiKeyInput } = useApiKeyManagement(
   resolvedValidator,
@@ -160,25 +163,20 @@ const getSettingValue = <T,>(key: string, fallback: T): T => {
   return s !== undefined ? (s.settingValue as T) : fallback
 }
 
-const promptInjectionMode = computed<
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  NonNullable<import('@/services/prompt-injection-service').PromptInjectionMode>
->(() => getSettingValue('promptInjectionMode', promptInjectionDefaults.mode))
+const promptInjectionMode = computed<PromptInjectionMode>(() =>
+  getSettingValue('promptInjectionMode', promptInjectionDefaults.mode)
+)
 const promptInjectionInterval = computed<number>(() =>
   getSettingValue('promptInjectionInterval', promptInjectionDefaults.interval)
 )
-const promptInjectionPosition = computed<
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  NonNullable<import('@/services/prompt-injection-service').PromptInjectionPosition>
->(() => getSettingValue('promptInjectionPosition', promptInjectionDefaults.position))
+const promptInjectionPosition = computed<PromptInjectionPosition>(() =>
+  getSettingValue('promptInjectionPosition', promptInjectionDefaults.position)
+)
 const promptIncludeHistory = computed<boolean>(() =>
   getSettingValue('promptIncludeHistory', promptInjectionDefaults.includeHistory)
 )
 
-const handleInjectionModeChange = async (
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  mode: NonNullable<import('@/services/prompt-injection-service').PromptInjectionMode>
-) => {
+const handleInjectionModeChange = async (mode: PromptInjectionMode) => {
   await upsertSetting('promptInjectionMode', mode, 'string')
 }
 
@@ -188,10 +186,7 @@ const handleIntervalChange = async (value: number) => {
   await upsertSetting('promptInjectionInterval', value, 'number')
 }
 
-const handlePositionChange = async (
-  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  pos: NonNullable<import('@/services/prompt-injection-service').PromptInjectionPosition>
-) => {
+const handlePositionChange = async (pos: PromptInjectionPosition) => {
   await upsertSetting('promptInjectionPosition', pos, 'string')
 }
 
@@ -288,11 +283,7 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
   toasts.success('Setting saved')
 }
 
-const availableModels = computed<unknown[]>((models) => {
-  const providerGroups = models
-  if (!providerGroups) return []
-  return providerGroups
-})
+const availableModels = computed(() => groupedModels.value.flatMap((group) => group.items))
 
 const modelTemperatures = computed<ModelTemperatures>(() => {
   const s = settings.value.find(
