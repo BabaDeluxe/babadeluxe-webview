@@ -156,6 +156,7 @@ export function useChat() {
     }))
 
     // TODO: Spaces from store
+    // TODO: Spaces from store
     const spaceSources: AtPickerItem[] = []
 
     // TODO: Superpowers
