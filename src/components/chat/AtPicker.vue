@@ -1,48 +1,3 @@
-<script setup lang="ts">
-import { computed, watch, nextTick, useTemplateRef } from 'vue'
-import type { AtPickerItem } from '@/composables/use-at-picker'
-
-const props = defineProps<{
-  items: AtPickerItem[]
-  activeIndex: number
-}>()
-
-const listRef = useTemplateRef<HTMLElement>('listRef')
-
-const groupedItems = computed(() => {
-  const groups: Record<string, AtPickerItem[]> = {
-    space: [],
-    prompt: [],
-    superpower: [],
-  }
-  props.items.forEach((item) => {
-    groups[item.type].push(item)
-  })
-  return [
-    { label: 'Spaces', type: 'space', items: groups.space },
-    { label: 'Prompts', type: 'prompt', items: groups.prompt },
-    { label: 'Superpowers', type: 'superpower', items: groups.superpower },
-  ].filter((g) => g.items.length > 0)
-})
-
-watch(() => props.activeIndex, () => {
-  nextTick(() => {
-    const activeEl = listRef.value?.querySelector('.is-active')
-    if (activeEl) {
-      activeEl.scrollIntoView({ block: 'nearest' })
-    }
-  })
-})
-
-const getIcon = (item: AtPickerItem) => {
-  if (item.icon) return item.icon
-  if (item.type === 'space') return 'i-hugeicons:folder-02'
-  if (item.type === 'prompt') return 'i-hugeicons:quill-write-02'
-  if (item.type === 'superpower') return 'i-hugeicons:flash'
-  return ''
-}
-</script>
-
 <template>
   <div
     v-if="items.length > 0"
@@ -70,6 +25,50 @@ const getIcon = (item: AtPickerItem) => {
     </div>
   </div>
 </template>
+
+<script setup lang="ts">
+import { computed, watch, nextTick, useTemplateRef } from 'vue'
+import type { AtPickerItem } from '@/composables/use-at-picker'
+
+const props = defineProps<{
+  items: AtPickerItem[]
+  activeIndex: number
+}>()
+
+const listRef = useTemplateRef<HTMLElement>('listRef')
+
+const groupedItems = computed(() => {
+  const groups: Record<string, AtPickerItem[]> = {
+    space: [],
+    prompt: [],
+    superpower: [],
+  }
+  props.items.forEach((item) => {
+    groups[item.type].push(item)
+  })
+  return [
+    { label: 'Spaces', type: 'space', items: groups.space },
+    { label: 'Prompts', type: 'prompt', items: groups.prompt },
+    { label: 'Superpowers', type: 'superpower', items: groups.superpower },
+  ].filter((g) => g.items.length > 0)
+})
+
+watch(() => props.activeIndex, async () => {
+  await nextTick()
+  const activeItemElement = listRef.value?.querySelector('.is-active')
+  if (activeItemElement) {
+    activeItemElement.scrollIntoView({ block: 'nearest' })
+  }
+})
+
+const getIcon = (item: AtPickerItem) => {
+  if (item.icon) return item.icon
+  if (item.type === 'space') return 'i-hugeicons:folder-02'
+  if (item.type === 'prompt') return 'i-hugeicons:quill-write-02'
+  if (item.type === 'superpower') return 'i-hugeicons:flash'
+  return ''
+}
+</script>
 
 <style scoped>
 .bg-surfaceDynamic {

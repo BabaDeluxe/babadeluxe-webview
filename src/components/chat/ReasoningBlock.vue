@@ -1,10 +1,3 @@
-<script setup lang="ts">
-defineProps<{
-  reasoning?: string
-  isStreaming?: boolean
-}>()
-</script>
-
 <template>
   <details v-if="reasoning" class="mb-2 group border border-borderMuted rounded-lg bg-surface/30 overflow-hidden">
     <summary class="flex items-center gap-2 cursor-pointer list-none text-xs text-subtleText hover:text-accent transition-all select-none px-3 py-2 bg-surface/50">
@@ -22,6 +15,13 @@ defineProps<{
     </div>
   </details>
 </template>
+
+<script setup lang="ts">
+defineProps<{
+  reasoning?: string
+  isStreaming?: boolean
+}>()
+</script>
 
 <style scoped>
 summary::-webkit-details-marker {

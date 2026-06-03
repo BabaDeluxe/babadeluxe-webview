@@ -64,8 +64,8 @@ const localTemp = ref(props.temperature)
 
 watch(
   () => props.temperature,
-  (val) => {
-    localTemp.value = val
+  (newTemperatureValue) => {
+    localTemp.value = newTemperatureValue
   }
 )
 

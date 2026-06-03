@@ -204,9 +204,10 @@ const hasAttemptedStoredSession = ref(false)
 
 watch(
   error,
-  (val) => {
-    if (val) {
-      toasts.error(toUserMessage(val))
+  (newErrorMessage) => {
+    const hasError = newErrorMessage !== undefined && newErrorMessage !== null
+    if (hasError) {
+      toasts.error(toUserMessage(newErrorMessage))
     }
   },
   { immediate: true }

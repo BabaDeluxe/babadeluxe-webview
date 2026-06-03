@@ -147,19 +147,18 @@ export function useChat() {
   const { groupedModels, isLoadingModels, modelsLoadedCount } = useModelsSocket()
   const { shouldShowModal, dismissModal } = useSubscriptionSocket()
 
-  const atSources = computed<AtPickerItem[]>(() => {
-    const promptSources: AtPickerItem[] = prompts.value.map((p) => ({
-      id: `prompt:${p.id}`,
-      label: p.name,
+  const availablePromptsAsSources = computed<AtPickerItem[]>(() => {
+    return prompts.value.map((prompt) => ({
+      id: `prompt:${prompt.id}`,
+      label: prompt.name,
       type: 'prompt',
       icon: 'i-hugeicons:quill-write-02',
     }))
+  })
 
-    // TODO: Spaces from store
-    // TODO: Spaces from store
+  const atSources = computed<AtPickerItem[]>(() => {
+    const promptSources = availablePromptsAsSources.value
     const spaceSources: AtPickerItem[] = []
-
-    // TODO: Superpowers
     const superpowerSources: AtPickerItem[] = []
 
     return [...spaceSources, ...promptSources, ...superpowerSources]
@@ -440,106 +439,114 @@ export function useChat() {
   }
 
   async function handleSendMessage(): Promise<void> {
-    if (
-      !currentMessage.value.trim() ||
-      isLoadingConversations.value ||
-      isChatStreaming.value ||
-      isLoadingMessages.value
-    ) {
-      return
-    }
+    const isReadyToSendMessage =
+      currentMessage.value.trim() &&
+      !isLoadingConversations.value &&
+      !isChatStreaming.value &&
+      !isLoadingMessages.value
 
-    if (!(await ensureConversation())) return
+    if (!isReadyToSendMessage) return
+
+    const hasValidConversation = await ensureConversation()
+    if (!hasValidConversation) return
 
     const modelInfo = ensureModel()
     if (!modelInfo) return
 
     const { provider, model: selectedModel } = modelInfo
-
     const messageContent = currentMessage.value
-    clearMessage()
-
-    const revisionAtSendStart = contextRevision.value
+    const contextRevisionAtStart = contextRevision.value
     const systemPromptText = getSelectedSystemPromptText(undefined)
-    const prepared = await prepareChatRequest()
+    const chatRequestParameters = await prepareChatRequest()
 
+    clearMessage()
     streamingAssistantId = undefined
 
-    const result = await sendConversationMessage(currentConversationId.value, messageContent, {
+    const sendResult = await sendConversationMessage(currentConversationId.value, messageContent, {
       provider,
       model: selectedModel,
       systemPrompt: systemPromptText,
-      contextReferences: prepared.contextReferences,
-      contextItems: prepared.contextItems,
-      onChunk: prepared.onChunk,
-      onComplete: async (messageId: number) => {
-        streamingAssistantId = messageId
+      contextReferences: chatRequestParameters.contextReferences,
+      contextItems: chatRequestParameters.contextItems,
+      onChunk: chatRequestParameters.onChunk,
+      onComplete: async (assistantMessageId: number) => {
+        streamingAssistantId = assistantMessageId
 
-        const msg = messages.value.find((message) => message.id === messageId)
-        if (!msg) return
+        const assistantMessage = messages.value.find((m) => m.id === assistantMessageId)
+        if (!assistantMessage) return
 
-        finalizeStreamingMessage(messageId, messageComponents)
-        msg.isStreaming = false
+        finalizeStreamingMessage(assistantMessageId, messageComponents)
+        assistantMessage.isStreaming = false
 
-        const finalizeResult = await finalizeAssistantMessage(messageId, msg.content)
-        if (finalizeResult.isErr()) {
+        const persistenceResult = await finalizeAssistantMessage(
+          assistantMessageId,
+          assistantMessage.content
+        )
+
+        if (persistenceResult.isErr()) {
           logger.error('Failed to persist assistant message', {
             conversationId: currentConversationId.value,
             userId: currentUserId.value,
-            messageId,
-            error: finalizeResult.error,
+            messageId: assistantMessageId,
+            error: persistenceResult.error,
           })
-          conversationError.value = finalizeResult.error.message
+          conversationError.value = persistenceResult.error.message
         }
 
-        if (messages.value.length !== 2) return
+        const isFirstAssistantResponse = messages.value.length === 2
+        if (isFirstAssistantResponse) {
+          const generatedTitle = generateConversationTitle(messageContent)
+          const titleUpdateResult = await updateConversationTitle(
+            currentConversationId.value,
+            generatedTitle
+          )
 
-        const newTitle = generateConversationTitle(messageContent)
-        const titleResult = await updateConversationTitle(currentConversationId.value, newTitle)
-        if (titleResult.isErr()) {
-          logger.warn('Failed to auto-generate conversation title', {
-            conversationId: currentConversationId.value,
-            userId: currentUserId.value,
-            error: titleResult.error,
-          })
+          if (titleUpdateResult.isErr()) {
+            logger.warn('Failed to auto-generate conversation title', {
+              conversationId: currentConversationId.value,
+              userId: currentUserId.value,
+              error: titleUpdateResult.error,
+            })
+          }
         }
       },
-      onError: async (errorResult: unknown) => {
-        const errorText = 'Failed to stream assistant response'
-        const asError = createError(errorText, errorResult)
+      onError: async (streamingError: unknown) => {
+        const failureMessage = 'Failed to stream assistant response'
+        const domainError = createError(failureMessage, streamingError)
 
-        logger.error(errorText, {
+        logger.error(failureMessage, {
           conversationId: currentConversationId.value,
           userId: currentUserId.value,
           provider,
           model: selectedModel,
-          error: asError,
+          error: domainError,
         })
-        conversationError.value = asError.message
+        conversationError.value = domainError.message
 
         await cleanupStreamingMessage()
       },
     })
 
-    if (result.isErr()) {
-      const domainError = result.error
+    if (sendResult.isErr()) {
+      const error = sendResult.error
 
       logger.error('Failed to send message', {
         conversationId: currentConversationId.value,
         userId: currentUserId.value,
         provider,
         model: selectedModel,
-        error: domainError,
+        error,
       })
 
-      conversationError.value = domainError.message
+      conversationError.value = error.message
       currentMessage.value = messageContent
 
       await cleanupStreamingMessage()
       return
     }
 
-    if (contextRevision.value !== revisionAtSendStart) {
+    const hasContextChangedDuringSend = contextRevision.value !== contextRevisionAtStart
+    if (hasContextChangedDuringSend) {
       logger.log('Context changed during send, not clearing', {
         conversationId: currentConversationId.value,
         userId: currentUserId.value,
@@ -667,8 +674,11 @@ export function useChat() {
     { debounce: 450, maxWait: 1500 }
   )
 
-  watch(currentConversationId, async (newId, oldId) => {
-    if (newId !== oldId) await loadMessagesForCurrentConversation()
+  watch(currentConversationId, async (newConversationId, previousConversationId) => {
+    const isNewConversationId = newConversationId !== previousConversationId
+    if (isNewConversationId) {
+      await loadMessagesForCurrentConversation()
+    }
   })
 
   watch(
@@ -709,31 +719,41 @@ export function useChat() {
     { deep: true }
   )
 
-  watch(currentPrompt, async (newValue) => {
-    const result = await keyValueStore.set('chat-prompt', newValue)
-    if (result.isErr()) {
-      logger.error('Failed to persist prompt selection', {
-        conversationId: currentConversationId.value,
-        userId: currentUserId.value,
-        promptValue: newValue,
-        error: result.error,
-      })
-      persistenceWarning.value = 'Failed to save your prompt selection. It may reset after refresh.'
-    }
-  })
+  watchDebounced(
+    currentPrompt,
+    async (newPromptValue) => {
+      const persistResult = await keyValueStore.set('chat-prompt', newPromptValue)
 
-  watch(currentModel, async (newValue) => {
-    const result = await keyValueStore.set('chat-model', newValue)
-    if (result.isErr()) {
-      logger.error('Failed to persist model selection', {
-        conversationId: currentConversationId.value,
-        userId: currentUserId.value,
-        modelValue: newValue,
-        error: result.error,
-      })
-      persistenceWarning.value = 'Failed to save your model selection. It may reset after refresh.'
-    }
-  })
+      if (persistResult.isErr()) {
+        logger.error('Failed to persist prompt selection', {
+          conversationId: currentConversationId.value,
+          userId: currentUserId.value,
+          promptValue: newPromptValue,
+          error: persistResult.error,
+        })
+        persistenceWarning.value = 'Failed to save your prompt selection. It may reset after refresh.'
+      }
+    },
+    { debounce: 300 }
+  )
+
+  watchDebounced(
+    currentModel,
+    async (newModelValue) => {
+      const persistResult = await keyValueStore.set('chat-model', newModelValue)
+
+      if (persistResult.isErr()) {
+        logger.error('Failed to persist model selection', {
+          conversationId: currentConversationId.value,
+          userId: currentUserId.value,
+          modelValue: newModelValue,
+          error: persistResult.error,
+        })
+        persistenceWarning.value = 'Failed to save your model selection. It may reset after refresh.'
+      }
+    },
+    { debounce: 300 }
+  )
 
   const findModelContextWindow = (fullValue: string): number | undefined => {
     if (!fullValue || !fullValue.includes(':')) return undefined
@@ -743,19 +763,16 @@ export function useChat() {
     return match?.contextWindow
   }
 
-  watch(
-    currentModel,
-    (newValue) => {
-      const value = newValue?.trim()
-      if (!value) {
-        selectedModelContextWindow.value = undefined
-        return
-      }
+  const activeModelContextWindow = computed(() => {
+    const trimmedModelValue = currentModel.value?.trim()
+    if (!trimmedModelValue) return undefined
 
-      selectedModelContextWindow.value = findModelContextWindow(value)
-    },
-    { immediate: true }
-  )
+    return findModelContextWindow(trimmedModelValue)
+  })
+
+  watch(activeModelContextWindow, (newContextWindow) => {
+    selectedModelContextWindow.value = newContextWindow
+  }, { immediate: true })
 
   onMounted(() => void initializeChat())
 

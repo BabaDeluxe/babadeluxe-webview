@@ -182,18 +182,18 @@ const showValidationErrors = ref(false)
 // stays undefined would not fire if source were () => props.prompt alone.
 watch(
   () => [props.prompt, props.isCreating] as const,
-  ([newPrompt]) => {
+  ([activePrompt, isCreatingNewPrompt]) => {
     showValidationErrors.value = false
 
-    if (newPrompt) {
+    if (activePrompt) {
       localPrompt.value = {
-        id: newPrompt.id,
-        name: newPrompt.name ?? '',
-        command: newPrompt.command ?? '',
-        description: newPrompt.description,
-        template: newPrompt.template,
+        id: activePrompt.id,
+        name: activePrompt.name ?? '',
+        command: activePrompt.command ?? '',
+        description: activePrompt.description,
+        template: activePrompt.template,
       }
-    } else if (props.isCreating) {
+    } else if (isCreatingNewPrompt) {
       localPrompt.value = {
         id: undefined,
         name: '',

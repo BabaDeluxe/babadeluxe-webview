@@ -31,34 +31,34 @@
       <slot name="prepend" />
 
       <BaseTextField
-        ref="inputRef"
-      v-model:value="computedValue"
-      variant="message"
-      :placeholder="placeholder"
-      :disabled="isSubmitting"
-      data-testid="chat-input"
-      class="flex-1"
-      @keydown="handleKeydown"
-    />
+        ref="textFieldRef"
+        v-model:value="computedInputValue"
+        variant="message"
+        :placeholder="placeholder"
+        :disabled="isSubmitting"
+        data-testid="chat-input"
+        class="flex-1"
+        @keydown="handleKeydown"
+      />
 
-    <BaseButton
-      v-if="!isSubmitting"
-      variant="ghost"
-      :icon="submitIcon"
-      :is-disabled="isSubmitDisabled"
-      aria-label="Send message"
-      data-testid="chat-submit-button"
-      @click="handleSubmit"
-    />
+      <BaseButton
+        v-if="!isSubmitting"
+        variant="ghost"
+        :icon="submitIcon"
+        :is-disabled="isSubmitDisabled"
+        aria-label="Send message"
+        data-testid="chat-submit-button"
+        @click="handleSubmit"
+      />
 
-    <BaseButton
-      v-else
-      variant="ghost"
-      :icon="abortIcon"
-      aria-label="Stop generating"
-      data-testid="chat-abort-button"
-      @click="$emit('abort')"
-    />
+      <BaseButton
+        v-else
+        variant="ghost"
+        :icon="abortIcon"
+        aria-label="Stop generating"
+        data-testid="chat-abort-button"
+        @click="emit('abort')"
+      />
 
       <slot name="append" />
     </div>
@@ -66,7 +66,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useTemplateRef, ref, watch } from 'vue'
+import { computed, useTemplateRef, watch } from 'vue'
+import { watchDebounced } from '@vueuse/core'
 import AtPicker from '@/components/chat/AtPicker.vue'
 import AtPill from '@/components/chat/AtPill.vue'
 import { useAtPicker, type AtPickerItem } from '@/composables/use-at-picker'
@@ -96,10 +97,10 @@ const emit = defineEmits<{
   abort: []
 }>()
 
-const inputRef = useTemplateRef<InstanceType<typeof BaseTextField>>('inputRef')
+const textFieldRef = useTemplateRef<InstanceType<typeof BaseTextField>>('textFieldRef')
+
 const {
   isOpen: isPickerOpen,
-  query: pickerQuery,
   results: pickerResults,
   activeIndex: pickerActiveIndex,
   activeSources,
@@ -111,11 +112,9 @@ const {
   removeSource,
 } = useAtPicker(props.atSources)
 
-const computedValue = computed({
+const computedInputValue = computed({
   get: () => props.value,
-  set: (val) => {
-    emit('update:value', val)
-  },
+  set: (newValue) => emit('update:value', newValue),
 })
 
 const isSubmitDisabled = computed(() => {
@@ -123,48 +122,79 @@ const isSubmitDisabled = computed(() => {
   return isInputEmpty || props.isSubmitting
 })
 
+const textareaElement = computed(() => {
+  const componentElement = textFieldRef.value?.$el as HTMLElement | undefined
+  return componentElement?.querySelector('textarea')
+})
+
 function handleSubmit() {
-  const trimmed = props.value.trim()
-  if (!trimmed || props.isSubmitting) return
-  emit('submit', trimmed)
+  const trimmedValue = props.value.trim()
+  const canSubmit = trimmedValue && !props.isSubmitting
+  if (canSubmit) {
+    emit('submit', trimmedValue)
+  }
 }
 
 function handleKeydown(event: KeyboardEvent) {
   if (isPickerOpen.value) {
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      movePickerDown()
-      return
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      movePickerUp()
-      return
-    }
-    if (event.key === 'Tab' || (event.key === 'Enter' && pickerResults.value.length > 0)) {
-      event.preventDefault()
-      const item = acceptPicker()
-      if (item) {
-        const textarea = (inputRef.value?.$el as HTMLElement).querySelector('textarea')
-        if (textarea) {
-          const pos = textarea.selectionStart
-          const text = props.value
-          const lastAt = text.lastIndexOf('@', pos - 1)
-          if (lastAt !== -1) {
-            const newValue = text.slice(0, lastAt) + text.slice(pos)
-            emit('update:value', newValue)
-          }
-        }
-      }
-      return
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      closePicker()
-      return
-    }
+    handlePickerKeydown(event)
+    return
   }
 
+  handleDefaultKeydown(event)
+}
+
+function handlePickerKeydown(event: KeyboardEvent) {
+  const handlers: Record<string, () => void> = {
+    ArrowDown: () => {
+      event.preventDefault()
+      movePickerDown()
+    },
+    ArrowUp: () => {
+      event.preventDefault()
+      movePickerUp()
+    },
+    Tab: () => {
+      event.preventDefault()
+      handlePickerAcceptance()
+    },
+    Enter: () => {
+      if (pickerResults.value.length > 0) {
+        event.preventDefault()
+        handlePickerAcceptance()
+      }
+    },
+    Escape: () => {
+      event.preventDefault()
+      closePicker()
+    },
+  }
+
+  handlers[event.key]?.()
+}
+
+function handlePickerAcceptance() {
+  const acceptedItem = acceptPicker()
+  if (acceptedItem) {
+    removeMentionTokenFromInput()
+  }
+}
+
+function removeMentionTokenFromInput() {
+  const textarea = textareaElement.value
+  if (!textarea) return
+
+  const cursorPosition = textarea.selectionStart
+  const textBeforeCursor = props.value.slice(0, cursorPosition)
+  const lastAtSymbolIndex = textBeforeCursor.lastIndexOf('@')
+
+  if (lastAtSymbolIndex !== -1) {
+    const newValue = props.value.slice(0, lastAtSymbolIndex) + props.value.slice(cursorPosition)
+    emit('update:value', newValue)
+  }
+}
+
+function handleDefaultKeydown(event: KeyboardEvent) {
   const isEnterPressed = event.key === 'Enter'
   const isModifierPressed = event.shiftKey || event.ctrlKey
 
@@ -174,33 +204,42 @@ function handleKeydown(event: KeyboardEvent) {
     return
   }
 
-  if (event.key === 'Backspace' && props.value === '' && activeSources.value.length > 0) {
+  const isBackspacePressed = event.key === 'Backspace'
+  const isInputEmpty = props.value === ''
+  const hasActiveSources = activeSources.value.length > 0
+
+  if (isBackspacePressed && isInputEmpty && hasActiveSources) {
     event.preventDefault()
     activeSources.value.pop()
-    return
   }
 }
 
-watch(() => props.value, (newVal) => {
-  const textarea = (inputRef.value?.$el as HTMLElement)?.querySelector('textarea')
-  if (!textarea) return
+watchDebounced(
+  () => props.value,
+  (newValue) => {
+    const textarea = textareaElement.value
+    if (!textarea) return
 
-  const pos = textarea.selectionStart
-  const textBeforeCursor = newVal.slice(0, pos)
-  const lastAt = textBeforeCursor.lastIndexOf('@')
+    const cursorPosition = textarea.selectionStart
+    const textBeforeCursor = newValue.slice(0, cursorPosition)
+    const lastAtSymbolIndex = textBeforeCursor.lastIndexOf('@')
 
-  if (lastAt !== -1) {
-    const textAfterAt = textBeforeCursor.slice(lastAt + 1)
-    if (/^\w*$/.test(textAfterAt)) {
-      openPicker(textAfterAt)
-      return
+    if (lastAtSymbolIndex !== -1) {
+      const textAfterAt = textBeforeCursor.slice(lastAtSymbolIndex + 1)
+      const isAlphanumericQuery = /^\w*$/.test(textAfterAt)
+
+      if (isAlphanumericQuery) {
+        openPicker(textAfterAt)
+        return
+      }
     }
-  }
-  closePicker()
-})
+    closePicker()
+  },
+  { debounce: 50 }
+)
 
 defineExpose({
-  focus: () => inputRef.value?.focus(),
+  focus: () => textFieldRef.value?.focus(),
   activeSources,
 })
 </script>

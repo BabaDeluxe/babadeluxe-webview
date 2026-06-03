@@ -1,3 +1,22 @@
+<template>
+  <div class="flex w-full">
+    <textarea
+      ref="textareaRef"
+      v-model="internalValue"
+      v-bind="forwardedAttrs"
+      :placeholder="placeholder"
+      :disabled="disabled"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+      rows="1"
+      :class="textareaClass"
+      :style="textareaStyle"
+    />
+  </div>
+</template>
+
 <script setup lang="ts">
 import { computed, type CSSProperties, type StyleValue, useAttrs, watch } from 'vue'
 import { useTextareaAutosize } from '@vueuse/core'
@@ -57,43 +76,27 @@ const { textarea: textareaRef, input: internalValue } = useTextareaAutosize({
   styleProp: 'minHeight',
 })
 
+const textFieldElement = computed(() => textareaRef.value)
+
 defineExpose({
   focus: () => {
-    textareaRef.value?.focus()
+    textFieldElement.value?.focus()
   },
 })
 
 watch(
   () => props.value,
-  (newValue) => {
-    if (newValue !== internalValue.value) {
-      internalValue.value = newValue ?? ''
+  (incomingValue) => {
+    const isValueOutOfSync = incomingValue !== internalValue.value
+    if (isValueOutOfSync) {
+      internalValue.value = incomingValue ?? ''
     }
   },
   { immediate: true }
 )
 
-watch(internalValue, (newValue) => {
-  emit('update:value', newValue)
-  emit('input', newValue)
+watch(internalValue, (newInternalValue) => {
+  emit('update:value', newInternalValue)
+  emit('input', newInternalValue)
 })
 </script>
-
-<template>
-  <div class="flex w-full">
-    <textarea
-      ref="textareaRef"
-      v-model="internalValue"
-      v-bind="forwardedAttrs"
-      :placeholder="placeholder"
-      :disabled="disabled"
-      autocomplete="off"
-      autocorrect="off"
-      autocapitalize="off"
-      spellcheck="false"
-      rows="1"
-      :class="textareaClass"
-      :style="textareaStyle"
-    />
-  </div>
-</template>

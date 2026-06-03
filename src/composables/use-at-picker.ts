@@ -8,88 +8,132 @@ export interface AtPickerItem {
   icon?: string
 }
 
-export function useAtPicker(sources: AtPickerItem[]) {
-  const isOpen = ref(false)
-  const query = ref('')
-  const activeIndex = ref(0)
-  const activeSources = ref<AtPickerItem[]>([])
+const MINIMUM_QUERY_LENGTH_FOR_FUZZY_SEARCH = 2
+const MAXIMUM_RESULTS_COUNT = 8
+const FUZZY_SEARCH_SIMILARITY_THRESHOLD = 0.3
 
-  const results = computed(() => {
-    let filtered: AtPickerItem[]
-    const q = query.value.toLowerCase()
+export function useAtPicker(availableSources: AtPickerItem[]) {
+  const isPickerVisible = ref(false)
+  const searchQuery = ref('')
+  const highlightedItemIndex = ref(0)
+  const currentlySelectedSources = ref<AtPickerItem[]>([])
 
-    if (q.length < 2) {
-      const typeOrder = { space: 0, prompt: 1, superpower: 2 }
-      filtered = [...sources].sort((a, b) => typeOrder[a.type] - typeOrder[b.type])
-    } else {
-      filtered = sources
-        .map((item) => ({
-          item,
-          score: damerauLevenshteinSimilarity(q, item.label.toLowerCase()),
-        }))
-        .filter(({ score, item }) => score > 0.3 || item.label.toLowerCase().includes(q))
-        .sort((a, b) => b.score - a.score)
-        .map(({ item }) => item)
+  const filteredResults = computed(() => {
+    const normalizedQuery = searchQuery.value.toLowerCase()
+
+    if (normalizedQuery.length < MINIMUM_QUERY_LENGTH_FOR_FUZZY_SEARCH) {
+      return getResultsSortedByType(availableSources)
     }
 
-    return filtered.slice(0, 8)
+    return getResultsByFuzzyMatching(availableSources, normalizedQuery)
   })
 
-  const open = (q: string) => {
-    query.value = q
-    isOpen.value = true
-    activeIndex.value = 0
+  function getResultsSortedByType(sources: AtPickerItem[]): AtPickerItem[] {
+    const typePriorityOrder: Record<AtPickerItem['type'], number> = {
+      space: 0,
+      prompt: 1,
+      superpower: 2,
+    }
+
+    return [...sources]
+      .sort((first, second) => typePriorityOrder[first.type] - typePriorityOrder[second.type])
+      .slice(0, MAXIMUM_RESULTS_COUNT)
   }
 
-  const close = () => {
-    isOpen.value = false
-    query.value = ''
+  function getResultsByFuzzyMatching(sources: AtPickerItem[], query: string): AtPickerItem[] {
+    const matchesWithScores = sources.map((source) => {
+      const label = source.label.toLowerCase()
+      const similarityScore = damerauLevenshteinSimilarity(query, label)
+      const isExactSubstring = label.includes(query)
+
+      return {
+        source,
+        score: similarityScore,
+        isSubstring: isExactSubstring,
+      }
+    })
+
+    const relevantMatches = matchesWithScores.filter((match) => {
+      return match.score > FUZZY_SEARCH_SIMILARITY_THRESHOLD || match.isSubstring
+    })
+
+    return relevantMatches
+      .sort((first, second) => second.score - first.score)
+      .map((match) => match.source)
+      .slice(0, MAXIMUM_RESULTS_COUNT)
   }
 
-  const moveDown = () => {
-    if (results.value.length === 0) return
-    activeIndex.value = (activeIndex.value + 1) % results.value.length
+  const openPicker = (newQuery: string) => {
+    searchQuery.value = newQuery
+    isPickerVisible.value = true
+    highlightedItemIndex.value = 0
   }
 
-  const moveUp = () => {
-    if (results.value.length === 0) return
-    activeIndex.value = (activeIndex.value - 1 + results.value.length) % results.value.length
+  const closePicker = () => {
+    isPickerVisible.value = false
+    searchQuery.value = ''
   }
 
-  const accept = () => {
-    const item = results.value[activeIndex.value]
-    if (!item) return null
+  const selectNextItem = () => {
+    const resultsCount = filteredResults.value.length
+    if (resultsCount === 0) return
+    highlightedItemIndex.value = (highlightedItemIndex.value + 1) % resultsCount
+  }
 
-    if (activeSources.value.some((s) => s.id === item.id)) {
-      close()
+  const selectPreviousItem = () => {
+    const resultsCount = filteredResults.value.length
+    if (resultsCount === 0) return
+    highlightedItemIndex.value = (highlightedItemIndex.value - 1 + resultsCount) % resultsCount
+  }
+
+  const acceptHighlightedItem = () => {
+    const itemToAccept = filteredResults.value[highlightedItemIndex.value]
+    if (!itemToAccept) return null
+
+    const isAlreadySelected = currentlySelectedSources.value.some(
+      (source) => source.id === itemToAccept.id
+    )
+
+    if (isAlreadySelected) {
+      closePicker()
       return null
     }
 
-    // Single Space support: replace existing space if new one is added
-    if (item.type === 'space') {
-      activeSources.value = activeSources.value.filter((s) => s.type !== 'space')
-    }
-
-    activeSources.value.push(item)
-    close()
-    return item
+    applyBusinessRulesAndAddSource(itemToAccept)
+    closePicker()
+    return itemToAccept
   }
 
-  const removeSource = (id: string) => {
-    activeSources.value = activeSources.value.filter((s) => s.id !== id)
+  function applyBusinessRulesAndAddSource(item: AtPickerItem) {
+    if (item.type === 'space') {
+      removeExistingSpaceIfAny()
+    }
+    currentlySelectedSources.value.push(item)
+  }
+
+  function removeExistingSpaceIfAny() {
+    currentlySelectedSources.value = currentlySelectedSources.value.filter(
+      (source) => source.type !== 'space'
+    )
+  }
+
+  const removeSourceById = (sourceId: string) => {
+    currentlySelectedSources.value = currentlySelectedSources.value.filter(
+      (source) => source.id !== sourceId
+    )
   }
 
   return {
-    isOpen,
-    query,
-    results,
-    activeIndex,
-    activeSources,
-    open,
-    close,
-    moveDown,
-    moveUp,
-    accept,
-    removeSource,
+    isOpen: isPickerVisible,
+    query: searchQuery,
+    results: filteredResults,
+    activeIndex: highlightedItemIndex,
+    activeSources: currentlySelectedSources,
+    open: openPicker,
+    close: closePicker,
+    moveDown: selectNextItem,
+    moveUp: selectPreviousItem,
+    accept: acceptHighlightedItem,
+    removeSource: removeSourceById,
   }
 }

@@ -15,20 +15,22 @@ export function useSocketManager() {
     if (socketManagerRef.value) return socketManagerRef.value
 
     return new Promise<SocketManager>((resolve, reject) => {
-      const stopWatcher = watch(
+      const stopManagerWatcher = watch(
         socketManagerRef,
-        (newManager) => {
-          if (newManager) {
-            stopWatcher()
-            resolve(newManager)
+        (initializedManager) => {
+          if (initializedManager) {
+            stopManagerWatcher()
+            resolve(initializedManager)
           }
         },
         { immediate: true }
       )
 
       createTimeout(() => {
-        if (socketManagerRef.value) return
-        stopWatcher()
+        const isManagerInitialized = socketManagerRef.value !== undefined
+        if (isManagerInitialized) return
+
+        stopManagerWatcher()
         reject(new NetworkError('SocketManager initialization timeout'))
       }, socketTimeoutMs.init)
     })

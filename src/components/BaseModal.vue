@@ -109,8 +109,8 @@ function handleBackdropClick() {
 
 watch(
   () => props.isShown,
-  async (shown) => {
-    if (shown) {
+  async (isNowShown) => {
+    if (isNowShown) {
       await nextTick()
       modalRef.value?.focus()
     }

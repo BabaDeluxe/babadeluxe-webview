@@ -1,23 +1,3 @@
-<script setup lang="ts">
-import type { AtPickerItem } from '@/composables/use-at-picker'
-
-defineProps<{
-  item: AtPickerItem
-}>()
-
-const emit = defineEmits<{
-  remove: []
-}>()
-
-const getIcon = (item: AtPickerItem) => {
-  if (item.icon) return item.icon
-  if (item.type === 'space') return 'i-hugeicons:folder-02'
-  if (item.type === 'prompt') return 'i-hugeicons:quill-write-02'
-  if (item.type === 'superpower') return 'i-hugeicons:flash'
-  return ''
-}
-</script>
-
 <template>
   <span
     class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-accent/10 border border-accent/20 rounded-full text-xs text-accent font-medium select-none align-middle"
@@ -33,3 +13,23 @@ const getIcon = (item: AtPickerItem) => {
     </button>
   </span>
 </template>
+
+<script setup lang="ts">
+import type { AtPickerItem } from '@/composables/use-at-picker'
+
+const props = defineProps<{
+  item: AtPickerItem
+}>()
+
+const emit = defineEmits<{
+  remove: []
+}>()
+
+const getIcon = (item: AtPickerItem) => {
+  if (item.icon) return item.icon
+  if (item.type === 'space') return 'i-hugeicons:folder-02'
+  if (item.type === 'prompt') return 'i-hugeicons:quill-write-02'
+  if (item.type === 'superpower') return 'i-hugeicons:flash'
+  return ''
+}
+</script>

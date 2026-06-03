@@ -142,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
@@ -203,13 +203,17 @@ const {
 } = useScrollToBottom(messagesScrollRef)
 
 // Sync the focusable ref
-watch([chatInputTopRef, chatInputBottomRef], () => {
-  chatInputRef.value = chatInputTopRef.value || chatInputBottomRef.value
+const activeChatInput = computed(() => chatInputTopRef.value || chatInputBottomRef.value)
+watch(activeChatInput, (newInput) => {
+  chatInputRef.value = newInput
 })
 
 // Re-check scroll visibility when streaming appends new content
 watch(
   () => messages.value.length,
-  () => nextTick(updateVisibility)
+  async () => {
+    await nextTick()
+    updateVisibility()
+  }
 )
 </script>

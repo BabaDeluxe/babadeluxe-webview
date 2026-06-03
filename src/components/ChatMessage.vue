@@ -107,26 +107,28 @@ const errorMessage = ref('')
 defineExpose({ markdownRef })
 
 const contextBadges = computed(() => {
-  const isAssistant = props.role === 'assistant'
-  if (!isAssistant) return []
+  const isAssistantMessage = props.role === 'assistant'
+  if (!isAssistantMessage) return []
 
-  const references = props.contextReferences ?? []
+  const contextReferences = props.contextReferences ?? []
   const uniqueReferencesMap = new Map<string, ContextReference>()
-  const filePaths: string[] = []
+  const sourceFilePaths: string[] = []
 
-  for (const ref of references) {
-    const uniqueKey =
-      ref.type === 'file' ? `file:${ref.filePath}` : `snippet:${ref.filePath}:${ref.snippetText}`
+  for (const reference of contextReferences) {
+    const uniqueReferenceKey =
+      reference.type === 'file'
+        ? `file:${reference.filePath}`
+        : `snippet:${reference.filePath}:${reference.snippetText}`
 
-    if (!uniqueReferencesMap.has(uniqueKey)) {
-      uniqueReferencesMap.set(uniqueKey, ref)
-      if (ref.filePath) {
-        filePaths.push(ref.filePath)
+    if (!uniqueReferencesMap.has(uniqueReferenceKey)) {
+      uniqueReferencesMap.set(uniqueReferenceKey, reference)
+      if (reference.filePath) {
+        sourceFilePaths.push(reference.filePath)
       }
     }
   }
 
-  const disambiguatedPathsMap = getDisambiguatedPaths(filePaths)
+  const disambiguatedPathsMap = getDisambiguatedPaths(sourceFilePaths)
 
   return Array.from(uniqueReferencesMap.values()).map((ref) => {
     const isFile = ref.type === 'file'
