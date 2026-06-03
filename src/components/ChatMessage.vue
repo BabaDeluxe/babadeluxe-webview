@@ -10,13 +10,16 @@
         <BaseAvatar :role="role" />
       </template>
 
+      <!-- reasoning prop: persisted reasoning loaded from DB by parent.
+           currentReasoning: live reasoning chunks from the socket store during streaming.
+           Both are shown via ChatReasoningBlock; only one will be non-empty at a time. -->
       <div
         v-if="role === 'assistant' && (reasoning || currentReasoning)"
         class="w-full"
       >
         <ChatReasoningBlock
           :reasoning="reasoning || currentReasoning || ''"
-          :is-streaming="isStreamingReasoning"
+          :is-streaming="isInReasoningPhase"
         />
       </div>
 
@@ -31,7 +34,7 @@
           <MarkdownRenderer
             ref="markdownRef"
             :content="content"
-            :cursor="isStreaming && role === 'assistant' && !isStreamingReasoning"
+            :cursor="isStreaming && role === 'assistant' && !isInReasoningPhase"
             :is-streaming="isStreaming"
           />
         </template>
@@ -94,6 +97,10 @@ type ChatMessageEmitter = {
 interface ChatMessageProps extends Message {
   isRewriteEnabled?: boolean
   isEditEnabled?: boolean
+  /** Persisted reasoning text loaded from the database by the parent component.
+   *  Pass `message.reasoning` from the loaded Message record.
+   *  During live streaming this will be undefined; live chunks come from the socket store instead. */
+  reasoning?: string
 }
 
 const props = withDefaults(defineProps<ChatMessageProps>(), {
@@ -105,8 +112,12 @@ const props = withDefaults(defineProps<ChatMessageProps>(), {
 const emit = defineEmits<ChatMessageEmitter>()
 
 const socketStore = useChatSocketStore()
-const currentReasoning = computed(() => socketStore.reasoningByMessageId.get(props.id))
-const isStreamingReasoning = computed(() => {
+const currentReasoning = computed(() => socketStore.reasoningByMessageId.value.get(props.id))
+
+/** True while the model is in the reasoning phase:
+ *  socket is actively streaming AND no final content has arrived yet (`!props.content`).
+ *  Once content starts flowing, the reasoning phase is over and the cursor moves to the main block. */
+const isInReasoningPhase = computed(() => {
   const state = socketStore.getMessageState(props.id)
   return !!state?.isStreaming && !props.content
 })
@@ -153,7 +164,7 @@ const contextBadges = computed(() => {
     if (!isFile) {
       const sanitizedSnippet = ref.snippetText.trim().replace(/\s+/g, ' ')
       subtitle =
-        sanitizedSnippet.length > 60 ? `${sanitizedSnippet.slice(0, 60)}…` : sanitizedSnippet
+        sanitizedSnippet.length > 60 ? `${sanitizedSnippet.slice(0, 60)}\u2026` : sanitizedSnippet
       tooltip = path ? `${path}\n\n${ref.snippetText}` : ref.snippetText
     }
 
