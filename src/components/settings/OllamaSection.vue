@@ -88,8 +88,9 @@ const urlStatus = computed(() => (urlError.value ? 'invalid' : 'idle'))
 const isValidUrl = computed(() => {
   if (!ollamaUrl.value) return false
   try {
-    new URL(ollamaUrl.value)
-    return true
+    const parsed = new URL(ollamaUrl.value)
+    // Only allow http/https — reject file://, javascript:, and other schemes
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
   } catch {
     return false
   }
