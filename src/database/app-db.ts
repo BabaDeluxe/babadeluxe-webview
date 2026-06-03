@@ -14,6 +14,7 @@ type DbMessage = {
   model?: string
   systemPrompt?: string
   contextReferences?: string
+  reasoning?: string
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
@@ -121,6 +122,12 @@ export class AppDb extends Dexie {
       conversation: '++id, title, isActive, createdAt, updatedAt, &syncId, syncVersion',
       message:
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
+      localSetting: '++id, settingKey, updatedAt',
+    })
+    this.version(8).stores({
+      conversation: '++id, title, isActive, createdAt, updatedAt, &syncId, syncVersion',
+      message:
+        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming, reasoning',
       localSetting: '++id, settingKey, updatedAt',
     })
   }

@@ -54,10 +54,27 @@ export const isGitPrMessageContext = (msg: IncomingMessage): msg is GitPrMessage
 
 /** Guard for active editor change notifications from the extension host. */
 export const isActiveEditorChangedMessage = (
-  msg: IncomingMessage,
+  msg: IncomingMessage
 ): msg is ActiveEditorChangedMessage => msg.type === 'editor:activeChanged'
 
 /** Guard for diagnostics notifications from the extension host. */
-export const isEditorDiagnosticsMessage = (
-  msg: IncomingMessage,
-): msg is EditorDiagnosticsMessage => msg.type === 'editor:diagnostics'
+export const isEditorDiagnosticsMessage = (msg: IncomingMessage): msg is EditorDiagnosticsMessage =>
+  msg.type === 'editor:diagnostics'
+
+export const isVsCodeContextItem = (
+  value: unknown
+): value is { id: string; filePath: string; kind: 'pinned' | 'suggested' } => {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v['id'] === 'string' &&
+    typeof v['filePath'] === 'string' &&
+    (v['kind'] === 'pinned' || v['kind'] === 'suggested')
+  )
+}
+
+export const isResponseWithRequestId = (value: unknown): value is { requestId: string } => {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return typeof v['requestId'] === 'string'
+}

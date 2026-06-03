@@ -10,6 +10,16 @@
         <BaseAvatar :role="role" />
       </template>
 
+      <div
+        v-if="role === 'assistant' && (reasoning || currentReasoning)"
+        class="w-full"
+      >
+        <ChatReasoningBlock
+          :reasoning="reasoning || currentReasoning || ''"
+          :is-streaming="isStreamingReasoning"
+        />
+      </div>
+
       <BaseEditableText
         :content="content"
         :is-editing="isEditing"
@@ -21,7 +31,7 @@
           <MarkdownRenderer
             ref="markdownRef"
             :content="content"
-            :cursor="isStreaming && role === 'assistant'"
+            :cursor="isStreaming && role === 'assistant' && !isStreamingReasoning"
             :is-streaming="isStreaming"
           />
         </template>
@@ -69,7 +79,9 @@ import ChatMessageActions from '@/components/ChatMessageActions.vue'
 import MarkdownRenderer from '@/components/ChatMarkdownRenderer.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
 import ContextBadge from '@/components/ContextBadge.vue'
+import ChatReasoningBlock from '@/components/ChatReasoningBlock.vue'
 import { getDisambiguatedPaths } from '@/path-disambiguation'
+import { useChatSocketStore } from '@/stores/use-chat-socket-store'
 
 defineOptions({ inheritAttrs: false })
 
@@ -91,6 +103,13 @@ const props = withDefaults(defineProps<ChatMessageProps>(), {
 })
 
 const emit = defineEmits<ChatMessageEmitter>()
+
+const socketStore = useChatSocketStore()
+const currentReasoning = computed(() => socketStore.reasoningByMessageId.get(props.id))
+const isStreamingReasoning = computed(() => {
+  const state = socketStore.getMessageState(props.id)
+  return !!state?.isStreaming && !props.content
+})
 
 const markdownRef = useTemplateRef<InstanceType<typeof MarkdownRenderer>>('markdownRef')
 const isEditing = ref(false)

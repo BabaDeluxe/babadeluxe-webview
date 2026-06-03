@@ -7,6 +7,7 @@ type ErrorHandler = (errorMessage: string) => void
 
 export type MessageState = Readonly<{
   onChunk: ChunkHandler | undefined
+  onReasoningChunk: ChunkHandler | undefined
   onComplete: CompleteHandler | undefined
   onError: ErrorHandler | undefined
   isStreaming: boolean
@@ -16,6 +17,7 @@ export type MessageState = Readonly<{
 
 export const useChatSocketStore = defineStore('chatSocket', () => {
   const messageStateById = ref(new Map<number, MessageState>())
+  const reasoningByMessageId = ref(new Map<number, string>())
 
   const setMessageState = (messageId: number, nextState: MessageState): void => {
     messageStateById.value.set(messageId, nextState)
@@ -23,6 +25,7 @@ export const useChatSocketStore = defineStore('chatSocket', () => {
 
   const deleteMessageState = (messageId: number): void => {
     messageStateById.value.delete(messageId)
+    reasoningByMessageId.value.delete(messageId)
   }
 
   const getMessageState = (messageId: number): MessageState | undefined => {
@@ -31,6 +34,7 @@ export const useChatSocketStore = defineStore('chatSocket', () => {
 
   const resetState = (): void => {
     messageStateById.value.clear()
+    reasoningByMessageId.value.clear()
   }
 
   const streamingMessageIds = computed(() => {
@@ -41,12 +45,19 @@ export const useChatSocketStore = defineStore('chatSocket', () => {
     return ids
   })
 
+  const appendReasoning = (messageId: number, chunk: string): void => {
+    const existing = reasoningByMessageId.value.get(messageId) ?? ''
+    reasoningByMessageId.value.set(messageId, existing + chunk)
+  }
+
   return {
     messageStateById,
+    reasoningByMessageId,
     setMessageState,
     deleteMessageState,
     getMessageState,
     resetState,
     streamingMessageIds,
+    appendReasoning,
   }
 })
