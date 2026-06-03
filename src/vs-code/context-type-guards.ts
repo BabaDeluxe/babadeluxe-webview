@@ -61,6 +61,8 @@ export const isActiveEditorChangedMessage = (
 export const isEditorDiagnosticsMessage = (msg: IncomingMessage): msg is EditorDiagnosticsMessage =>
   msg.type === 'editor:diagnostics'
 
+/** Guard for VS Code context item objects passed from the extension host.
+ *  Matches the shape used by context:pinFile and context:snapshot message handlers. */
 export const isVsCodeContextItem = (
   value: unknown
 ): value is { id: string; filePath: string; kind: 'pinned' | 'suggested' } => {
@@ -73,6 +75,7 @@ export const isVsCodeContextItem = (
   )
 }
 
+/** Guard for extension host responses that carry a requestId correlation token. */
 export const isResponseWithRequestId = (value: unknown): value is { requestId: string } => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as Record<string, unknown>
