@@ -14,7 +14,7 @@
         class="w-2 h-2 rounded-full bg-primary animate-pulse"
       />
       <span class="text-sm font-medium text-secondary-foreground/70">
-        {{ isStreaming ? 'Thinking…' : 'Reasoning' }}
+        {{ isStreaming ? 'Thinking\u2026' : 'Reasoning' }}
       </span>
       <span
         v-if="tokenCount > 0"
@@ -46,10 +46,11 @@ const props = defineProps<{
   isStreaming: boolean
 }>()
 
-const tokenCount = computed(() => {
-  // Simple heuristic: 1 token ~= 4 characters for English
-  return Math.ceil(props.reasoning.length / 4)
-})
+/** Average characters per token for English prose (cl100k / tiktoken heuristic).
+ *  Not accurate for code-heavy content or CJK languages — display only, not used for billing. */
+const CHARS_PER_TOKEN = 4
+
+const tokenCount = computed(() => Math.ceil(props.reasoning.length / CHARS_PER_TOKEN))
 </script>
 
 <style scoped>
