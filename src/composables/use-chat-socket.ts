@@ -21,6 +21,14 @@ type MessageCompletePayload = { messageId: number; fullContent: string }
 type ChatErrorPayload = { messageId?: number; error: string }
 type MessageDeletedPayload = { messageId: number }
 
+// Extend the Socket.IO ServerToClientEvents map for events not yet declared in @babadeluxe/shared.
+// TODO: remove this block once @babadeluxe/shared exports `chat:reasoningChunk` in its event map.
+declare module 'socket.io-client' {
+  interface ServerToClientEvents {
+    'chat:reasoningChunk': (payload: MessageChunkPayload) => void
+  }
+}
+
 type AttachedHandlers = Readonly<{
   onChunk: (payload: MessageChunkPayload) => void
   onReasoningChunk: (payload: MessageChunkPayload) => void
@@ -98,27 +106,17 @@ function ensureChatSocketListeners(
     handlersBySocket.set(chatSocket, handlers)
   }
 
-  chatSocket /* @ts-ignore */
-    .off('chat:messageChunk', handlers.onChunk)
-  chatSocket /* @ts-ignore */
-    .off('chat:reasoningChunk', handlers.onReasoningChunk)
-  chatSocket /* @ts-ignore */
-    .off('chat:messageComplete', handlers.onComplete)
-  chatSocket /* @ts-ignore */
-    .off('chat:chatError', handlers.onChatError)
-  chatSocket /* @ts-ignore */
-    .off('chat:messageDeleted', handlers.onDeleted)
+  chatSocket.off('chat:messageChunk', handlers.onChunk)
+  chatSocket.off('chat:reasoningChunk', handlers.onReasoningChunk)
+  chatSocket.off('chat:messageComplete', handlers.onComplete)
+  chatSocket.off('chat:chatError', handlers.onChatError)
+  chatSocket.off('chat:messageDeleted', handlers.onDeleted)
 
-  chatSocket /* @ts-ignore */
-    .on('chat:messageChunk', handlers.onChunk)
-  chatSocket /* @ts-ignore */
-    .on('chat:reasoningChunk', handlers.onReasoningChunk)
-  chatSocket /* @ts-ignore */
-    .on('chat:messageComplete', handlers.onComplete)
-  chatSocket /* @ts-ignore */
-    .on('chat:chatError', handlers.onChatError)
-  chatSocket /* @ts-ignore */
-    .on('chat:messageDeleted', handlers.onDeleted)
+  chatSocket.on('chat:messageChunk', handlers.onChunk)
+  chatSocket.on('chat:reasoningChunk', handlers.onReasoningChunk)
+  chatSocket.on('chat:messageComplete', handlers.onComplete)
+  chatSocket.on('chat:chatError', handlers.onChatError)
+  chatSocket.on('chat:messageDeleted', handlers.onDeleted)
 }
 
 export function registerStreamingHandlers(
