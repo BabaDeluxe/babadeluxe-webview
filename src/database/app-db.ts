@@ -124,10 +124,14 @@ export class AppDb extends Dexie {
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
       localSetting: '++id, settingKey, updatedAt',
     })
+    // v8: adds optional `reasoning` field to message rows.
+    // `reasoning` is NOT indexed — it is a potentially large text field queried only
+    // by messageId (via conversationId). Indexing large strings degrades IndexedDB performance.
+    // No upgrade() callback needed: existing rows return undefined for the new optional field.
     this.version(8).stores({
       conversation: '++id, title, isActive, createdAt, updatedAt, &syncId, syncVersion',
       message:
-        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming, reasoning',
+        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
       localSetting: '++id, settingKey, updatedAt',
     })
   }
