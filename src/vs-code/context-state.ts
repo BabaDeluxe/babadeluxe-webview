@@ -206,9 +206,7 @@ export function useContextState() {
    * Suppressed if the file is already present in the pinned set
    * (to avoid showing the same file twice in the context UI).
    */
-  const setActiveEditor = (
-    entry: ActiveEditorEntry,
-  ): void => {
+  const setActiveEditor = (entry: ActiveEditorEntry): void => {
     const key = normalizePath(entry.filePath)
     if (key && pinnedIdsByPath.value.has(key)) {
       // File already pinned — no need for a duplicate active entry
@@ -223,10 +221,7 @@ export function useContextState() {
    * Update the diagnostics map for a given file path.
    * An empty array clears the stored entry.
    */
-  const setDiagnostics = (
-    filePath: string,
-    diagnostics: ReadonlyArray<DiagnosticItem>,
-  ): void => {
+  const setDiagnostics = (filePath: string, diagnostics: ReadonlyArray<DiagnosticItem>): void => {
     const next = new Map(diagnosticsMap.value)
     if (diagnostics.length === 0) {
       next.delete(filePath)
@@ -240,9 +235,8 @@ export function useContextState() {
    * Returns diagnostics for a given file if any exist, otherwise undefined.
    * Use this when building the socket payload to optionally attach diagnostics.
    */
-  const getDiagnosticsForFile = (
-    filePath: string,
-  ): ReadonlyArray<DiagnosticItem> | undefined => diagnosticsMap.value.get(filePath)
+  const getDiagnosticsForFile = (filePath: string): ReadonlyArray<DiagnosticItem> | undefined =>
+    diagnosticsMap.value.get(filePath)
 
   return {
     pinnedPaths,

@@ -21,8 +21,17 @@ type MessageCompletePayload = { messageId: number; fullContent: string }
 type ChatErrorPayload = { messageId?: number; error: string }
 type MessageDeletedPayload = { messageId: number }
 
+// Extend the Socket.IO ServerToClientEvents map for events not yet declared in @babadeluxe/shared.
+// TODO: remove this block once @babadeluxe/shared exports `chat:reasoningChunk` in its event map.
+declare module 'socket.io-client' {
+  interface ServerToClientEvents {
+    'chat:reasoningChunk': (payload: MessageChunkPayload) => void
+  }
+}
+
 type AttachedHandlers = Readonly<{
   onChunk: (payload: MessageChunkPayload) => void
+  onReasoningChunk: (payload: MessageChunkPayload) => void
   onComplete: (payload: MessageCompletePayload) => void
   onChatError: (payload: ChatErrorPayload) => void
   onDeleted: (payload: MessageDeletedPayload) => void
@@ -50,6 +59,14 @@ function ensureChatSocketListeners(
       })
 
       state.onChunk?.(payload.chunk)
+    }
+
+    const onReasoningChunk = (payload: MessageChunkPayload) => {
+      const state = store.getMessageState(payload.messageId)
+      if (!state) return
+
+      store.appendReasoning(payload.messageId, payload.chunk)
+      state.onReasoningChunk?.(payload.chunk)
     }
 
     const onComplete = (payload: MessageCompletePayload) => {
@@ -85,16 +102,18 @@ function ensureChatSocketListeners(
       store.deleteMessageState(payload.messageId)
     }
 
-    handlers = { onChunk, onComplete, onChatError, onDeleted }
+    handlers = { onChunk, onReasoningChunk, onComplete, onChatError, onDeleted }
     handlersBySocket.set(chatSocket, handlers)
   }
 
   chatSocket.off('chat:messageChunk', handlers.onChunk)
+  chatSocket.off('chat:reasoningChunk', handlers.onReasoningChunk)
   chatSocket.off('chat:messageComplete', handlers.onComplete)
   chatSocket.off('chat:chatError', handlers.onChatError)
   chatSocket.off('chat:messageDeleted', handlers.onDeleted)
 
   chatSocket.on('chat:messageChunk', handlers.onChunk)
+  chatSocket.on('chat:reasoningChunk', handlers.onReasoningChunk)
   chatSocket.on('chat:messageComplete', handlers.onComplete)
   chatSocket.on('chat:chatError', handlers.onChatError)
   chatSocket.on('chat:messageDeleted', handlers.onDeleted)
@@ -104,6 +123,7 @@ export function registerStreamingHandlers(
   messageId: number,
   handlers: {
     onChunk?: ChunkHandler
+    onReasoningChunk?: ChunkHandler
     onComplete?: CompleteHandler
     onError?: ErrorHandler
   }
@@ -113,6 +133,7 @@ export function registerStreamingHandlers(
 
   store.setMessageState(messageId, {
     onChunk: handlers.onChunk ?? existing?.onChunk,
+    onReasoningChunk: handlers.onReasoningChunk ?? existing?.onReasoningChunk,
     onComplete: handlers.onComplete ?? existing?.onComplete,
     onError: handlers.onError ?? existing?.onError,
     isStreaming: true,
@@ -197,6 +218,7 @@ export function useChatSocket() {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     handlers: {
       onChunk: (chunk: string) => void
+      onReasoningChunk?: (chunk: string) => void
       onComplete: (fullContent: string) => void
       onError?: (errorMessage: string) => void
     }
@@ -232,6 +254,7 @@ export function useChatSocket() {
 
         registerStreamingHandlers(messageId, {
           onChunk: handlers.onChunk,
+          onReasoningChunk: handlers.onReasoningChunk,
           onComplete: (fullContent) => {
             handlers.onComplete(fullContent)
             completion.finishOk()
@@ -304,6 +327,7 @@ export function useChatSocket() {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     handlers: {
       onChunk: (chunk: string) => void
+      onReasoningChunk?: (chunk: string) => void
       onComplete: (fullContent: string) => void
       onError?: (errorMessage: string) => void
     }
@@ -367,10 +391,15 @@ export function useChatSocket() {
 
   const resumeStreamingMessage = (
     messageId: number,
-    handlers: { onChunk: (chunk: string) => void; onComplete?: (fullContent: string) => void }
+    handlers: {
+      onChunk: (chunk: string) => void
+      onReasoningChunk?: (chunk: string) => void
+      onComplete?: (fullContent: string) => void
+    }
   ): void => {
     registerStreamingHandlers(messageId, {
       onChunk: handlers.onChunk,
+      onReasoningChunk: handlers.onReasoningChunk,
       onComplete: handlers.onComplete,
     })
   }
