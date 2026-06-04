@@ -1,5 +1,11 @@
 import { Dexie, type Table } from 'dexie'
-import type { Conversation, Message, LocalSetting, ContextReference } from '@/database/types'
+import type {
+  Conversation,
+  Message,
+  LocalSetting,
+  ContextReference,
+  Prompt,
+} from '@/database/types'
 import type { AbstractLogger } from '@/logger'
 import { SafeTable } from '@/database/safe-table'
 import { ChatRepository } from '@/database/chat-repository'
@@ -18,15 +24,18 @@ type DbMessage = {
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
+type NewConversation = Omit<Conversation, 'id'> & { id?: number }
 
 export class AppDb extends Dexie {
-  public conversation!: SafeTable<Conversation, Conversation, number>
+  public conversation!: SafeTable<Conversation, NewConversation, number>
   public message!: SafeTable<DbMessage, NewDbMessage, number>
   public localSetting!: SafeTable<LocalSetting, LocalSetting, number>
+  public prompt!: SafeTable<Prompt, Prompt, number>
 
   private _conversationTable!: Table<Conversation, number>
   private _messageTable!: Table<DbMessage, number>
   private _localSettingTable!: Table<LocalSetting, number>
+  private _promptTable!: Table<Prompt, number>
 
   private _chatRepository!: ChatRepository
 
@@ -133,6 +142,7 @@ export class AppDb extends Dexie {
       message:
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
       localSetting: '++id, settingKey, updatedAt',
+      prompt: '++id, name, command, isPremium',
     })
   }
 
@@ -140,6 +150,7 @@ export class AppDb extends Dexie {
     this._conversationTable = this.table<Conversation, number>('conversation')
     this._messageTable = this.table<DbMessage, number>('message')
     this._localSettingTable = this.table<LocalSetting, number>('localSetting')
+    this._promptTable = this.table<Prompt, number>('prompt')
   }
 
   private _setupHooks(): void {
@@ -168,8 +179,11 @@ export class AppDb extends Dexie {
   }
 
   private _wrapSafeTables(): void {
-    this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
+    this.conversation = new SafeTable<Conversation, NewConversation, number>(
+      this._conversationTable
+    )
     this.message = new SafeTable<DbMessage, NewDbMessage, number>(this._messageTable)
     this.localSetting = new SafeTable<LocalSetting, LocalSetting, number>(this._localSettingTable)
+    this.prompt = new SafeTable<Prompt, Prompt, number>(this._promptTable)
   }
 }

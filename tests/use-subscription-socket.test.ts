@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ref } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { SOCKET_MANAGER_KEY } from '@/injection-keys'
 import { mountComposable } from './helpers/mount-composable'
@@ -27,6 +28,7 @@ describe('useSubscriptionSocket()', () => {
   function mountSubscriptionSocket() {
     return mountComposable(() => useSubscriptionSocket(), {
       global: {
+        plugins: [createPinia()],
         provide: {
           [SOCKET_MANAGER_KEY as symbol]: ref({
             subscriptionSocket,
@@ -38,6 +40,7 @@ describe('useSubscriptionSocket()', () => {
   }
 
   beforeEach(() => {
+    setActivePinia(createPinia())
     subscriptionSocket = createMockSubscriptionSocket()
     chatSocket = createMockSubscriptionSocket()
   })
@@ -100,6 +103,7 @@ describe('useSubscriptionSocket()', () => {
     it('returns Err when socket not connected', async () => {
       const { redirectToCheckout } = mountComposable(() => useSubscriptionSocket(), {
         global: {
+          plugins: [createPinia()],
           provide: {
             [SOCKET_MANAGER_KEY as symbol]: {},
           },

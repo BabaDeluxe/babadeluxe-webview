@@ -1,16 +1,8 @@
 /** @vitest-environment jsdom */
-/**
- * Integration test: SettingsView + AsyncInjectable reactive state.
- *
- * Litmus: Multiple parts work together (real reactive provide/inject tree +
- * component render + DOM state transitions). No real server or DB needed —
- * AsyncInjectable is an in-memory reactive object.
- *
- * Asserts only observable DOM behaviour (what the user sees), never internals.
- */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { reactive, ref } from 'vue'
+import { ref, reactive, readonly } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import type { AsyncInjectable } from '@/injection-keys'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import type { IApiKeyValidator } from '@/api-key-validator'
@@ -31,7 +23,14 @@ vi.mock('@/composables/use-settings', () => ({
 
 vi.mock('@/composables/use-models-socket', () => ({
   useModelsSocket: () => ({
-    models: ref({}),
+    reloadModels: vi.fn(),
+    models: ref({
+      openai: [],
+      anthropic: [],
+      gemini: [],
+      ollama: [],
+      deepseek: [],
+    }),
     groupedModels: ref([]),
     reloadModels: vi.fn().mockResolvedValue(ok(undefined)),
   }),
@@ -54,6 +53,7 @@ const makeValidator = (): IApiKeyValidator => ({ validate: vi.fn() })
 const mountWithInjectable = (injectable: AsyncInjectable<IApiKeyValidator>): VueWrapper =>
   mount(SettingsView, {
     global: {
+      plugins: [createPinia()],
       provide: {
         [API_KEY_VALIDATOR_KEY as symbol]: injectable,
         [LOGGER_KEY as symbol]: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -75,7 +75,10 @@ const mountWithInjectable = (injectable: AsyncInjectable<IApiKeyValidator>): Vue
   })
 
 describe('SettingsView — AsyncInjectable loading states', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
 
   it('shows spinner while validator is not yet ready', () => {
     const injectable = reactive<AsyncInjectable<IApiKeyValidator>>({

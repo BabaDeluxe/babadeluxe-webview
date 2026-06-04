@@ -1,24 +1,26 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { ResultAsync, type Result, err, ok } from 'neverthrow'
-import type { Message, Conversation, ContextReference } from '@/database/types'
+import { type Result, err, ok } from 'neverthrow'
+import type { Message, ContextReference } from '@/database/types'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
 import { useChatSocket } from '@/composables/use-chat-socket'
-import type { ValidationError } from '@/errors'
+import type { DbError } from '@/errors'
 import {
   MessageNotFoundError,
   InvalidModelFormatError,
   MessageCreationError,
   ChatError,
-  DbError,
   type CreateOrResetAssistantError,
   MessageUpdateError,
+  type ValidationError,
 } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { useFileContextResolver } from '@/composables/use-file-context-resolver'
-import { decodeContextReferences, encodeContextReferences } from '@/database/serializers'
+import { encodeContextReferences } from '@/database/serializers'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { ChatContextManager } from '@/services/chat-context-manager'
+import { useConversationListState } from '@/stores/conversation/use-conversation-list-state'
+import { useMessageManagement } from '@/stores/conversation/use-message-management'
 
 type SendOptions = {
   provider: string
@@ -46,14 +48,39 @@ export const useConversationStore = defineStore('conversation', () => {
   const { createTimeout } = useTrackedTimeouts()
 
   const messages = ref<Message[]>([])
-  const conversations = ref<Conversation[]>([])
-  const isLoadingConversations = ref(false)
-  const error = ref<string | undefined>(undefined)
-  const messageCountsByConversation = ref<Map<number, number>>(new Map())
+  const {
+    conversations,
+    isLoadingConversations,
+    messageCountsByConversation,
+    error,
+    loadConversations,
+    loadMessageCounts,
+    getMessageCount,
+    createConversation: _createConversation,
+    updateConversationTitle,
+    deleteConversation,
+  } = useConversationListState(appDb)
+
+  async function createConversation(title: string): Promise<Result<number, DbError | ChatError>> {
+    const result = await _createConversation(title)
+    if (result.isOk()) {
+      messages.value = []
+    }
+    return result
+  }
+
+  const {
+    loadMessages,
+    refreshMessageById,
+    deleteMessage,
+    createUserMessage,
+    updateUserMessage,
+    finalizeAssistantMessage,
+  } = useMessageManagement(appDb, messages, messageCountsByConversation)
+
   const lastContextUsage = ref(0)
   const selectedModelContextWindow = ref<number | undefined>(undefined)
 
-  let creationPromise: Promise<Result<number, DbError | ChatError>> | undefined
   let initializePromise: Promise<Result<void, DbError>> | undefined
 
   async function initialize(): Promise<Result<void, DbError>> {
@@ -85,23 +112,6 @@ export const useConversationStore = defineStore('conversation', () => {
     })()
 
     return initializePromise
-  }
-
-  async function loadMessageCounts(): Promise<Result<void, DbError>> {
-    const result = await appDb.chatRepository.getMessageCountsByConversation()
-
-    if (result.isErr()) {
-      messageCountsByConversation.value = new Map()
-      return err(result.error)
-    }
-
-    messageCountsByConversation.value = result.value
-    return ok(undefined)
-  }
-
-  function getMessageCount(conversationId: number): number {
-    const current = messageCountsByConversation.value.get(conversationId)
-    return current ?? 0
   }
 
   async function markMessageStreamingComplete(messageId: number): Promise<void> {
@@ -222,208 +232,6 @@ export const useConversationStore = defineStore('conversation', () => {
     logger.log('Stream recovery complete')
   }
 
-  async function refreshMessageById(messageId: number): Promise<Result<void, DbError | ChatError>> {
-    const result = await appDb.message.get(messageId)
-    if (result.isErr()) return err(result.error)
-
-    const updatedDb = result.value
-    if (!updatedDb) return err(new MessageNotFoundError(messageId.toString()))
-
-    const messageIndex = messages.value.findIndex((message) => message.id === messageId)
-    if (messageIndex === -1) {
-      return err(new ChatError(`Message ${messageId} not found locally`))
-    }
-
-    const updated: Message = {
-      id: updatedDb.id ?? 0,
-      conversationId: updatedDb.conversationId,
-      role: updatedDb.role,
-      timestamp: updatedDb.timestamp,
-      content: updatedDb.content,
-      isStreaming: updatedDb.isStreaming,
-      model: updatedDb.model,
-      systemPrompt: updatedDb.systemPrompt,
-      contextReferences: decodeContextReferences(updatedDb.contextReferences),
-    }
-
-    messages.value.splice(messageIndex, 1, updated)
-    return ok(undefined)
-  }
-
-  async function loadConversations(): Promise<Result<void, DbError>> {
-    isLoadingConversations.value = true
-    const result = await appDb.conversation.toArray()
-
-    if (result.isErr()) {
-      error.value = 'Failed to load conversations'
-      isLoadingConversations.value = false
-      return err(result.error)
-    }
-
-    conversations.value = [...result.value]
-    error.value = undefined
-    isLoadingConversations.value = false
-    return ok(undefined)
-  }
-
-  async function loadMessages(conversationId: number): Promise<Result<void, DbError>> {
-    if (!conversationId) {
-      messages.value = []
-      return ok(undefined)
-    }
-
-    const result = await appDb.chatRepository.getMessagesByConversation(conversationId)
-    if (result.isErr()) {
-      messages.value = []
-      return err(result.error)
-    }
-
-    messages.value = [...result.value]
-    return ok(undefined)
-  }
-
-  async function createConversation(title: string): Promise<Result<number, DbError | ChatError>> {
-    if (creationPromise !== undefined) {
-      return creationPromise
-    }
-
-    creationPromise = (async (): Promise<Result<number, DbError | ChatError>> => {
-      try {
-        const addResult = await appDb.conversation.add({
-          title,
-          isActive: 1,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as Conversation)
-
-        if (addResult.isErr()) {
-          error.value = 'Failed to create conversation'
-          return err(addResult.error)
-        }
-
-        const newId = Number(addResult.value)
-
-        const loadError = await loadConversations()
-        if (loadError.isErr()) {
-          const deleteResult = await appDb.conversation.delete(newId)
-          if (deleteResult.isErr()) {
-            logger.error('Rollback failed after conversation creation', {
-              conversationId: newId,
-              error: deleteResult.error,
-            })
-            // Surface the rollback error
-            return err(
-              new DbError(
-                'Conversation created but failed to load, and rollback also failed',
-                deleteResult.error
-              )
-            )
-          }
-
-          return err(new ChatError('Failed to load conversations after creation', loadError.error))
-        }
-
-        const conversationExists = conversations.value.some(
-          (conversation) => conversation.id === newId
-        )
-
-        if (!conversationExists) {
-          const deleteResult = await appDb.conversation.delete(newId)
-          if (deleteResult.isErr()) {
-            logger.error('Rollback failed after conversation creation', {
-              conversationId: newId,
-              error: deleteResult.error,
-            })
-            return err(
-              new DbError(
-                'Conversation created but missing from list, and rollback also failed',
-                deleteResult.error
-              )
-            )
-          }
-
-          return err(new ChatError('Created conversation missing from loaded list'))
-        }
-
-        messages.value = []
-
-        return ok(newId)
-      } finally {
-        creationPromise = undefined
-      }
-    })()
-
-    return creationPromise
-  }
-
-  async function updateUserMessage(
-    messageId: number,
-    newContent: string
-  ): Promise<Result<void, MessageNotFoundError | ChatError | DbError>> {
-    const message = messages.value.find((messageItem) => messageItem.id === messageId)
-    if (!message) return err(new MessageNotFoundError(messageId.toString()))
-
-    if (message.role !== 'user') {
-      return err(new ChatError('updateUserMessage can only update user messages'))
-    }
-
-    return updateMessageContent(messageId, newContent)
-  }
-
-  async function updateMessageContent(
-    messageId: number,
-    content: string
-  ): Promise<Result<void, DbError>> {
-    const updateResult = await appDb.chatRepository.updateMessage(messageId, content)
-    if (updateResult.isErr()) return err(updateResult.error)
-
-    const messageIndex = messages.value.findIndex((message) => message.id === messageId)
-    if (messageIndex !== -1) {
-      const mutable = messages.value[messageIndex]
-      mutable.content = content
-    }
-
-    return ok(undefined)
-  }
-
-  async function createUserMessage(
-    conversationId: number,
-    content: string,
-    metadata?: MessageMetadata,
-    contextReferences?: ContextReference[]
-  ): Promise<Result<Message, ChatError | DbError>> {
-    const createResult = await appDb.chatRepository.createMessage({
-      conversationId,
-      role: 'user',
-      content,
-      isStreaming: false,
-      model: metadata?.model,
-      systemPrompt: metadata?.systemPrompt,
-      contextReferences,
-    })
-
-    if (createResult.isErr()) return err(createResult.error)
-
-    const newMessage: Message = {
-      id: createResult.value,
-      conversationId,
-      role: 'user',
-      content,
-      timestamp: new Date(),
-      isStreaming: false,
-      model: metadata?.model,
-      systemPrompt: metadata?.systemPrompt,
-      contextReferences,
-    }
-
-    messages.value.push(newMessage)
-
-    const currentCount = messageCountsByConversation.value.get(conversationId) ?? 0
-    messageCountsByConversation.value.set(conversationId, currentCount + 1)
-
-    return ok(newMessage)
-  }
-
   async function resetExistingAssistantStreamingMessage(
     assistantMessageId: number,
     metadata: MessageMetadata | undefined,
@@ -511,80 +319,6 @@ export const useConversationStore = defineStore('conversation', () => {
     }
 
     return createNewAssistantStreamingMessage(conversationId, metadata, contextReferences)
-  }
-
-  async function deleteMessage(messageId: number): Promise<Result<void, DbError | ChatError>> {
-    const result = await appDb.chatRepository.deleteMessage(messageId)
-    if (result.isErr()) {
-      error.value = 'Failed to delete message'
-      return err(result.error)
-    }
-
-    const messageIndex = messages.value.findIndex((message) => message.id === messageId)
-    if (messageIndex !== -1) {
-      const deletedMessage = messages.value[messageIndex]
-      messages.value.splice(messageIndex, 1)
-
-      const currentCount = messageCountsByConversation.value.get(deletedMessage.conversationId) ?? 0
-      if (currentCount > 0) {
-        messageCountsByConversation.value.set(deletedMessage.conversationId, currentCount - 1)
-      }
-    }
-
-    error.value = undefined
-    return ok(undefined)
-  }
-
-  async function updateConversationTitle(
-    conversationId: number,
-    title: string
-  ): Promise<Result<void, DbError>> {
-    const result = await ResultAsync.fromPromise(
-      appDb.conversation.update(conversationId, {
-        title,
-        updatedAt: new Date(),
-      }),
-      (unknownError) => {
-        if (unknownError instanceof Error) {
-          return new DbError(unknownError.message, unknownError)
-        }
-
-        return new DbError('Failed to update conversation title', unknownError)
-      }
-    )
-
-    if (result.isErr()) {
-      error.value = 'Failed to update conversation title'
-      return err(result.error)
-    }
-
-    const conversation = conversations.value.find((conv) => conv.id === conversationId)
-    if (conversation) {
-      conversation.title = title
-      conversation.updatedAt = new Date()
-    }
-
-    error.value = undefined
-    return ok(undefined)
-  }
-
-  async function deleteConversation(
-    conversationId: number
-  ): Promise<Result<void, DbError | ChatError>> {
-    const result = await appDb.chatRepository.deleteConversationWithMessage(conversationId)
-
-    if (result.isErr()) {
-      error.value = 'Failed to delete conversation'
-      return err(result.error)
-    }
-
-    const loadResult = await loadConversations()
-    if (loadResult.isErr()) {
-      return err(loadResult.error)
-    }
-
-    error.value = undefined
-    return ok(undefined)
   }
 
   function generateConversationTitle(firstMessage: string): string {
@@ -865,32 +599,6 @@ export const useConversationStore = defineStore('conversation', () => {
     }
 
     return result
-  }
-
-  async function finalizeAssistantMessage(
-    messageId: number,
-    fullContent: string
-  ): Promise<Result<void, DbError | ChatError>> {
-    const updateResult = await appDb.message.update(messageId, {
-      content: fullContent,
-      isStreaming: false,
-    })
-
-    if (updateResult.isErr()) return err(updateResult.error)
-
-    const messageIndex = messages.value.findIndex((message) => message.id === messageId)
-    if (messageIndex !== -1) {
-      const current = messages.value[messageIndex]
-      const updated: Message = {
-        ...current,
-        content: fullContent,
-        isStreaming: false,
-      }
-
-      messages.value.splice(messageIndex, 1, updated)
-    }
-
-    return ok(undefined)
   }
 
   return {
