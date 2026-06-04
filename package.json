@@ -60,7 +60,7 @@
     "publish-patch": "npm run build && npm version patch && npm publish",
     "publish-minor": "npm run build && npm version minor && npm publish",
     "publish-major": "npm run build && npm version major && npm publish",
-    "prepare": "husky && git submodule update --init --recursive",
+    "prepare": "husky",
     "type-check": "vue-tsc --build",
     "build-only": "vite build",
     "find-dead-code": "knip"
