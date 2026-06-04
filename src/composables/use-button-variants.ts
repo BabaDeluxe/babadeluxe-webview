@@ -14,7 +14,7 @@ const baseClasses = [
 
 const baseHover = 'hover:brightness-105 active:brightness-95'
 
-const variantClassMap: Record<ButtonVariant, string> = {
+const variantClassMap = {
   primary: [
     baseClasses,
     baseHover,
@@ -62,7 +62,7 @@ const variantClassMap: Record<ButtonVariant, string> = {
     'bg-panel border border-borderMuted text-subtleText',
     'hover:bg-borderMuted hover:text-deepText',
   ].join(' '),
-}
+} satisfies Record<ButtonVariant, string>
 
 export function useButtonVariants() {
   const getButtonClasses = (variant: ButtonVariant) => variantClassMap[variant]

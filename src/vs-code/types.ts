@@ -144,6 +144,53 @@ export type GitPrMessageResult = Readonly<{
   body: string
 }>
 
+// --- Active editor (extension → webview) ---
+/**
+ * Sent by the extension whenever the active text editor changes or the
+ * sidebar panel becomes visible. The webview tracks this as an ephemeral
+ * "active" context entry (distinct from pinned entries) so the AI always
+ * knows which file the developer is currently looking at.
+ *
+ * Rules:
+ * - Only file:// URIs are forwarded by the extension.
+ * - The webview stores at most ONE active entry at a time (replaced on
+ *   each message).
+ * - If the filePath is already present in the pinned set the active entry
+ *   is suppressed to avoid duplicates.
+ * - `languageId` is forwarded to the socket payload for syntax-aware AI
+ *   responses.
+ */
+export type ActiveEditorChangedMessage = Readonly<{
+  type: 'editor:activeChanged'
+  filePath: string
+  cursorLine: number
+  visibleRange: VsCodeTextRange
+  languageId: string
+}>
+
+// --- Diagnostics (extension → webview) ---
+export type DiagnosticItem = Readonly<{
+  message: string
+  severity: 'error' | 'warning'
+  range: VsCodeTextRange
+  source?: string
+  code?: string
+}>
+
+/**
+ * Sent by the extension whenever diagnostics change for a file that is
+ * currently open. The webview stores these silently in a `diagnosticsMap`
+ * keyed by filePath and merges them into the socket payload when the
+ * relevant file is in context (active or pinned).
+ *
+ * An empty `diagnostics` array clears a previously stored entry.
+ */
+export type EditorDiagnosticsMessage = Readonly<{
+  type: 'editor:diagnostics'
+  filePath: string
+  diagnostics: ReadonlyArray<DiagnosticItem>
+}>
+
 export type UnknownIncomingMessage = Readonly<{
   type: string
 }>
@@ -158,6 +205,8 @@ export type IncomingMessage =
   | AuthSessionIncomingMessage
   | GitCommitMessageContext
   | GitPrMessageContext
+  | ActiveEditorChangedMessage
+  | EditorDiagnosticsMessage
   | UnknownIncomingMessage
 
 export type PinnedEntry = Readonly<{
@@ -172,4 +221,12 @@ export type SuggestedEntry = Readonly<{
   filePath: string
   score: number
   matchRange?: VsCodeTextRange
+}>
+
+/** Ephemeral entry representing the file open in the active editor. */
+export type ActiveEditorEntry = Readonly<{
+  filePath: string
+  cursorLine: number
+  visibleRange: VsCodeTextRange
+  languageId: string
 }>

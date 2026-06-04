@@ -36,6 +36,7 @@ export type Message = {
   systemPrompt?: string
   reasoning?: string
   contextReferences?: ContextReference[]
+  reasoning?: string
 }
 
 export type LocalSetting = {
@@ -44,4 +45,14 @@ export type LocalSetting = {
   settingValue: unknown
   dataType: 'string' | 'number' | 'boolean'
   updatedAt: Date
+}
+
+export type Prompt = {
+  id: number
+  name: string
+  command: string
+  description?: string
+  template: string
+  isSystem: boolean
+  isPremium?: boolean
 }

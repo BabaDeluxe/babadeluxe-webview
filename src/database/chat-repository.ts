@@ -17,6 +17,7 @@ type DbMessage = {
   systemPrompt?: string
   reasoning?: string
   contextReferences?: string
+  reasoning?: string
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
@@ -39,6 +40,7 @@ type CreateMessageInput = {
   systemPrompt?: string
   reasoning?: string
   contextReferences?: ContextReference[]
+  reasoning?: string
 }
 
 export class ChatRepository {
@@ -78,6 +80,7 @@ export class ChatRepository {
         systemPrompt: message.systemPrompt,
         reasoning: message.reasoning,
         contextReferences: decodeContextReferences(message.contextReferences),
+        reasoning: message.reasoning,
       }))
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
@@ -113,6 +116,7 @@ export class ChatRepository {
         systemPrompt: message.systemPrompt,
         reasoning: message.reasoning,
         contextReferences: decodeContextReferences(message.contextReferences),
+        reasoning: message.reasoning,
       }))
 
     return ok(mapped)
@@ -128,6 +132,7 @@ export class ChatRepository {
       systemPrompt: input.systemPrompt,
       reasoning: input.reasoning,
       contextReferences: encodeContextReferences(input.contextReferences),
+      reasoning: input.reasoning,
     })
 
     if (addResult.isErr()) return err(addResult.error)

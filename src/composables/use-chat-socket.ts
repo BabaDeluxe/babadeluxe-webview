@@ -65,6 +65,18 @@ function ensureChatSocketListeners(
     const handleMessageComplete = (payload: MessageCompletePayload) => {
       const messageState = socketStore.getMessageState(payload.messageId)
       if (!messageState) return
+      
+    const onReasoningChunk = (payload: MessageChunkPayload) => {
+      const state = socketStore.getMessageState(payload.messageId)
+      if (!state) return
+
+      socketStore.appendReasoning(payload.messageId, payload.chunk)
+      state.onReasoningChunk?.(payload.chunk)
+    }
+
+    const onComplete = (payload: MessageCompletePayload) => {
+      const state = socketStore.getMessageState(payload.messageId)
+      if (!state) return
 
       messageState.onComplete?.(payload.fullContent)
 
@@ -392,10 +404,15 @@ export function useChatSocket() {
 
   const resumeStreamingMessage = (
     messageId: number,
-    handlers: { onChunk: (chunk: string) => void; onComplete?: (fullContent: string) => void }
+    handlers: {
+      onChunk: (chunk: string) => void
+      onReasoningChunk?: (chunk: string) => void
+      onComplete?: (fullContent: string) => void
+    }
   ): void => {
     registerStreamingHandlers(messageId, {
       onChunk: handlers.onChunk,
+      onReasoningChunk: handlers.onReasoningChunk,
       onComplete: handlers.onComplete,
     })
   }

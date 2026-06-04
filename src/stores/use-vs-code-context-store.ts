@@ -33,6 +33,8 @@ import {
   isContextPinFileMessage,
   isContextPinSnippetMessage,
   isTextRange,
+  isActiveEditorChangedMessage,
+  isEditorDiagnosticsMessage,
 } from '@/vs-code/context-type-guards'
 
 export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
@@ -52,6 +54,11 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     pinSnippetLocal,
     applySnapshot,
     clearAllState,
+    // Tier 2
+    activeEditor,
+    setActiveEditor,
+    setDiagnostics,
+    getDiagnosticsForFile,
   } = state
 
   const { isInVsCode } = useIsInVsCode()
@@ -101,6 +108,24 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
 
     if (message.type === 'context:rootPath') {
       contextRootPath.value = message.path
+      return
+    }
+
+    // ── Tier 2: active editor ────────────────────────────────────────────────
+    if (isActiveEditorChangedMessage(message)) {
+      setActiveEditor({
+        filePath: message.filePath,
+        cursorLine: message.cursorLine,
+        visibleRange: message.visibleRange,
+        languageId: message.languageId,
+      })
+      return
+    }
+
+    // ── Tier 2: diagnostics ──────────────────────────────────────────────────
+    if (isEditorDiagnosticsMessage(message)) {
+      setDiagnostics(message.filePath, message.diagnostics)
+      return
     }
   }
 
@@ -334,6 +359,10 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     contextError,
     contextRevision,
     contextRootPath,
+
+    // Tier 2: active editor + diagnostics
+    activeEditor,
+    getDiagnosticsForFile,
 
     // derived
     contextItems,

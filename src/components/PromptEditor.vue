@@ -136,6 +136,7 @@ interface Prompt {
   command?: string
   description?: string
   template: string
+  isPremium?: boolean
 }
 
 interface LocalPrompt {

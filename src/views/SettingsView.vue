@@ -77,6 +77,13 @@
         :field-states="fieldStates"
         @api-key-input="handleApiKeyInput"
       />
+
+      <div class="h-px bg-border my-2" />
+
+      <OllamaSection
+        :model-value="ollamaUrlValue"
+        @update:model-value="handleOllamaUrlChange"
+      />
     </template>
   </section>
 </template>
@@ -93,6 +100,7 @@ import GeneralSettingsSection from '@/components/settings/GeneralSettingsSection
 import PromptBehaviourSection from '@/components/settings/PromptBehaviourSection.vue'
 import ModelPreferencesSection from '@/components/settings/ModelPreferencesSection.vue'
 import ApiKeySection from '@/components/settings/ApiKeySection.vue'
+import OllamaSection from '@/components/settings/OllamaSection.vue'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
 import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
@@ -175,6 +183,12 @@ const promptInjectionPosition = computed<PromptInjectionPosition>(() =>
 const promptIncludeHistory = computed<boolean>(() =>
   getSettingValue('promptIncludeHistory', promptInjectionDefaults.includeHistory)
 )
+
+const ollamaUrlValue = computed<string>(() => getSettingValue('ollamaUrl', ''))
+
+const handleOllamaUrlChange = async (value: string) => {
+  await upsertSetting('ollamaUrl', value, 'string')
+}
 
 const handleInjectionModeChange = async (mode: PromptInjectionMode) => {
   await upsertSetting('promptInjectionMode', mode, 'string')
