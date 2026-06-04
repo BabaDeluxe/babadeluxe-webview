@@ -2,7 +2,7 @@
   <section
     id="settings"
     data-testid="settings-container"
-    class="flex-1 flex flex-col gap-6 p-4 sm:p-6 max-w-4xl mx-auto w-full"
+    class="flex-1 flex flex-col gap-6 p-4 sm:p-6 max-w-4xl mx-auto w-full overflow-y-auto min-h-0"
   >
     <div
       v-if="apiKeyValidator.hasError"
@@ -212,31 +212,6 @@ const handleReload = () => {
   window.location.reload()
 }
 
-// const { trigger: triggerHydrate } = watchTriggerable(
-//   settings,
-//   () => {
-//     if (!isLoadingSettings.value) hydrateFieldStates()
-//   },
-//   { deep: true }
-// )
-// const runLoadSettings = async (): Promise<void> => {
-//   const result = await ResultAsync.fromPromise(loadSettings(), (unknownError) => {
-//     if (unknownError instanceof Error)
-//       return new InitializationError(unknownError.message, unknownError)
-//     return new InitializationError('Failed to load settings', unknownError)
-//   })
-//   result.match(
-//     () => {
-//       triggerHydrate()
-//       isLoadingSettings.value = false
-//     },
-//     (loadErr) => {
-//       logger.error('Failed to load settings', { userId: currentUserId.value, error: loadErr })
-//       loadError.value = 'Settings could not be loaded. Please try again.'
-//       isLoadingSettings.value = false
-//     }
-//   )
-// }
 const handleRetryLoad = async () => {
   loadError.value = undefined
   isLoadingSettings.value = true
