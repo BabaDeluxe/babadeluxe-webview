@@ -236,16 +236,16 @@ export function usePromptsSocket() {
 
   watch(
     promptsSocketRef,
-    (newSocket, oldSocket) => {
-      if (oldSocket) {
-        oldSocket.off('prompts:promptCreated', onPromptCreated)
-        oldSocket.off('prompts:promptUpdated', onPromptUpdated)
-        oldSocket.off('prompts:promptDeleted', onPromptDeleted)
+    (newPromptsSocket, previousPromptsSocket) => {
+      if (previousPromptsSocket) {
+        previousPromptsSocket.off('prompts:promptCreated', onPromptCreated)
+        previousPromptsSocket.off('prompts:promptUpdated', onPromptUpdated)
+        previousPromptsSocket.off('prompts:promptDeleted', onPromptDeleted)
       }
-      if (newSocket) {
-        newSocket.on('prompts:promptCreated', onPromptCreated)
-        newSocket.on('prompts:promptUpdated', onPromptUpdated)
-        newSocket.on('prompts:promptDeleted', onPromptDeleted)
+      if (newPromptsSocket) {
+        newPromptsSocket.on('prompts:promptCreated', onPromptCreated)
+        newPromptsSocket.on('prompts:promptUpdated', onPromptUpdated)
+        newPromptsSocket.on('prompts:promptDeleted', onPromptDeleted)
         void fetchAllPrompts()
       }
     },

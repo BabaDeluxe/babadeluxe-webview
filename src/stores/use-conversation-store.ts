@@ -405,6 +405,18 @@ export const useConversationStore = defineStore('conversation', () => {
         messages.value.splice(messageIndex, 1, updated)
         onChunk?.(messageId, chunk)
       },
+      onReasoningChunk: (chunk: string) => {
+        const messageIndex = messages.value.findIndex((message) => message.id === messageId)
+        if (messageIndex === -1) return
+
+        const current = messages.value[messageIndex]
+        const updated: Message = {
+          ...current,
+          reasoning: (current.reasoning ?? '') + chunk,
+        }
+
+        messages.value.splice(messageIndex, 1, updated)
+      },
       onComplete: (fullContent: string) => {
         fullContentFromServer = fullContent
 

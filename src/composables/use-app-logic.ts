@@ -132,11 +132,13 @@ export function useAppLogic() {
 
     watch(
       settings,
-      (newSettings) => {
-        const themeSetting = newSettings.find((setting) => setting.settingKey === 'theme')
-        if (themeSetting?.settingValue) {
-          const val = String(themeSetting.settingValue)
-          isDark.value = val === 'dark'
+      (updatedSettings) => {
+        const themePreference = updatedSettings.find((setting) => setting.settingKey === 'theme')
+        const hasThemePreference = themePreference?.settingValue !== undefined
+
+        if (hasThemePreference) {
+          const themeValue = String(themePreference.settingValue)
+          isDark.value = themeValue === 'dark'
         }
       },
       { deep: true }

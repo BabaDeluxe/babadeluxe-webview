@@ -142,13 +142,16 @@ const isMarkdown = ref<boolean | null>(null)
 
 watch(
   () => committedContent.value,
-  (value) => {
-    if (!value) {
+  (newCommittedContent) => {
+    const hasCommittedContent = newCommittedContent && newCommittedContent.length > 0
+    if (!hasCommittedContent) {
       isMarkdown.value = null
       return
     }
-    if (isMarkdown.value === null) {
-      isMarkdown.value = isProbablyMarkdown(value)
+
+    const isMarkdownUndetermined = isMarkdown.value === null
+    if (isMarkdownUndetermined) {
+      isMarkdown.value = isProbablyMarkdown(newCommittedContent)
     }
   },
   { immediate: true }
@@ -168,22 +171,27 @@ onMounted(() => {
 
 watch(
   () => props.isStreaming,
-  (isStreaming, wasStreaming) => {
-    if (!(wasStreaming && !isStreaming && props.content)) return
+  (isNowStreaming, wasPreviouslyStreaming) => {
+    const hasStreamingJustFinished = wasPreviouslyStreaming && !isNowStreaming
+    const hasContentToCommit = props.content && props.content.length > 0
 
-    committedContent.value = ensureClosedCodeFence(sanitizeContent(props.content))
-    void schedulePostRenderEnhancements()
+    if (hasStreamingJustFinished && hasContentToCommit) {
+      committedContent.value = ensureClosedCodeFence(sanitizeContent(props.content))
+      void schedulePostRenderEnhancements()
+    }
   }
 )
 
 watch(
   () => props.content,
-  (newContent) => {
+  (updatedContent) => {
     if (props.isStreaming) return
 
-    if (!newContent) return
-    committedContent.value = ensureClosedCodeFence(sanitizeContent(newContent))
-    void schedulePostRenderEnhancements()
+    const hasUpdatedContent = updatedContent && updatedContent.length > 0
+    if (hasUpdatedContent) {
+      committedContent.value = ensureClosedCodeFence(sanitizeContent(updatedContent))
+      void schedulePostRenderEnhancements()
+    }
   }
 )
 

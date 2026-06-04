@@ -18,10 +18,13 @@ export function useChatModelSelection(
   watch(
     groupedModels,
     (newModelGroups) => {
-      if (!newModelGroups || newModelGroups.length === 0) return
+      const hasModelGroups = newModelGroups && newModelGroups.length > 0
+      if (!hasModelGroups) return
 
       for (const modelGroup of newModelGroups) {
-        if (modelGroup.items.length === 0) continue
+        const hasItemsInGroup = modelGroup.items.length > 0
+        if (!hasItemsInGroup) continue
+
         const preferredModel = findPreferredModel(modelGroup.items)
         if (preferredModel) {
           currentModel.value = preferredModel.value
@@ -34,14 +37,14 @@ export function useChatModelSelection(
 
   watch(
     currentModel,
-    (newValue) => {
-      const value = newValue?.trim()
-      if (!value) {
+    (newModelValue) => {
+      const trimmedModelValue = newModelValue?.trim()
+      if (!trimmedModelValue) {
         selectedModelContextWindow.value = undefined
         return
       }
 
-      selectedModelContextWindow.value = findModelContextWindow(value)
+      selectedModelContextWindow.value = findModelContextWindow(trimmedModelValue)
     },
     { immediate: true }
   )

@@ -24,6 +24,8 @@ import { useChatContextHandler } from '@/composables/use-chat-context-handler'
 import { useChatStreaming } from '@/composables/use-chat-streaming'
 import { useChatHistory } from '@/composables/use-chat-history'
 import { useChatInput } from '@/composables/use-chat-input'
+import type { AtPickerItem } from '@/composables/use-at-picker'
+import { isOfflineMode } from '@/env-validator'
 import { useChatUser } from '@/composables/use-chat-user'
 import { useChatPersistedSettings } from '@/composables/use-chat-persisted-settings'
 import { useChatActions } from '@/composables/use-chat-actions'
@@ -140,7 +142,7 @@ export function useChat() {
   const contextUsageWarning = computed(() => {
     const usage = lastContextUsage.value
     if (usage >= 0.8) {
-      return 'This conversation is close to the model’s context limit. Older messages will be truncated.'
+      return 'This conversation is close to the model\u2019s context limit. Older messages will be truncated.'
     }
     if (usage >= 0.6) {
       return 'This conversation is getting long; earlier messages may be dropped soon.'
@@ -150,6 +152,22 @@ export function useChat() {
 
   const { groupedModels, isLoadingModels, modelsLoadedCount } = useModelsSocket()
   const { shouldShowModal, dismissModal } = useSubscriptionSocket()
+
+  const availablePromptsAsSources = computed<AtPickerItem[]>(() => {
+    return prompts.value.map((prompt) => ({
+      id: `prompt:${prompt.id}`,
+      label: prompt.name,
+      type: 'prompt',
+      icon: 'i-hugeicons:quill-write-02',
+    }))
+  })
+
+  const atSources = computed<AtPickerItem[]>(() => {
+    // TODO: add spaceSources and superpowerSources when those backends are ready
+    return availablePromptsAsSources.value
+  })
+
+  const activeSources = computed(() => chatInputRef.value?.activeSources ?? [])
 
   const promptOptions = computed(() => {
     if (isLoadingPrompts.value) {
@@ -347,8 +365,11 @@ export function useChat() {
     { debounce: 450, maxWait: 1500 }
   )
 
-  watch(currentConversationId, async (newId, oldId) => {
-    if (newId !== oldId) await loadMessagesForCurrentConversation()
+  watch(currentConversationId, async (newConversationId, previousConversationId) => {
+    const isNewConversationId = newConversationId !== previousConversationId
+    if (isNewConversationId) {
+      await loadMessagesForCurrentConversation()
+    }
   })
 
   watch(
@@ -389,13 +410,9 @@ export function useChat() {
     { deep: true }
   )
 
-  watch(currentPrompt, (newValue) => {
-    void persistPrompt(newValue)
-  })
+  watchDebounced(currentPrompt, (newValue) => persistPrompt(newValue), { debounce: 300 })
 
-  watch(currentModel, (newValue) => {
-    void persistModel(newValue)
-  })
+  watchDebounced(currentModel, (newValue) => persistModel(newValue), { debounce: 300 })
 
   const findModelContextWindow = (fullValue: string): number | undefined => {
     if (!fullValue || !fullValue.includes(':')) return undefined
@@ -405,19 +422,16 @@ export function useChat() {
     return match?.contextWindow
   }
 
-  watch(
-    currentModel,
-    (newValue) => {
-      const value = newValue?.trim()
-      if (!value) {
-        selectedModelContextWindow.value = undefined
-        return
-      }
+  const activeModelContextWindow = computed(() => {
+    const trimmedModelValue = currentModel.value?.trim()
+    if (!trimmedModelValue) return undefined
 
-      selectedModelContextWindow.value = findModelContextWindow(value)
-    },
-    { immediate: true }
-  )
+    return findModelContextWindow(trimmedModelValue)
+  })
+
+  watch(activeModelContextWindow, (newContextWindow) => {
+    selectedModelContextWindow.value = newContextWindow
+  }, { immediate: true })
 
   onMounted(() => void initializeChat())
 
@@ -444,6 +458,8 @@ export function useChat() {
     contextUsageWarning,
     lastContextUsage,
     shouldShowModal,
+    atSources,
+    activeSources,
     registerMessageComponent,
     handleSendMessage,
     handleAbortMessage,

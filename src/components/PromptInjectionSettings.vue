@@ -207,11 +207,11 @@ const localPosition = ref<PromptInjectionPosition>(props.position)
 const localIncludeHistory = ref(props.includeHistory)
 watch(
   () => props,
-  (p) => {
-    localMode.value = p.mode
-    localInterval.value = p.interval
-    localPosition.value = p.position
-    localIncludeHistory.value = p.includeHistory
+  (updatedProps) => {
+    localMode.value = updatedProps.mode
+    localInterval.value = updatedProps.interval
+    localPosition.value = updatedProps.position
+    localIncludeHistory.value = updatedProps.includeHistory
   },
   { deep: true }
 )

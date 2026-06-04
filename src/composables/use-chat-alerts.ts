@@ -13,29 +13,29 @@ export function useChatAlerts(
   const modelsReloadWarning = ref<string>()
   const persistenceWarning = ref<string>()
 
-  const attachWatcher = (
-    sourceRef: Ref<string | undefined>,
-    type: 'error' | 'warning',
-    clearFn?: () => void
+  const attachAlertWatcher = (
+    errorOrWarningSource: Ref<string | undefined>,
+    alertType: 'error' | 'warning',
+    clearSourceAction?: () => void
   ) => {
     watch(
-      sourceRef,
-      (newValue, oldValue) => {
-        if (!newValue || newValue === oldValue) return
-        toasts[type](toUserMessage(newValue))
-        if (clearFn) clearFn()
+      errorOrWarningSource,
+      (newAlertMessage, previousAlertMessage) => {
+        const hasNewAlertMessage = newAlertMessage && newAlertMessage !== previousAlertMessage
+        if (!hasNewAlertMessage) return
+
+        toasts[alertType](toUserMessage(newAlertMessage))
+        if (clearSourceAction) clearSourceAction()
       },
       { immediate: true }
     )
   }
 
-  attachWatcher(conversationError, 'error', () => (conversationError.value = undefined))
-  attachWatcher(contextError, 'error', () => (conversationError.value = undefined))
-  attachWatcher(promptsError, 'error', () => {
-    clearPromptsError()
-  })
-  attachWatcher(modelsReloadWarning, 'warning', () => (conversationError.value = undefined))
-  attachWatcher(persistenceWarning, 'warning', () => (conversationError.value = undefined))
+  attachAlertWatcher(conversationError, 'error', () => (conversationError.value = undefined))
+  attachAlertWatcher(contextError, 'error', () => (conversationError.value = undefined))
+  attachAlertWatcher(promptsError, 'error', clearPromptsError)
+  attachAlertWatcher(modelsReloadWarning, 'warning', () => (conversationError.value = undefined))
+  attachAlertWatcher(persistenceWarning, 'warning', () => (conversationError.value = undefined))
 
   return {
     modelsReloadWarning,

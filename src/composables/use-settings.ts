@@ -51,16 +51,16 @@ export function useSettings() {
 
     watch(
       settingsSocketRef,
-      (newSocket, oldSocket) => {
-        if (oldSocket) {
-          oldSocket.off('settings:updated', onUpdated)
-          oldSocket.off('settings:deleted', onDeleted)
-          oldSocket.off('settings:error', onError)
+      (newSettingsSocket, previousSettingsSocket) => {
+        if (previousSettingsSocket) {
+          previousSettingsSocket.off('settings:updated', onUpdated)
+          previousSettingsSocket.off('settings:deleted', onDeleted)
+          previousSettingsSocket.off('settings:error', onError)
         }
-        if (!newSocket) return
-        newSocket.on('settings:updated', onUpdated)
-        newSocket.on('settings:deleted', onDeleted)
-        newSocket.on('settings:error', onError)
+        if (!newSettingsSocket) return
+        newSettingsSocket.on('settings:updated', onUpdated)
+        newSettingsSocket.on('settings:deleted', onDeleted)
+        newSettingsSocket.on('settings:error', onError)
       },
       { immediate: true }
     )

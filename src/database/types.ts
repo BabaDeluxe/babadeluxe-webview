@@ -34,6 +34,7 @@ export type Message = {
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
+  reasoning?: string
   contextReferences?: ContextReference[]
   reasoning?: string
 }

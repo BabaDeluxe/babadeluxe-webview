@@ -19,6 +19,7 @@ type DbMessage = {
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
+  reasoning?: string
   contextReferences?: string
   reasoning?: string
 }
@@ -140,7 +141,7 @@ export class AppDb extends Dexie {
     this.version(8).stores({
       conversation: '++id, title, isActive, createdAt, updatedAt, &syncId, syncVersion',
       message:
-        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
+        '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming, reasoning',
       localSetting: '++id, settingKey, updatedAt',
       prompt: '++id, name, command, isPremium',
     })

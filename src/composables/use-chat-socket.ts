@@ -17,13 +17,14 @@ type CompleteHandler = (fullContent: string) => void
 type ErrorHandler = (errorMessage: string) => void
 
 type MessageChunkPayload = { messageId: number; chunk: string; sequence: number }
+type ReasoningChunkPayload = { messageId: number; chunk: string; sequence: number }
 type MessageCompletePayload = { messageId: number; fullContent: string }
 type ChatErrorPayload = { messageId?: number; error: string }
 type MessageDeletedPayload = { messageId: number }
 
 type AttachedHandlers = Readonly<{
   onChunk: (payload: MessageChunkPayload) => void
-  onReasoningChunk: (payload: MessageChunkPayload) => void
+  onReasoningChunk: (payload: ReasoningChunkPayload) => void
   onComplete: (payload: MessageCompletePayload) => void
   onChatError: (payload: ChatErrorPayload) => void
   onDeleted: (payload: MessageDeletedPayload) => void
@@ -35,83 +36,91 @@ function ensureChatSocketListeners(
   chatSocket: SocketManager['chatSocket'],
   logger: AbstractLogger
 ): void {
-  const store = useChatSocketStore()
-  let handlers = handlersBySocket.get(chatSocket)
+  const socketStore = useChatSocketStore()
+  let attachedHandlers = handlersBySocket.get(chatSocket)
 
-  if (!handlers) {
-    const onChunk = (payload: MessageChunkPayload) => {
-      const state = store.getMessageState(payload.messageId)
-      if (!state || !Number.isFinite(payload.sequence) || payload.sequence <= state.lastSequence)
-        return
+  if (!attachedHandlers) {
+    const handleMessageChunk = (payload: MessageChunkPayload) => {
+      const messageState = socketStore.getMessageState(payload.messageId)
+      const isValidSequence = Number.isFinite(payload.sequence) && payload.sequence > (messageState?.lastSequence ?? -1)
 
-      store.setMessageState(payload.messageId, {
-        ...state,
+      if (!messageState || !isValidSequence) return
+
+      socketStore.setMessageState(payload.messageId, {
+        ...messageState,
         isStreaming: true,
         lastSequence: payload.sequence,
       })
 
-      state.onChunk?.(payload.chunk)
+      messageState.onChunk?.(payload.chunk)
     }
 
-    const onReasoningChunk = (payload: MessageChunkPayload) => {
-      const state = store.getMessageState(payload.messageId)
-      if (!state) return
+    const handleReasoningChunk = (payload: ReasoningChunkPayload) => {
+      const messageState = socketStore.getMessageState(payload.messageId)
+      if (!messageState) return
 
-      store.appendReasoning(payload.messageId, payload.chunk)
-      state.onReasoningChunk?.(payload.chunk)
+      socketStore.appendReasoning(payload.messageId, payload.chunk)
+      messageState.onReasoningChunk?.(payload.chunk)
     }
 
-    const onComplete = (payload: MessageCompletePayload) => {
-      const state = store.getMessageState(payload.messageId)
-      if (!state) return
+    const handleMessageComplete = (payload: MessageCompletePayload) => {
+      const messageState = socketStore.getMessageState(payload.messageId)
+      if (!messageState) return
 
-      state.onComplete?.(payload.fullContent)
+      messageState.onComplete?.(payload.fullContent)
 
-      store.setMessageState(payload.messageId, { ...state, isStreaming: false })
-      store.deleteMessageState(payload.messageId)
+      socketStore.setMessageState(payload.messageId, { ...messageState, isStreaming: false })
+      socketStore.deleteMessageState(payload.messageId)
     }
 
-    const onChatError = (payload: ChatErrorPayload) => {
+    const handleChatError = (payload: ChatErrorPayload) => {
       if (payload.messageId === undefined) {
         logger.warn('Received global chat error without messageId', {
           error: payload.error,
         })
         return
       }
-      const state = store.getMessageState(payload.messageId)
-      if (!state) return
+      const messageState = socketStore.getMessageState(payload.messageId)
+      if (!messageState) return
 
-      state.onError?.(payload.error)
+      messageState.onError?.(payload.error)
 
-      store.setMessageState(payload.messageId, {
-        ...state,
+      socketStore.setMessageState(payload.messageId, {
+        ...messageState,
         isStreaming: false,
         error: payload.error,
       })
     }
 
-    const onDeleted = (payload: MessageDeletedPayload) => {
-      store.deleteMessageState(payload.messageId)
+    const handleMessageDeleted = (payload: MessageDeletedPayload) => {
+      socketStore.deleteMessageState(payload.messageId)
     }
 
-    handlers = { onChunk, onReasoningChunk, onComplete, onChatError, onDeleted }
-    handlersBySocket.set(chatSocket, handlers)
+    attachedHandlers = {
+      onChunk: handleMessageChunk,
+      onReasoningChunk: handleReasoningChunk,
+      onComplete: handleMessageComplete,
+      onChatError: handleChatError,
+      onDeleted: handleMessageDeleted,
+    }
+    handlersBySocket.set(chatSocket, attachedHandlers)
   }
 
-  chatSocket.off('chat:messageChunk', handlers.onChunk)
-  // TODO: remove these as any casts once @babadeluxe/shared exports chat:reasoningChunk
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  chatSocket.off('chat:reasoningChunk' as any, handlers.onReasoningChunk as any)
-  chatSocket.off('chat:messageComplete', handlers.onComplete)
-  chatSocket.off('chat:chatError', handlers.onChatError)
-  chatSocket.off('chat:messageDeleted', handlers.onDeleted)
+  chatSocket.off('chat:messageChunk', attachedHandlers.onChunk)
+  // TODO(#issue): add chat:reasoningChunk to socket Emission type — event exists on server but not yet in shared Emission map
+  // @ts-expect-error - chat:reasoningChunk missing from Emission type
+  chatSocket.off('chat:reasoningChunk', attachedHandlers.onReasoningChunk)
+  chatSocket.off('chat:messageComplete', attachedHandlers.onComplete)
+  chatSocket.off('chat:chatError', attachedHandlers.onChatError)
+  chatSocket.off('chat:messageDeleted', attachedHandlers.onDeleted)
 
-  chatSocket.on('chat:messageChunk', handlers.onChunk)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  chatSocket.on('chat:reasoningChunk' as any, handlers.onReasoningChunk as any)
-  chatSocket.on('chat:messageComplete', handlers.onComplete)
-  chatSocket.on('chat:chatError', handlers.onChatError)
-  chatSocket.on('chat:messageDeleted', handlers.onDeleted)
+  chatSocket.on('chat:messageChunk', attachedHandlers.onChunk)
+  // TODO(#issue): add chat:reasoningChunk to socket Emission type — event exists on server but not yet in shared Emission map
+  // @ts-expect-error - chat:reasoningChunk missing from Emission type
+  chatSocket.on('chat:reasoningChunk', attachedHandlers.onReasoningChunk)
+  chatSocket.on('chat:messageComplete', attachedHandlers.onComplete)
+  chatSocket.on('chat:chatError', attachedHandlers.onChatError)
+  chatSocket.on('chat:messageDeleted', attachedHandlers.onDeleted)
 }
 
 export function registerStreamingHandlers(
@@ -123,14 +132,14 @@ export function registerStreamingHandlers(
     onError?: ErrorHandler
   }
 ): void {
-  const store = useChatSocketStore()
-  const existing = store.getMessageState(messageId)
+  const socketStore = useChatSocketStore()
+  const existingState = socketStore.getMessageState(messageId)
 
-  store.setMessageState(messageId, {
-    onChunk: handlers.onChunk ?? existing?.onChunk,
-    onReasoningChunk: handlers.onReasoningChunk ?? existing?.onReasoningChunk,
-    onComplete: handlers.onComplete ?? existing?.onComplete,
-    onError: handlers.onError ?? existing?.onError,
+  socketStore.setMessageState(messageId, {
+    onChunk: handlers.onChunk ?? existingState?.onChunk,
+    onReasoningChunk: handlers.onReasoningChunk ?? existingState?.onReasoningChunk,
+    onComplete: handlers.onComplete ?? existingState?.onComplete,
+    onError: handlers.onError ?? existingState?.onError,
     isStreaming: true,
     error: undefined,
     lastSequence: 0,
@@ -138,12 +147,12 @@ export function registerStreamingHandlers(
 }
 
 export function resetChatSocketStateForTests(): void {
-  const store = useChatSocketStore()
-  store.resetState()
+  const socketStore = useChatSocketStore()
+  socketStore.resetState()
 }
 
 export function useChatSocket() {
-  const store = useChatSocketStore()
+  const socketStore = useChatSocketStore()
   const { socketManagerRef } = useSocketManager()
   const logger = safeInject(LOGGER_KEY)
 
@@ -159,54 +168,54 @@ export function useChatSocket() {
 
   const { createTimeout, cancelTimeout } = useTrackedTimeouts()
 
-  const streamingMessageIds = computed(() => store.streamingMessageIds)
+  const streamingMessageIds = computed(() => socketStore.streamingMessageIds)
 
   const isStreaming = computed(() => streamingMessageIds.value.length > 0)
 
-  const error = computed(() => {
+  const streamingError = computed(() => {
     for (const messageId of streamingMessageIds.value) {
-      const state = store.getMessageState(messageId)
-      if (state?.error) return state.error
+      const messageState = socketStore.getMessageState(messageId)
+      if (messageState?.error) return messageState.error
     }
     return undefined
   })
 
-  function createStreamCompletion(params: {
+  function createStreamCompletionTracker(params: {
     messageId: number
     timeoutId: ReturnType<typeof createTimeout>
     cancelTimeout: (id: ReturnType<typeof createTimeout>) => void
   }) {
     const { messageId, timeoutId, cancelTimeout } = params
-    let isDone = false
-    let completionError: NetworkError | ChatError | RateLimitError | undefined
+    let isCompletionDone = false
+    let finalCompletionError: NetworkError | ChatError | RateLimitError | undefined
 
-    const cleanup = () => {
-      if (isDone) return
-      isDone = true
+    const cleanupResources = () => {
+      if (isCompletionDone) return
+      isCompletionDone = true
       cancelTimeout(timeoutId)
-      store.deleteMessageState(messageId)
+      socketStore.deleteMessageState(messageId)
     }
 
-    const finishOk = () => {
-      if (isDone) return
-      cleanup()
+    const markAsFinishedSuccessfully = () => {
+      if (isCompletionDone) return
+      cleanupResources()
     }
 
-    const finishError = (error: NetworkError | ChatError | RateLimitError): void => {
-      if (isDone) return
-      completionError = error
-      cleanup()
+    const markAsFinishedWithError = (error: NetworkError | ChatError | RateLimitError): void => {
+      if (isCompletionDone) return
+      finalCompletionError = error
+      cleanupResources()
     }
 
     return {
-      finishOk,
-      finishError,
-      isDone: () => isDone,
-      getError: () => completionError,
+      finishOk: markAsFinishedSuccessfully,
+      finishError: markAsFinishedWithError,
+      isDone: () => isCompletionDone,
+      getError: () => finalCompletionError,
     }
   }
 
-  const sendMessageOnce = async (
+  const attemptToSendMessage = async (
     messageId: number,
     provider: string,
     modelId: string,
@@ -241,7 +250,7 @@ export function useChatSocket() {
           reject(error)
         }, sendTimeoutMilliseconds)
 
-        const completion = createStreamCompletion({
+        const completionTracker = createStreamCompletionTracker({
           messageId,
           timeoutId,
           cancelTimeout,
@@ -252,22 +261,22 @@ export function useChatSocket() {
           onReasoningChunk: handlers.onReasoningChunk,
           onComplete: (fullContent) => {
             handlers.onComplete(fullContent)
-            completion.finishOk()
+            completionTracker.finishOk()
             resolve()
           },
           onError: (errorMessage) => {
             handlers.onError?.(errorMessage)
             const error = new ChatError(errorMessage)
-            completion.finishError(error)
+            completionTracker.finishError(error)
             reject(error)
           },
         })
 
-        const scope = getCurrentScope()
-        if (scope) {
+        const activeScope = getCurrentScope()
+        if (activeScope) {
           onScopeDispose(() => {
-            if (!completion.isDone()) {
-              store.deleteMessageState(messageId)
+            if (!completionTracker.isDone()) {
+              socketStore.deleteMessageState(messageId)
             }
           })
         }
@@ -276,16 +285,16 @@ export function useChatSocket() {
           'chat:sendMessage',
           { messageId, provider, modelId, messages },
           (response: { success: boolean; error?: string }) => {
-            if (completion.isDone() || response.success) return
+            if (completionTracker.isDone() || response.success) return
 
             const errorMessage = response.error ?? 'Unknown error'
-            const isRateLimit = errorMessage.toLowerCase().includes('rate limit')
+            const isRateLimitError = errorMessage.toLowerCase().includes('rate limit')
 
-            const error = isRateLimit
+            const error = isRateLimitError
               ? new RateLimitError(errorMessage)
               : new ChatError(errorMessage)
 
-            completion.finishError(error)
+            completionTracker.finishError(error)
             reject(error)
           }
         )
@@ -293,7 +302,7 @@ export function useChatSocket() {
         if (!emitResult.isErr()) return
 
         const error = new NetworkError('Socket emit failed', emitResult.error)
-        completion.finishError(error)
+        completionTracker.finishError(error)
         reject(error)
       }),
       (unknownError) => {
@@ -328,7 +337,7 @@ export function useChatSocket() {
     }
   ): Promise<Result<void, NetworkError | ChatError | RateLimitError>> => {
     return retryWithBackoff(
-      () => sendMessageOnce(messageId, provider, modelId, messages, handlers),
+      () => attemptToSendMessage(messageId, provider, modelId, messages, handlers),
       `message ${messageId}`,
       { logger }
     )
@@ -337,18 +346,18 @@ export function useChatSocket() {
   const abortMessage = async (
     messageId: number
   ): Promise<Result<void, NetworkError | ChatError>> => {
-    const socket = chatSocketRef.value
-    if (!socket) {
+    const chatSocket = chatSocketRef.value
+    if (!chatSocket) {
       return err(new NetworkError('Chat socket not initialized'))
     }
 
-    const connectionResult = await socket.waitForConnection()
+    const connectionResult = await chatSocket.waitForConnection()
     if (connectionResult.isErr()) {
       return err(new NetworkError('Socket connection failed', connectionResult.error))
     }
 
-    ensureChatSocketListeners(socket, logger)
-    store.deleteMessageState(messageId)
+    ensureChatSocketListeners(chatSocket, logger)
+    socketStore.deleteMessageState(messageId)
 
     return await ResultAsync.fromPromise(
       new Promise<void>((resolve, reject) => {
@@ -356,7 +365,7 @@ export function useChatSocket() {
           reject(new NetworkError('Abort timeout'))
         }, socketTimeoutMs.chatAbort)
 
-        const emitResult = socket.emit(
+        const emitResult = chatSocket.emit(
           'chat:abortMessage',
           { messageId, deleteMessage: false },
           (response: { success: boolean; error?: string }) => {
@@ -401,7 +410,7 @@ export function useChatSocket() {
 
   return {
     isStreaming,
-    error,
+    error: streamingError,
     streamingMessageIds,
     sendMessage,
     abortMessage,

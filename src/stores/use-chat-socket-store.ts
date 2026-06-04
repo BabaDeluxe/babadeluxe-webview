@@ -7,7 +7,7 @@ type ErrorHandler = (errorMessage: string) => void
 
 export type MessageState = Readonly<{
   onChunk: ChunkHandler | undefined
-  onReasoningChunk: ChunkHandler | undefined
+  onReasoningChunk?: ChunkHandler | undefined
   onComplete: CompleteHandler | undefined
   onError: ErrorHandler | undefined
   isStreaming: boolean

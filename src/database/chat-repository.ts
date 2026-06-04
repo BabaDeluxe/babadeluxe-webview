@@ -15,6 +15,7 @@ type DbMessage = {
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
+  reasoning?: string
   contextReferences?: string
   reasoning?: string
 }
@@ -37,6 +38,7 @@ type CreateMessageInput = {
   isStreaming?: boolean
   model?: string
   systemPrompt?: string
+  reasoning?: string
   contextReferences?: ContextReference[]
   reasoning?: string
 }
@@ -76,6 +78,7 @@ export class ChatRepository {
         isStreaming: message.isStreaming,
         model: message.model,
         systemPrompt: message.systemPrompt,
+        reasoning: message.reasoning,
         contextReferences: decodeContextReferences(message.contextReferences),
         reasoning: message.reasoning,
       }))
@@ -111,6 +114,7 @@ export class ChatRepository {
         isStreaming: message.isStreaming,
         model: message.model,
         systemPrompt: message.systemPrompt,
+        reasoning: message.reasoning,
         contextReferences: decodeContextReferences(message.contextReferences),
         reasoning: message.reasoning,
       }))
@@ -126,6 +130,7 @@ export class ChatRepository {
       isStreaming: input.isStreaming ?? false,
       model: input.model,
       systemPrompt: input.systemPrompt,
+      reasoning: input.reasoning,
       contextReferences: encodeContextReferences(input.contextReferences),
       reasoning: input.reasoning,
     })
