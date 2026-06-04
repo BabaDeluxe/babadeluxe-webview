@@ -1,4 +1,5 @@
-import { ref, computed } from 'vue'
+import { ref, computed, toValue } from 'vue'
+import type { MaybeRefOrGetter } from 'vue'
 import { damerauLevenshteinSimilarity } from '@babadeluxe/shared'
 
 export interface AtPickerItem {
@@ -12,20 +13,21 @@ const MINIMUM_QUERY_LENGTH_FOR_FUZZY_SEARCH = 2
 const MAXIMUM_RESULTS_COUNT = 8
 const FUZZY_SEARCH_SIMILARITY_THRESHOLD = 0.3
 
-export function useAtPicker(availableSources: AtPickerItem[]) {
+export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) {
   const isPickerVisible = ref(false)
   const searchQuery = ref('')
   const highlightedItemIndex = ref(0)
   const currentlySelectedSources = ref<AtPickerItem[]>([])
 
   const filteredResults = computed(() => {
+    const sources = toValue(availableSources)
     const normalizedQuery = searchQuery.value.toLowerCase()
 
     if (normalizedQuery.length < MINIMUM_QUERY_LENGTH_FOR_FUZZY_SEARCH) {
-      return getResultsSortedByType(availableSources)
+      return getResultsSortedByType(sources)
     }
 
-    return getResultsByFuzzyMatching(availableSources, normalizedQuery)
+    return getResultsByFuzzyMatching(sources, normalizedQuery)
   })
 
   function getResultsSortedByType(sources: AtPickerItem[]): AtPickerItem[] {

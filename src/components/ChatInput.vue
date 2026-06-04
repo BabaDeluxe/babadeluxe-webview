@@ -110,7 +110,7 @@ const {
   moveUp: movePickerUp,
   accept: acceptPicker,
   removeSource,
-} = useAtPicker(props.atSources)
+} = useAtPicker(() => props.atSources)
 
 const computedInputValue = computed({
   get: () => props.value,
