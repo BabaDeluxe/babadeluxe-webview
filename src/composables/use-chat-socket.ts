@@ -59,24 +59,13 @@ function ensureChatSocketListeners(
       const messageState = socketStore.getMessageState(payload.messageId)
       if (!messageState) return
 
+      socketStore.appendReasoning(payload.messageId, payload.chunk)
       messageState.onReasoningChunk?.(payload.chunk)
     }
 
     const handleMessageComplete = (payload: MessageCompletePayload) => {
       const messageState = socketStore.getMessageState(payload.messageId)
       if (!messageState) return
-      
-    const onReasoningChunk = (payload: MessageChunkPayload) => {
-      const state = socketStore.getMessageState(payload.messageId)
-      if (!state) return
-
-      socketStore.appendReasoning(payload.messageId, payload.chunk)
-      state.onReasoningChunk?.(payload.chunk)
-    }
-
-    const onComplete = (payload: MessageCompletePayload) => {
-      const state = socketStore.getMessageState(payload.messageId)
-      if (!state) return
 
       messageState.onComplete?.(payload.fullContent)
 
@@ -113,19 +102,21 @@ function ensureChatSocketListeners(
       onComplete: handleMessageComplete,
       onChatError: handleChatError,
       onDeleted: handleMessageDeleted,
-    } as unknown as AttachedHandlers
+    }
     handlersBySocket.set(chatSocket, attachedHandlers)
   }
 
   chatSocket.off('chat:messageChunk', attachedHandlers.onChunk)
-  // @ts-expect-error - reasoningChunk is not in Emission but exists on socket
+  // TODO(#issue): add chat:reasoningChunk to socket Emission type — event exists on server but not yet in shared Emission map
+  // @ts-expect-error - chat:reasoningChunk missing from Emission type
   chatSocket.off('chat:reasoningChunk', attachedHandlers.onReasoningChunk)
   chatSocket.off('chat:messageComplete', attachedHandlers.onComplete)
   chatSocket.off('chat:chatError', attachedHandlers.onChatError)
   chatSocket.off('chat:messageDeleted', attachedHandlers.onDeleted)
 
   chatSocket.on('chat:messageChunk', attachedHandlers.onChunk)
-  // @ts-expect-error - reasoningChunk is not in Emission but exists on socket
+  // TODO(#issue): add chat:reasoningChunk to socket Emission type — event exists on server but not yet in shared Emission map
+  // @ts-expect-error - chat:reasoningChunk missing from Emission type
   chatSocket.on('chat:reasoningChunk', attachedHandlers.onReasoningChunk)
   chatSocket.on('chat:messageComplete', attachedHandlers.onComplete)
   chatSocket.on('chat:chatError', attachedHandlers.onChatError)
