@@ -27,3 +27,15 @@ I have manually implemented these types and defaults in `src/services/prompt-inj
 
 **Action Required**:
 A PR should be opened in `@babadeluxe/shared` merging `feat/prompt-injection-settings` and `feat/temperature-per-model` and ensuring all types/helpers are properly exported. I have verified the merge logic locally.
+
+### Missing Prompt Fields
+
+The following fields are currently missing from the `Prompt` type in `@babadeluxe/shared/generated-socket-types`:
+
+- `isPremium`: boolean (optional)
+
+**Action Taken**:
+I have manually augmented the `Prompt` type in `src/composables/use-prompts-socket.ts` with `isPremium?: boolean`.
+
+**Action Required**:
+Update the backend schema and socket type generation to include `isPremium` in the `Prompt` object.

@@ -1,11 +1,10 @@
 <template>
-  <div class="flex flex-col gap-2">
+  <div class="flex flex-col gap-2 overflow-y-auto">
     <button
       v-for="prompt in prompts"
       :key="prompt.id"
       type="button"
-      data-testid="prompt-item"
-      class="flex items-center justify-between p-3 border border-borderMuted rounded-lg hover:bg-panel transition-colors text-left w-full"
+      class="flex items-center gap-3 px-4 py-3 rounded-lg border border-borderMuted bg-panel hover:border-accent/50 transition-all text-left group relative"
       :class="{ 'bg-accent/10 border-accent': prompt.id === selectedPromptId }"
       @click="emit('select', prompt.id)"
     >
@@ -52,6 +51,7 @@ interface Prompt {
   name: string
   command?: string
   isSystem: boolean
+  isPremium?: boolean
 }
 
 interface PromptListProps {

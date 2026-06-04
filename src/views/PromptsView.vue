@@ -51,97 +51,126 @@
             :key="prompt.id"
             type="button"
             :aria-pressed="selectedPromptId === prompt.id"
-            class="flex flex-col gap-0.5 px-3.5 py-3 rounded-lg border text-left transition-colors"
-            :class="
+            class="flex flex-col gap-0.5 px-3.5 py-3 rounded-lg border text-left transition-colors relative group"
+            :class="[
               selectedPromptId === prompt.id
                 ? 'border-accent bg-accentDim'
-                : 'border-borderMuted bg-panel hover:border-accent/50'
-            "
+                : 'border-borderMuted bg-panel hover:border-accent/50',
+              prompt.isPremium && !isPro ? 'opacity-80' : '',
+            ]"
             :data-testid="`prompt-list-item-${prompt.id}`"
-            @click="selectPrompt(prompt)"
+            :title="prompt.isPremium && !isPro ? 'Upgrade to Pro to use this prompt' : undefined"
+            @click="handlePromptClick(prompt)"
           >
-            <span class="text-sm font-medium text-deepText truncate">{{ prompt.name }}</span>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-sm font-medium text-deepText truncate">{{ prompt.name }}</span>
+              <i
+                v-if="prompt.isPremium && !isPro"
+                class="i-bi:lock-fill text-accent text-xs"
+              />
+            </div>
             <span class="text-xs text-subtleText">/{{ prompt.command || '' }}</span>
           </button>
         </div>
 
-        <!-- ── Right panel: tabs (Edit / Injection Settings) ── -->
-        <div
-          v-if="selectedPrompt || isCreating"
-          class="flex flex-col gap-3"
-        >
-          <!-- Tab bar -->
+        <!-- ── Right panel: Upgrade Nudge / tabs (Edit / Injection Settings) ── -->
+        <div class="flex flex-col gap-3">
+          <!-- Upgrade Nudge -->
           <div
-            v-if="!isCreating"
-            role="tablist"
-            class="flex gap-1 p-0.5 rounded-lg bg-panel border border-borderMuted self-start"
+            v-if="showUpgradeNudge"
+            class="bg-accentDim border border-accent border-dashed rounded-lg p-6 flex flex-col items-center text-center gap-4 animate-fade-in"
           >
-            <button
-              v-for="tab in tabs"
-              :key="tab.id"
-              role="tab"
-              type="button"
-              class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-              :class="
-                activeTab === tab.id
-                  ? 'bg-accentDim text-accent border border-accentBorder'
-                  : 'text-subtleText hover:text-deepText'
-              "
-              :data-testid="`tab-${tab.id}`"
-              @click="activeTab = tab.id"
-            >
-              {{ tab.label }}
-            </button>
-          </div>
-
-          <!-- Edit tab -->
-          <div
-            v-show="isCreating || activeTab === 'edit'"
-            role="tabpanel"
-            aria-labelledby="tab-edit"
-          >
-            <PromptEditor
-              :prompt="selectedPrompt"
-              :is-creating="isCreating"
-              :is-saving="isSaving"
-              @save="handleSave"
-              @change="handleChange"
-            />
-          </div>
-
-          <!-- Injection Settings tab -->
-          <div
-            v-if="!isCreating"
-            v-show="activeTab === 'injection'"
-            role="tabpanel"
-            aria-labelledby="tab-injection"
-          >
-            <PromptInjectionSettings
-              :mode="injectionMode"
-              :interval="injectionInterval"
-              :position="injectionPosition"
-              :include-history="injectionIncludeHistory"
-              @update:mode="saveInjectionSetting('promptInjectionMode', $event)"
-              @update:interval="saveInjectionSetting('promptInjectionInterval', $event)"
-              @update:position="saveInjectionSetting('promptInjectionPosition', $event)"
-              @update:include-history="saveInjectionSetting('promptIncludeHistory', $event)"
-            />
-          </div>
-
-          <!-- Prompt actions -->
-          <div
-            v-if="selectedPrompt && !isCreating"
-            class="flex justify-end gap-2 pt-2"
-          >
+            <div class="p-3 bg-accent/10 rounded-full">
+              <i class="i-bi:gem text-accent text-3xl" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <h3 class="text-lg font-semibold text-deepText">Premium Prompt</h3>
+              <p class="text-sm text-subtleText">
+                This is a Pro prompt. Upgrade to unlock all premium prompts.
+              </p>
+            </div>
             <BaseButton
-              variant="ghost"
-              icon="i-bi:trash"
-              text="Delete"
-              :is-loading="isDeleting"
-              data-testid="delete-prompt-button"
-              @click="handleDelete"
+              variant="primary"
+              text="Upgrade Now"
+              :is-loading="isUpgrading"
+              @click="redirectToCheckout"
             />
           </div>
+
+          <template v-else-if="selectedPrompt || isCreating">
+            <!-- Tab bar -->
+            <div
+              v-if="!isCreating"
+              role="tablist"
+              class="flex gap-1 p-0.5 rounded-lg bg-panel border border-borderMuted self-start"
+            >
+              <button
+                v-for="tab in tabs"
+                :key="tab.id"
+                role="tab"
+                type="button"
+                class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                :class="
+                  activeTab === tab.id
+                    ? 'bg-accentDim text-accent border border-accentBorder'
+                    : 'text-subtleText hover:text-deepText'
+                "
+                :data-testid="`tab-${tab.id}`"
+                @click="activeTab = tab.id"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+
+            <!-- Edit tab -->
+            <div
+              v-show="isCreating || activeTab === 'edit'"
+              role="tabpanel"
+              aria-labelledby="tab-edit"
+            >
+              <PromptEditor
+                :prompt="selectedPrompt"
+                :is-creating="isCreating"
+                :is-saving="isSaving"
+                @save="handleSave"
+                @change="handleChange"
+              />
+            </div>
+
+            <!-- Injection Settings tab -->
+            <div
+              v-if="!isCreating"
+              v-show="activeTab === 'injection'"
+              role="tabpanel"
+              aria-labelledby="tab-injection"
+            >
+              <PromptInjectionSettings
+                :mode="injectionMode"
+                :interval="injectionInterval"
+                :position="injectionPosition"
+                :include-history="injectionIncludeHistory"
+                @update:mode="saveInjectionSetting('promptInjectionMode', $event)"
+                @update:interval="saveInjectionSetting('promptInjectionInterval', $event)"
+                @update:position="saveInjectionSetting('promptInjectionPosition', $event)"
+                @update:include-history="saveInjectionSetting('promptIncludeHistory', $event)"
+              />
+            </div>
+
+            <!-- Prompt actions -->
+            <div
+              v-if="selectedPrompt && !isCreating"
+              class="flex justify-end gap-2 pt-2"
+            >
+              <BaseButton
+                variant="ghost"
+                icon="i-bi:trash"
+                text="Delete"
+                :is-loading="isDeleting"
+                data-testid="delete-prompt-button"
+                @click="handleDelete"
+              />
+            </div>
+          </template>
         </div>
       </div>
     </template>
@@ -159,6 +188,7 @@ import { usePromptsSocket as usePrompts } from '@/composables/use-prompts-socket
 import { useSettings } from '@/composables/use-settings'
 import { useToastStore } from '@/stores/use-toast-store'
 import { toUserMessage } from '@/error-mapper'
+import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import PromptEditor from '@/components/PromptEditor.vue'
@@ -166,7 +196,11 @@ import PromptInjectionSettings from '@/components/PromptInjectionSettings.vue'
 
 const { prompts, isLoading, createPrompt, updatePrompt, deletePrompt, fetchPrompts } = usePrompts()
 const { settings, upsertSetting, loadSettings } = useSettings()
+const { tier, redirectToCheckout, isUpgrading } = useSubscriptionSocket()
 const toasts = useToastStore()
+
+const isPro = computed(() => tier.value === 'PRO')
+const showUpgradeNudge = ref(false)
 
 const selectedPromptId = ref<number | undefined>()
 const isCreating = ref(false)
@@ -181,9 +215,22 @@ function selectPrompt(prompt: { id: number }) {
   isCreating.value = false
   selectedPromptId.value = prompt.id
   activeTab.value = 'edit'
+  showUpgradeNudge.value = false
+}
+
+function handlePromptClick(prompt: { id: number; isPremium?: boolean }) {
+  if (prompt.isPremium && !isPro.value) {
+    showUpgradeNudge.value = true
+    selectedPromptId.value = undefined
+    isCreating.value = false
+    return
+  }
+
+  selectPrompt(prompt)
 }
 
 function handleNewPrompt() {
+  showUpgradeNudge.value = false
   isCreating.value = true
   selectedPromptId.value = undefined
   activeTab.value = 'edit'
