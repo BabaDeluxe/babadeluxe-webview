@@ -70,45 +70,14 @@ const props = withDefaults(defineProps<BaseAvatarProps>(), {
   size: 'lg',
 })
 
-const containerSizeClasses = computed(() => {
-  switch (props.size) {
-    case 'xs':
-      return 'w-6 h-6'
-    case 'sm':
-      return 'w-8 h-8'
-    case 'md':
-      return 'w-10 h-10'
-    case 'lg':
-    default:
-      return 'w-14 h-14'
-  }
-})
+const sizeMap = {
+  xs: { container: 'w-6 h-6', icon: 'w-4 h-4' },
+  sm: { container: 'w-8 h-8', icon: 'w-5 h-5' },
+  md: { container: 'w-10 h-10', icon: 'w-6 h-6' },
+  lg: { container: 'w-14 h-14', icon: 'w-8 h-8' },
+} as const
 
-const imageSizeClasses = computed(() => {
-  switch (props.size) {
-    case 'xs':
-      return 'w-6 h-6'
-    case 'sm':
-      return 'w-8 h-8'
-    case 'md':
-      return 'w-10 h-10'
-    case 'lg':
-    default:
-      return 'w-14 h-14'
-  }
-})
-
-const iconSizeClasses = computed(() => {
-  switch (props.size) {
-    case 'xs':
-      return 'w-4 h-4'
-    case 'sm':
-      return 'w-5 h-5'
-    case 'md':
-      return 'w-6 h-6'
-    case 'lg':
-    default:
-      return 'w-8 h-8'
-  }
-})
+const containerSizeClasses = computed(() => sizeMap[props.size].container)
+const imageSizeClasses = computed(() => sizeMap[props.size].container)
+const iconSizeClasses = computed(() => sizeMap[props.size].icon)
 </script>

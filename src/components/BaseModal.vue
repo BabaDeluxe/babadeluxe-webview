@@ -90,10 +90,9 @@ const emit = defineEmits<{
 const modalRef = ref<HTMLElement | undefined>(undefined)
 const titleId = useId()
 
-const sizeClasses = computed(() => {
-  const sizes = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl' }
-  return sizes[props.size]
-})
+const modalSizes = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl' } as const
+
+const sizeClasses = computed(() => modalSizes[props.size])
 
 function handleConfirm() {
   emit('confirm')

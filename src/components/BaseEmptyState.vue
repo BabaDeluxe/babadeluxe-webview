@@ -29,6 +29,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface BaseEmptyStateProps {
   icon?: string
   title?: string
@@ -45,9 +47,11 @@ const props = withDefaults(defineProps<BaseEmptyStateProps>(), {
   iconSize: 'large',
 })
 
-const iconSizeClass = {
+const iconSizeMap = {
   small: 'text-4xl',
   medium: 'text-5xl',
   large: 'text-6xl',
-}[props.iconSize]
+} as const
+
+const iconSizeClass = computed(() => iconSizeMap[props.iconSize])
 </script>

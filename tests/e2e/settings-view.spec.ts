@@ -1,3 +1,4 @@
+import { skipIfNoBackend } from './helpers/skip-if-no-backend'
 import { expect, type Page } from '@playwright/test'
 import { authTest as test } from './helpers/fixtures'
 
@@ -73,6 +74,9 @@ const seedSettingsData = async (page: Page) => {
 }
 
 test.describe('Settings View E2E', () => {
+  test.beforeEach(() => {
+    skipIfNoBackend()
+  })
   test.beforeEach(async ({ page, browserName }, testInfo) => {
     if (browserName === 'webkit') {
       testInfo.setTimeout(60000)

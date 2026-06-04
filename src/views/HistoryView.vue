@@ -59,7 +59,7 @@
 
           <!-- Resizer Handle -->
           <div
-            class="relative flex items-center justify-center flex-shrink-0 cursor-row-resize group touch-none select-none"
+            class="relative flex items-center justify-center flex-shrink-0 cursor-row-resize group touch-none select-none py-3"
             :class="{ 'bg-accent/10': verticalIsDragging }"
             @pointerdown="verticalStartDragging"
           >
@@ -122,7 +122,7 @@
 
           <!-- Resizer Handle -->
           <div
-            class="relative flex items-center justify-center cursor-col-resize group touch-none select-none"
+            class="relative flex items-center justify-center cursor-col-resize group touch-none select-none px-3"
             :class="{ 'bg-accent/10': splitIsDragging }"
             @pointerdown="splitStartDragging"
           >

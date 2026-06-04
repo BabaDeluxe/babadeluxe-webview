@@ -31,6 +31,23 @@ export const test = base.extend<TestFixtures, WorkerOptions & Pick<WorkerFixture
 
   workerUser: [
     async ({ variant }, use, workerInfo) => {
+      const isOffline = process.env.VITE_OFFLINE_MODE === 'true'
+      const hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+
+      if (isOffline || !hasServiceRoleKey) {
+        console.log(
+          `⚠️ Worker ${workerInfo.workerIndex}: Skipping backend fixture (offline mode or missing service role key)`
+        )
+        // We provide a mock user to avoid crashing but tests requiring real auth will fail or should be skipped
+        const mockUser: TestUser = {
+          id: 'mock-id',
+          email: 'mock@example.com',
+          password: 'mock-password',
+        }
+        await use(mockUser)
+        return
+      }
+
       const workerId = workerInfo.workerIndex
       const createUser = variant === 'raw' ? createTestUserRaw : createTestUserSdk
       const deleteUser = variant === 'raw' ? deleteTestUserRaw : deleteTestUserSdk
@@ -58,6 +75,14 @@ export const test = base.extend<TestFixtures, WorkerOptions & Pick<WorkerFixture
 export const authTest = test.extend<TestFixtures, WorkerFixtures>({
   workerStorageState: [
     async ({ browser, workerUser }, use, workerInfo) => {
+      const isOffline = process.env.VITE_OFFLINE_MODE === 'true'
+      const hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+
+      if (isOffline || !hasServiceRoleKey) {
+        await use('')
+        return
+      }
+
       const workerId = workerInfo.workerIndex
       const authDir = path.resolve(workerInfo.project.outputDir, '.auth')
       const authFile = path.join(authDir, `worker-${workerId}.json`)

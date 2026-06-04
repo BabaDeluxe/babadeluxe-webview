@@ -10,6 +10,19 @@
         <BaseAvatar :role="role" />
       </template>
 
+      <!-- reasoning prop: persisted reasoning loaded from DB by parent.
+           currentReasoning: live reasoning chunks from the socket store during streaming.
+           Both are shown via ChatReasoningBlock; only one will be non-empty at a time. -->
+      <div
+        v-if="role === 'assistant' && (reasoning || currentReasoning)"
+        class="w-full"
+      >
+        <ChatReasoningBlock
+          :reasoning="reasoning || currentReasoning || ''"
+          :is-streaming="isInReasoningPhase"
+        />
+      </div>
+
       <BaseEditableText
         :content="content"
         :is-editing="isEditing"
@@ -21,7 +34,7 @@
           <MarkdownRenderer
             ref="markdownRef"
             :content="content"
-            :cursor="isStreaming && role === 'assistant'"
+            :cursor="isStreaming && role === 'assistant' && !isInReasoningPhase"
             :is-streaming="isStreaming"
           />
         </template>
@@ -69,7 +82,9 @@ import ChatMessageActions from '@/components/ChatMessageActions.vue'
 import MarkdownRenderer from '@/components/ChatMarkdownRenderer.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
 import ContextBadge from '@/components/ContextBadge.vue'
+import ChatReasoningBlock from '@/components/ChatReasoningBlock.vue'
 import { getDisambiguatedPaths } from '@/path-disambiguation'
+import { useChatSocketStore } from '@/stores/use-chat-socket-store'
 
 defineOptions({ inheritAttrs: false })
 
@@ -82,15 +97,31 @@ type ChatMessageEmitter = {
 interface ChatMessageProps extends Message {
   isRewriteEnabled?: boolean
   isEditEnabled?: boolean
+  /** Persisted reasoning text loaded from the database by the parent component.
+   *  Pass `message.reasoning` from the loaded Message record.
+   *  During live streaming this will be undefined; live chunks come from the socket store instead. */
+  reasoning?: string
 }
 
 const props = withDefaults(defineProps<ChatMessageProps>(), {
   isStreaming: false,
   isRewriteEnabled: true,
   isEditEnabled: true,
+  reasoning: undefined,
 })
 
 const emit = defineEmits<ChatMessageEmitter>()
+
+const socketStore = useChatSocketStore()
+const currentReasoning = computed(() => socketStore.reasoningByMessageId.get(props.id))
+
+/** True while the model is in the reasoning phase:
+ *  socket is actively streaming AND no final content has arrived yet (`!props.content`).
+ *  Once content starts flowing, the reasoning phase is over and the cursor moves to the main block. */
+const isInReasoningPhase = computed(() => {
+  const state = socketStore.getMessageState(props.id)
+  return !!state?.isStreaming && !props.content
+})
 
 const markdownRef = useTemplateRef<InstanceType<typeof MarkdownRenderer>>('markdownRef')
 const isEditing = ref(false)
@@ -100,37 +131,41 @@ const errorMessage = ref('')
 defineExpose({ markdownRef })
 
 const contextBadges = computed(() => {
-  if (props.role !== 'assistant') return []
-  const refs = props.contextReferences ?? []
+  const isAssistant = props.role === 'assistant'
+  if (!isAssistant) return []
 
-  const uniqueRefs = new Map<string, ContextReference>()
+  const references = props.contextReferences ?? []
+  const uniqueReferencesMap = new Map<string, ContextReference>()
   const filePaths: string[] = []
 
-  for (const ref of refs) {
-    const key =
+  for (const ref of references) {
+    const uniqueKey =
       ref.type === 'file' ? `file:${ref.filePath}` : `snippet:${ref.filePath}:${ref.snippetText}`
 
-    if (!uniqueRefs.has(key)) {
-      uniqueRefs.set(key, ref)
-      if (ref.filePath) filePaths.push(ref.filePath)
+    if (!uniqueReferencesMap.has(uniqueKey)) {
+      uniqueReferencesMap.set(uniqueKey, ref)
+      if (ref.filePath) {
+        filePaths.push(ref.filePath)
+      }
     }
   }
 
-  const displayMap = getDisambiguatedPaths(filePaths)
+  const disambiguatedPathsMap = getDisambiguatedPaths(filePaths)
 
-  return Array.from(uniqueRefs.values()).map((ref) => {
+  return Array.from(uniqueReferencesMap.values()).map((ref) => {
     const isFile = ref.type === 'file'
     const path = ref.filePath ?? ''
     const fileName = getBaseName(path)
 
-    const title = displayMap.get(path) ?? (path ? fileName : 'Snippet')
+    const title = disambiguatedPathsMap.get(path) ?? (path ? fileName : 'Snippet')
 
     let subtitle = ''
     let tooltip = path
 
     if (!isFile) {
-      const preview = ref.snippetText.trim().replace(/\s+/g, ' ')
-      subtitle = preview.length > 60 ? `${preview.slice(0, 60)}…` : preview
+      const sanitizedSnippet = ref.snippetText.trim().replace(/\s+/g, ' ')
+      subtitle =
+        sanitizedSnippet.length > 60 ? `${sanitizedSnippet.slice(0, 60)}\u2026` : sanitizedSnippet
       tooltip = path ? `${path}\n\n${ref.snippetText}` : ref.snippetText
     }
 

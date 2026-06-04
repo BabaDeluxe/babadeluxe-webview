@@ -37,3 +37,7 @@ node_modules/
 # Local temporary files
 *.patch
 fix_*.py
+
+# CI/build diagnostic artefacts (never commit these)
+lint_output.txt
+type_check_output.txt

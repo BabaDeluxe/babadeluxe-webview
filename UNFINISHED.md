@@ -8,12 +8,7 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 
 - **OAuth Callback handling**: While basic OAuth is implemented, some edge cases in session synchronization during redirect might still need attention (ref: `AuthCallbackView.vue`).
 
-### Model Integration
-
-- **Ollama & DeepSeek**: Support for Ollama and DeepSeek models is implemented in the frontend (`src/composables/use-models-socket.ts`) including discovery logic, though full end-to-end functionality depends on backend availability. (`src/composables/use-models-socket.ts`)
-
 ## Technical Debt / Refactoring
-
 
 ### Type Safety
 
@@ -32,4 +27,3 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 ## Scan Results (Raw TODOs)
 
 - `src/composables/use-prompts-socket.ts`: `// TODO Check if the shared types are correct, because this cast is weird`
-- `src/composables/use-models-socket.ts`: `ollama: [], // TODO Implement ollama and deepseek`

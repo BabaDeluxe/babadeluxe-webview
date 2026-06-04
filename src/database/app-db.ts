@@ -20,12 +20,14 @@ type DbMessage = {
   model?: string
   systemPrompt?: string
   contextReferences?: string
+  reasoning?: string
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
+type NewConversation = Omit<Conversation, 'id'> & { id?: number }
 
 export class AppDb extends Dexie {
-  public conversation!: SafeTable<Conversation, Conversation, number>
+  public conversation!: SafeTable<Conversation, NewConversation, number>
   public message!: SafeTable<DbMessage, NewDbMessage, number>
   public localSetting!: SafeTable<LocalSetting, LocalSetting, number>
   public prompt!: SafeTable<Prompt, Prompt, number>
@@ -131,6 +133,10 @@ export class AppDb extends Dexie {
         '++id, conversationId, role, timestamp, model, systemPrompt, contextReferences, isStreaming',
       localSetting: '++id, settingKey, updatedAt',
     })
+    // v8: adds optional `reasoning` field to message rows.
+    // `reasoning` is NOT indexed — it is a potentially large text field queried only
+    // by messageId (via conversationId). Indexing large strings degrades IndexedDB performance.
+    // No upgrade() callback needed: existing rows return undefined for the new optional field.
     this.version(8).stores({
       conversation: '++id, title, isActive, createdAt, updatedAt, &syncId, syncVersion',
       message:
@@ -173,7 +179,9 @@ export class AppDb extends Dexie {
   }
 
   private _wrapSafeTables(): void {
-    this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
+    this.conversation = new SafeTable<Conversation, NewConversation, number>(
+      this._conversationTable
+    )
     this.message = new SafeTable<DbMessage, NewDbMessage, number>(this._messageTable)
     this.localSetting = new SafeTable<LocalSetting, LocalSetting, number>(this._localSettingTable)
     this.prompt = new SafeTable<Prompt, Prompt, number>(this._promptTable)

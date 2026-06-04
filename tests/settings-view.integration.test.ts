@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { ref, readonly } from 'vue'
+import { ref, reactive, readonly } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import type { AsyncInjectable } from '@/injection-keys'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
@@ -11,6 +11,10 @@ import SettingsView from '@/views/SettingsView.vue'
 import { ok } from 'neverthrow'
 vi.mock('@/composables/use-settings', () => ({
   useSettings: () => ({
+    // settings: reactive({ value: [] }),
+    // upsertSetting: vi.fn(),
+    // loadSettings: vi.fn().mockResolvedValue(undefined),
+
     settings: ref([]),
     upsertSetting: vi.fn().mockResolvedValue(ok(undefined)),
     loadSettings: vi.fn().mockResolvedValue(ok(undefined)),
@@ -27,11 +31,13 @@ vi.mock('@/composables/use-models-socket', () => ({
       ollama: [],
       deepseek: [],
     }),
+    groupedModels: ref([]),
+    reloadModels: vi.fn().mockResolvedValue(ok(undefined)),
   }),
 }))
 
 vi.mock('@/composables/use-theme', () => ({
-  useTheme: () => ({ isDark: ref(false), toggleDark: vi.fn() }),
+  useTheme: () => ({ isDark: reactive({ value: false }), toggleDark: vi.fn() }),
 }))
 
 vi.mock('@/stores/use-toast-store', () => ({
@@ -75,11 +81,11 @@ describe('SettingsView — AsyncInjectable loading states', () => {
   })
 
   it('shows spinner while validator is not yet ready', () => {
-    const injectable: AsyncInjectable<IApiKeyValidator> = {
-      isReady: readonly(ref(false)),
-      hasError: readonly(ref(false)),
-      value: readonly(ref(undefined)),
-    }
+    const injectable = reactive<AsyncInjectable<IApiKeyValidator>>({
+      isReady: false,
+      hasError: false,
+      value: undefined,
+    })
 
     const wrapper = mountWithInjectable(injectable)
 
@@ -89,11 +95,11 @@ describe('SettingsView — AsyncInjectable loading states', () => {
   })
 
   it('shows error UI when socket init failed', () => {
-    const injectable: AsyncInjectable<IApiKeyValidator> = {
-      isReady: readonly(ref(false)),
-      hasError: readonly(ref(true)),
-      value: readonly(ref(undefined)),
-    }
+    const injectable = reactive<AsyncInjectable<IApiKeyValidator>>({
+      isReady: false,
+      hasError: true,
+      value: undefined,
+    })
 
     const wrapper = mountWithInjectable(injectable)
 
@@ -102,11 +108,11 @@ describe('SettingsView — AsyncInjectable loading states', () => {
   })
 
   it('shows settings content once validator is ready', async () => {
-    const injectable: AsyncInjectable<IApiKeyValidator> = {
-      isReady: readonly(ref(true)),
-      hasError: readonly(ref(false)),
-      value: readonly(ref(makeValidator())),
-    }
+    const injectable = reactive<AsyncInjectable<IApiKeyValidator>>({
+      isReady: true,
+      hasError: false,
+      value: makeValidator(),
+    })
 
     const wrapper = mountWithInjectable(injectable)
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -118,17 +124,18 @@ describe('SettingsView — AsyncInjectable loading states', () => {
   })
 
   it('transitions from spinner to content when isReady becomes true', async () => {
-    const isReady = ref(false)
-    const injectable: AsyncInjectable<IApiKeyValidator> = {
-      isReady: readonly(isReady),
-      hasError: readonly(ref(false)),
-      value: readonly(ref(makeValidator())),
-    }
+    const injectable = reactive<AsyncInjectable<IApiKeyValidator>>({
+      isReady: false,
+      hasError: false,
+      value: makeValidator(),
+    })
 
     const wrapper = mountWithInjectable(injectable)
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(true)
 
-    isReady.value = true
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const source = injectable as any
+    source.isReady = true
     await new Promise((resolve) => setTimeout(resolve, 0))
     await wrapper.vm.$nextTick()
 

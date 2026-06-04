@@ -31,7 +31,7 @@ export function useApiKeyManagement<T, E>(
         readonly settingKey: string
         readonly settingValue: Readonly<unknown>
         readonly dataType: 'string' | 'number' | 'boolean'
-        readonly updatedAt: Date
+        readonly updatedAt: string | Date
         readonly category: string
         readonly encrypted: boolean
         readonly required: boolean
@@ -45,7 +45,7 @@ export function useApiKeyManagement<T, E>(
         readonly settingKey: string
         readonly settingValue: Readonly<unknown>
         readonly dataType: 'string' | 'number' | 'boolean'
-        readonly updatedAt: Date
+        readonly updatedAt: string | Date
         readonly category: string
         readonly encrypted: boolean
         readonly required: boolean

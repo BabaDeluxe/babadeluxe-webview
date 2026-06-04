@@ -71,9 +71,7 @@
             @update:model-value="handleEmailChange"
           />
 
-          <div
-            class="space-y-1"
-          >
+          <div class="space-y-1">
             <BaseInput
               id="login-password-input"
               :model-value="password"
@@ -89,9 +87,7 @@
             />
           </div>
 
-          <div
-            class="flex items-center justify-between text-sm"
-          >
+          <div class="flex items-center justify-between text-sm">
             <label class="flex items-center gap-2 cursor-pointer group select-none">
               <input
                 v-model="keepSignedIn"
@@ -140,7 +136,9 @@
       </div>
 
       <!-- Footer Info -->
-      <div class="absolute bottom-6 text-center text-subtleText/40 text-[10px] uppercase tracking-widest">
+      <div
+        class="absolute bottom-6 text-center text-subtleText/40 text-[10px] uppercase tracking-widest"
+      >
         &copy; {{ new Date().getFullYear() }} BabaDeluxe AI. Protected by neural encryption.
       </div>
     </div>
@@ -148,11 +146,17 @@
     <!-- Right Pane: Cyberpunk Visuals -->
     <div class="hidden md:flex flex-1 relative bg-black overflow-hidden group">
       <MatrixRain />
-      <div class="absolute inset-0 bg-gradient-to-l from-black/80 via-transparent to-black/60 pointer-events-none"></div>
+      <div
+        class="absolute inset-0 bg-gradient-to-l from-black/80 via-transparent to-black/60 pointer-events-none"
+      ></div>
 
       <!-- Floating Stats UI Decoration -->
-      <div class="absolute top-12 right-12 p-4 border border-accent/20 bg-black/40 backdrop-blur-md rounded-lg font-mono text-[10px] text-accent/60 space-y-2 pointer-events-none group-hover:border-accent/40 transition-colors">
-        <div class="flex justify-between gap-8"><span>CORE_STATUS</span> <span class="text-emerald-500">OPERATIONAL</span></div>
+      <div
+        class="absolute top-12 right-12 p-4 border border-accent/20 bg-black/40 backdrop-blur-md rounded-lg font-mono text-[10px] text-accent/60 space-y-2 pointer-events-none group-hover:border-accent/40 transition-colors"
+      >
+        <div class="flex justify-between gap-8">
+          <span>CORE_STATUS</span> <span class="text-emerald-500">OPERATIONAL</span>
+        </div>
         <div class="flex justify-between gap-8"><span>NEURAL_LOAD</span> <span>42.8%</span></div>
         <div class="flex justify-between gap-8"><span>SYNC_LATENCY</span> <span>12MS</span></div>
         <div class="w-full h-1 bg-accent/10 rounded-full overflow-hidden mt-2">

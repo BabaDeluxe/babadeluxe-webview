@@ -2,7 +2,7 @@
   <div
     class="h-100vh max-h-100vh min-h-100vh max-w-100vw min-w-100vw bg-slate flex flex-col font-onest text-deepText overflow-x-hidden"
   >
-    <div v-if="session && $route.meta.layout === 'default'">
+    <div v-if="isHeaderVisible">
       <header
         class="flex flex-row items-center justify-between p-2 bg-panel border-b border-borderMuted/20 h-14"
         data-testid="app-header"
@@ -203,8 +203,8 @@
 </template>
 
 <script setup lang="ts">
-import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { onErrorCaptured } from 'vue'
+import { RouterLink, RouterView, useRouter, useRoute } from 'vue-router'
+import { provide, onErrorCaptured, computed } from 'vue'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
@@ -214,10 +214,20 @@ import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
 import { useAppLogic } from '@/composables/use-app-logic'
 import { useToastStore } from '@/stores/use-toast-store'
 import { logger } from '@/logger'
+import { GIT_MESSAGE_KEY } from '@/injection-keys'
 
 const router = useRouter()
+const route = useRoute()
 const toasts = useToastStore()
-const { session, handleNewChat, handleLogout } = useAppLogic()
+const { session, handleNewChat, handleLogout, gitMessage } = useAppLogic()
+
+provide(GIT_MESSAGE_KEY, gitMessage)
+
+const isHeaderVisible = computed(() => {
+  const hasActiveSession = Boolean(session.value)
+  const isDefaultLayout = route.meta.layout === 'default'
+  return hasActiveSession && isDefaultLayout
+})
 
 onErrorCaptured((err, instance, info) => {
   logger.error('Something crashed', {

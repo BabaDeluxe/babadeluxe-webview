@@ -13,8 +13,11 @@ All environment variables are validated at boot time via Zod in `src/env-validat
 | `VITE_SOCKET_URL`         | ❌ optional                        | Socket.io backend base URL (`http://localhost:3000` in dev)      |
 | `VITE_GA_MEASUREMENT_ID`  | ❌ optional                        | Google Analytics 4 measurement ID (`G-XXXXXXXXXX`)               |
 | `VITE_STATSIG_CLIENT_KEY` | ❌ optional                        | Statsig client SDK key for feature flags                         |
+| `VITE_APP_URL`            | ❌ optional                        | Canonical deployment origin for OAuth redirects                  |
 
 > **Offline mode:** when `VITE_OFFLINE_MODE=true`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are not required and the app runs fully without network auth.
+>
+> **Note on VITE_APP_URL:** This variable is currently bypassed by the centralized Zod validation in `env-validator.ts` and is accessed directly via `import.meta.env` in `SupabaseAuthProvider.ts`.
 
 ## Env Files
 
@@ -43,6 +46,7 @@ export function validateEnvConfig(
   const result = envConfigSchema.safeParse(env)
 
   if (!result.success) {
+    // Build a human-readable message from the structured issue list
     const message = result.error.issues
       .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
       .join('; ')
@@ -56,13 +60,18 @@ export function validateEnvConfig(
 The schema uses `superRefine` to enforce conditional requirements:
 
 ```ts
+const offlineModeSchema = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value === 'true')
+
 const envConfigSchema = z
   .object({
     VITE_NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    VITE_OFFLINE_MODE: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
     VITE_SUPABASE_URL: z.string().url().optional(),
     VITE_SUPABASE_ANON_KEY: z.string().min(1).optional(),
     VITE_SOCKET_URL: z.string().url().optional(),
+    VITE_OFFLINE_MODE: offlineModeSchema,
     VITE_GA_MEASUREMENT_ID: z.string().min(1).optional(),
     VITE_STATSIG_CLIENT_KEY: z.string().min(1).optional(),
   })

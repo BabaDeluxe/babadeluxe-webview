@@ -1,8 +1,10 @@
 import { expect } from '@playwright/test'
 import { test } from './helpers/fixtures'
+import { skipIfNoBackend } from './helpers/skip-if-no-backend'
 
 test.describe('Auth E2E', () => {
   test.beforeEach(async ({ page }) => {
+    skipIfNoBackend()
     await page.goto('/login')
     await page.waitForTimeout(1000)
   })

@@ -35,6 +35,7 @@ export type Message = {
   model?: string
   systemPrompt?: string
   contextReferences?: ContextReference[]
+  reasoning?: string
 }
 
 export type LocalSetting = {

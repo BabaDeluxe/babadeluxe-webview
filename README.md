@@ -20,6 +20,7 @@ This repo contains the frontend that runs inside the VS Code webview panel. It c
 - **Build:** Vite
 - **Styling:** UnoCSS (Tailwind conventions)
 - **Persistence:** Dexie.js (IndexedDB)
+- **Synchronization:** GitHub (REST)
 - **Real-time:** Socket.io-client
 - **Validation:** Zod + neverthrow
 - **Testing:** Vitest (unit) + Playwright (E2E)
@@ -114,7 +115,7 @@ flowchart LR
 Two strategies depending on where the webview runs:
 
 - **Embedded in VS Code** — auth tokens are bridged from the extension host via `useVsCodeAuth`, no re-login needed
-- **Standalone browser** — standard Supabase PKCE OAuth flow (GitHub / Email)
+- **Standalone browser** — standard Supabase PKCE OAuth flow (GitHub / Google / Email)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'background': '#13111a', 'primaryColor': '#2a1758', 'primaryTextColor': '#e2d9f3', 'primaryBorderColor': '#7c3aed', 'lineColor': '#7c3aed', 'secondaryColor': '#1a0f3a', 'tertiaryColor': '#0f1a2a', 'edgeLabelBackground': '#1a1030', 'actorBkg': '#2a1758', 'actorBorder': '#7c3aed', 'actorTextColor': '#e2d9f3', 'actorLineColor': '#7c3aed', 'signalColor': '#c4b5fd', 'signalTextColor': '#e2d9f3', 'labelBoxBkgColor': '#1a0f3a', 'labelBoxBorderColor': '#4c1d95', 'labelTextColor': '#c4b5fd', 'loopTextColor': '#e2d9f3', 'noteBkgColor': '#1a0f3a', 'noteTextColor': '#c4b5fd', 'noteBorderColor': '#4c1d95', 'activationBkgColor': '#4c1d95', 'activationBorderColor': '#7c3aed', 'sequenceNumberColor': '#e2d9f3', 'fontFamily': 'monospace'}}}%%
@@ -139,7 +140,7 @@ sequenceDiagram
     rect rgb(15, 26, 42)
         note right of User: Scenario 2 — Standalone Browser
         User->>Webview: Clicks Login
-        Webview->>Supabase: OAuth Flow (PKCE / implicit)
+        Webview->>Supabase: OAuth Flow (PKCE)
         Supabase-->>Webview: Redirect to /auth/callback
         Webview->>Supabase: exchangeCodeForSession / setSession
         Webview->>Webview: verifySession() — confirm getSession() != null

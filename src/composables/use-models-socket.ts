@@ -279,11 +279,7 @@ export async function initializeModels(
   fetchPromise = undefined
   isLoadingModels.value = false
 
-  if (fetchResult.isErr()) {
-    modelsError.value = fetchResult.error
-  } else {
-    modelsError.value = undefined
-  }
+  modelsError.value = fetchResult.isErr() ? fetchResult.error : undefined
 
   return fetchResult
 }
