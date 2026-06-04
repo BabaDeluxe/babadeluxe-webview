@@ -1,10 +1,9 @@
-clone:
-  git:
-    image: woodpeckerci/plugin-git
-    settings:
-      recursive: false
+# Note: $$ is required in Woodpecker for variables used inside inline YAML
+# string expressions — the pre-processor would otherwise evaluate $VAR at
+# parse time before the shell runner sees it. Variables accessed only inside
+# heredoc bodies or from_secret environment blocks use single $ as normal.
 
-skip_clone: false
+skip_clone: true
 
 variables:
   - &deploy_image alpine
