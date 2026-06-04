@@ -67,7 +67,7 @@ export function useApiKeyManagement<T, E>(
       provider.key,
       {
         value: '',
-        status: 'idle' as FieldStatus,
+        status: 'idle' satisfies FieldStatus as FieldStatus,
       },
     ])
   )
