@@ -14,10 +14,15 @@ export type PromptInjectionMode =
 export type PromptInjectionPosition = 'system' | 'user-prefix' | 'user-suffix'
 
 export const promptInjectionDefaults = {
-  mode: 'first-message' as PromptInjectionMode,
-  position: 'system' as PromptInjectionPosition,
+  mode: 'first-message',
+  position: 'system',
   interval: 5,
   includeHistory: true,
+} satisfies {
+  mode: PromptInjectionMode
+  position: PromptInjectionPosition
+  interval: number
+  includeHistory: boolean
 }
 
 export interface ChatMessage {

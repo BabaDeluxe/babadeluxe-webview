@@ -21,14 +21,6 @@ type MessageCompletePayload = { messageId: number; fullContent: string }
 type ChatErrorPayload = { messageId?: number; error: string }
 type MessageDeletedPayload = { messageId: number }
 
-// Extend the Socket.IO ServerToClientEvents map for events not yet declared in @babadeluxe/shared.
-// TODO: remove this block once @babadeluxe/shared exports `chat:reasoningChunk` in its event map.
-declare module 'socket.io-client' {
-  interface ServerToClientEvents {
-    'chat:reasoningChunk': (payload: MessageChunkPayload) => void
-  }
-}
-
 type AttachedHandlers = Readonly<{
   onChunk: (payload: MessageChunkPayload) => void
   onReasoningChunk: (payload: MessageChunkPayload) => void
@@ -107,13 +99,16 @@ function ensureChatSocketListeners(
   }
 
   chatSocket.off('chat:messageChunk', handlers.onChunk)
-  chatSocket.off('chat:reasoningChunk', handlers.onReasoningChunk)
+  // TODO: remove these as any casts once @babadeluxe/shared exports chat:reasoningChunk
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  chatSocket.off('chat:reasoningChunk' as any, handlers.onReasoningChunk as any)
   chatSocket.off('chat:messageComplete', handlers.onComplete)
   chatSocket.off('chat:chatError', handlers.onChatError)
   chatSocket.off('chat:messageDeleted', handlers.onDeleted)
 
   chatSocket.on('chat:messageChunk', handlers.onChunk)
-  chatSocket.on('chat:reasoningChunk', handlers.onReasoningChunk)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  chatSocket.on('chat:reasoningChunk' as any, handlers.onReasoningChunk as any)
   chatSocket.on('chat:messageComplete', handlers.onComplete)
   chatSocket.on('chat:chatError', handlers.onChatError)
   chatSocket.on('chat:messageDeleted', handlers.onDeleted)

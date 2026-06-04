@@ -107,12 +107,13 @@ const props = withDefaults(defineProps<ChatMessageProps>(), {
   isStreaming: false,
   isRewriteEnabled: true,
   isEditEnabled: true,
+  reasoning: undefined,
 })
 
 const emit = defineEmits<ChatMessageEmitter>()
 
 const socketStore = useChatSocketStore()
-const currentReasoning = computed(() => socketStore.reasoningByMessageId.value.get(props.id))
+const currentReasoning = computed(() => socketStore.reasoningByMessageId.get(props.id))
 
 /** True while the model is in the reasoning phase:
  *  socket is actively streaming AND no final content has arrived yet (`!props.content`).

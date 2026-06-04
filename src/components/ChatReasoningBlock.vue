@@ -46,11 +46,9 @@ const props = defineProps<{
   isStreaming: boolean
 }>()
 
-/** Average characters per token for English prose (cl100k / tiktoken heuristic).
- *  Not accurate for code-heavy content or CJK languages — display only, not used for billing. */
-const CHARS_PER_TOKEN = 4
+import { charsPerToken } from '@/constants'
 
-const tokenCount = computed(() => Math.ceil(props.reasoning.length / CHARS_PER_TOKEN))
+const tokenCount = computed(() => Math.ceil(props.reasoning.length / charsPerToken))
 </script>
 
 <style scoped>

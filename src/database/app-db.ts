@@ -18,9 +18,10 @@ type DbMessage = {
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
+type NewConversation = Omit<Conversation, 'id'> & { id?: number }
 
 export class AppDb extends Dexie {
-  public conversation!: SafeTable<Conversation, Conversation, number>
+  public conversation!: SafeTable<Conversation, NewConversation, number>
   public message!: SafeTable<DbMessage, NewDbMessage, number>
   public localSetting!: SafeTable<LocalSetting, LocalSetting, number>
 
@@ -168,7 +169,9 @@ export class AppDb extends Dexie {
   }
 
   private _wrapSafeTables(): void {
-    this.conversation = new SafeTable<Conversation, Conversation, number>(this._conversationTable)
+    this.conversation = new SafeTable<Conversation, NewConversation, number>(
+      this._conversationTable
+    )
     this.message = new SafeTable<DbMessage, NewDbMessage, number>(this._messageTable)
     this.localSetting = new SafeTable<LocalSetting, LocalSetting, number>(this._localSettingTable)
   }
