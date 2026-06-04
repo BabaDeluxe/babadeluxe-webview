@@ -1,7 +1,9 @@
 allowBuilds:
-  '@babadeluxe/shared': false
+  "@babadeluxe/shared": false
   esbuild: true
   unrs-resolver: true
 
 packages:
-  - '*'
+  - "*"
+
+ignoreWorkspaceRootCheck: true

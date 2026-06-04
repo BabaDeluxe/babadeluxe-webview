@@ -16,6 +16,8 @@ All environment variables are validated at boot time via Zod in `src/env-validat
 | `VITE_APP_URL`            | ❌ optional                        | Canonical deployment origin for OAuth redirects                  |
 
 > **Offline mode:** when `VITE_OFFLINE_MODE=true`, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are not required and the app runs fully without network auth.
+>
+> **Note on VITE_APP_URL:** This variable is currently bypassed by the centralized Zod validation in `env-validator.ts` and is accessed directly via `import.meta.env` in `SupabaseAuthProvider.ts`.
 
 ## Env Files
 

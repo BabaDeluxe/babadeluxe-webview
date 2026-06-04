@@ -204,7 +204,7 @@
 
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter, useRoute } from 'vue-router'
-import { onErrorCaptured, computed, provide } from 'vue'
+import { provide, onErrorCaptured, computed } from 'vue'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'

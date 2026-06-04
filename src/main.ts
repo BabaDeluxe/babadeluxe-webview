@@ -1,4 +1,4 @@
-import { type App as VueApp, type Ref, createApp, ref, readonly } from 'vue'
+import { type App as VueApp, type Ref, createApp, ref, readonly, reactive } from 'vue'
 import { createPinia } from 'pinia'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createColorino, themePalettes } from 'colorino'
@@ -46,11 +46,11 @@ class AppInitializer {
   private readonly _apiKeyValidatorIsReady = ref(false)
   private readonly _apiKeyValidatorHasError = ref(false)
   private readonly _apiKeyValidatorValue = ref<IApiKeyValidator | undefined>(undefined)
-  private readonly _apiKeyValidatorInjectable: AsyncInjectable<IApiKeyValidator> = {
-    isReady: readonly(this._apiKeyValidatorIsReady),
-    hasError: readonly(this._apiKeyValidatorHasError),
-    value: readonly(this._apiKeyValidatorValue),
-  }
+  private readonly _apiKeyValidatorInjectable: AsyncInjectable<IApiKeyValidator> = reactive({
+    isReady: this._apiKeyValidatorIsReady,
+    hasError: this._apiKeyValidatorHasError,
+    value: this._apiKeyValidatorValue,
+  })
 
   private _envConfig!: EnvConfigType
   private _supabase!: SupabaseClientType
@@ -133,7 +133,7 @@ class AppInitializer {
     }
 
     // Always provide before mount so safeInject never throws on async-resolved deps.
-    app.provide(API_KEY_VALIDATOR_KEY, this._apiKeyValidatorInjectable)
+    app.provide(API_KEY_VALIDATOR_KEY, readonly(this._apiKeyValidatorInjectable))
   }
 
   private _provideAnalytics(app: VueApp): void {
