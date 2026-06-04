@@ -23,3 +23,4 @@ export const subscriptionSocketNotConnected = 'Subscription socket not connected
 export const subscriptionSocketConnectionFailed = 'Subscription socket connection failed'
 export const serverAcknowledgmentTimeout = 'Server acknowledgment timeout'
 export const failedToCreateCheckoutSession = 'Failed to create checkout session'
+export const failedToCreatePortalSession = 'Failed to create billing portal session'
