@@ -107,13 +107,13 @@ function ensureChatSocketListeners(
   }
 
   chatSocket.off('chat:messageChunk', handlers.onChunk)
-  chatSocket.off('chat:reasoningChunk', handlers.onReasoningChunk)
+  chatSocket.off('chat:reasoningChunk' as string, handlers.onReasoningChunk as any)
   chatSocket.off('chat:messageComplete', handlers.onComplete)
   chatSocket.off('chat:chatError', handlers.onChatError)
   chatSocket.off('chat:messageDeleted', handlers.onDeleted)
 
   chatSocket.on('chat:messageChunk', handlers.onChunk)
-  chatSocket.on('chat:reasoningChunk', handlers.onReasoningChunk)
+  chatSocket.on('chat:reasoningChunk' as string, handlers.onReasoningChunk as any)
   chatSocket.on('chat:messageComplete', handlers.onComplete)
   chatSocket.on('chat:chatError', handlers.onChatError)
   chatSocket.on('chat:messageDeleted', handlers.onDeleted)

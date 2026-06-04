@@ -1,10 +1,15 @@
 import { type Ref } from 'vue'
 import { ok, err, type Result } from 'neverthrow'
-import type { Message } from '@/database/types'
+import type { Message, ContextReference } from '@/database/types'
 import type { AppDb } from '@/database/app-db'
 import type { DbError } from '@/errors'
 import { ChatError, MessageNotFoundError } from '@/errors'
 import { decodeContextReferences } from '@/database/serializers'
+
+type MessageMetadata = {
+  model?: string
+  systemPrompt?: string
+}
 
 export function useMessageManagement(
   appDb: AppDb,
@@ -83,10 +88,89 @@ export function useMessageManagement(
     return ok(undefined)
   }
 
+  async function createUserMessage(
+    conversationId: number,
+    content: string,
+    metadata?: MessageMetadata,
+    contextReferences?: ContextReference[]
+  ): Promise<Result<Message, ChatError | DbError>> {
+    const createResult = await appDb.chatRepository.createMessage({
+      conversationId,
+      role: 'user',
+      content,
+      isStreaming: false,
+      model: metadata?.model,
+      systemPrompt: metadata?.systemPrompt,
+      contextReferences,
+    })
+
+    if (createResult.isErr()) return err(createResult.error)
+
+    const newMessage: Message = {
+      id: createResult.value,
+      conversationId,
+      role: 'user',
+      content,
+      timestamp: new Date(),
+      isStreaming: false,
+      model: metadata?.model,
+      systemPrompt: metadata?.systemPrompt,
+      contextReferences,
+    }
+
+    messages.value.push(newMessage)
+
+    const currentCount = messageCountsByConversation.value.get(conversationId) ?? 0
+    messageCountsByConversation.value.set(conversationId, currentCount + 1)
+
+    return ok(newMessage)
+  }
+
+  async function updateUserMessage(
+    messageId: number,
+    newContent: string
+  ): Promise<Result<void, MessageNotFoundError | ChatError | DbError>> {
+    const message = messages.value.find((m) => m.id === messageId)
+    if (!message) return err(new MessageNotFoundError(messageId.toString()))
+
+    if (message.role !== 'user') {
+      return err(new ChatError('updateUserMessage can only update user messages'))
+    }
+
+    return updateMessageContent(messageId, newContent)
+  }
+
+  async function finalizeAssistantMessage(
+    messageId: number,
+    fullContent: string
+  ): Promise<Result<void, DbError | ChatError>> {
+    const updateResult = await appDb.message.update(messageId, {
+      content: fullContent,
+      isStreaming: false,
+    })
+
+    if (updateResult.isErr()) return err(updateResult.error)
+
+    const index = messages.value.findIndex((m) => m.id === messageId)
+    if (index !== -1) {
+      const current = messages.value[index]
+      messages.value[index] = {
+        ...current,
+        content: fullContent,
+        isStreaming: false,
+      }
+    }
+
+    return ok(undefined)
+  }
+
   return {
     loadMessages,
     refreshMessageById,
     updateMessageContent,
     deleteMessage,
+    createUserMessage,
+    updateUserMessage,
+    finalizeAssistantMessage,
   }
 }
