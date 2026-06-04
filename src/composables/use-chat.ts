@@ -142,7 +142,7 @@ export function useChat() {
   const contextUsageWarning = computed(() => {
     const usage = lastContextUsage.value
     if (usage >= 0.8) {
-      return 'This conversation is close to the model’s context limit. Older messages will be truncated.'
+      return 'This conversation is close to the model\u2019s context limit. Older messages will be truncated.'
     }
     if (usage >= 0.6) {
       return 'This conversation is getting long; earlier messages may be dropped soon.'
@@ -163,11 +163,8 @@ export function useChat() {
   })
 
   const atSources = computed<AtPickerItem[]>(() => {
-    const promptSources = availablePromptsAsSources.value
-    const spaceSources: AtPickerItem[] = []
-    const superpowerSources: AtPickerItem[] = []
-
-    return [...spaceSources, ...promptSources, ...superpowerSources]
+    // TODO: add spaceSources and superpowerSources when those backends are ready
+    return availablePromptsAsSources.value
   })
 
   const activeSources = computed(() => chatInputRef.value?.activeSources ?? [])
@@ -413,41 +410,9 @@ export function useChat() {
     { deep: true }
   )
 
-  watchDebounced(
-    currentPrompt,
-    async (newPromptValue) => {
-      const persistResult = await keyValueStore.set('chat-prompt', newPromptValue)
+  watchDebounced(currentPrompt, (newValue) => persistPrompt(newValue), { debounce: 300 })
 
-      if (persistResult.isErr()) {
-        logger.error('Failed to persist prompt selection', {
-          conversationId: currentConversationId.value,
-          userId: currentUserId.value,
-          promptValue: newPromptValue,
-          error: persistResult.error,
-        })
-        persistenceWarning.value = 'Failed to save your prompt selection. It may reset after refresh.'
-      }
-    },
-    { debounce: 300 }
-  )
-
-  watchDebounced(
-    currentModel,
-    async (newModelValue) => {
-      const persistResult = await keyValueStore.set('chat-model', newModelValue)
-
-      if (persistResult.isErr()) {
-        logger.error('Failed to persist model selection', {
-          conversationId: currentConversationId.value,
-          userId: currentUserId.value,
-          modelValue: newModelValue,
-          error: persistResult.error,
-        })
-        persistenceWarning.value = 'Failed to save your model selection. It may reset after refresh.'
-      }
-    },
-    { debounce: 300 }
-  )
+  watchDebounced(currentModel, (newValue) => persistModel(newValue), { debounce: 300 })
 
   const findModelContextWindow = (fullValue: string): number | undefined => {
     if (!fullValue || !fullValue.includes(':')) return undefined
