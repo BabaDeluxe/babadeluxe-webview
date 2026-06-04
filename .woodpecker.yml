@@ -1,4 +1,18 @@
-skip_clone: true
+clone:
+  git:
+    image: woodpeckerci/plugin-git
+    settings:
+      submodules: false
+
+when:
+  - event: push
+    branch:
+      - master
+      - dev
+  - event: manual
+    branch:
+      - master
+      - dev
 
 variables:
   - &deploy_image alpine
@@ -16,10 +30,7 @@ variables:
         "$REPO_SLUG" \
         "$REPO_BRANCH" \
         "$PNPM_VERSION" \
-        "$SUBDOMAIN_DIR" \
-        "$VITE_APP_URL" \
-        "$VITE_BUILD_MODE" \
-        "$GH_TOKEN" <<'ENDSSH'
+        "$SUBDOMAIN_DIR" <<'ENDSSH'
         set -euo pipefail
 
         NODE_ENV="$1"
@@ -29,43 +40,21 @@ variables:
         REPO_BRANCH="$5"
         PNPM_VERSION="$6"
         SUBDOMAIN_DIR="$7"
-        VITE_APP_URL="$8"
-        VITE_BUILD_MODE="$9"
-        export GH_TOKEN="${10}"
 
         source ~/.bash_profile
         source ~/.nvm/nvm.sh
 
         DEPLOY_PATH="$DEPLOY_BASE_DIR/$GIT_DIR"
-        TARGET_PATH="$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
-
         mkdir -p "$DEPLOY_BASE_DIR"
 
-        clone_repo() {
-          local slug="$1"
-          local path="$2"
-          local branch="$3"
-
-          echo "DEPLOY_VARIANT=git-askpass"
-          local askpass
-          askpass=$(mktemp)
-          printf '#!/bin/sh\necho "%s"\n' "$GH_TOKEN" > "$askpass"
-          chmod +x "$askpass"
-          if GIT_ASKPASS="$askpass" GIT_USERNAME="x-access-token" git clone "https://github.com/$slug.git" "$path" -b "$branch"; then
-            rm -f "$askpass"
-            return 0
-          fi
-          rm -f "$askpass"
-
-          echo "DEPLOY_CLONE_ERROR=clone failed for $slug"
-          return 1
-        }
-
         if [ ! -d "$DEPLOY_PATH/.git" ]; then
-          clone_repo "$REPO_SLUG" "$DEPLOY_PATH" "$REPO_BRANCH"
+          gh repo clone "$REPO_SLUG" "$DEPLOY_PATH" -- -b "$REPO_BRANCH"
         fi
 
         cd "$DEPLOY_PATH"
+
+        pwd
+        test -d .git
 
         git fetch origin "$REPO_BRANCH"
         git checkout "$REPO_BRANCH"
@@ -74,66 +63,52 @@ variables:
         corepack enable
         corepack use "pnpm@$PNPM_VERSION"
 
-        pnpm install --frozen-lockfile < /dev/null
-        pnpm type-check
+        pnpm install --frozen-lockfile
         rm -rf ./dist
-        VITE_APP_URL="$VITE_APP_URL" pnpm build --mode "$VITE_BUILD_MODE" < /dev/null
+        pnpm build
 
-        test -d ./dist
         test -f ./dist/index.html
 
-        mkdir -p "$TARGET_PATH"
-        rsync -avz --delete ./dist/ "$TARGET_PATH/"
+        mkdir -p "$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
+        rsync -r "$DEPLOY_PATH/dist/" "$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR/"
       ENDSSH
 
   - &deploy_base_env
     SSH_HOST: 217.160.14.123
-    SSH_USER:
-      from_secret: ssh_user
-    DEPLOY_BASE_DIR:
-      from_secret: deploy_base_dir
+    SSH_USER: babadeluxe_111
+    DEPLOY_BASE_DIR: /var/www/vhosts/babadeluxe.com
     REPO_SLUG: BabaDeluxe/babadeluxe-webview
     PNPM_VERSION: 9.15.0
     DEPLOY_SSH_KEY:
       from_secret: deploy_ssh_key
-    GH_TOKEN:
-      from_secret: gh_token
-
-  - &deploy_base_secrets
-    - ssh_user
-    - deploy_base_dir
-    - deploy_ssh_key
-    - gh_token
 
 steps:
   deploy-prod:
     image: *deploy_image
     when:
-      - event: [push, manual]
+      - event: push
         branch: master
-    secrets: *deploy_base_secrets
+      - event: manual
+        branch: master
     environment:
       <<: *deploy_base_env
       NODE_ENV: production
-      VITE_BUILD_MODE: production
       REPO_BRANCH: master
       GIT_DIR: babadeluxe-webview-prod
       SUBDOMAIN_DIR: app.babadeluxe.com
-      VITE_APP_URL: https://app.babadeluxe.com
     commands: *deploy_commands
 
   deploy-staging:
     image: *deploy_image
     when:
-      - event: [push, manual]
+      - event: push
         branch: dev
-    secrets: *deploy_base_secrets
+      - event: manual
+        branch: dev
     environment:
       <<: *deploy_base_env
       NODE_ENV: staging
-      VITE_BUILD_MODE: staging
       REPO_BRANCH: dev
       GIT_DIR: babadeluxe-webview-staging
       SUBDOMAIN_DIR: app-staging.babadeluxe.com
-      VITE_APP_URL: https://app-staging.babadeluxe.com
     commands: *deploy_commands
