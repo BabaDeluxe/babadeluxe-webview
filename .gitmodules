@@ -1,5 +1,0 @@
-[submodule "babadeluxe-docs"]
-	path = babadeluxe-docs
-	url = https://github.com/babadeluxe/babadeluxe-docs
-	ignore = dirty
-	branch = master
