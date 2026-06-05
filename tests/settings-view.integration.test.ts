@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { ref, reactive, readonly } from 'vue'
+import { ref, reactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import type { AsyncInjectable } from '@/injection-keys'
 import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
@@ -11,10 +11,6 @@ import SettingsView from '@/views/SettingsView.vue'
 import { ok } from 'neverthrow'
 vi.mock('@/composables/use-settings', () => ({
   useSettings: () => ({
-    // settings: reactive({ value: [] }),
-    // upsertSetting: vi.fn(),
-    // loadSettings: vi.fn().mockResolvedValue(undefined),
-
     settings: ref([]),
     upsertSetting: vi.fn().mockResolvedValue(ok(undefined)),
     loadSettings: vi.fn().mockResolvedValue(ok(undefined)),
@@ -23,7 +19,6 @@ vi.mock('@/composables/use-settings', () => ({
 
 vi.mock('@/composables/use-models-socket', () => ({
   useModelsSocket: () => ({
-    reloadModels: vi.fn(),
     models: ref({
       openai: [],
       anthropic: [],
@@ -37,7 +32,7 @@ vi.mock('@/composables/use-models-socket', () => ({
 }))
 
 vi.mock('@/composables/use-theme', () => ({
-  useTheme: () => ({ isDark: reactive({ value: false }), toggleDark: vi.fn() }),
+  useTheme: () => ({ isDark: ref(false), toggleDark: vi.fn() }),
 }))
 
 vi.mock('@/stores/use-toast-store', () => ({

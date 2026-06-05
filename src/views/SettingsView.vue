@@ -307,7 +307,7 @@ async function handleTemperatureReset(modelValue: string): Promise<void> {
 async function upsertSettingWrapper(
   key: string,
   value: unknown,
-  dataType: 'string' | 'number' | 'boolean'
+  dataType: 'string' | 'number' | 'boolean' | 'json-object' | 'json-array'
 ): Promise<void> {
   const result = await upsertSetting(key, value, dataType)
 

@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@babadeluxe/shared':
-        specifier: ^0.22.0
-        version: 0.22.0(socket.io@4.8.3)(typescript@5.8.3)
+        specifier: ^0.24.0
+        version: 0.24.0(socket.io@4.8.3)(typescript@5.8.3)
       '@lottiefiles/dotlottie-vue':
         specifier: ^0.10.1
         version: 0.10.15(vue@3.5.32(typescript@5.8.3))
@@ -234,9 +234,8 @@ packages:
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
 
-  '@babadeluxe/shared@0.22.0':
-    resolution: {integrity: sha512-zyYuarS6Sj7t4T5iuCqZXq3L0VeK1O30UBao1J9NeVSEUdYdi64dp3CWI8ToFqU5T5zGrpJVfUe6yNneYkHVLQ==, tarball: http://npflared.simonwaiblinger.workers.dev/@babadeluxe/shared/-/@babadeluxe/shared-0.22.0.tgz}
-    engines: {node: '>=20.19 <24'}
+  '@babadeluxe/shared@0.24.0':
+    resolution: {integrity: sha512-NxbNfJu0J54FfU9RdoST/25Og9fMmlAdl5e+aIPY2sUTPmyWg/BFc9VIL3bVRIKLZ5irS2XMSQVZJOoqiez9Dw==, tarball: http://npflared.simonwaiblinger.workers.dev/@babadeluxe/shared/-/@babadeluxe/shared-0.24.0.tgz}
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -4950,6 +4949,9 @@ packages:
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
 snapshots:
 
   '@antfu/install-pkg@1.1.0':
@@ -4965,13 +4967,13 @@ snapshots:
       '@csstools/css-tokenizer': 3.0.4
       lru-cache: 10.4.3
 
-  '@babadeluxe/shared@0.22.0(socket.io@4.8.3)(typescript@5.8.3)':
+  '@babadeluxe/shared@0.24.0(socket.io@4.8.3)(typescript@5.8.3)':
     dependencies:
       dotenv: 17.4.1
       neverthrow: 8.2.0
       socket.io-client: 4.8.3
-      zod: 4.3.6
-      zod-sockets: 5.3.0(socket.io@4.8.3)(typescript@5.8.3)(zod@4.3.6)
+      zod: 4.4.3
+      zod-sockets: 5.3.0(socket.io@4.8.3)(typescript@5.8.3)(zod@4.4.3)
     transitivePeerDependencies:
       - bufferutil
       - socket.io
@@ -10124,13 +10126,15 @@ snapshots:
 
   yoctocolors@2.1.2: {}
 
-  zod-sockets@5.3.0(socket.io@4.8.3)(typescript@5.8.3)(zod@4.3.6):
+  zod-sockets@5.3.0(socket.io@4.8.3)(typescript@5.8.3)(zod@4.4.3):
     dependencies:
       ansis: 4.2.0
       ramda: 0.32.0
       socket.io: 4.8.3
       typescript: 5.8.3
       yaml: 2.8.3
-      zod: 4.3.6
+      zod: 4.4.3
 
   zod@4.3.6: {}
+
+  zod@4.4.3: {}

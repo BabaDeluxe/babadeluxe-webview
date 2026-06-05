@@ -87,7 +87,7 @@ export function useSettings() {
   const upsertSetting = async (
     settingKey: string,
     settingValue: unknown,
-    dataType: 'string' | 'number' | 'boolean'
+    dataType: 'string' | 'number' | 'boolean' | 'json-object' | 'json-array'
   ): Promise<Result<void, NetworkError>> => {
     error.value = undefined
     const result = await repository.upsertSetting(settingKey, settingValue, dataType)
