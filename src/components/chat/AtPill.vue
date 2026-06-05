@@ -2,7 +2,10 @@
   <span
     class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-accent/10 border border-accent/20 rounded-full text-xs text-accent font-medium select-none align-middle"
   >
-    <span :class="getIcon(item)" class="w-3 h-3" />
+    <span
+      :class="getIcon(item)"
+      class="w-3 h-3"
+    />
     <span>{{ item.label }}</span>
     <button
       type="button"

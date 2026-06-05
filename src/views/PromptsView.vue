@@ -235,9 +235,19 @@ const PromptList = defineAsyncComponent(() =>
 const PromptEditorPanel = {
   components: { PromptEditor, PromptInjectionSettings },
   props: [
-    'selectedPrompt', 'isCreating', 'isSaving', 'isDeleting', 'isPro',
-    'isUpgrading', 'showUpgradeNudge', 'activeTab', 'tabs',
-    'injectionMode', 'injectionInterval', 'injectionPosition', 'injectionIncludeHistory',
+    'selectedPrompt',
+    'isCreating',
+    'isSaving',
+    'isDeleting',
+    'isPro',
+    'isUpgrading',
+    'showUpgradeNudge',
+    'activeTab',
+    'tabs',
+    'injectionMode',
+    'injectionInterval',
+    'injectionPosition',
+    'injectionIncludeHistory',
   ],
   emits: ['save', 'change', 'delete', 'tabChange', 'upgrade', 'saveInjectionSetting'],
   template: `

@@ -42,7 +42,8 @@ function ensureChatSocketListeners(
   if (!attachedHandlers) {
     const handleMessageChunk = (payload: MessageChunkPayload) => {
       const messageState = socketStore.getMessageState(payload.messageId)
-      const isValidSequence = Number.isFinite(payload.sequence) && payload.sequence > (messageState?.lastSequence ?? -1)
+      const isValidSequence =
+        Number.isFinite(payload.sequence) && payload.sequence > (messageState?.lastSequence ?? -1)
 
       if (!messageState || !isValidSequence) return
 
