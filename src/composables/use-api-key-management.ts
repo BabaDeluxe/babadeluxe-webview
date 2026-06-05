@@ -21,7 +21,7 @@ export function useApiKeyManagement<T, E>(
   upsertSetting: (
     key: string,
     value: unknown,
-    type: 'string' | 'number' | 'boolean'
+    type: 'string' | 'number' | 'boolean' | 'json-object' | 'json-array'
   ) => Promise<void>,
   reloadModels: () => Promise<Result<T, E>>,
   getCurrentUserId: () => string | undefined,
@@ -30,7 +30,7 @@ export function useApiKeyManagement<T, E>(
       readonly {
         readonly settingKey: string
         readonly settingValue: Readonly<unknown>
-        readonly dataType: 'string' | 'number' | 'boolean'
+        readonly dataType: 'string' | 'number' | 'boolean' | 'json-object' | 'json-array'
         readonly updatedAt: string | Date
         readonly category: string
         readonly encrypted: boolean
@@ -44,7 +44,7 @@ export function useApiKeyManagement<T, E>(
       readonly {
         readonly settingKey: string
         readonly settingValue: Readonly<unknown>
-        readonly dataType: 'string' | 'number' | 'boolean'
+        readonly dataType: 'string' | 'number' | 'boolean' | 'json-object' | 'json-array'
         readonly updatedAt: string | Date
         readonly category: string
         readonly encrypted: boolean

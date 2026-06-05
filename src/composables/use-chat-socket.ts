@@ -108,7 +108,6 @@ function ensureChatSocketListeners(
 
   chatSocket.off('chat:messageChunk', attachedHandlers.onChunk)
   // TODO(#issue): add chat:reasoningChunk to socket Emission type — event exists on server but not yet in shared Emission map
-  // @ts-expect-error - chat:reasoningChunk missing from Emission type
   chatSocket.off('chat:reasoningChunk', attachedHandlers.onReasoningChunk)
   chatSocket.off('chat:messageComplete', attachedHandlers.onComplete)
   chatSocket.off('chat:chatError', attachedHandlers.onChatError)
@@ -116,7 +115,6 @@ function ensureChatSocketListeners(
 
   chatSocket.on('chat:messageChunk', attachedHandlers.onChunk)
   // TODO(#issue): add chat:reasoningChunk to socket Emission type — event exists on server but not yet in shared Emission map
-  // @ts-expect-error - chat:reasoningChunk missing from Emission type
   chatSocket.on('chat:reasoningChunk', attachedHandlers.onReasoningChunk)
   chatSocket.on('chat:messageComplete', attachedHandlers.onComplete)
   chatSocket.on('chat:chatError', attachedHandlers.onChatError)

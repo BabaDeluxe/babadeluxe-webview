@@ -7,7 +7,7 @@ export interface SettingsRepository {
   upsertSetting(
     settingKey: string,
     settingValue: unknown,
-    dataType: 'string' | 'number' | 'boolean'
+    dataType: 'string' | 'number' | 'boolean' | 'json-object' | 'json-array'
   ): Promise<Result<void, NetworkError>>
   deleteSetting(settingKey: string): Promise<Result<void, NetworkError>>
 }

@@ -44,7 +44,7 @@
 import { computed } from 'vue'
 
 interface Setting {
-  dataType: 'string' | 'number' | 'boolean'
+  dataType: 'string' | 'number' | 'boolean' | 'json-object' | 'json-array'
   settingValue: unknown
 }
 
@@ -78,7 +78,7 @@ const booleanValue = computed(() => {
 function handleInput(event: Event) {
   const target = event.target as HTMLInputElement
   const value = props.setting.dataType === 'number' ? Number(target.value) : target.value
-  emit('field-changed', props.fieldName, value)
+  emit('field-changed', props.fieldName, value as string | number | boolean)
 }
 
 function handleCheckbox(event: Event) {

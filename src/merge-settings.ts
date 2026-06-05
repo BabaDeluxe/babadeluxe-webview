@@ -33,7 +33,7 @@ export function mergePartialUpdate(
   const updated = [...settings]
   updated[index] = {
     ...updated[index],
-    dataType: update.dataType as 'string' | 'number' | 'boolean',
+    dataType: update.dataType as 'string' | 'number' | 'boolean' | 'json-object',
     settingValue: update.settingValue,
     updatedAt: new Date(update.updatedAt),
   }

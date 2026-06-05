@@ -21,7 +21,6 @@ type DbMessage = {
   systemPrompt?: string
   reasoning?: string
   contextReferences?: string
-  reasoning?: string
 }
 
 type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>

@@ -36,14 +36,13 @@ export type Message = {
   systemPrompt?: string
   reasoning?: string
   contextReferences?: ContextReference[]
-  reasoning?: string
 }
 
 export type LocalSetting = {
   id?: number
   settingKey: string
   settingValue: unknown
-  dataType: 'string' | 'number' | 'boolean'
+  dataType: 'string' | 'number' | 'boolean' | 'json-object' | 'json-array'
   updatedAt: Date
 }
 
