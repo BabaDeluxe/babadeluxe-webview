@@ -176,7 +176,8 @@ export function useSubscriptionSocket() {
           reject(new NetworkError(serverAcknowledgmentTimeout))
         }, socketTimeoutMs.subscription)
 
-        socket.emit(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(socket as any).emit(
           'subscription:createCheckoutSession',
           (res: { success: boolean; checkoutUrl?: string; error?: string }) => {
             cancelTimeout(timeoutId)
@@ -240,8 +241,9 @@ export function useSubscriptionSocket() {
           reject(new NetworkError(serverAcknowledgmentTimeout))
         }, socketTimeoutMs.subscription)
 
-        socket.emit(
-          'subscription:createPortalSession' /* @ts-expect-error backend event missing from shared types */,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(socket as any).emit(
+          'subscription:createPortalSession',
           (res: { success: boolean; checkoutUrl?: string; error?: string }) => {
             cancelTimeout(timeoutId)
             resolve(res)

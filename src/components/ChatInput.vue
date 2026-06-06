@@ -114,7 +114,9 @@ const {
 
 const computedInputValue = computed({
   get: () => props.value,
-  set: (newValue) => { emit('update:value', newValue); },
+  set: (newValue) => {
+    emit('update:value', newValue)
+  },
 })
 
 const isSubmitDisabled = computed(() => {
