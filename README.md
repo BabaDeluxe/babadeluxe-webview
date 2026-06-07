@@ -19,7 +19,8 @@ This repo contains the frontend that runs inside the VS Code webview panel. It c
 - **State:** Pinia
 - **Build:** Vite
 - **Styling:** UnoCSS (Tailwind conventions)
-- **Persistence:** Dexie.js (IndexedDB)
+- **Persistence:** Dexie.js (IndexedDB) with AI Reasoning support
+- **Rich Composer:** Fuzzy-matching @mentions
 - **Synchronization:** GitHub (REST)
 - **Real-time:** Socket.io-client
 - **Validation:** Zod + neverthrow
