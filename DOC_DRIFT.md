@@ -163,3 +163,29 @@ This file documents discrepancies between the codebase implementation and the pr
 - `docs/ENVS.md`
 - `docs/SYNC_DESIGN.md`
 - `DOC_DRIFT.md`
+
+---
+
+## Pass Summary: 2026-06-07
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `docs/ENVS.md`
+
+**Regressions Found & Fixed:**
+
+- **AI Reasoning:** `docs/ARCHITECTURE.md` was missing documentation for the `chat:reasoningChunk` event and the `reasoning` field in the `AppDb` schema (v8).
+- **At-Mentions:** The new `@` mention picker and atomic `AtPill.vue` rendering were undocumented in the core architecture.
+- **Subscriptions:** Reactive tier/status management via `use-subscription-socket.ts` was missing from the service documentation.
+- **Composer Features:** `README.md` was updated to highlight the new rich composer and reasoning support as user-facing features.
+
+**Files Changed:**
+
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `DOC_DRIFT.md`

@@ -126,7 +126,7 @@ Raw Dexie collections are wrapped in `SafeCollection` and `SafeTable` to enforce
 
 ### ChatRepository
 
-`src/database/chat-repository.ts` holds all chat business logic (message CRUD, conversation cascade delete, streaming message resolution). `AppDb` owns the schema, hooks, and `SafeTable` wrappers and exposes a `chatRepository` getter — it no longer contains domain methods directly.
+`src/database/chat-repository.ts` holds all chat business logic (message CRUD, conversation cascade delete, streaming message resolution). `AppDb` owns the schema, hooks, and `SafeTable` wrappers and exposes a `chatRepository` getter — it no longer contains domain methods directly. The `message` table (v8) includes an optional `reasoning` field for AI thought process streaming.
 
 ### KeyValueDb
 
@@ -143,6 +143,20 @@ Logic is encapsulated in composables rather than bloated components:
 | `use-tracked-timeouts`      | Register timeouts that are automatically cleared on unmount |
 | `use-socket-listener`       | Type-safe Socket.io event subscriptions                     |
 | `use-date-formatter`        | Locale-aware date/time formatting                           |
+| `use-at-picker`             | Fuzzy-matching for @mentions in the chat composer           |
+| `use-subscription-socket`   | Reactive subscription tier and billing status management    |
+
+## AI Reasoning
+
+The system supports real-time streaming of AI reasoning processes. The `chat:reasoningChunk` socket event appends data to the active message's `reasoning` field. These are rendered via a collapsible `ReasoningBlock.vue` component with a pulsing animation, allowing users to inspect the model's logic without cluttering the primary conversation flow.
+
+## At-Mentions (@)
+
+The chat composer features an `@` mention picker powered by `use-at-picker.ts`. It utilizes an inline Damerau-Levenshtein distance algorithm for fuzzy matching (activated after 2+ characters). Selections are rendered as atomic `AtPill.vue` units within the input area.
+
+## Subscription Management
+
+User access levels are managed via a reactive subscription system. `use-subscription-socket.ts` monitors the `subscription:updated` event to update the user's tier (`FREE`, `PRO`) and status (`active`, `past_due`, etc.). UI components like `SubscriptionModal.vue` use this state to gate features or prompt for upgrades.
 
 ## Streaming & Rendering
 
