@@ -10,10 +10,6 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 
 ## Technical Debt / Refactoring
 
-### Type Safety
-
-- **Prompt Socket Types**: There is a weird cast in `use-prompts-socket.ts` that suggests shared types between the frontend and backend might be misaligned or incomplete. (`src/composables/use-prompts-socket.ts`)
-
 ## UI/UX Improvements
 
 ### Error Boundaries
@@ -23,7 +19,3 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 ### Prompt Library
 
 - **Validation**: Current prompt validation is basic (mostly length and presence). Could be improved with regex for command names or template syntax highlighting.
-
-## Scan Results (Raw TODOs)
-
-- `src/composables/use-prompts-socket.ts`: `// TODO Check if the shared types are correct, because this cast is weird`

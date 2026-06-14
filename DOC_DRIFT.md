@@ -26,6 +26,37 @@ This file documents discrepancies between the codebase implementation and the pr
     - The codebase (`src/auth/zitadel-auth-provider.ts`) suggests there might be support for Zitadel, which is not mentioned in the docs.
 
 ---
+---
+
+## Pass Summary: 2026-06-14
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `UNFINISHED.md`
+- `src/composables/use-prompts-socket.ts`
+- `src/vs-code/types.ts`
+- `src/sync/sync-queue.ts`
+
+**Regressions Found & Fixed:**
+
+- **Debt Tracking:** `UNFINISHED.md` contained a stale reference to a TODO in `src/composables/use-prompts-socket.ts` that had already been addressed.
+- **Sync Design:** `docs/SYNC_DESIGN.md` incorrectly stated that `SftpSyncRequest` and `SftpSyncResponse` were already defined in `src/vs-code/types.ts`; updated them to "Planned".
+- **File Structure:** `docs/SYNC_DESIGN.md` was updated to reflect that `src/sync/sync-queue.ts` is currently a placeholder.
+- **Project Structure:** `README.md` and `docs/ARCHITECTURE.md` had stale directory references (`src/validators/`) and incorrect service paths for `ApiKeyValidator` and search logic.
+- **Badges:** `README.md` was still displaying an XO badge despite the project migrating to ESLint.
+
+**Files Changed:**
+
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `UNFINISHED.md`
+- `DOC_DRIFT.md`
 
 ## Pass Summary: 2025-05-24
 
