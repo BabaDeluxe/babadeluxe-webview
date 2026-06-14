@@ -2,7 +2,7 @@
 
 <p align="left">
   <img src="https://img.shields.io/badge/license-EUPL%201.2-6a5acd?style=flat-rounded" alt="license">
-  <img src="https://img.shields.io/badge/code_style-XO-8a2be2?style=flat-rounded" alt="code style: xo">
+  <img src="https://img.shields.io/badge/code_style-ESLint-4B32C3?style=flat-rounded" alt="code style: eslint">
   <img src="https://img.shields.io/badge/vue-3-b06ab3?style=flat-rounded" alt="vue 3">
   <img src="https://img.shields.io/badge/node-%3E%3D20.19%20%3C24-9a56bf?style=flat-rounded" alt="node version">
 </p>
@@ -184,7 +184,6 @@ graph TD
 | `src/vs-code/`     | Message bridge, type guards, and VS Code protocols        |
 | `src/components/`  | `Base*` design system components and feature widgets      |
 | `src/views/`       | Route-level pages: Chat, History, Prompts, Settings       |
-| `src/validators/`  | Zod schemas for runtime validation                        |
 
 ## Prerequisites
 

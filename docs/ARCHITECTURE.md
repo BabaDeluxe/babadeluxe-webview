@@ -197,4 +197,4 @@ graph TD
 | `src/sync/`        | Chat synchronization logic (GitHub, etc.)                   |
 | `src/components/`  | `Base*` design system components and feature widgets        |
 | `src/views/`       | Route-level pages: Chat, History, Prompts, Settings         |
-| `src/services/`    | Domain services: `VsCodeBridge`, `ApiKeyValidator`, search  |
+| `src/services/`    | Domain services: `VsCodeBridge`, `PromptInjectionService`   |

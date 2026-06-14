@@ -203,7 +203,7 @@ Remote path:  <base-url>/chats/<conversationId>.json
 Remote path:  <remote-dir>/chats/<conversationId>.json  (managed by extension host)
 ```
 
-**Message types** (defined in `src/vs-code/types.ts`):
+**Message types** (to be defined in `src/vs-code/types.ts`):
 
 ```ts
 // Webview → Extension host
@@ -276,14 +276,14 @@ All errors are logged via `src/logger.ts`. The Pinia sync store exposes a `syncS
 src/sync/
   types.ts                   ← ISyncAdapter interface + shared types
   sync-manager.ts            ← orchestration logic
-  sync-queue.ts              ← (Reserved for future use/Refactoring)
+  sync-queue.ts              ← Placeholder file (future use)
   device-id.ts               ← Device identification service
   github-adapter.ts          ← GitHub REST API adapter (Phase 1 ✅)
   webdav-adapter.ts          ← WebDAV adapter (Phase 2)
   sftp-adapter.ts            ← SFTP postMessage proxy adapter (Phase 3)
 
 src/vs-code/
-  types.ts                   ← Includes SftpSyncRequest + SftpSyncResponse (Phase 3)
+  types.ts                   ← Will include SftpSyncRequest + SftpSyncResponse (Phase 3)
   api.ts                     ← VS Code postMessage bridge (existing, not modified)
 
 src/stores/
