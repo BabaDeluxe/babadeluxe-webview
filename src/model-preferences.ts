@@ -70,3 +70,24 @@ export function topKLabel(value: number): string {
   if (value <= 200) return 'Wide'
   return 'Very Wide'
 }
+
+/**
+ * Human-readable reasoning effort label shown in the UI.
+ *
+ * auto    → Auto (model default)
+ * off     → Off
+ * minimal → Minimal
+ * low     → Low
+ * medium  → Medium
+ * high    → High
+ */
+export function reasoningEffortLabel(value: string | undefined): string {
+  switch (value) {
+    case 'off': return 'Off'
+    case 'minimal': return 'Minimal'
+    case 'low': return 'Low'
+    case 'medium': return 'Medium'
+    case 'high': return 'High'
+    default: return 'Auto'
+  }
+}

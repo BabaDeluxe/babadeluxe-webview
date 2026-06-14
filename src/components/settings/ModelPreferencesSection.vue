@@ -6,7 +6,7 @@
     <div class="flex items-center justify-between">
       <h2 class="text-xl font-onest font-semibold text-deepText">Model Preferences</h2>
       <span class="text-xs text-subtleText">
-        Control generation sampling: temperature (randomness), top_p (nucleus), top_k (vocab)
+        Control generation sampling: temperature, top_p, top_k, reasoning effort
       </span>
     </div>
 
@@ -43,6 +43,12 @@
           @change="(val, topK) => $emit('top-k-change', val, topK)"
           @reset="(val) => $emit('top-k-reset', val)"
         />
+        <ModelReasoningEffortRow
+          :model="model"
+          :reasoning-effort="getReasoningEffortForModel(model.value)"
+          @change="(val, effort) => $emit('reasoning-effort-change', val, effort)"
+          @reset="(val) => $emit('reasoning-effort-reset', val)"
+        />
       </template>
     </div>
   </section>
@@ -52,6 +58,8 @@
 import ModelTemperatureRow from '@/components/ModelTemperatureRow.vue'
 import ModelTopPRow from '@/components/ModelTopPRow.vue'
 import ModelTopKRow from '@/components/ModelTopKRow.vue'
+import ModelReasoningEffortRow from '@/components/ModelReasoningEffortRow.vue'
+import type { ReasoningEffort } from '@babadeluxe/shared'
 
 type Model = {
   label: string
@@ -63,6 +71,7 @@ defineProps<{
   getTemperatureForModel: (modelValue: string) => number | undefined
   getTopPForModel: (modelValue: string) => number | undefined
   getTopKForModel: (modelValue: string) => number | undefined
+  getReasoningEffortForModel: (modelValue: string) => ReasoningEffort | undefined
 }>()
 
 defineEmits<{
@@ -72,5 +81,7 @@ defineEmits<{
   (event: 'top-p-reset', modelValue: string): void
   (event: 'top-k-change', modelValue: string, value: number): void
   (event: 'top-k-reset', modelValue: string): void
+  (event: 'reasoning-effort-change', modelValue: string, value: ReasoningEffort): void
+  (event: 'reasoning-effort-reset', modelValue: string): void
 }>()
 </script>
