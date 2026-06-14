@@ -68,8 +68,14 @@
       <ModelPreferencesSection
         :available-models="availableModels"
         :get-temperature-for-model="getTemperatureForModel"
+        :get-top-p-for-model="getTopPForModel"
+        :get-top-k-for-model="getTopKForModel"
         @temperature-change="handleTemperatureChange"
         @temperature-reset="handleTemperatureReset"
+        @top-p-change="handleTopPChange"
+        @top-p-reset="handleTopPReset"
+        @top-k-change="handleTopKChange"
+        @top-k-reset="handleTopKReset"
       />
 
       <ApiKeySection
@@ -106,12 +112,16 @@ import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { ResultAsync } from 'neverthrow'
 import { computed, onMounted, ref } from 'vue'
-import type { ModelTemperatures } from '@babadeluxe/shared'
+import type { ModelTemperatures, ModelTopPs, ModelTopKs } from '@babadeluxe/shared'
 import {
   promptInjectionDefaults,
   resetModelTemperature,
   setModelTemperature,
   validateSetting,
+  resetModelTopP,
+  setModelTopP,
+  resetModelTopK,
+  setModelTopK,
 } from '@babadeluxe/shared'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { useSettings } from '@/composables/use-settings'
@@ -135,10 +145,6 @@ useOllamaSettings()
 
 const currentUserId = ref<string>()
 
-// isReady is the single runtime gate: true only after apiKeyValidator.value.value
-// is fully resolved (non-undefined). The `as IApiKeyValidator` assertion below is
-// therefore safe — useApiKeyManagement and every template branch that consumes
-// resolvedValidator are unreachable while isReady is false.
 const isReady = computed(() => apiKeyValidator.isReady && apiKeyValidator.value !== undefined)
 
 const resolvedValidator = computed(() => apiKeyValidator.value as IApiKeyValidator)
@@ -274,6 +280,8 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
 
 const availableModels = computed(() => groupedModels.value.flatMap((group) => group.items))
 
+// ─── Temperature ────────────────────────────────────────────────────────────
+
 const modelTemperatures = computed<ModelTemperatures>(() => {
   const s = settings.value.find(
     (setting: { settingKey: string }) => setting.settingKey === 'modelTemperatures'
@@ -304,6 +312,72 @@ async function handleTemperatureReset(modelValue: string): Promise<void> {
   await persistTemperatures(resetModelTemperature(modelTemperatures.value, modelValue))
 }
 
+// ─── Top P ──────────────────────────────────────────────────────────────────
+
+const modelTopPs = computed<ModelTopPs>(() => {
+  const s = settings.value.find(
+    (setting: { settingKey: string }) => setting.settingKey === 'modelTopPs'
+  )
+  return (s?.settingValue as ModelTopPs) ?? {}
+})
+
+function getTopPForModel(modelValue: string): number | undefined {
+  return modelTopPs.value[modelValue]
+}
+
+async function persistTopPs(next: ModelTopPs): Promise<void> {
+  const result = await upsertSetting('modelTopPs', next, 'string')
+  if (result.isErr()) {
+    logger.error('Failed to save model top_p values', { error: result.error })
+    toasts.error(toUserMessage(result.error))
+  }
+}
+
+async function handleTopPChange(modelValue: string, value: number): Promise<void> {
+  const next = setModelTopP(modelTopPs.value, modelValue, value)
+  const validation = validateSetting('modelTopPs', next)
+  if (!validation.success) return
+  await persistTopPs(next)
+}
+
+async function handleTopPReset(modelValue: string): Promise<void> {
+  await persistTopPs(resetModelTopP(modelTopPs.value, modelValue))
+}
+
+// ─── Top K ──────────────────────────────────────────────────────────────────
+
+const modelTopKs = computed<ModelTopKs>(() => {
+  const s = settings.value.find(
+    (setting: { settingKey: string }) => setting.settingKey === 'modelTopKs'
+  )
+  return (s?.settingValue as ModelTopKs) ?? {}
+})
+
+function getTopKForModel(modelValue: string): number | undefined {
+  return modelTopKs.value[modelValue]
+}
+
+async function persistTopKs(next: ModelTopKs): Promise<void> {
+  const result = await upsertSetting('modelTopKs', next, 'string')
+  if (result.isErr()) {
+    logger.error('Failed to save model top_k values', { error: result.error })
+    toasts.error(toUserMessage(result.error))
+  }
+}
+
+async function handleTopKChange(modelValue: string, value: number): Promise<void> {
+  const next = setModelTopK(modelTopKs.value, modelValue, value)
+  const validation = validateSetting('modelTopKs', next)
+  if (!validation.success) return
+  await persistTopKs(next)
+}
+
+async function handleTopKReset(modelValue: string): Promise<void> {
+  await persistTopKs(resetModelTopK(modelTopKs.value, modelValue))
+}
+
+// ─── Settings wiring ────────────────────────────────────────────────────────
+
 async function upsertSettingWrapper(
   key: string,
   value: unknown,
@@ -320,7 +394,6 @@ async function upsertSettingWrapper(
 const handleThemeToggle = async () => {
   toggleDark()
   const newValue = isDark.value ? 'dark' : 'light'
-  // Optimistic — visual state is already applied; persist in background without blocking.
   await upsertSetting('theme', newValue, 'string')
 }
 

@@ -40,3 +40,33 @@ export function temperatureLabel(value: number): string {
   if (value <= 1.2) return 'Creative'
   return 'Wild'
 }
+
+/**
+ * Human-readable top_p label shown in the UI tooltip.
+ *
+ * 0.0–0.3  → Focused
+ * 0.4–0.6  → Balanced
+ * 0.7–0.85 → Diverse
+ * 0.86–1.0 → Very Diverse
+ */
+export function topPLabel(value: number): string {
+  if (value <= 0.3) return 'Focused'
+  if (value <= 0.6) return 'Balanced'
+  if (value <= 0.85) return 'Diverse'
+  return 'Very Diverse'
+}
+
+/**
+ * Human-readable top_k label shown in the UI tooltip.
+ *
+ * 1–10    → Narrow
+ * 11–50   → Moderate
+ * 51–200  → Wide
+ * 201–500 → Very Wide
+ */
+export function topKLabel(value: number): string {
+  if (value <= 10) return 'Narrow'
+  if (value <= 50) return 'Moderate'
+  if (value <= 200) return 'Wide'
+  return 'Very Wide'
+}
