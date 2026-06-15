@@ -1,39 +1,35 @@
 import { StatsigClient } from '@statsig/js-client'
 
-const UPSELL_VARIANTS: Record<string, string> = {
-  A: 'You\'ve used all 10 free messages today. Unlock unlimited →',
-  B: 'Daily limit reached. Go Pro for unlimited messages.',
-  C: 'You\'re on fire! 10/10 messages used. Keep going with Pro.',
-  D: 'Need more? Upgrade and never hit a limit again.',
-  E: 'You\'ve hit your daily cap. Pro removes all limits — forever.',
-  F: '10 messages used today. Pro users never stop.',
-  G: 'Your free messages are up. Upgrade and own the conversation.',
-  H: 'Daily quota reached. Join Pro for unlimited access.',
-  I: 'That\'s 10 messages. Pro members never pause.',
-  J: 'Limit reached. Upgrade to Pro — it takes 30 seconds.',
-}
+let client: StatsigClient | null = null
 
-let _client: StatsigClient | null = null
+export async function initStatsig(userId: string): Promise<void> {
+  const sdkKey = import.meta.env.VITE_STATSIG_CLIENT_KEY
+  if (!sdkKey) return
 
-export async function initStatsig(userID: string): Promise<void> {
-  const key = import.meta.env.VITE_STATSIG_CLIENT_KEY as string
-  if (!key) {
-    console.warn('[statsig] VITE_STATSIG_CLIENT_KEY not set — running without Statsig')
-    return
-  }
-  _client = new StatsigClient(key, { userID })
-  await _client.initializeAsync()
+  client = new StatsigClient(sdkKey, { userID: userId })
+  await client.initializeAsync()
 }
 
 export function getUpsellCopy(): string {
-  if (!_client) return UPSELL_VARIANTS.A
-  const experiment = _client.getExperiment('message_limit_upsell_v1')
-  return experiment.get<string>('upsell_copy', UPSELL_VARIANTS.A)
+  if (!client) return VARIANTS[0]
+  const exp = client.getExperiment('message_limit_upsell_v1')
+  return exp.get('upsell_copy', VARIANTS[0])
 }
 
-export function logStatsigEvent(
-  name: string,
-  metadata?: Record<string, string>,
-): void {
-  _client?.logEvent(name, undefined, metadata)
+export function logEvent(name: string, metadata?: Record<string, string>): void {
+  client?.logEvent(name, undefined, metadata)
 }
+
+// Fallback variants — source of truth lives in Statsig dashboard
+export const VARIANTS: string[] = [
+  "You've used all 10 free messages today. Unlock unlimited →",
+  'Daily limit reached. Go Pro for unlimited messages.',
+  "You're on fire! 10/10 messages used. Keep going with Pro.",
+  'Need more? Upgrade and never hit a limit again.',
+  "You've hit your daily cap. Pro removes all limits — forever.",
+  '10 messages used today. Pro users never stop.',
+  'Your free messages are up. Upgrade and own the conversation.',
+  'Daily quota reached. Join Pro for unlimited access.',
+  "That's 10 messages. Pro members never pause.",
+  'Limit reached. Upgrade to Pro — it takes 30 seconds.',
+]

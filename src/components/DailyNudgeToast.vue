@@ -1,57 +1,53 @@
-<script setup lang="ts">
-import { useMessageLimit } from '@/composables/useMessageLimit'
-import { logStatsigEvent } from '@/lib/statsig'
-
-const { shouldShowNudge, dismissNudge, onUpgradeClick } = useMessageLimit()
-
-const UPGRADE_URL = import.meta.env.VITE_UPGRADE_URL as string ?? 'https://babadeluxe.com/#pricing'
-
-function handleUpgradeClick() {
-  logStatsigEvent('nudge_clicked')
-  onUpgradeClick()
-}
-</script>
-
 <template>
-  <Transition name="toast-slide">
+  <Transition name="nudge-slide">
     <div
-      v-if="shouldShowNudge"
+      v-if="limitStore.showNudge"
       role="status"
       aria-live="polite"
-      class="fixed bottom-20 right-4 z-40 flex max-w-xs items-center gap-3 rounded-xl bg-primary px-4 py-3 shadow-lg"
+      class="pointer-events-auto fixed bottom-20 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-full border border-borderMuted/20 bg-panel px-4 py-2.5 shadow-lg"
     >
-      <span class="text-sm text-primary-foreground">
-        ✨ Unlimited messages with Pro
-      </span>
+      <span class="i-bi:lightning-charge-fill h-3.5 w-3.5 text-amber-400 shrink-0" />
+      <p class="text-xs font-medium text-deepText whitespace-nowrap">
+        {{ remaining }} free {{ remaining === 1 ? 'message' : 'messages' }} left today
+      </p>
       <a
-        :href="UPGRADE_URL"
+        v-if="upgradeUrl"
+        :href="upgradeUrl"
         target="_blank"
         rel="noopener noreferrer"
-        class="shrink-0 text-xs font-bold text-primary-foreground underline underline-offset-2"
-        @click="handleUpgradeClick"
+        class="text-xs font-semibold text-primary transition-opacity hover:opacity-75"
+        @click="limitStore.onUpgradeClick()"
       >
-        See plans
+        Go Pro →
       </a>
       <button
-        type="button"
+        class="ml-1 rounded-full p-0.5 text-textMuted transition-colors hover:text-deepText"
         aria-label="Dismiss"
-        class="ml-auto shrink-0 text-primary-foreground/70 transition-colors hover:text-primary-foreground"
-        @click="dismissNudge"
+        @click="limitStore.dismissNudge()"
       >
-        ✕
+        <span class="i-bi:x h-3.5 w-3.5" />
       </button>
     </div>
   </Transition>
 </template>
 
+<script setup lang="ts">
+import { useMessageLimitStore } from '@/stores/use-message-limit-store'
+
+const limitStore = useMessageLimitStore()
+const upgradeUrl = import.meta.env.VITE_UPGRADE_URL ?? null
+
+const remaining = limitStore.remaining
+</script>
+
 <style scoped>
-.toast-slide-enter-active,
-.toast-slide-leave-active {
+.nudge-slide-enter-active,
+.nudge-slide-leave-active {
   transition: opacity 200ms ease, transform 200ms ease;
 }
-.toast-slide-enter-from,
-.toast-slide-leave-to {
+.nudge-slide-enter-from,
+.nudge-slide-leave-to {
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateX(-50%) translateY(8px);
 }
 </style>
