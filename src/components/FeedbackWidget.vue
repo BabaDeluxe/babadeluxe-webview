@@ -86,12 +86,16 @@
 
           <button
             type="submit"
-            :disabled="!message.trim() || submitting"
+            :disabled="!message.trim() || submitting || !feedbackUrl"
             class="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span class="i-bi:send h-3.5 w-3.5" />
             {{ submitting ? 'Sending…' : 'Send feedback' }}
           </button>
+
+          <p v-if="!feedbackUrl" class="text-xs text-error text-center">
+            Feedback unavailable: VITE_FEEDBACK_API_URL is not set.
+          </p>
         </form>
       </div>
     </Transition>
@@ -101,7 +105,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-const FEEDBACK_URL = import.meta.env.VITE_FEEDBACK_API_URL ?? 'https://babadeluxe.app/api/feedback'
+// No fallback — must be set explicitly in .env
+const feedbackUrl = import.meta.env.VITE_FEEDBACK_API_URL
+  ? `${import.meta.env.VITE_FEEDBACK_API_URL}/api/feedback`
+  : null
 
 const open = ref(false)
 const message = ref('')
@@ -112,10 +119,10 @@ const submitting = ref(false)
 const submitted = ref(false)
 
 async function handleSubmit() {
-  if (!message.value.trim() || submitting.value) return
+  if (!message.value.trim() || submitting.value || !feedbackUrl) return
   submitting.value = true
   try {
-    await fetch(FEEDBACK_URL, {
+    await fetch(feedbackUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
