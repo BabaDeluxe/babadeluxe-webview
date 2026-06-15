@@ -1,94 +1,152 @@
+<template>
+  <div>
+    <!-- Floating trigger -->
+    <button
+      class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl active:scale-95"
+      aria-label="Send feedback"
+      @click="open = !open"
+    >
+      <span class="i-bi:chat-square-text h-4 w-4" />
+      <span class="hidden sm:inline">Feedback</span>
+    </button>
+
+    <!-- Panel -->
+    <Transition name="feedback-panel">
+      <div
+        v-if="open"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Feedback form"
+        class="fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-borderMuted/20 bg-panel shadow-2xl"
+      >
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-borderMuted/20 px-4 py-3">
+          <span class="text-sm font-semibold text-deepText">Share your thoughts</span>
+          <button
+            class="rounded-md p-1 text-textMuted transition-colors hover:bg-slate hover:text-deepText"
+            aria-label="Close feedback"
+            @click="open = false"
+          >
+            <span class="i-bi:x h-4 w-4" />
+          </button>
+        </div>
+
+        <!-- Success state -->
+        <div
+          v-if="submitted"
+          class="flex flex-col items-center gap-2 px-4 py-8 text-center"
+        >
+          <span class="text-2xl">🎉</span>
+          <p class="text-sm font-medium text-deepText">Thanks for your feedback!</p>
+          <p class="text-xs text-textMuted">We read every message.</p>
+        </div>
+
+        <!-- Form -->
+        <form
+          v-else
+          class="flex flex-col gap-3 p-4"
+          @submit.prevent="handleSubmit"
+        >
+          <!-- Star rating -->
+          <div class="flex items-center gap-1">
+            <button
+              v-for="star in 5"
+              :key="star"
+              type="button"
+              :aria-label="`Rate ${star} stars`"
+              class="transition-transform hover:scale-110 active:scale-95"
+              @mouseenter="hoverRating = star"
+              @mouseleave="hoverRating = undefined"
+              @click="rating = star"
+            >
+              <span
+                class="h-5 w-5"
+                :class="(hoverRating ?? rating ?? 0) >= star ? 'i-bi:star-fill text-amber-400' : 'i-bi:star text-textMuted'"
+              />
+            </button>
+            <span class="ml-1 text-xs text-textMuted">{{ rating ? `${rating}/5` : 'optional' }}</span>
+          </div>
+
+          <!-- Message -->
+          <textarea
+            v-model="message"
+            rows="4"
+            required
+            placeholder="What's on your mind?"
+            class="w-full resize-none rounded-lg border border-borderMuted/20 bg-slate/40 px-3 py-2 text-sm text-deepText placeholder:text-textMuted focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+
+          <!-- Email -->
+          <input
+            v-model="email"
+            type="email"
+            placeholder="Email (optional, for follow-up)"
+            class="w-full rounded-lg border border-borderMuted/20 bg-slate/40 px-3 py-2 text-sm text-deepText placeholder:text-textMuted focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+
+          <button
+            type="submit"
+            :disabled="!message.trim() || submitting"
+            class="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span class="i-bi:send h-3.5 w-3.5" />
+            {{ submitting ? 'Sending…' : 'Send feedback' }}
+          </button>
+        </form>
+      </div>
+    </Transition>
+  </div>
+</template>
+
 <script setup lang="ts">
 import { ref } from 'vue'
 
-type Status = 'idle' | 'open' | 'sending' | 'sent' | 'error'
+const FEEDBACK_URL = import.meta.env.VITE_FEEDBACK_API_URL ?? 'https://babadeluxe.app/api/feedback'
 
-const status = ref<Status>('idle')
+const open = ref(false)
 const message = ref('')
-const textarea = ref<HTMLTextAreaElement | null>(null)
+const email = ref('')
+const rating = ref<number | undefined>()
+const hoverRating = ref<number | undefined>()
+const submitting = ref(false)
+const submitted = ref(false)
 
-const FEEDBACK_URL = (import.meta.env.VITE_FEEDBACK_API_URL as string ?? 'https://babadeluxe.com') + '/api/feedback'
-
-async function submit() {
-  if (!message.value.trim()) return
-  status.value = 'sending'
+async function handleSubmit() {
+  if (!message.value.trim() || submitting.value) return
+  submitting.value = true
   try {
-    const res = await fetch(FEEDBACK_URL, {
+    await fetch(FEEDBACK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: message.value.trim(), source: 'webview' }),
+      body: JSON.stringify({
+        message: message.value.trim(),
+        source: 'webview',
+        rating: rating.value,
+        email: email.value.trim() || undefined,
+      }),
     })
-    if (!res.ok) throw new Error('HTTP ' + res.status)
-    status.value = 'sent'
+    submitted.value = true
     message.value = ''
-  } catch {
-    status.value = 'error'
+    email.value = ''
+    rating.value = undefined
+    setTimeout(() => {
+      submitted.value = false
+      open.value = false
+    }, 2500)
+  } finally {
+    submitting.value = false
   }
 }
 </script>
 
-<template>
-  <!-- Trigger button -->
-  <button
-    v-if="status === 'idle'"
-    type="button"
-    aria-label="Send feedback"
-    class="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
-    @click="status = 'open'"
-  >
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      <line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
-  </button>
-
-  <!-- Panel -->
-  <div
-    v-else
-    role="dialog"
-    aria-label="Feedback"
-    class="fixed bottom-6 right-6 z-50 w-80 rounded-xl border border-border bg-surface shadow-xl"
-  >
-    <div class="flex items-center justify-between border-b border-border px-4 py-3">
-      <span class="text-sm font-semibold text-text">Send feedback</span>
-      <button type="button" aria-label="Close" class="p-1 text-muted transition-colors hover:text-text" @click="status = 'idle'">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-    </div>
-
-    <div class="p-4">
-      <!-- Success -->
-      <div v-if="status === 'sent'" class="flex flex-col items-center gap-2 py-6 text-center">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success" aria-hidden="true">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-        </svg>
-        <p class="text-sm font-medium text-text">Thanks! Got it.</p>
-        <button type="button" class="mt-1 text-xs text-muted underline-offset-2 hover:underline" @click="status = 'idle'">Close</button>
-      </div>
-
-      <!-- Form -->
-      <form v-else @submit.prevent="submit" class="flex flex-col gap-3">
-        <label for="fb-msg" class="sr-only">Your feedback</label>
-        <textarea
-          id="fb-msg"
-          ref="textarea"
-          v-model="message"
-          placeholder="What's on your mind?"
-          rows="4"
-          :disabled="status === 'sending'"
-          class="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-        />
-        <p v-if="status === 'error'" role="alert" class="text-xs text-destructive">Something went wrong. Try again.</p>
-        <button
-          type="submit"
-          :disabled="status === 'sending' || !message.trim()"
-          class="self-end rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {{ status === 'sending' ? 'Sending…' : 'Send' }}
-        </button>
-      </form>
-    </div>
-  </div>
-</template>
+<style scoped>
+.feedback-panel-enter-active,
+.feedback-panel-leave-active {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.feedback-panel-enter-from,
+.feedback-panel-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+</style>

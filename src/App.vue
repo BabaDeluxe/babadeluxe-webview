@@ -199,18 +199,22 @@
     </Suspense>
 
     <ToastLayer />
+
+    <!-- Floating feedback widget -->
+    <FeedbackWidget v-if="isHeaderVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter, useRoute } from 'vue-router'
-import { onErrorCaptured, computed } from 'vue'
+import { onErrorCaptured, computed, provide } from 'vue'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
 import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
 import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
+import FeedbackWidget from '@/components/FeedbackWidget.vue'
 import { useAppLogic } from '@/composables/use-app-logic'
 import { useToastStore } from '@/stores/use-toast-store'
 import { logger } from '@/logger'
