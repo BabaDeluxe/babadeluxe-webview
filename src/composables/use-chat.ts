@@ -23,6 +23,7 @@ import { useChatStreaming } from '@/composables/use-chat-streaming'
 import { useChatHistory } from '@/composables/use-chat-history'
 import { useChatInput } from '@/composables/use-chat-input'
 import { isOfflineMode } from '@/env-validator'
+import { useMessageLimitStore } from '@/stores/use-message-limit-store'
 
 type ChatMessageInstance = InstanceType<typeof ChatMessage>
 type ChatInputInstance = InstanceType<typeof ChatInput>
@@ -41,6 +42,7 @@ export function useChat() {
   const router = useRouter()
 
   const store = useConversationStore()
+  const limitStore = useMessageLimitStore()
   const {
     error: conversationError,
     selectedModelContextWindow,
@@ -135,7 +137,7 @@ export function useChat() {
   const contextUsageWarning = computed(() => {
     const usage = lastContextUsage.value
     if (usage >= 0.8) {
-      return 'This conversation is close to the model’s context limit. Older messages will be truncated.'
+      return 'This conversation is close to the model\u2019s context limit. Older messages will be truncated.'
     }
     if (usage >= 0.6) {
       return 'This conversation is getting long; earlier messages may be dropped soon.'
@@ -427,6 +429,12 @@ export function useChat() {
     ) {
       return
     }
+
+    // ── Daily message limit gate ─────────────────────────────────────────────
+    // recordMessage() increments the counter, triggers the nudge on msg #1,
+    // and shows the gate + returns false once the daily cap is reached.
+    if (!limitStore.recordMessage()) return
+    // ────────────────────────────────────────────────────────────────────────
 
     if (!(await ensureConversation())) return
 
