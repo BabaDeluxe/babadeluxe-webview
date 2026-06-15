@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getUpsellCopy, logEvent } from '@/lib/statsig'
 
 const DAILY_LIMIT = 10
 const STORAGE_KEY_DATE = 'baba_msg_date'
@@ -29,25 +28,39 @@ function readNudgeShown(): boolean {
   }
 }
 
+/**
+ * Statsig helpers are injected lazily via setAnalytics() so the store
+ * doesn't need to call inject() itself (stores run outside component context).
+ */
+type StatsigHelpers = {
+  getUpsellCopy: () => string
+  logLimitEvent: (name: string, variant: string, extra?: Record<string, string>) => void
+}
+
 export const useMessageLimitStore = defineStore('messageLimit', () => {
   const count = ref(readPersistedCount())
   const nudgeShown = ref(readNudgeShown())
   const showGate = ref(false)
   const showNudge = ref(false)
-  const upsellCopy = ref('')
+  const upsellCopy = ref(FALLBACK_COPY)
+
+  let _statsig: StatsigHelpers | null = null
+
+  function setAnalytics(helpers: StatsigHelpers) {
+    _statsig = helpers
+  }
 
   const remaining = computed(() => Math.max(0, DAILY_LIMIT - count.value))
   const isLocked = computed(() => count.value >= DAILY_LIMIT)
 
-  function persist() {
+  function _persist() {
     try {
       localStorage.setItem(STORAGE_KEY_DATE, todayISO())
       localStorage.setItem(STORAGE_KEY_COUNT, String(count.value))
     } catch { /* sandboxed */ }
   }
 
-  function recordMessage() {
-    // Reset if new day
+  function _resetIfNewDay() {
     try {
       if (localStorage.getItem(STORAGE_KEY_DATE) !== todayISO()) {
         count.value = 0
@@ -56,33 +69,34 @@ export const useMessageLimitStore = defineStore('messageLimit', () => {
         showNudge.value = false
       }
     } catch { /* sandboxed */ }
+  }
+
+  /** Call before sending a message. Returns false if locked (caller must abort). */
+  function recordMessage(): boolean {
+    _resetIfNewDay()
 
     if (isLocked.value) {
-      // Already locked — surface gate
-      upsellCopy.value = getUpsellCopy()
+      upsellCopy.value = _statsig?.getUpsellCopy() ?? FALLBACK_COPY
       showGate.value = true
-      logEvent('message_limit_gate_shown', { variant: upsellCopy.value })
+      _statsig?.logLimitEvent('message_limit_gate_shown', upsellCopy.value)
       return false
     }
 
     count.value++
-    persist()
+    _persist()
 
-    // First message of the day: show once-per-day nudge
     if (count.value === 1 && !nudgeShown.value) {
-      upsellCopy.value = getUpsellCopy()
+      upsellCopy.value = _statsig?.getUpsellCopy() ?? FALLBACK_COPY
       showNudge.value = true
       nudgeShown.value = true
-      try {
-        localStorage.setItem(STORAGE_KEY_NUDGE, todayISO())
-      } catch { /* sandboxed */ }
-      logEvent('nudge_shown', { variant: upsellCopy.value })
+      try { localStorage.setItem(STORAGE_KEY_NUDGE, todayISO()) } catch { /* sandboxed */ }
+      _statsig?.logLimitEvent('nudge_shown', upsellCopy.value)
     }
 
     if (count.value >= DAILY_LIMIT) {
-      upsellCopy.value = getUpsellCopy()
+      upsellCopy.value = _statsig?.getUpsellCopy() ?? FALLBACK_COPY
       showGate.value = true
-      logEvent('daily_limit_hit', { variant: upsellCopy.value })
+      _statsig?.logLimitEvent('daily_limit_hit', upsellCopy.value)
     }
 
     return true
@@ -93,11 +107,13 @@ export const useMessageLimitStore = defineStore('messageLimit', () => {
   }
 
   function onUpgradeClick() {
-    logEvent('upgrade_clicked', { variant: upsellCopy.value, source: showGate.value ? 'gate' : 'nudge' })
+    _statsig?.logLimitEvent('upgrade_clicked', upsellCopy.value, {
+      source: showGate.value ? 'gate' : 'nudge',
+    })
   }
 
   function onUpgradeSuccess() {
-    logEvent('pro_subscription_started', { variant: upsellCopy.value })
+    _statsig?.logLimitEvent('pro_subscription_started', upsellCopy.value)
   }
 
   return {
@@ -107,9 +123,12 @@ export const useMessageLimitStore = defineStore('messageLimit', () => {
     showGate,
     showNudge,
     upsellCopy,
+    setAnalytics,
     recordMessage,
     dismissNudge,
     onUpgradeClick,
     onUpgradeSuccess,
   }
 })
+
+const FALLBACK_COPY = "You've used all 10 free messages today. Unlock unlimited \u2192"

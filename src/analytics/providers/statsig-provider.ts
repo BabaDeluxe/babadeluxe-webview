@@ -29,6 +29,16 @@ export class StatsigProvider implements AnalyticsProvider {
     }
   }
 
+  updateUser(userId: string, traits?: Record<string, unknown>): void {
+    if (!this._isInitialized || !this._client) return
+    void this._client.updateUserAsync({ userID: userId, custom: traits })
+  }
+
+  getExperimentString(experimentName: string, paramName: string, fallback: string): string {
+    if (!this._isInitialized || !this._client) return fallback
+    return this._client.getExperiment(experimentName).get(paramName, fallback)
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trackEvent(event: string, properties?: Record<string, any>): void {
     if (!this._isInitialized || !this._client) return
@@ -39,7 +49,6 @@ export class StatsigProvider implements AnalyticsProvider {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   identify(userId: string, traits?: Record<string, any>): void {
     if (!this._isInitialized || !this._client) return
-    // Note: In @statsig/js-client, updateUserAsync is used for updating user identity
     void this._client.updateUserAsync({ userID: userId, custom: traits })
     this._logger.debug(`[${this.name}] Identified user: ${userId}`, traits)
   }

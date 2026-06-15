@@ -13,106 +13,32 @@
           class="flex md:hidden flex-row gap-1 items-center mx-auto bg-slate/40 p-1 rounded-xl border border-borderMuted/15"
           data-testid="mobile-nav"
         >
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/chat"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              icon="i-bi:chat-dots"
-              title="Chat"
-              class="w-10 h-10 p-0"
-              :is-selected="isExactActive"
-              @click="navigate"
-            />
+          <RouterLink v-slot="{ navigate, isExactActive }" to="/chat" custom>
+            <BaseButton variant="menu" icon="i-bi:chat-dots" title="Chat" class="w-10 h-10 p-0" :is-selected="isExactActive" @click="navigate" />
           </RouterLink>
-
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/history"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              icon="i-bi:clock-history"
-              title="History"
-              class="w-10 h-10 p-0"
-              :is-selected="isExactActive"
-              @click="navigate"
-            />
+          <RouterLink v-slot="{ navigate, isExactActive }" to="/history" custom>
+            <BaseButton variant="menu" icon="i-bi:clock-history" title="History" class="w-10 h-10 p-0" :is-selected="isExactActive" @click="navigate" />
           </RouterLink>
-
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/prompts"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              icon="i-hugeicons:quill-write-02"
-              title="Prompts"
-              class="w-10 h-10 p-0"
-              :is-selected="isExactActive"
-              @click="navigate"
-            />
+          <RouterLink v-slot="{ navigate, isExactActive }" to="/prompts" custom>
+            <BaseButton variant="menu" icon="i-hugeicons:quill-write-02" title="Prompts" class="w-10 h-10 p-0" :is-selected="isExactActive" @click="navigate" />
           </RouterLink>
         </nav>
 
         <div class="flex-1 flex flex-row gap-2 justify-end items-center">
-          <BaseButton
-            data-testid="nav-new-chat-button"
-            variant="primary"
-            icon="i-bi:plus-lg"
-            title="New Chat"
-            class="md:w-auto w-9 h-9 md:h-auto"
-            @click="handleNewChat"
-          >
+          <BaseButton data-testid="nav-new-chat-button" variant="primary" icon="i-bi:plus-lg" title="New Chat" class="md:w-auto w-9 h-9 md:h-auto" @click="handleNewChat">
             <span class="hidden md:inline-block">New Chat</span>
           </BaseButton>
-
-          <BaseDropdownMenu
-            trigger-testid="nav-user-menu-button"
-            menu-testid="nav-user-menu-dropdown"
-          >
+          <BaseDropdownMenu trigger-testid="nav-user-menu-button" menu-testid="nav-user-menu-dropdown">
             <template #trigger>
-              <BaseAvatar
-                role="user"
-                size="xs"
-              />
+              <BaseAvatar role="user" size="xs" />
             </template>
-
             <template #default="{ close }">
               <div class="flex flex-col gap-1 p-1">
-                <BaseButton
-                  data-testid="nav-settings-button"
-                  variant="ghost"
-                  icon="i-weui:setting-outlined"
-                  class="w-full justify-start"
-                  @click="
-                    () => {
-                      router.push('/settings')
-                      close()
-                    }
-                  "
-                >
+                <BaseButton data-testid="nav-settings-button" variant="ghost" icon="i-weui:setting-outlined" class="w-full justify-start" @click="() => { router.push('/settings'); close() }">
                   Settings
                 </BaseButton>
-
                 <div class="border-t border-borderMuted my-1" />
-
-                <BaseButton
-                  data-testid="nav-logout-button"
-                  variant="ghost"
-                  icon="i-bi:box-arrow-right"
-                  class="w-full justify-start text-error"
-                  @click="
-                    () => {
-                      handleLogout()
-                      close()
-                    }
-                  "
-                >
+                <BaseButton data-testid="nav-logout-button" variant="ghost" icon="i-bi:box-arrow-right" class="w-full justify-start text-error" @click="() => { handleLogout(); close() }">
                   Logout
                 </BaseButton>
               </div>
@@ -122,56 +48,15 @@
       </header>
 
       <div class="hidden md:flex justify-start items-center bg-panel">
-        <nav
-          class="flex flex-row gap-2 text-deepText p-2"
-          data-testid="app-nav"
-        >
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/chat"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              icon="i-bi:chat-dots"
-              data-testid="nav-chat-link"
-              :is-selected="isExactActive"
-              @click="navigate"
-            >
-              Chat
-            </BaseButton>
+        <nav class="flex flex-row gap-2 text-deepText p-2" data-testid="app-nav">
+          <RouterLink v-slot="{ navigate, isExactActive }" to="/chat" custom>
+            <BaseButton variant="menu" icon="i-bi:chat-dots" data-testid="nav-chat-link" :is-selected="isExactActive" @click="navigate">Chat</BaseButton>
           </RouterLink>
-
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/history"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              icon="i-bi:clock-history"
-              data-testid="nav-history-link"
-              :is-selected="isExactActive"
-              @click="navigate"
-            >
-              History
-            </BaseButton>
+          <RouterLink v-slot="{ navigate, isExactActive }" to="/history" custom>
+            <BaseButton variant="menu" icon="i-bi:clock-history" data-testid="nav-history-link" :is-selected="isExactActive" @click="navigate">History</BaseButton>
           </RouterLink>
-
-          <RouterLink
-            v-slot="{ navigate, isExactActive }"
-            to="/prompts"
-            custom
-          >
-            <BaseButton
-              variant="menu"
-              icon="i-hugeicons:quill-write-02"
-              data-testid="nav-prompts-link"
-              :is-selected="isExactActive"
-              @click="navigate"
-            >
-              Prompts
-            </BaseButton>
+          <RouterLink v-slot="{ navigate, isExactActive }" to="/prompts" custom>
+            <BaseButton variant="menu" icon="i-hugeicons:quill-write-02" data-testid="nav-prompts-link" :is-selected="isExactActive" @click="navigate">Prompts</BaseButton>
           </RouterLink>
         </nav>
       </div>
@@ -185,10 +70,7 @@
               <Transition mode="out-in">
                 <KeepAlive :include="['ChatView', 'HistoryView', 'PromptsView']">
                   <ViewErrorBoundary>
-                    <component
-                      :is="Component"
-                      class="flex-1 min-h-0 flex flex-col animate-fade-in animate-duration-150 animate-ease-out"
-                    />
+                    <component :is="Component" class="flex-1 min-h-0 flex flex-col animate-fade-in animate-duration-150 animate-ease-out" />
                   </ViewErrorBoundary>
                 </KeepAlive>
               </Transition>
@@ -200,14 +82,18 @@
 
     <ToastLayer />
 
-    <!-- Floating feedback widget -->
-    <FeedbackWidget v-if="isHeaderVisible" />
+    <!-- Overlays (shown only when logged in) -->
+    <template v-if="isHeaderVisible">
+      <MessageLimitGate />
+      <DailyNudgeToast />
+      <FeedbackWidget />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter, useRoute } from 'vue-router'
-import { onErrorCaptured, computed, provide } from 'vue'
+import { onErrorCaptured, onMounted, computed, provide, inject } from 'vue'
 import IconBabaDeluxe from '@/components/IconBabaDeluxe.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseAvatar from '@/components/BaseAvatar.vue'
@@ -215,14 +101,20 @@ import BaseDropdownMenu from '@/components/BaseDropdownMenu.vue'
 import ToastLayer from '@/components/ToastLayer.vue'
 import ViewErrorBoundary from '@/components/ViewErrorBoundary.vue'
 import FeedbackWidget from '@/components/FeedbackWidget.vue'
+import MessageLimitGate from '@/components/MessageLimitGate.vue'
+import DailyNudgeToast from '@/components/DailyNudgeToast.vue'
 import { useAppLogic } from '@/composables/use-app-logic'
 import { useToastStore } from '@/stores/use-toast-store'
+import { useMessageLimitStore } from '@/stores/use-message-limit-store'
+import { useStatsigExperiment } from '@/lib/statsig'
 import { logger } from '@/logger'
-import { GIT_MESSAGE_KEY } from '@/injection-keys'
+import { GIT_MESSAGE_KEY, ANALYTICS_MANAGER_KEY } from '@/injection-keys'
+import type { AnalyticsManager } from '@/analytics/analytics-manager'
 
 const router = useRouter()
 const route = useRoute()
 const toasts = useToastStore()
+const limitStore = useMessageLimitStore()
 const { session, handleNewChat, handleLogout, gitMessage } = useAppLogic()
 
 provide(GIT_MESSAGE_KEY, gitMessage)
@@ -233,13 +125,16 @@ const isHeaderVisible = computed(() => {
   return hasActiveSession && isDefaultLayout
 })
 
+// Wire Statsig helpers into the limit store once the component has inject context
+const statsig = useStatsigExperiment()
+limitStore.setAnalytics(statsig)
+
 onErrorCaptured((err, instance, info) => {
   logger.error('Something crashed', {
     vueInfo: info,
     componentName: instance?.$options?.name,
     error: err,
   })
-
   toasts.error('Something crashed. Please reload.')
   return false
 })

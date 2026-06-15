@@ -1,5 +1,6 @@
 import { isOfflineMode } from '@/env-validator'
 import type { AnalyticsProvider } from './types'
+import { StatsigProvider } from './providers/statsig-provider'
 
 export class AnalyticsManager {
   private readonly _providers: AnalyticsProvider[] = []
@@ -25,5 +26,14 @@ export class AnalyticsManager {
     for (const provider of this._providers) {
       provider.identify(userId, traits)
     }
+  }
+
+  getExperimentString(experimentName: string, paramName: string, fallback: string): string {
+    for (const provider of this._providers) {
+      if (provider instanceof StatsigProvider) {
+        return provider.getExperimentString(experimentName, paramName, fallback)
+      }
+    }
+    return fallback
   }
 }

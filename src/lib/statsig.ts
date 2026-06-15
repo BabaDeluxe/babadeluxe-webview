@@ -1,35 +1,44 @@
-import { StatsigClient } from '@statsig/js-client'
+/**
+ * Thin adapter so useMessageLimitStore can read Statsig experiments
+ * through the existing AnalyticsManager without spawning a second client.
+ *
+ * Usage:
+ *   import { getUpsellCopy, logLimitEvent } from '@/lib/statsig'
+ */
+import { inject } from 'vue'
+import { ANALYTICS_MANAGER_KEY } from '@/injection-keys'
+import type { AnalyticsManager } from '@/analytics/analytics-manager'
 
-let client: StatsigClient | null = null
+const EXPERIMENT = 'message_limit_upsell_v1'
+const PARAM = 'upsell_copy'
 
-export async function initStatsig(userId: string): Promise<void> {
-  const sdkKey = import.meta.env.VITE_STATSIG_CLIENT_KEY
-  if (!sdkKey) return
-
-  client = new StatsigClient(sdkKey, { userID: userId })
-  await client.initializeAsync()
-}
-
-export function getUpsellCopy(): string {
-  if (!client) return VARIANTS[0]
-  const exp = client.getExperiment('message_limit_upsell_v1')
-  return exp.get('upsell_copy', VARIANTS[0])
-}
-
-export function logEvent(name: string, metadata?: Record<string, string>): void {
-  client?.logEvent(name, undefined, metadata)
-}
-
-// Fallback variants — source of truth lives in Statsig dashboard
-export const VARIANTS: string[] = [
-  "You've used all 10 free messages today. Unlock unlimited →",
+export const VARIANTS: readonly string[] = [
+  "You've used all 10 free messages today. Unlock unlimited \u2192",
   'Daily limit reached. Go Pro for unlimited messages.',
   "You're on fire! 10/10 messages used. Keep going with Pro.",
   'Need more? Upgrade and never hit a limit again.',
-  "You've hit your daily cap. Pro removes all limits — forever.",
+  "You've hit your daily cap. Pro removes all limits \u2014 forever.",
   '10 messages used today. Pro users never stop.',
   'Your free messages are up. Upgrade and own the conversation.',
   'Daily quota reached. Join Pro for unlimited access.',
   "That's 10 messages. Pro members never pause.",
-  'Limit reached. Upgrade to Pro — it takes 30 seconds.',
-]
+  'Limit reached. Upgrade to Pro \u2014 it takes 30 seconds.',
+] as const
+
+/**
+ * Must be called inside a component setup() or composable that has access
+ * to the Vue provide/inject context.
+ */
+export function useStatsigExperiment() {
+  const analytics = inject<AnalyticsManager>(ANALYTICS_MANAGER_KEY)
+
+  function getUpsellCopy(): string {
+    return analytics?.getExperimentString(EXPERIMENT, PARAM, VARIANTS[0]) ?? VARIANTS[0]
+  }
+
+  function logLimitEvent(name: string, variant: string, extra?: Record<string, string>): void {
+    analytics?.trackEvent(name, { variant, ...extra })
+  }
+
+  return { getUpsellCopy, logLimitEvent }
+}
