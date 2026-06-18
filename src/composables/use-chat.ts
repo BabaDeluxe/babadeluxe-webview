@@ -429,9 +429,13 @@ export function useChat() {
     return findModelContextWindow(trimmedModelValue)
   })
 
-  watch(activeModelContextWindow, (newContextWindow) => {
-    selectedModelContextWindow.value = newContextWindow
-  }, { immediate: true })
+  watch(
+    activeModelContextWindow,
+    (newContextWindow) => {
+      selectedModelContextWindow.value = newContextWindow
+    },
+    { immediate: true }
+  )
 
   onMounted(() => void initializeChat())
 

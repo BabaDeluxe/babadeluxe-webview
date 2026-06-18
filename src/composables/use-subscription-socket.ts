@@ -11,6 +11,7 @@ import {
   subscriptionSocketConnectionFailed,
   serverAcknowledgmentTimeout,
   failedToCreateCheckoutSession,
+  failedToCreatePortalSession,
 } from '@/composables/constants'
 
 // ----------------------------------------------------------------------
@@ -175,7 +176,8 @@ export function useSubscriptionSocket() {
           reject(new NetworkError(serverAcknowledgmentTimeout))
         }, socketTimeoutMs.subscription)
 
-        socket.emit(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(socket as any).emit(
           'subscription:createCheckoutSession',
           (res: { success: boolean; checkoutUrl?: string; error?: string }) => {
             cancelTimeout(timeoutId)
@@ -209,11 +211,77 @@ export function useSubscriptionSocket() {
     return err(networkError)
   }
 
+  const redirectToPortal = async (): Promise<Result<void, SocketConnectionError>> => {
+    const socket = subscriptionSocketRef.value
+    if (!socket) {
+      const e = new SocketError(subscriptionSocketNotConnected)
+      error.value = e
+      return err(e)
+    }
+
+    isUpgrading.value = true
+    error.value = undefined
+
+    const waitResult = await socket.waitForConnection()
+
+    if (waitResult.isErr()) {
+      isUpgrading.value = false
+      const rootError = waitResult.error
+      const mappedError =
+        rootError instanceof NetworkError || rootError instanceof SocketError
+          ? rootError
+          : new NetworkError(subscriptionSocketConnectionFailed, rootError)
+      error.value = mappedError
+      return err(mappedError)
+    }
+
+    const responseResult = await ResultAsync.fromPromise(
+      new Promise<{ success: boolean; checkoutUrl?: string; error?: string }>((resolve, reject) => {
+        const timeoutId = createTimeout(() => {
+          reject(new NetworkError(serverAcknowledgmentTimeout))
+        }, socketTimeoutMs.subscription)
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(socket as any).emit(
+          'subscription:createPortalSession',
+          (res: { success: boolean; checkoutUrl?: string; error?: string }) => {
+            cancelTimeout(timeoutId)
+            resolve(res)
+          }
+        )
+      }),
+      (error) => {
+        return error instanceof NetworkError
+          ? error
+          : new NetworkError(failedToCreatePortalSession, error)
+      }
+    )
+
+    isUpgrading.value = false
+
+    if (responseResult.isErr()) {
+      error.value = responseResult.error
+      return err(responseResult.error)
+    }
+
+    const response = responseResult.value
+
+    if (response.success && response.checkoutUrl) {
+      window.location.href = response.checkoutUrl
+      return ok(undefined)
+    }
+
+    const networkError = new NetworkError(response.error ?? failedToCreatePortalSession)
+    error.value = networkError
+    return err(networkError)
+  }
+
   return {
     isUpgrading: readonly(isUpgrading),
     error: readonly(error),
     isMessageLimitReached: readonly(isMessageLimitReached),
     redirectToCheckout,
+    redirectToPortal,
     isConnected: computed(() => subscriptionSocketRef.value?.isConnected ?? false),
     shouldShowModal: readonly(shouldShowModal),
     dismissModal,

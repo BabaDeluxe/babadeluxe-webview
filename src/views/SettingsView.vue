@@ -48,6 +48,49 @@
         @toggle-theme="handleThemeToggle"
       />
 
+      <section
+        data-testid="subscription-section"
+        class="flex flex-col gap-4"
+      >
+        <h2 class="text-xl font-onest font-semibold text-deepText">Subscription</h2>
+        <div
+          class="flex items-center justify-between p-3 border border-borderMuted rounded-lg bg-panel"
+        >
+          <div class="flex flex-col">
+            <span class="text-deepText font-medium">Current Plan</span>
+            <span class="text-xs text-subtleText">
+              {{ tier === 'PRO' ? 'Pro ✓' : 'Free' }}
+            </span>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <BaseSpinner
+              v-if="isUpgrading"
+              size="small"
+            />
+            <BaseButton
+              v-if="tier === 'FREE'"
+              variant="primary"
+              text="Upgrade to Pro"
+              :is-disabled="isUpgrading"
+              @click="redirectToCheckout"
+            />
+            <BaseButton
+              v-else
+              variant="ghost"
+              text="Manage Billing"
+              :is-disabled="isUpgrading"
+              @click="redirectToPortal"
+            />
+          </div>
+        </div>
+        <div
+          v-if="subscriptionError"
+          class="text-error text-xs px-1"
+        >
+          {{ subscriptionError.message }}
+        </div>
+      </section>
       <GeneralSettingsSection
         :settings="generalSettings"
         :field-states="fieldStates"
@@ -100,6 +143,7 @@
 <script setup lang="ts">
 import { useToastStore } from '@/stores/use-toast-store'
 import { useTheme } from '@/composables/use-theme'
+import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { useOllamaSettings } from '@/composables/use-ollama-settings'
 import { toUserMessage } from '@/error-mapper'
 import BaseSpinner from '@/components/BaseSpinner.vue'
@@ -145,6 +189,13 @@ const { settings, upsertSetting, loadSettings } = useSettings()
 const { reloadModels, groupedModels } = useModelsSocket()
 const { isDark, toggleDark } = useTheme()
 useOllamaSettings()
+const {
+  tier,
+  redirectToCheckout,
+  redirectToPortal,
+  isUpgrading,
+  error: subscriptionError,
+} = useSubscriptionSocket()
 
 const currentUserId = ref<string>()
 

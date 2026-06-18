@@ -136,7 +136,7 @@
 
     <SubscriptionModal
       :is-visible="shouldShowModal"
-      @close="handleModalClose"
+      @close="dismissModal"
     />
   </section>
 </template>
@@ -150,10 +150,12 @@ import SubscriptionModal from '@/components/SubscriptionModal.vue'
 import ChatInputBlock from '@/components/ChatInputBlock.vue'
 import ScrollToBottomButton from '@/components/ScrollToBottomButton.vue'
 import { useChat } from '@/composables/use-chat'
+import { useSubscriptionSocket } from '@/composables/use-subscription-socket'
 import { useScrollToBottom } from '@/composables/use-scroll-to-bottom'
 
 defineOptions({ name: 'ChatView' })
 
+const { shouldShowModal, dismissModal } = useSubscriptionSocket()
 const {
   chatInputRef,
   messages,
@@ -176,9 +178,7 @@ const {
   modelsLoadedCount,
   contextUsageWarning,
   lastContextUsage,
-  shouldShowModal,
   atSources,
-  activeSources,
   registerMessageComponent,
   handleSendMessage,
   handleAbortMessage,
@@ -188,7 +188,6 @@ const {
   handleRemoveContextItem,
   handleClearAllContext,
   handleToggleLock,
-  handleModalClose,
   handleToggleRootBar,
 } = useChat()
 

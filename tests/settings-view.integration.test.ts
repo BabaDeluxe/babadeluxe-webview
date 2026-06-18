@@ -4,7 +4,12 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { ref, reactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import type { AsyncInjectable } from '@/injection-keys'
-import { API_KEY_VALIDATOR_KEY, LOGGER_KEY, SUPABASE_CLIENT_KEY } from '@/injection-keys'
+import {
+  API_KEY_VALIDATOR_KEY,
+  LOGGER_KEY,
+  SUPABASE_CLIENT_KEY,
+  SOCKET_MANAGER_KEY,
+} from '@/injection-keys'
 import type { IApiKeyValidator } from '@/api-key-validator'
 import SettingsView from '@/views/SettingsView.vue'
 
@@ -57,6 +62,15 @@ const mountWithInjectable = (injectable: AsyncInjectable<IApiKeyValidator>): Vue
             getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }),
           },
         },
+        [SOCKET_MANAGER_KEY as symbol]: ref({
+          subscriptionSocket: {
+            on: vi.fn(),
+            off: vi.fn(),
+            waitForConnection: vi.fn().mockResolvedValue(ok(undefined)),
+            emit: vi.fn(),
+          },
+          chatSocket: { on: vi.fn(), off: vi.fn() },
+        }),
       },
       stubs: {
         /* eslint-disable @typescript-eslint/naming-convention */
