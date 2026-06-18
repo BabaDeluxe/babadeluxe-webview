@@ -90,7 +90,10 @@ export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) 
 
   const acceptHighlightedItem = () => {
     const itemToAccept = filteredResults.value[highlightedItemIndex.value]
-    if (!itemToAccept) return null
+    if (!itemToAccept) {
+        closePicker()
+        return null
+    }
 
     const isAlreadySelected = currentlySelectedSources.value.some(
       (source) => source.id === itemToAccept.id
@@ -98,7 +101,7 @@ export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) 
 
     if (isAlreadySelected) {
       closePicker()
-      return null
+      return itemToAccept // Return the item so the composer can remove the @token
     }
 
     applyBusinessRulesAndAddSource(itemToAccept)
