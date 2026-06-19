@@ -29,7 +29,7 @@ const props = withDefaults(
     value?: string
     disabled?: boolean
     maxHeight?: string
-    variant?: 'input' | 'message'
+    variant?: 'input' | 'message' | 'ghost'
   }>(),
   {
     placeholder: '',
@@ -54,6 +54,10 @@ const forwardedAttrs = computed(() => {
 })
 
 const textareaClass = computed(() => {
+  if (props.variant === 'ghost') {
+    return ['w-full bg-transparent border-none px-3 py-2 text-base outline-none text-deepText placeholder-subtleText resize-none', attrs.class]
+  }
+
   const base =
     props.variant === 'input' || props.variant === 'message'
       ? 'w-full bg-panel border border-borderMuted rounded-lg px-3 py-2 text-base outline-none text-deepText placeholder-subtleText focus:border-accent transition-colors resize-none'
@@ -64,7 +68,7 @@ const textareaClass = computed(() => {
 
 const textareaStyle = computed<StyleValue>(() => {
   const baseStyle: CSSProperties =
-    props.variant === 'input' || props.variant === 'message'
+    props.variant === 'input' || props.variant === 'message' || props.variant === 'ghost'
       ? { maxHeight: props.maxHeight, minHeight: '2.5rem' }
       : { maxHeight: props.maxHeight }
 

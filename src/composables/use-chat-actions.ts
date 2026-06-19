@@ -8,6 +8,7 @@ import type { useConversationStore } from '@/stores/use-conversation-store'
 import type { useChatStreaming } from '@/composables/use-chat-streaming'
 import type { useChatContextHandler } from '@/composables/use-chat-context-handler'
 import type { useChatInput } from '@/composables/use-chat-input'
+import type { AtPickerItem } from '@/composables/use-at-picker'
 
 export function useChatActions(
   logger: AbstractLogger,
@@ -19,7 +20,7 @@ export function useChatActions(
   currentUserId: Ref<string | undefined>,
   messages: Ref<Message[]>,
   messageComponents: Ref<Map<number, StreamingMessageComponent>>,
-  chatInputRef: Ref<{ focus: () => void } | undefined>,
+  chatInputRef: Ref<{ focus: () => void; activeSources: AtPickerItem[] } | undefined>,
   getSelectedSystemPromptText: (fallback: string | undefined) => string | undefined,
   ensureConversation: () => Promise<boolean>,
   ensureModel: () => { provider: string; model: string } | null,

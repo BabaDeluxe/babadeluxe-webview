@@ -16,51 +16,60 @@
     </transition>
 
     <div
-      v-if="activeSources.length > 0"
-      class="flex flex-wrap gap-1.5 px-1 animate-fade-in"
+      class="flex flex-col gap-1.5 bg-panel border border-borderMuted rounded-xl p-1.5 transition-colors focus-within:border-accent"
     >
-      <AtPill
-        v-for="source in activeSources"
-        :key="source.id"
-        :item="source"
-        @remove="removeSource(source.id)"
-      />
-    </div>
+      <div
+        v-if="activeSources.length > 0"
+        class="flex flex-wrap gap-1.5 px-1.5 pt-1 animate-fade-in"
+      >
+        <AtPill
+          v-for="source in activeSources"
+          :key="source.id"
+          :item="source"
+          @remove="removeSource(source.id)"
+        />
+      </div>
 
-    <div class="flex items-center gap-2">
-      <slot name="prepend" />
+      <div class="flex items-center gap-2">
+        <slot name="prepend" />
 
-      <BaseTextField
-        ref="textFieldRef"
-        v-model:value="computedInputValue"
-        variant="message"
-        :placeholder="placeholder"
-        :disabled="isSubmitting"
-        data-testid="chat-input"
-        class="flex-1"
-        @keydown="handleKeydown"
-      />
+        <BaseTextField
+          ref="textFieldRef"
+          v-model:value="computedInputValue"
+          variant="ghost"
+          :placeholder="placeholder"
+          :disabled="isSubmitting"
+          data-testid="chat-input"
+          class="flex-1"
+          @keydown="handleKeydown"
+        />
 
-      <BaseButton
-        v-if="!isSubmitting"
-        variant="ghost"
-        :icon="submitIcon"
-        :is-disabled="isSubmitDisabled"
-        aria-label="Send message"
-        data-testid="chat-submit-button"
-        @click="handleSubmit"
-      />
+        <div class="flex items-center gap-1 pr-1.5">
+          <BaseButton
+            v-if="!isSubmitting"
+            variant="ghost"
+            :icon="submitIcon"
+            :is-disabled="isSubmitDisabled"
+            aria-label="Send message"
+            data-testid="chat-submit-button"
+            @click="handleSubmit"
+          />
 
-      <BaseButton
-        v-else
-        variant="ghost"
-        :icon="abortIcon"
-        aria-label="Stop generating"
-        data-testid="chat-abort-button"
-        @click="emit('abort')"
-      />
+          <BaseButton
+            v-else
+            variant="ghost"
+            :icon="abortIcon"
+            aria-label="Stop generating"
+            data-testid="chat-abort-button"
+            @click="emit('abort')"
+          />
+        </div>
 
-      <slot name="append" />
+        <slot name="append" />
+      </div>
+
+      <slot name="controls" />
+      <slot name="footer" />
     </div>
   </div>
 </template>
@@ -175,9 +184,7 @@ function handlePickerKeydown(event: KeyboardEvent) {
 
 function handlePickerAcceptance() {
   const acceptedItem = acceptPicker()
-  if (acceptedItem) {
-    removeMentionTokenFromInput()
-  }
+  removeMentionTokenFromInput()
 }
 
 function removeMentionTokenFromInput() {
@@ -205,10 +212,10 @@ function handleDefaultKeydown(event: KeyboardEvent) {
   }
 
   const isBackspacePressed = event.key === 'Backspace'
-  const isInputEmpty = props.value === ''
   const hasActiveSources = activeSources.value.length > 0
+  const textarea = textareaElement.value
 
-  if (isBackspacePressed && isInputEmpty && hasActiveSources) {
+  if (isBackspacePressed && hasActiveSources && textarea && textarea.selectionStart === 0 && textarea.selectionEnd === 0) {
     event.preventDefault()
     activeSources.value.pop()
   }
@@ -226,7 +233,7 @@ watchDebounced(
 
     if (lastAtSymbolIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtSymbolIndex + 1)
-      const isAlphanumericQuery = /^\w*$/.test(textAfterAt)
+      const isAlphanumericQuery = /^[\w-]*$/.test(textAfterAt)
 
       if (isAlphanumericQuery) {
         openPicker(textAfterAt)
