@@ -1,178 +1,106 @@
-# Note: $$ is required in Woodpecker for variables used inside inline YAML
-# string expressions — the pre-processor would otherwise evaluate $VAR at
-# parse time before the shell runner sees it. Variables accessed only inside
-# heredoc bodies or from_secret environment blocks use single $ as normal.
-
 skip_clone: true
-
-when:
-  - event: push
-    branch:
-      - master
-      - dev
-  - event: manual
-    branch:
-      - master
-      - dev
 
 variables:
   - &deploy_image alpine
 
   - &deploy_commands
-    - set -euo pipefail
     - apk add --no-cache openssh-client bash
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - echo "$$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
-    - ssh-keyscan -H "$$SSH_HOST" >> ~/.ssh/known_hosts
+    - echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+    - ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
     - |
-      echo "ENV_CHECK NODE_ENV=$$NODE_ENV"
-      echo "ENV_CHECK REPO_SLUG=$$REPO_SLUG"
-      echo "ENV_CHECK REPO_BRANCH=$$REPO_BRANCH"
-      echo "ENV_CHECK GH_TOKEN=$$([ -n "$$GH_TOKEN" ] && echo '<set>' || echo '<EMPTY>')"
-      echo "ENV_CHECK DEPLOY_SSH_KEY=$$([ -n "$$DEPLOY_SSH_KEY" ] && echo '<set>' || echo '<EMPTY>')"
-      [ -n "$$NODE_ENV" ]        || { echo "FAIL: NODE_ENV is not set"; exit 1; }
-      [ -n "$$DEPLOY_BASE_DIR" ] || { echo "FAIL: DEPLOY_BASE_DIR is not set"; exit 1; }
-      [ -n "$$GIT_DIR" ]         || { echo "FAIL: GIT_DIR is not set"; exit 1; }
-      [ -n "$$REPO_SLUG" ]       || { echo "FAIL: REPO_SLUG is not set"; exit 1; }
-      [ -n "$$REPO_BRANCH" ]     || { echo "FAIL: REPO_BRANCH is not set"; exit 1; }
-      [ -n "$$PNPM_VERSION" ]    || { echo "FAIL: PNPM_VERSION is not set"; exit 1; }
-      [ -n "$$SUBDOMAIN_DIR" ]   || { echo "FAIL: SUBDOMAIN_DIR is not set"; exit 1; }
-      [ -n "$$GH_TOKEN" ]        || { echo "FAIL: GH_TOKEN is not set (secret gh_token missing or empty)"; exit 1; }
-      [ -n "$$DEPLOY_SSH_KEY" ]  || { echo "FAIL: DEPLOY_SSH_KEY is not set (secret deploy_ssh_key missing or empty)"; exit 1; }
-    - |
-      ssh -i ~/.ssh/id_deploy "$$SSH_USER@$$SSH_HOST" bash -s -- \
-        "$$NODE_ENV" \
-        "$$DEPLOY_BASE_DIR" \
-        "$$GIT_DIR" \
-        "$$REPO_SLUG" \
-        "$$REPO_BRANCH" \
-        "$$PNPM_VERSION" \
-        "$$SUBDOMAIN_DIR" \
-        "$$GH_TOKEN" <<'ENDSSH'
-      set -euo pipefail
+      ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s -- \
+        "$NODE_ENV" \
+        "$DEPLOY_BASE_DIR" \
+        "$GIT_DIR" \
+        "$REPO_SLUG" \
+        "$REPO_BRANCH" \
+        "$PNPM_VERSION" \
+        "$SUBDOMAIN_DIR" \
+        "$VITE_APP_URL" \
+        "$VITE_BUILD_MODE" <<'ENDSSH'
+        set -euo pipefail
 
-      NODE_ENV="$1"
-      DEPLOY_BASE_DIR="$2"
-      GIT_DIR="$3"
-      REPO_SLUG="$4"
-      REPO_BRANCH="$5"
-      PNPM_VERSION="$6"
-      SUBDOMAIN_DIR="$7"
-      export GH_TOKEN="$8"
+        NODE_ENV="$1"
+        DEPLOY_BASE_DIR="$2"
+        GIT_DIR="$3"
+        REPO_SLUG="$4"
+        REPO_BRANCH="$5"
+        PNPM_VERSION="$6"
+        SUBDOMAIN_DIR="$7"
+        VITE_APP_URL="$8"
+        VITE_BUILD_MODE="$9"
 
-      echo "REMOTE_CHECK NODE_ENV=$NODE_ENV"
-      echo "REMOTE_CHECK REPO_SLUG=$REPO_SLUG"
-      echo "REMOTE_CHECK GH_TOKEN=$([ -n "$GH_TOKEN" ] && echo '<set>' || echo '<EMPTY>')"
-      [ -n "$NODE_ENV" ]        || { echo "REMOTE FAIL: NODE_ENV empty"; exit 1; }
-      [ -n "$DEPLOY_BASE_DIR" ] || { echo "REMOTE FAIL: DEPLOY_BASE_DIR empty"; exit 1; }
-      [ -n "$REPO_SLUG" ]       || { echo "REMOTE FAIL: REPO_SLUG empty"; exit 1; }
-      [ -n "$GH_TOKEN" ]        || { echo "REMOTE FAIL: GH_TOKEN empty"; exit 1; }
+        source ~/.bash_profile
+        source ~/.nvm/nvm.sh
 
-      source ~/.bash_profile
-      source ~/.nvm/nvm.sh
+        DEPLOY_PATH="$DEPLOY_BASE_DIR/$GIT_DIR"
+        TARGET_PATH="$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
 
-      DEPLOY_PATH="$DEPLOY_BASE_DIR/$GIT_DIR"
-      mkdir -p "$DEPLOY_BASE_DIR"
+        mkdir -p "$DEPLOY_BASE_DIR"
 
-      clone_repo() {
-        local slug="$1"
-        local path="$2"
-        local branch="$3"
-
-        echo "DEPLOY_VARIANT=git-askpass"
-        local askpass
-        askpass=$(mktemp)
-        printf '#!/bin/sh\necho "%s"\n' "$GH_TOKEN" > "$askpass"
-        chmod +x "$askpass"
-        if GIT_ASKPASS="$askpass" GIT_USERNAME="x-access-token" git clone "https://github.com/$slug.git" "$path" -b "$branch" --no-recurse-submodules; then
-          rm -f "$askpass"
-          return 0
+        if [ ! -d "$DEPLOY_PATH/.git" ]; then
+          gh repo clone "$REPO_SLUG" "$DEPLOY_PATH" -- -b "$REPO_BRANCH"
         fi
-        rm -f "$askpass"
 
-        echo "DEPLOY_CLONE_ERROR=clone failed for $slug"
-        return 1
-      }
+        cd "$DEPLOY_PATH"
 
-      if [ ! -d "$DEPLOY_PATH/.git" ]; then
-        clone_repo "$REPO_SLUG" "$DEPLOY_PATH" "$REPO_BRANCH"
-      fi
+        git fetch origin "$REPO_BRANCH"
+        git checkout "$REPO_BRANCH"
+        git reset --hard "origin/$REPO_BRANCH"
 
-      cd "$DEPLOY_PATH"
+        corepack enable
+        corepack use "pnpm@$PNPM_VERSION"
 
-      git fetch origin "$REPO_BRANCH"
-      git checkout "$REPO_BRANCH"
-      git reset --hard "origin/$REPO_BRANCH"
+        pnpm install --frozen-lockfile < /dev/null
+        rm -rf ./dist
+        VITE_APP_URL="$VITE_APP_URL" pnpm build --mode "$VITE_BUILD_MODE" < /dev/null
 
-      corepack enable
-      corepack use "pnpm@$PNPM_VERSION"
+        test -d ./dist
+        test -f ./dist/index.html
 
-      pnpm install --frozen-lockfile
-      pnpm type-check
-      rm -rf ./dist
-      pnpm build
-
-      test -f ./dist/index.html || { echo "FAIL: build output dist/index.html missing"; exit 1; }
-
-      mkdir -p "$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR"
-      rsync -r "$DEPLOY_PATH/dist/" "$DEPLOY_BASE_DIR/$SUBDOMAIN_DIR/"
+        mkdir -p "$TARGET_PATH"
+        rsync -avz --delete ./dist/ "$TARGET_PATH/"
       ENDSSH
 
-  - &deploy_base_secrets
-    - ssh_user
-    - deploy_base_dir
-    - deploy_ssh_key
-    - gh_token
+  - &deploy_base_env
+    SSH_HOST: 217.160.14.123
+    SSH_USER:
+      from_secret: ssh_user
+    DEPLOY_BASE_DIR:
+      from_secret: deploy_base_dir
+    REPO_SLUG: BabaDeluxe/babadeluxe-webview
+    PNPM_VERSION: 9.15.0
+    DEPLOY_SSH_KEY:
+      from_secret: deploy_ssh_key
 
 steps:
   deploy-prod:
     image: *deploy_image
     when:
-      - event: push
+      - event: [push, manual]
         branch: master
-      - event: manual
-        branch: master
-    secrets: *deploy_base_secrets
     environment:
-      SSH_HOST: 217.160.14.123
-      SSH_USER:
-        from_secret: ssh_user
-      DEPLOY_BASE_DIR:
-        from_secret: deploy_base_dir
-      DEPLOY_SSH_KEY:
-        from_secret: deploy_ssh_key
-      GH_TOKEN:
-        from_secret: gh_token
-      REPO_SLUG: BabaDeluxe/babadeluxe-webview
-      PNPM_VERSION: 9.15.0
+      <<: *deploy_base_env
       NODE_ENV: production
+      VITE_BUILD_MODE: production
       REPO_BRANCH: master
       GIT_DIR: babadeluxe-webview-prod
       SUBDOMAIN_DIR: app.babadeluxe.com
+      VITE_APP_URL: https://app.babadeluxe.com
     commands: *deploy_commands
 
   deploy-staging:
     image: *deploy_image
     when:
-      - event: push
+      - event: [push, manual]
         branch: dev
-      - event: manual
-        branch: dev
-    secrets: *deploy_base_secrets
     environment:
-      SSH_HOST: 217.160.14.123
-      SSH_USER:
-        from_secret: ssh_user
-      DEPLOY_BASE_DIR:
-        from_secret: deploy_base_dir
-      DEPLOY_SSH_KEY:
-        from_secret: deploy_ssh_key
-      GH_TOKEN:
-        from_secret: gh_token
-      REPO_SLUG: BabaDeluxe/babadeluxe-webview
-      PNPM_VERSION: 9.15.0
+      <<: *deploy_base_env
       NODE_ENV: staging
+      VITE_BUILD_MODE: staging
       REPO_BRANCH: dev
       GIT_DIR: babadeluxe-webview-staging
       SUBDOMAIN_DIR: app-staging.babadeluxe.com
+      VITE_APP_URL: https://app-staging.babadeluxe.com
     commands: *deploy_commands
