@@ -42,7 +42,7 @@ graph TD
 | Persistence | Dexie.js                             | IndexedDB wrapper with custom safe wrappers |
 | Real-time   | Socket.io-client                     | See [HTTP.md](./HTTP.md)                    |
 | Validation  | Zod + neverthrow                     | Runtime schemas + typed Results             |
-| Testing     | Vitest (unit) + Playwright (E2E)     | See `TESTING_GUIDELINE.md`                  |
+| Testing     | Vitest (unit) + Playwright (E2E)     | Automated test suites                       |
 
 ## Dependency Injection
 
