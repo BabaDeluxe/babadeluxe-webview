@@ -1,43 +1,48 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 build/
 dist/
 out/
+*.tsbuildinfo
 
-vscode-test/
+# Test & coverage
 coverage/
+vscode-test/
 
-*.log
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+.github/workflows/playwright.yml
 
+# Caches & tooling
+.eslintcache
+.aider**
+
+# Environment
+.env.local
+
+# OS & editor
 .DS_Store
-.idea
+.idea/
 *.local
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-*.tsbuildinfo
+
+# Misc artifacts
+*.patch
+fix_*.py
+lint_output.txt
+type_check_output.txt
 bundle-analysis.html
 *.db
 *.vsix
 *.old
-
-# Playwright
-node_modules/
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/
-
-.github/workflows/playwright.yml
-.aider**
-.env.local
-
-# Local temporary files
-*.patch
-fix_*.py
-
-# CI/build diagnostic artefacts (never commit these)
-lint_output.txt
-type_check_output.txt
+*.log
