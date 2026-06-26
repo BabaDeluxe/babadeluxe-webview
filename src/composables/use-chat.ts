@@ -25,7 +25,6 @@ import { useChatStreaming } from '@/composables/use-chat-streaming'
 import { useChatHistory } from '@/composables/use-chat-history'
 import { useChatInput } from '@/composables/use-chat-input'
 import type { AtPickerItem } from '@/composables/use-at-picker'
-import { isOfflineMode } from '@/env-validator'
 import { useChatUser } from '@/composables/use-chat-user'
 import { useChatPersistedSettings } from '@/composables/use-chat-persisted-settings'
 import { useChatActions } from '@/composables/use-chat-actions'
@@ -162,10 +161,34 @@ export function useChat() {
     }))
   })
 
-  const atSources = computed<AtPickerItem[]>(() => {
-    // TODO: add spaceSources and superpowerSources when those backends are ready
-    return availablePromptsAsSources.value
-  })
+  // Stub sources for sources not yet ready
+  const spaceSources = computed<AtPickerItem[]>(() => [
+    {
+      id: 'space:coming-soon',
+      label: 'Spaces',
+      type: 'space',
+      icon: 'i-hugeicons:folder-02',
+      isDisabled: true,
+      disabledReason: 'Coming soon',
+    },
+  ])
+
+  const superpowerSources = computed<AtPickerItem[]>(() => [
+    {
+      id: 'superpower:coming-soon',
+      label: 'Superpowers',
+      type: 'superpower',
+      icon: 'i-hugeicons:flash',
+      isDisabled: true,
+      disabledReason: 'Coming soon',
+    },
+  ])
+
+  const atSources = computed<AtPickerItem[]>(() => [
+    ...availablePromptsAsSources.value,
+    ...spaceSources.value,
+    ...superpowerSources.value,
+  ])
 
   const activeSources = computed(() => chatInputRef.value?.activeSources ?? [])
 
@@ -190,14 +213,12 @@ export function useChat() {
     return selectedPromptObject?.template || fallback
   }
 
-  const registerMessageComponent = (id: number, element: Element | ChatMessageInstance | null) => {
+  const registerMessageComponent = (id: number, element: ChatMessageInstance | null) => {
     if (!element) {
       messageComponents.value.delete(id)
       return
     }
-    if ('$' in (element as Element | ChatMessageInstance)) {
-      messageComponents.value.set(id, element as ChatMessageInstance)
-    }
+    messageComponents.value.set(id, element)
   }
 
   const handleDeleteMessage = async (messageId: number) => {
@@ -429,9 +450,13 @@ export function useChat() {
     return findModelContextWindow(trimmedModelValue)
   })
 
-  watch(activeModelContextWindow, (newContextWindow) => {
-    selectedModelContextWindow.value = newContextWindow
-  }, { immediate: true })
+  watch(
+    activeModelContextWindow,
+    (newContextWindow) => {
+      selectedModelContextWindow.value = newContextWindow
+    },
+    { immediate: true }
+  )
 
   onMounted(() => void initializeChat())
 

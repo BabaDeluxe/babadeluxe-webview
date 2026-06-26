@@ -47,7 +47,7 @@
 import { computed } from 'vue'
 import { topKLabel } from '@/model-preferences'
 
-const DEFAULT_TOP_K = 40
+const defaultTopK = 40
 
 type Model = {
   label: string
@@ -65,7 +65,7 @@ const emit = defineEmits<{
 }>()
 
 const hasOverride = computed(() => props.topK !== undefined)
-const currentTopK = computed(() => props.topK ?? DEFAULT_TOP_K)
+const currentTopK = computed(() => props.topK ?? defaultTopK)
 
 function handleInput(event: Event): void {
   const value = parseInt((event.target as HTMLInputElement).value, 10)

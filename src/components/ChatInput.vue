@@ -74,8 +74,84 @@
   </div>
 </template>
 
+<template>
+  <div class="flex flex-col gap-2 w-full relative group/composer">
+    <transition
+      enter-active-class="transition duration-100 ease-out"
+      enter-from-class="transform scale-95 opacity-0"
+      enter-to-class="transform scale-100 opacity-100"
+      leave-active-class="transition duration-75 ease-in"
+      leave-from-class="transform scale-100 opacity-100"
+      leave-to-class="transform scale-95 opacity-0"
+    >
+      <AtPicker
+        v-if="isPickerOpen"
+        :items="pickerResults"
+        :active-index="pickerActiveIndex"
+      />
+    </transition>
+
+    <div
+      class="flex flex-col gap-1.5 bg-panel border border-borderMuted rounded-xl p-1.5 transition-colors focus-within:border-accent"
+    >
+      <div
+        v-if="activeSources.length > 0"
+        class="flex flex-wrap gap-1.5 px-1.5 pt-1 animate-fade-in"
+      >
+        <AtPill
+          v-for="source in activeSources"
+          :key="source.id"
+          :item="source"
+          @remove="removeSource(source.id)"
+        />
+      </div>
+
+      <div class="flex items-center gap-2">
+        <slot name="prepend" />
+
+        <BaseTextField
+          ref="textFieldRef"
+          v-model:value="computedInputValue"
+          variant="ghost"
+          :placeholder="placeholder"
+          :disabled="isSubmitting"
+          data-testid="chat-input"
+          class="flex-1"
+          @keydown="handleKeydown"
+        />
+
+        <div class="flex items-center gap-1 pr-1.5">
+          <BaseButton
+            v-if="!isSubmitting"
+            variant="ghost"
+            :icon="submitIcon"
+            :is-disabled="isSubmitDisabled"
+            aria-label="Send message"
+            data-testid="chat-submit-button"
+            @click="handleSubmit"
+          />
+
+          <BaseButton
+            v-else
+            variant="ghost"
+            :icon="abortIcon"
+            aria-label="Stop generating"
+            data-testid="chat-abort-button"
+            @click="emit('abort')"
+          />
+        </div>
+
+        <slot name="append" />
+      </div>
+
+      <slot name="controls" />
+      <slot name="footer" />
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
-import { computed, useTemplateRef, watch } from 'vue'
+import { computed, useTemplateRef } from 'vue'
 import { watchDebounced } from '@vueuse/core'
 import AtPicker from '@/components/chat/AtPicker.vue'
 import AtPill from '@/components/chat/AtPill.vue'
@@ -123,7 +199,9 @@ const {
 
 const computedInputValue = computed({
   get: () => props.value,
-  set: (newValue) => emit('update:value', newValue),
+  set: (newValue) => {
+    emit('update:value', newValue)
+  },
 })
 
 const isSubmitDisabled = computed(() => {
@@ -154,36 +232,34 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 function handlePickerKeydown(event: KeyboardEvent) {
-  const handlers: Record<string, () => void> = {
-    ArrowDown: () => {
+  switch (event.key) {
+    case 'ArrowDown':
       event.preventDefault()
       movePickerDown()
-    },
-    ArrowUp: () => {
+      break
+    case 'ArrowUp':
       event.preventDefault()
       movePickerUp()
-    },
-    Tab: () => {
+      break
+    case 'Tab':
       event.preventDefault()
       handlePickerAcceptance()
-    },
-    Enter: () => {
+      break
+    case 'Enter':
       if (pickerResults.value.length > 0) {
         event.preventDefault()
         handlePickerAcceptance()
       }
-    },
-    Escape: () => {
+      break
+    case 'Escape':
       event.preventDefault()
       closePicker()
-    },
+      break
   }
-
-  handlers[event.key]?.()
 }
 
 function handlePickerAcceptance() {
-  const acceptedItem = acceptPicker()
+  acceptPicker()
   removeMentionTokenFromInput()
 }
 
@@ -215,9 +291,16 @@ function handleDefaultKeydown(event: KeyboardEvent) {
   const hasActiveSources = activeSources.value.length > 0
   const textarea = textareaElement.value
 
-  if (isBackspacePressed && hasActiveSources && textarea && textarea.selectionStart === 0 && textarea.selectionEnd === 0) {
+  if (
+    isBackspacePressed &&
+    hasActiveSources &&
+    textarea &&
+    textarea.selectionStart === 0 &&
+    textarea.selectionEnd === 0
+  ) {
     event.preventDefault()
-    activeSources.value.pop()
+    const lastSource = activeSources.value.at(-1)
+    if (lastSource) removeSource(lastSource.id)
   }
 }
 

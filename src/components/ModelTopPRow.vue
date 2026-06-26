@@ -47,7 +47,7 @@
 import { computed } from 'vue'
 import { topPLabel } from '@/model-preferences'
 
-const DEFAULT_TOP_P = 1
+const defaultTopP = 1
 
 type Model = {
   label: string
@@ -65,7 +65,7 @@ const emit = defineEmits<{
 }>()
 
 const hasOverride = computed(() => props.topP !== undefined)
-const currentTopP = computed(() => props.topP ?? DEFAULT_TOP_P)
+const currentTopP = computed(() => props.topP ?? defaultTopP)
 
 function handleInput(event: Event): void {
   const value = parseFloat((event.target as HTMLInputElement).value)

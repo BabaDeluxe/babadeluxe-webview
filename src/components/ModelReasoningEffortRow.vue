@@ -11,7 +11,7 @@
     <div class="flex items-center gap-2">
       <div class="flex rounded-md overflow-hidden border border-border">
         <button
-          v-for="option in OPTIONS"
+          v-for="option in options"
           :key="option.value"
           class="px-2 py-1 text-xs transition-colors"
           :class="
@@ -52,7 +52,7 @@ type EffortOption = {
   label: string
 }
 
-const OPTIONS: EffortOption[] = [
+const options: EffortOption[] = [
   { value: 'auto', label: 'Auto' },
   { value: 'off', label: 'Off' },
   { value: 'minimal', label: 'Min' },

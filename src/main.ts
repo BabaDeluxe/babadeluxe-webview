@@ -212,7 +212,9 @@ class AppInitializer {
       return
     }
 
-    this._socketManagerRef.value = socketManager
+    window.addEventListener('beforeunload', () => {
+      socketManager.disconnect()
+    })
 
     const apiKeyValidator: IApiKeyValidator = new ApiKeyValidator(
       this._logger,
@@ -221,9 +223,7 @@ class AppInitializer {
     this._apiKeyValidatorValue.value = apiKeyValidator
     this._apiKeyValidatorIsReady.value = true
 
-    window.addEventListener('beforeunload', () => {
-      socketManager.disconnect()
-    })
+    this._socketManagerRef.value = socketManager
 
     await initializeModels(socketManager)
   }

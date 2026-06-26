@@ -33,7 +33,6 @@
         ref="vertical-split-container"
         class="flex flex-col flex-1 min-h-0 md:hidden px-4 pb-4"
       >
-        <!-- Prompt list (top) -->
         <div
           class="flex flex-col gap-2 overflow-y-auto pr-1"
           :style="{ height: verticalTopHeightPercent }"
@@ -63,7 +62,6 @@
           />
         </div>
 
-        <!-- Editor panel (bottom) -->
         <div
           class="flex flex-col gap-3 overflow-y-auto pt-2 pr-1 border-t border-borderMuted"
           :style="{ height: verticalBottomHeightPercent }"
@@ -77,13 +75,8 @@
             :is-upgrading="isUpgrading"
             :show-upgrade-nudge="showUpgradeNudge"
             :active-tab="activeTab"
-            :tabs="tabs"
-            :injection-mode="injectionMode"
-            :injection-interval="injectionInterval"
-            :injection-position="injectionPosition"
-            :injection-include-history="injectionIncludeHistory"
+            :injection-settings="injectionSettings"
             @save="handleSave"
-            @change="handleChange"
             @delete="handleDelete"
             @tab-change="activeTab = $event"
             @upgrade="redirectToCheckout"
@@ -97,7 +90,6 @@
         ref="horizontal-split-container"
         class="hidden md:flex flex-row flex-1 min-h-0 relative px-4 pb-4"
       >
-        <!-- Left pane: prompt list -->
         <div
           class="flex flex-col gap-2 overflow-y-auto pr-2 min-w-0"
           :style="{ width: splitLeftWidthPercent }"
@@ -127,7 +119,6 @@
           />
         </div>
 
-        <!-- Right pane: editor -->
         <div
           class="flex flex-col gap-3 overflow-y-auto pl-2 pr-1 border-l border-borderMuted min-w-0"
           :style="{ width: splitRightWidthPercent }"
@@ -141,13 +132,8 @@
             :is-upgrading="isUpgrading"
             :show-upgrade-nudge="showUpgradeNudge"
             :active-tab="activeTab"
-            :tabs="tabs"
-            :injection-mode="injectionMode"
-            :injection-interval="injectionInterval"
-            :injection-position="injectionPosition"
-            :injection-include-history="injectionIncludeHistory"
+            :injection-settings="injectionSettings"
             @save="handleSave"
-            @change="handleChange"
             @delete="handleDelete"
             @tab-change="activeTab = $event"
             @upgrade="redirectToCheckout"
@@ -160,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { validateSetting } from '../services/prompt-injection-service'
 import type {
   PromptInjectionMode,
@@ -176,185 +162,9 @@ import { KEY_VALUE_STORE_KEY } from '@/injection-keys'
 import { safeInject } from '@/safe-inject'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
-import PromptEditor from '@/components/PromptEditor.vue'
-import PromptInjectionSettings from '@/components/PromptInjectionSettings.vue'
-
-// ---------------------------------------------------------------------------
-// Inline sub-components (avoid new files for small render chunks)
-// ---------------------------------------------------------------------------
-
-/** Renders the prompt list or an empty-state CTA. */
-const PromptList = defineAsyncComponent(() =>
-  Promise.resolve({
-    props: ['prompts', 'selectedPromptId', 'isPro'],
-    emits: ['promptClick', 'newPrompt'],
-    template: `
-      <template>
-        <div
-          v-if="prompts.length === 0"
-          class="flex flex-col items-center justify-center gap-3 py-16 text-center"
-        >
-          <span class="i-bi:chat-square-text text-subtleText text-3xl" />
-          <p class="text-sm text-subtleText">No prompts yet.</p>
-          <button
-            type="button"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-borderMuted bg-panel text-sm text-deepText hover:border-accent/50 transition-colors"
-            @click="$emit('newPrompt')"
-          >
-            <span class="i-bi:plus-lg text-sm" /> Create your first prompt
-          </button>
-        </div>
-        <button
-          v-for="prompt in prompts"
-          :key="prompt.id"
-          type="button"
-          :aria-pressed="selectedPromptId === prompt.id"
-          class="flex flex-col gap-0.5 px-3.5 py-3 rounded-lg border text-left transition-colors relative group"
-          :class="[
-            selectedPromptId === prompt.id
-              ? 'border-accent bg-accentDim'
-              : 'border-borderMuted bg-panel hover:border-accent/50',
-            prompt.isPremium && !isPro ? 'opacity-80' : '',
-          ]"
-          :data-testid="'prompt-list-item-' + prompt.id"
-          :title="prompt.isPremium && !isPro ? 'Upgrade to Pro to use this prompt' : undefined"
-          @click="$emit('promptClick', prompt)"
-        >
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-sm font-medium text-deepText truncate">{{ prompt.name }}</span>
-            <i v-if="prompt.isPremium && !isPro" class="i-bi:lock-fill text-accent text-xs" />
-          </div>
-          <span class="text-xs text-subtleText">/{{ prompt.command || '' }}</span>
-        </button>
-      </template>
-    `,
-  })
-)
-
-/** Renders the right-hand editor panel including upgrade nudge, tabs, editor and actions. */
-const PromptEditorPanel = {
-  components: { PromptEditor, PromptInjectionSettings },
-  props: [
-    'selectedPrompt', 'isCreating', 'isSaving', 'isDeleting', 'isPro',
-    'isUpgrading', 'showUpgradeNudge', 'activeTab', 'tabs',
-    'injectionMode', 'injectionInterval', 'injectionPosition', 'injectionIncludeHistory',
-  ],
-  emits: ['save', 'change', 'delete', 'tabChange', 'upgrade', 'saveInjectionSetting'],
-  template: `
-    <div class="flex flex-col gap-3 h-full">
-      <!-- Upgrade nudge -->
-      <div
-        v-if="showUpgradeNudge"
-        class="bg-accentDim border border-accent border-dashed rounded-lg p-6 flex flex-col items-center text-center gap-4 animate-fade-in"
-      >
-        <div class="p-3 bg-accent/10 rounded-full">
-          <i class="i-bi:gem text-accent text-3xl" />
-        </div>
-        <div class="flex flex-col gap-1">
-          <h3 class="text-lg font-semibold text-deepText">Premium Prompt</h3>
-          <p class="text-sm text-subtleText">This is a Pro prompt. Upgrade to unlock all premium prompts.</p>
-        </div>
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors"
-          :disabled="isUpgrading"
-          @click="$emit('upgrade')"
-        >
-          Upgrade Now
-        </button>
-      </div>
-
-      <template v-else-if="selectedPrompt || isCreating">
-        <!-- Tab bar -->
-        <div
-          v-if="!isCreating"
-          role="tablist"
-          class="flex gap-1 p-0.5 rounded-lg bg-panel border border-borderMuted self-start"
-        >
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            role="tab"
-            type="button"
-            class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-            :class="
-              activeTab === tab.id
-                ? 'bg-accentDim text-accent border border-accentBorder'
-                : 'text-subtleText hover:text-deepText'
-            "
-            :data-testid="'tab-' + tab.id"
-            @click="$emit('tabChange', tab.id)"
-          >
-            {{ tab.label }}
-          </button>
-        </div>
-
-        <!-- Edit tab -->
-        <div
-          v-show="isCreating || activeTab === 'edit'"
-          role="tabpanel"
-          aria-labelledby="tab-edit"
-        >
-          <PromptEditor
-            :prompt="selectedPrompt"
-            :is-creating="isCreating"
-            :is-saving="isSaving"
-            @save="$emit('save', $event)"
-            @change="$emit('change')"
-          />
-        </div>
-
-        <!-- Injection Settings tab -->
-        <div
-          v-if="!isCreating"
-          v-show="activeTab === 'injection'"
-          role="tabpanel"
-          aria-labelledby="tab-injection"
-        >
-          <PromptInjectionSettings
-            :mode="injectionMode"
-            :interval="injectionInterval"
-            :position="injectionPosition"
-            :include-history="injectionIncludeHistory"
-            @update:mode="$emit('saveInjectionSetting', 'promptInjectionMode', $event)"
-            @update:interval="$emit('saveInjectionSetting', 'promptInjectionInterval', $event)"
-            @update:position="$emit('saveInjectionSetting', 'promptInjectionPosition', $event)"
-            @update:include-history="$emit('saveInjectionSetting', 'promptIncludeHistory', $event)"
-          />
-        </div>
-
-        <!-- Prompt actions -->
-        <div
-          v-if="selectedPrompt && !isCreating"
-          class="flex justify-end gap-2 pt-2"
-        >
-          <button
-            type="button"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-borderMuted text-sm text-error hover:bg-error/10 transition-colors"
-            :disabled="isDeleting"
-            data-testid="delete-prompt-button"
-            @click="$emit('delete')"
-          >
-            <span class="i-bi:trash text-sm" /> Delete
-          </button>
-        </div>
-      </template>
-
-      <!-- Empty right-pane placeholder -->
-      <div
-        v-else
-        class="flex flex-col items-center justify-center gap-2 py-16 text-center text-subtleText"
-      >
-        <span class="i-bi:arrow-left text-2xl" />
-        <p class="text-sm">Select a prompt to edit</p>
-      </div>
-    </div>
-  `,
-}
-
-// ---------------------------------------------------------------------------
-// Composables
-// ---------------------------------------------------------------------------
+import PromptList from '@/components/PromptList.vue'
+import PromptEditorPanel from '@/components/PromptEditorPanel.vue'
+import type { InjectionSettings } from '@/components/PromptEditorPanel.vue'
 
 const keyValueStore = safeInject(KEY_VALUE_STORE_KEY)
 
@@ -395,22 +205,25 @@ const toasts = useToastStore()
 
 const isPro = computed(() => tier.value === 'PRO')
 const showUpgradeNudge = ref(false)
-
 const selectedPromptId = ref<number | undefined>()
 const isCreating = ref(false)
 const isSaving = ref(false)
 const isDeleting = ref(false)
+const activeTab = ref<'edit' | 'injection'>('edit')
 
 const selectedPrompt = computed(() =>
   prompts.value.find((prompt) => prompt.id === selectedPromptId.value)
 )
 
-function selectPrompt(prompt: { id: number }) {
-  isCreating.value = false
-  selectedPromptId.value = prompt.id
-  activeTab.value = 'edit'
-  showUpgradeNudge.value = false
-}
+const getSetting = (key: string) =>
+  settings.value.find((setting) => setting.settingKey === key)?.settingValue
+
+const injectionSettings = computed<InjectionSettings>(() => ({
+  mode: (getSetting('promptInjectionMode') as PromptInjectionMode) ?? 'always',
+  interval: (getSetting('promptInjectionInterval') as number) ?? 5,
+  position: (getSetting('promptInjectionPosition') as PromptInjectionPosition) ?? 'system',
+  includeHistory: (getSetting('promptIncludeHistory') as boolean) ?? true,
+}))
 
 function handlePromptClick(prompt: { id: number; isPremium?: boolean }) {
   if (prompt.isPremium && !isPro.value) {
@@ -419,8 +232,10 @@ function handlePromptClick(prompt: { id: number; isPremium?: boolean }) {
     isCreating.value = false
     return
   }
-
-  selectPrompt(prompt)
+  isCreating.value = false
+  selectedPromptId.value = prompt.id
+  activeTab.value = 'edit'
+  showUpgradeNudge.value = false
 }
 
 function handleNewPrompt() {
@@ -455,8 +270,6 @@ async function handleSave(payload: {
   )
 }
 
-function handleChange() {}
-
 async function handleDelete() {
   if (!selectedPromptId.value) return
   isDeleting.value = true
@@ -474,26 +287,6 @@ async function handleDelete() {
     }
   )
 }
-
-const tabs = [
-  { id: 'edit' as const, label: 'Edit' },
-  { id: 'injection' as const, label: 'Injection Settings' },
-]
-const activeTab = ref<'edit' | 'injection'>('edit')
-
-const getSetting = (key: string) =>
-  settings.value.find((setting) => setting.settingKey === key)?.settingValue
-
-const injectionMode = computed(
-  () => (getSetting('promptInjectionMode') as PromptInjectionMode) ?? 'always'
-)
-const injectionInterval = computed(() => (getSetting('promptInjectionInterval') as number) ?? 5)
-const injectionPosition = computed(
-  () => (getSetting('promptInjectionPosition') as PromptInjectionPosition) ?? 'system'
-)
-const injectionIncludeHistory = computed(
-  () => (getSetting('promptIncludeHistory') as boolean) ?? true
-)
 
 async function saveInjectionSetting(key: string, value: unknown) {
   const dataType =

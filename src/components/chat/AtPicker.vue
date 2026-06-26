@@ -4,22 +4,36 @@
     ref="listRef"
     class="absolute bottom-full left-0 mb-2 w-64 max-h-64 overflow-y-auto bg-panel border border-borderMuted rounded-lg shadow-xl z-[9999] py-2"
   >
-    <div v-for="group in groupedItems" :key="group.type">
+    <div
+      v-for="group in groupedItems"
+      :key="group.type"
+    >
       <div class="px-3 py-1 text-[10px] uppercase tracking-wider text-subtleText font-bold">
         {{ group.label }}
       </div>
       <ul>
         <li
-          v-for="(item, index) in group.items"
+          v-for="item in group.items"
           :key="item.id"
-          class="px-3 py-2 flex items-center gap-2 text-sm cursor-default transition-colors"
-          :class="{
-            'bg-surfaceDynamic text-accent is-active': items.indexOf(item) === activeIndex,
-            'text-deepText': items.indexOf(item) !== activeIndex
-          }"
+          class="px-3 py-2 flex items-center gap-2 text-sm transition-colors"
+          :class="[
+            item.isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-default',
+            !item.isDisabled && items.indexOf(item) === activeIndex
+              ? 'bg-surfaceDynamic text-accent is-active'
+              : 'text-deepText',
+          ]"
         >
-          <span :class="getIcon(item)" class="w-4 h-4 opacity-70" />
+          <span
+            :class="getIcon(item)"
+            class="w-4 h-4 opacity-70 shrink-0"
+          />
           <span class="flex-1 truncate">{{ item.label }}</span>
+          <span
+            v-if="item.isDisabled"
+            class="text-[10px] uppercase tracking-wide text-subtleText font-medium shrink-0"
+          >
+            Soon
+          </span>
         </li>
       </ul>
     </div>
@@ -53,13 +67,16 @@ const groupedItems = computed(() => {
   ].filter((g) => g.items.length > 0)
 })
 
-watch(() => props.activeIndex, async () => {
-  await nextTick()
-  const activeItemElement = listRef.value?.querySelector('.is-active')
-  if (activeItemElement) {
-    activeItemElement.scrollIntoView({ block: 'nearest' })
+watch(
+  () => props.activeIndex,
+  async () => {
+    await nextTick()
+    const activeItemElement = listRef.value?.querySelector('.is-active')
+    if (activeItemElement) {
+      activeItemElement.scrollIntoView({ block: 'nearest' })
+    }
   }
-})
+)
 
 const getIcon = (item: AtPickerItem) => {
   if (item.icon) return item.icon

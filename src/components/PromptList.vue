@@ -1,71 +1,62 @@
 <template>
-  <div class="flex flex-col gap-2 overflow-y-auto">
+  <div
+    v-if="prompts.length === 0"
+    class="flex flex-col items-center justify-center gap-3 py-16 text-center"
+  >
+    <span class="i-bi:chat-square-text text-subtleText text-3xl" />
+    <p class="text-sm text-subtleText">No prompts yet.</p>
     <button
-      v-for="prompt in prompts"
-      :key="prompt.id"
       type="button"
-      class="flex items-center gap-3 px-4 py-3 rounded-lg border border-borderMuted bg-panel hover:border-accent/50 transition-all text-left group relative"
-      :class="{ 'bg-accent/10 border-accent': prompt.id === selectedPromptId }"
-      @click="emit('select', prompt.id)"
+      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-borderMuted bg-panel text-sm text-deepText hover:border-accent/50 transition-colors"
+      @click="emit('newPrompt')"
     >
-      <div class="flex-1 min-w-0">
-        <div class="font-medium text-deepText truncate">{{ prompt.name }}</div>
-        <div class="text-sm text-subtleText truncate">/{{ prompt.command ?? '' }}</div>
-      </div>
-
-      <div class="flex items-center gap-1 flex-shrink-0">
-        <span
-          v-if="prompt.isSystem"
-          class="text-xs bg-borderMuted text-subtleText px-2 py-0.5 rounded-full"
-        >
-          System
-        </span>
-
-        <BaseButton
-          v-if="!prompt.isSystem"
-          variant="ghost"
-          icon="i-weui:delete-outlined"
-          data-testid="prompt-delete-button"
-          aria-label="Delete prompt"
-          class="hover:text-error"
-          title="Delete prompt"
-          @click.stop="emit('delete', prompt.id)"
-        />
-      </div>
+      <span class="i-bi:plus-lg text-sm" /> Create your first prompt
     </button>
-
-    <BaseEmptyState
-      v-if="prompts.length === 0"
-      icon="i-bi:chat-left"
-      :description="emptyDescription"
-    />
   </div>
+
+  <button
+    v-for="prompt in prompts"
+    :key="prompt.id"
+    type="button"
+    :aria-pressed="selectedPromptId === prompt.id"
+    class="flex flex-col gap-0.5 px-3.5 py-3 rounded-lg border text-left transition-colors relative group"
+    :class="[
+      selectedPromptId === prompt.id
+        ? 'border-accent bg-accentDim'
+        : 'border-borderMuted bg-panel hover:border-accent/50',
+      prompt.isPremium && !isPro ? 'opacity-80' : '',
+    ]"
+    :data-testid="'prompt-list-item-' + prompt.id"
+    :title="prompt.isPremium && !isPro ? 'Upgrade to Pro to use this prompt' : undefined"
+    @click="emit('promptClick', prompt)"
+  >
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-sm font-medium text-deepText truncate">{{ prompt.name }}</span>
+      <i
+        v-if="prompt.isPremium && !isPro"
+        class="i-bi:lock-fill text-accent text-xs"
+      />
+    </div>
+    <span class="text-xs text-subtleText">/{{ prompt.command || '' }}</span>
+  </button>
 </template>
 
 <script setup lang="ts">
-import BaseEmptyState from '@/components/BaseEmptyState.vue'
-import BaseButton from '@/components/BaseButton.vue'
-
 interface Prompt {
   id: number
   name: string
   command?: string
-  isSystem: boolean
   isPremium?: boolean
 }
 
-interface PromptListProps {
+defineProps<{
   prompts: readonly Prompt[]
-  selectedPromptId?: number
-  emptyDescription: string
-}
-
-withDefaults(defineProps<PromptListProps>(), {
-  selectedPromptId: undefined,
-})
+  selectedPromptId: number | undefined
+  isPro: boolean
+}>()
 
 const emit = defineEmits<{
-  select: [promptId: number]
-  delete: [promptId: number]
+  promptClick: [prompt: Prompt]
+  newPrompt: []
 }>()
 </script>

@@ -393,7 +393,8 @@ const reasoningEffort = computed<ReasoningEffort | undefined>(() => {
   return s?.settingValue as ReasoningEffort | undefined
 })
 
-function getReasoningEffortForModel(_modelValue: string): ReasoningEffort | undefined {
+function getReasoningEffortForModel(modelValue: string): ReasoningEffort | undefined {
+  void modelValue // global setting — same effort for all models
   return reasoningEffort.value
 }
 
@@ -413,13 +414,18 @@ async function resetReasoningEffort(): Promise<void> {
   }
 }
 
-async function handleReasoningEffortChange(_modelValue: string, value: ReasoningEffort): Promise<void> {
+async function handleReasoningEffortChange(
+  modelValue: string,
+  value: ReasoningEffort
+): Promise<void> {
+  void modelValue // global setting — modelValue intentionally ignored
   const validation = validateSetting('reasoningEffort', value)
   if (!validation.success) return
   await persistReasoningEffort(value)
 }
 
-async function handleReasoningEffortReset(_modelValue: string): Promise<void> {
+async function handleReasoningEffortReset(modelValue: string): Promise<void> {
+  void modelValue // global setting — modelValue intentionally ignored
   await resetReasoningEffort()
 }
 

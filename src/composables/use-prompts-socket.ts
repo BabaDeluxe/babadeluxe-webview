@@ -3,15 +3,11 @@ import { err, ok, type Result } from 'neverthrow'
 import type { Root } from '@babadeluxe/shared/generated-socket-types'
 import { NetworkError, ValidationError, SocketError } from '@/errors'
 import { socketTimeoutMs } from '@/constants'
-import { logger } from '@/logger'
 import { useSocketManager } from '@/composables/use-socket-manager'
 import { retryWithBackoff } from '@/retry'
 import { emitWithTimeout } from '@/emit-with-timeout'
-
-// ----------------------------------------------------------------------
-// Types
-// ----------------------------------------------------------------------
-
+import { safeInject } from '@/safe-inject'
+import { LOGGER_KEY } from '@/injection-keys'
 export type Prompt = Root.Emission['prompts:promptCreated'] extends (p: infer P) => void
   ? P & { isPremium?: boolean }
   : never
@@ -29,14 +25,8 @@ type PromptUpdatedPayload = Parameters<Root.Emission['prompts:promptUpdated']>[0
 type PromptDeletedPayload = Parameters<Root.Emission['prompts:promptDeleted']>[0]
 
 type PromptOperationError = NetworkError | ValidationError | SocketError
-
-// ----------------------------------------------------------------------
-// Error helpers (convert unknown to domain error)
-// ----------------------------------------------------------------------
-
 function mapPromptError(context: string) {
   return (unknownError: unknown): PromptOperationError => {
-    // If it's already one of our domain errors, return it as-is.
     if (
       unknownError instanceof NetworkError ||
       unknownError instanceof ValidationError ||
@@ -44,13 +34,9 @@ function mapPromptError(context: string) {
     ) {
       return unknownError
     }
-
-    // If it's a generic Error, wrap it in a NetworkError (preserving cause).
     if (unknownError instanceof Error) {
       return new NetworkError(unknownError.message, unknownError)
     }
-
-    // For anything else (string, object, etc.), create a NetworkError with a generic message.
     return new NetworkError(context, unknownError)
   }
 }
@@ -58,12 +44,8 @@ function mapPromptError(context: string) {
 function isValidationError(error: PromptOperationError): boolean {
   return error instanceof ValidationError
 }
-
-// ----------------------------------------------------------------------
-// Main composable
-// ----------------------------------------------------------------------
-
 export function usePromptsSocket() {
+  const logger = safeInject(LOGGER_KEY)
   const { socketManagerRef } = useSocketManager()
 
   const promptsSocketRef = computed<Root.Socket | null | undefined>(() => {
@@ -84,11 +66,6 @@ export function usePromptsSocket() {
     const isSystemPrompt = selectedPrompt.value?.isSystem === true
     return isPromptSelected && !isSystemPrompt
   })
-
-  // --------------------------------------------------------------------
-  // Event listeners (for real‑time updates)
-  // --------------------------------------------------------------------
-
   const onPromptCreated = (newPrompt: PromptCreatedPayload) => {
     const isPromptAlreadyInList = prompts.value.some((prompt) => prompt.id === newPrompt.id)
     if (isPromptAlreadyInList) return
@@ -119,11 +96,6 @@ export function usePromptsSocket() {
   const clearError = () => {
     error.value = undefined
   }
-
-  // --------------------------------------------------------------------
-  // API calls – all return Promise<Result<…>>
-  // --------------------------------------------------------------------
-
   const fetchAllPromptsOnce = async (): Promise<Result<void, PromptOperationError>> => {
     if (!promptsSocketRef.value) {
       const socketError = new SocketError('Prompts socket not connected')
@@ -183,8 +155,6 @@ export function usePromptsSocket() {
       const mappedError = mapPromptError('Failed to create prompt')(result.error)
       return err(mappedError)
     }
-
-    // Success – the server returned { success: true } (no data)
     return ok(undefined)
   }
 
@@ -229,11 +199,6 @@ export function usePromptsSocket() {
 
     return ok(undefined)
   }
-
-  // --------------------------------------------------------------------
-  // Setup and cleanup
-  // --------------------------------------------------------------------
-
   watch(
     promptsSocketRef,
     (newPromptsSocket, previousPromptsSocket) => {
@@ -258,11 +223,6 @@ export function usePromptsSocket() {
     promptsSocketRef.value.off('prompts:promptUpdated', onPromptUpdated)
     promptsSocketRef.value.off('prompts:promptDeleted', onPromptDeleted)
   })
-
-  // --------------------------------------------------------------------
-  // Public API
-  // --------------------------------------------------------------------
-
   return {
     prompts: readonly(prompts),
     selectedPrompt,

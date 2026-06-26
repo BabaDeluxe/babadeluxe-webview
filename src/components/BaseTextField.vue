@@ -55,7 +55,10 @@ const forwardedAttrs = computed(() => {
 
 const textareaClass = computed(() => {
   if (props.variant === 'ghost') {
-    return ['w-full bg-transparent border-none px-3 py-2 text-base outline-none text-deepText placeholder-subtleText resize-none', attrs.class]
+    return [
+      'w-full bg-transparent border-none px-3 py-2 text-base outline-none text-deepText placeholder-subtleText resize-none',
+      attrs.class,
+    ]
   }
 
   const base =

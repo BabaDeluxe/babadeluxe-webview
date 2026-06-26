@@ -7,11 +7,13 @@ export interface AtPickerItem {
   label: string
   type: 'space' | 'prompt' | 'superpower'
   icon?: string
+  isDisabled?: boolean
+  disabledReason?: string
 }
 
-const MINIMUM_QUERY_LENGTH_FOR_FUZZY_SEARCH = 2
-const MAXIMUM_RESULTS_COUNT = 8
-const FUZZY_SEARCH_SIMILARITY_THRESHOLD = 0.3
+const minimumQueryLengthForFuzzySearch = 2
+const maximumResultsCount = 8
+const fuzzySearchSimilarityThreshold = 0.3
 
 export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) {
   const isPickerVisible = ref(false)
@@ -23,12 +25,14 @@ export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) 
     const sources = toValue(availableSources)
     const normalizedQuery = searchQuery.value.toLowerCase()
 
-    if (normalizedQuery.length < MINIMUM_QUERY_LENGTH_FOR_FUZZY_SEARCH) {
+    if (normalizedQuery.length < minimumQueryLengthForFuzzySearch) {
       return getResultsSortedByType(sources)
     }
 
     return getResultsByFuzzyMatching(sources, normalizedQuery)
   })
+
+  const enabledResults = computed(() => filteredResults.value.filter((item) => !item.isDisabled))
 
   function getResultsSortedByType(sources: AtPickerItem[]): AtPickerItem[] {
     const typePriorityOrder: Record<AtPickerItem['type'], number> = {
@@ -39,7 +43,7 @@ export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) 
 
     return [...sources]
       .sort((first, second) => typePriorityOrder[first.type] - typePriorityOrder[second.type])
-      .slice(0, MAXIMUM_RESULTS_COUNT)
+      .slice(0, maximumResultsCount)
   }
 
   function getResultsByFuzzyMatching(sources: AtPickerItem[], query: string): AtPickerItem[] {
@@ -56,13 +60,13 @@ export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) 
     })
 
     const relevantMatches = matchesWithScores.filter((match) => {
-      return match.score > FUZZY_SEARCH_SIMILARITY_THRESHOLD || match.isSubstring
+      return match.score > fuzzySearchSimilarityThreshold || match.isSubstring
     })
 
     return relevantMatches
       .sort((first, second) => second.score - first.score)
       .map((match) => match.source)
-      .slice(0, MAXIMUM_RESULTS_COUNT)
+      .slice(0, maximumResultsCount)
   }
 
   const openPicker = (newQuery: string) => {
@@ -77,22 +81,30 @@ export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) 
   }
 
   const selectNextItem = () => {
-    const resultsCount = filteredResults.value.length
-    if (resultsCount === 0) return
-    highlightedItemIndex.value = (highlightedItemIndex.value + 1) % resultsCount
+    const items = enabledResults.value
+    if (items.length === 0) return
+    const currentEnabledIndex = items.findIndex(
+      (item) => item === filteredResults.value[highlightedItemIndex.value]
+    )
+    const nextEnabledIndex = (currentEnabledIndex + 1) % items.length
+    highlightedItemIndex.value = filteredResults.value.indexOf(items[nextEnabledIndex])
   }
 
   const selectPreviousItem = () => {
-    const resultsCount = filteredResults.value.length
-    if (resultsCount === 0) return
-    highlightedItemIndex.value = (highlightedItemIndex.value - 1 + resultsCount) % resultsCount
+    const items = enabledResults.value
+    if (items.length === 0) return
+    const currentEnabledIndex = items.findIndex(
+      (item) => item === filteredResults.value[highlightedItemIndex.value]
+    )
+    const prevEnabledIndex = (currentEnabledIndex - 1 + items.length) % items.length
+    highlightedItemIndex.value = filteredResults.value.indexOf(items[prevEnabledIndex])
   }
 
   const acceptHighlightedItem = () => {
     const itemToAccept = filteredResults.value[highlightedItemIndex.value]
-    if (!itemToAccept) {
-        closePicker()
-        return null
+    if (!itemToAccept || itemToAccept.isDisabled) {
+      closePicker()
+      return null
     }
 
     const isAlreadySelected = currentlySelectedSources.value.some(
@@ -101,7 +113,7 @@ export function useAtPicker(availableSources: MaybeRefOrGetter<AtPickerItem[]>) 
 
     if (isAlreadySelected) {
       closePicker()
-      return itemToAccept // Return the item so the composer can remove the @token
+      return itemToAccept
     }
 
     applyBusinessRulesAndAddSource(itemToAccept)

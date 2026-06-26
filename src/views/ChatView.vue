@@ -77,7 +77,10 @@
           <ChatMessage
             v-for="message in messages"
             :key="message.id"
-            :ref="(element) => registerMessageComponent(message.id, element as Element)"
+            :ref="
+              (element: unknown) =>
+                registerMessageComponent(message.id, element as ChatMessageInstance | null)
+            "
             v-bind="message"
             :is-edit-enabled="message.role === 'user'"
             :is-rewrite-enabled="message.role === 'assistant'"
@@ -143,7 +146,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import ChatMessage from '@/components/ChatMessage.vue'
+import type ChatMessage from '@/components/ChatMessage.vue'
 import BaseEmptyState from '@/components/BaseEmptyState.vue'
 import BaseSpinner from '@/components/BaseSpinner.vue'
 import SubscriptionModal from '@/components/SubscriptionModal.vue'
@@ -151,6 +154,8 @@ import ChatInputBlock from '@/components/ChatInputBlock.vue'
 import ScrollToBottomButton from '@/components/ScrollToBottomButton.vue'
 import { useChat } from '@/composables/use-chat'
 import { useScrollToBottom } from '@/composables/use-scroll-to-bottom'
+
+type ChatMessageInstance = InstanceType<typeof ChatMessage>
 
 defineOptions({ name: 'ChatView' })
 
@@ -178,7 +183,6 @@ const {
   lastContextUsage,
   shouldShowModal,
   atSources,
-  activeSources,
   registerMessageComponent,
   handleSendMessage,
   handleAbortMessage,

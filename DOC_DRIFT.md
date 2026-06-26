@@ -26,6 +26,7 @@ This file documents discrepancies between the codebase implementation and the pr
     - The codebase (`src/auth/zitadel-auth-provider.ts`) suggests there might be support for Zitadel, which is not mentioned in the docs.
 
 ---
+
 ---
 
 ## Pass Summary: 2026-06-14

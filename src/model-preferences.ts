@@ -83,11 +83,17 @@ export function topKLabel(value: number): string {
  */
 export function reasoningEffortLabel(value: string | undefined): string {
   switch (value) {
-    case 'off': return 'Off'
-    case 'minimal': return 'Minimal'
-    case 'low': return 'Low'
-    case 'medium': return 'Medium'
-    case 'high': return 'High'
-    default: return 'Auto'
+    case 'off':
+      return 'Off'
+    case 'minimal':
+      return 'Minimal'
+    case 'low':
+      return 'Low'
+    case 'medium':
+      return 'Medium'
+    case 'high':
+      return 'High'
+    default:
+      return 'Auto'
   }
 }

@@ -90,8 +90,8 @@ importers:
         specifier: ^4.5.1
         version: 4.6.4(vue@3.5.32(typescript@5.8.3))
       zod:
-        specifier: ^4.3.6
-        version: 4.3.6
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@commitlint/cli':
         specifier: ~20.5.3
@@ -236,6 +236,7 @@ packages:
 
   '@babadeluxe/shared@0.24.3':
     resolution: {integrity: sha512-qURAYee1H8a/PI55nwH5iZMh8t/LytHqAoVfoRO9R1UXxksmJf6VH9rB4hO4zZrgQ4Wr0PZceBkHy2z1j+HgsA==, tarball: http://npflared.simonwaiblinger.workers.dev/@babadeluxe/shared/-/@babadeluxe/shared-0.24.3.tgz}
+    engines: {node: '>=20.19 <24'}
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -4946,9 +4947,6 @@ packages:
       typescript: ^5.3.3 || ^6.0.2
       zod: ^4.1.0
 
-  zod@4.3.6:
-    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
-
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -8541,7 +8539,7 @@ snapshots:
       typescript: 5.8.3
       unbash: 2.2.0
       yaml: 2.8.3
-      zod: 4.3.6
+      zod: 4.4.3
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
@@ -10134,7 +10132,5 @@ snapshots:
       typescript: 5.8.3
       yaml: 2.8.3
       zod: 4.4.3
-
-  zod@4.3.6: {}
 
   zod@4.4.3: {}

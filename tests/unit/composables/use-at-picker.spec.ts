@@ -28,21 +28,18 @@ describe('useAtPicker', () => {
   })
 
   it('should enforce one space rule', () => {
-    const extraSources = [
-        ...mockSources,
-        { id: '4', label: 'Space 2', type: 'space' as const }
-    ]
+    const extraSources = [...mockSources, { id: '4', label: 'Space 2', type: 'space' as const }]
     const { activeSources, accept, open, moveDown } = useAtPicker(() => extraSources)
 
     open('Space')
     accept() // Accepts Space 1
-    expect(activeSources.value.find(s => s.type === 'space')?.label).toBe('Space 1')
+    expect(activeSources.value.find((s) => s.type === 'space')?.label).toBe('Space 1')
 
     open('Space')
     moveDown() // Move to Space 2
     accept()
-    expect(activeSources.value.filter(s => s.type === 'space')).toHaveLength(1)
-    expect(activeSources.value.find(s => s.type === 'space')?.label).toBe('Space 2')
+    expect(activeSources.value.filter((s) => s.type === 'space')).toHaveLength(1)
+    expect(activeSources.value.find((s) => s.type === 'space')?.label).toBe('Space 2')
   })
 
   it('should close picker when no results on accept', () => {

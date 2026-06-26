@@ -42,7 +42,8 @@ function ensureChatSocketListeners(
   if (!attachedHandlers) {
     const handleMessageChunk = (payload: MessageChunkPayload) => {
       const messageState = socketStore.getMessageState(payload.messageId)
-      const isValidSequence = Number.isFinite(payload.sequence) && payload.sequence > (messageState?.lastSequence ?? -1)
+      const isValidSequence =
+        Number.isFinite(payload.sequence) && payload.sequence > (messageState?.lastSequence ?? -1)
 
       if (!messageState || !isValidSequence) return
 
@@ -185,7 +186,6 @@ export function useChatSocket() {
   }) {
     const { messageId, timeoutId, cancelTimeout } = params
     let isCompletionDone = false
-    let finalCompletionError: NetworkError | ChatError | RateLimitError | undefined
 
     const cleanupResources = () => {
       if (isCompletionDone) return
@@ -199,17 +199,15 @@ export function useChatSocket() {
       cleanupResources()
     }
 
-    const markAsFinishedWithError = (error: NetworkError | ChatError | RateLimitError): void => {
+    const markAsFinished = (): void => {
       if (isCompletionDone) return
-      finalCompletionError = error
       cleanupResources()
     }
 
     return {
       finishOk: markAsFinishedSuccessfully,
-      finishError: markAsFinishedWithError,
+      finishError: markAsFinished,
       isDone: () => isCompletionDone,
-      getError: () => finalCompletionError,
     }
   }
 
@@ -265,7 +263,7 @@ export function useChatSocket() {
           onError: (errorMessage) => {
             handlers.onError?.(errorMessage)
             const error = new ChatError(errorMessage)
-            completionTracker.finishError(error)
+            completionTracker.finishError()
             reject(error)
           },
         })
@@ -292,7 +290,7 @@ export function useChatSocket() {
               ? new RateLimitError(errorMessage)
               : new ChatError(errorMessage)
 
-            completionTracker.finishError(error)
+            completionTracker.finishError()
             reject(error)
           }
         )
@@ -300,7 +298,7 @@ export function useChatSocket() {
         if (!emitResult.isErr()) return
 
         const error = new NetworkError('Socket emit failed', emitResult.error)
-        completionTracker.finishError(error)
+        completionTracker.finishError()
         reject(error)
       }),
       (unknownError) => {
