@@ -125,7 +125,7 @@ class SyncManager {
 
 Currently, pending changes are managed in-memory via a `_pending` map in `SyncManager`. Changes are debounced (2s) before being pushed to the remote adapter.
 
-> **Note:** Persistent crash safety (via an IndexedDB-backed `SyncQueue`) is currently NOT implemented. If the app is closed while changes are pending, they will not be synced until the next manual or on-save trigger.
+> **Note:** Persistent crash safety (via an IndexedDB-backed `SyncQueue`) is currently NOT implemented. If the app is closed while changes are pending, they will not be synced until the next manual or on-save trigger. `src/sync/sync-queue.ts` is currently a placeholder file that duplicates the sync store logic, reserved for this future refactoring.
 
 ---
 
