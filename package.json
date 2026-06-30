@@ -41,9 +41,10 @@
     }
   },
   "scripts": {
-    "lint": "concurrently \"eslint . --ext .ts,.vue --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --ignore-pattern node_modules --cache --cache-location .eslintcache --concurrency auto\" \"prettier --check \\\"**/*.{ts,vue,html,md}\\\"\"",
-    "format": "concurrently \"eslint . --fix --ext .ts,.vue --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --ignore-pattern node_modules --cache --cache-location .eslintcache --concurrency auto\" \"prettier --write \\\"**/*.{ts,vue,html,md}\\\"\"",
+    "lint": "concurrently \"eslint . --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto\" \"prettier --check \"",
+    "format": "eslint . --fix --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto && prettier --write",
     "format-type-check": "concurrently \"pnpm format\" \"pnpm type-check\"",
+    "lint-type-check": "concurrently \"eslint . --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto\" \"prettier --check\" \"pnpm type-check\"",
     "dev": "vite",
     "dev-performance": "vite --profile --open",
     "preview": "vite preview",

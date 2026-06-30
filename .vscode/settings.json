@@ -25,7 +25,7 @@
   "editor.suggest.showSnippets": false,
   "editor.suggest.showKeywords": true,
   "editor.formatOnSave": true,
-  "editor.formatOnSaveMode": "file",
+  "editor.formatOnSaveMode": "modificationsIfAvailable",
   "editor.formatOnType": false,
   "editor.detectIndentation": false,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
