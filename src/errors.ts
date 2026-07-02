@@ -57,10 +57,7 @@ export class VsCodeAcquireError extends BaseError {
 export type ApiKeyValidationError = NetworkError | ValidationError | RateLimitError
 
 export type CreateOrResetAssistantError =
-  | ChatError
-  | MessageNotFoundError
-  | MessageCreationError
-  | MessageUpdateError
+  ChatError | MessageNotFoundError | MessageCreationError | MessageUpdateError
 
 export class UnexpectedAppError extends BaseError {}
 export class SyncError extends BaseError {

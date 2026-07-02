@@ -27,8 +27,7 @@ class SocketManagerBase {
   private readonly _trackedEvents = new Set<string>()
   private _internalHandlersRegistered = false
   private _connectingPromise:
-    | { promise: Promise<void>; reject: (e: SocketError) => void }
-    | undefined
+    { promise: Promise<void>; reject: (e: SocketError) => void } | undefined
   private _fallbackErrorHandler: ((unknownError: unknown) => void) | undefined
 
   private readonly _onConnect = (): void => {

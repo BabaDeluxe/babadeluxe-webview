@@ -41,10 +41,10 @@
     }
   },
   "scripts": {
-    "lint": "concurrently \"eslint . --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto\" \"prettier --check \"",
-    "format": "eslint . --fix --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto && prettier --write",
-    "format-type-check": "concurrently \"pnpm format\" \"pnpm type-check\"",
-    "lint-type-check": "concurrently \"eslint . --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto\" \"prettier --check\" \"pnpm type-check\"",
+    "lint": "concurrently \"eslint . --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto\" \"prettier --check **/*.{js,ts,vue,json,css,md}\"",
+    "format": "eslint . --fix --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto && prettier --write **/*.{js,ts,vue,json,css,md}",
+    "format-type-check": "pnpm format && pnpm type-check",
+    "lint-type-check": "concurrently \"eslint . --config eslint.config.ts --ignore-pattern pnpm-lock.yaml --cache --cache-location .eslintcache --concurrency auto\" \"prettier --check **/*.{js,ts,vue,json,css,md}\" \"pnpm type-check\"",
     "dev": "vite",
     "dev-performance": "vite --profile --open",
     "preview": "vite preview",
@@ -130,6 +130,7 @@
     "jiti": "^2.4.2",
     "jsdom": "^26.1.0",
     "knip": "^5.65.0",
+    "prettier": "^3.9.4",
     "rollup-plugin-visualizer": "^6.0.3",
     "typescript": "~5.8.0",
     "unocss": "^66.5.3",
