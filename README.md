@@ -223,7 +223,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full breakdown of env fil
 | `test-unit`      | Vitest unit tests only                  |
 | `test-e2e`       | Playwright E2E tests only               |
 | `type-check`     | TypeScript type checking                |
-| `format`         | XO + Prettier lint and format           |
+| `format`         | ESLint + Prettier lint and format       |
 | `find-dead-code` | Knip analysis for unused exports        |
 
 ## License

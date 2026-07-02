@@ -4,10 +4,6 @@ This document tracks identified TODOs, FIXMEs, and incomplete implementations wi
 
 ## High Priority / Functional
 
-### Authentication
-
-- **OAuth Callback handling**: While basic OAuth is implemented, some edge cases in session synchronization during redirect might still need attention (ref: `AuthCallbackView.vue`).
-
 ## Technical Debt / Refactoring
 
 ## UI/UX Improvements
