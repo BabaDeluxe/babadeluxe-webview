@@ -4,6 +4,38 @@ This file documents discrepancies between the codebase implementation and the pr
 
 ---
 
+## Pass Summary: 2026-07-05
+
+**Branch Analyzed:** `dev`
+
+**Files Reviewed:**
+
+- `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `docs/ENVS.md`
+- `docs/AUTH.md`
+- `docs/CI_CD_ENV.md`
+- `docs/HTTP.md`
+- `docs/AUTH_FLOWS.md`
+- `CONTRIBUTING.md`
+- `UNFINISHED.md`
+- `OPEN_FROM_REFACTOR.md`
+
+**Regressions Found & Fixed:**
+
+- **Architecture:** `docs/ARCHITECTURE.md` referenced a non-existent `TESTING_GUIDELINE.md` file in the Tech Stack table; removed stale reference.
+- **Architecture:** `docs/ARCHITECTURE.md` was missing key modular composables in its summary table (`use-vs-code-auth`, `use-git-message`, `use-ollama-settings`, `use-prompts-socket`); updated table.
+- **Sync Design:** `docs/SYNC_DESIGN.md` referenced `SftpSyncRequest` and `SftpSyncResponse` as message types in Section 7.3 without explicitly noting them as planned; updated heading to clarify their planned status.
+
+**Files Changed:**
+
+- `docs/ARCHITECTURE.md`
+- `docs/SYNC_DESIGN.md`
+- `DOC_DRIFT.md`
+
+---
+
 ## Pass Summary: 2026-06-28
 
 **Branch Analyzed:** `dev`
