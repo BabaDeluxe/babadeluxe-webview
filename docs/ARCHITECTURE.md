@@ -42,7 +42,7 @@ graph TD
 | Persistence | Dexie.js                             | IndexedDB wrapper with custom safe wrappers |
 | Real-time   | Socket.io-client                     | See [HTTP.md](./HTTP.md)                    |
 | Validation  | Zod + neverthrow                     | Runtime schemas + typed Results             |
-| Testing     | Vitest (unit) + Playwright (E2E)     | See `TESTING_GUIDELINE.md`                  |
+| Testing     | Vitest (unit) + Playwright (E2E)     | Unit & E2E test suites                      |
 
 ## Dependency Injection
 
@@ -145,6 +145,10 @@ Logic is encapsulated in composables rather than bloated components:
 | `use-date-formatter`        | Locale-aware date/time formatting                           |
 | `use-at-picker`             | Fuzzy-matching for @mentions in the chat composer           |
 | `use-subscription-socket`   | Reactive subscription tier and billing status management    |
+| `use-vs-code-auth`          | Extension host auth token bridging                          |
+| `use-git-message`           | Pre-populates composer with Git diff/commit messages        |
+| `use-ollama-settings`       | Manages local Ollama endpoint configuration                 |
+| `use-prompts-socket`        | Manages system and user prompt socket actions               |
 
 ## AI Reasoning
 

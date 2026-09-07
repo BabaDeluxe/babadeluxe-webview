@@ -203,7 +203,7 @@ Remote path:  <base-url>/chats/<conversationId>.json
 Remote path:  <remote-dir>/chats/<conversationId>.json  (managed by extension host)
 ```
 
-**Message types** (to be defined in `src/vs-code/types.ts`):
+**Message types** (planned; to be defined in `src/vs-code/types.ts`):
 
 ```ts
 // Webview → Extension host
