@@ -27,11 +27,12 @@ type PromptDeletedPayload = Parameters<Root.Emission['prompts:promptDeleted']>[0
 type PromptOperationError = NetworkError | ValidationError | SocketError
 function mapPromptError(context: string) {
   return (unknownError: unknown): PromptOperationError => {
-    if (
+    const isKnownErrorType =
       unknownError instanceof NetworkError ||
       unknownError instanceof ValidationError ||
       unknownError instanceof SocketError
-    ) {
+
+    if (isKnownErrorType) {
       return unknownError
     }
     if (unknownError instanceof Error) {

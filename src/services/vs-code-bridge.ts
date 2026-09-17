@@ -79,14 +79,20 @@ export class VsCodeBridge {
 
   private _handleMessage(event: MessageEvent): void {
     const message = event.data
-    if (!message || typeof message !== 'object' || !('requestId' in message)) return
+    const isResponseWithRequestId =
+      Boolean(message) && typeof message === 'object' && 'requestId' in message
+
+    if (!isResponseWithRequestId) return
 
     const resolve = this._pending.get(message.requestId)
     if (!resolve) return
 
     this._pending.delete(message.requestId)
 
-    if ('error' in message && typeof message.error === 'string' && message.error.length > 0) {
+    const isErrorMessage =
+      'error' in message && typeof message.error === 'string' && message.error.length > 0
+
+    if (isErrorMessage) {
       resolve(err(new NetworkError(message.error)))
       return
     }
