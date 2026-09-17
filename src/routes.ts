@@ -58,14 +58,12 @@ export function createAppRouter(supabase: SupabaseClient): Router {
   })
 
   router.beforeEach(async (to) => {
+    const isOfflinePublicPath = ['/', '', '/login', '/reset-password', '/auth/callback'].includes(
+      to.path
+    )
+
     if (offline) {
-      if (
-        to.path === '/' ||
-        to.path === '' ||
-        to.path === '/login' ||
-        to.path === '/reset-password' ||
-        to.path === '/auth/callback'
-      ) {
+      if (isOfflinePublicPath) {
         return { path: '/chat' }
       }
 
@@ -76,15 +74,16 @@ export function createAppRouter(supabase: SupabaseClient): Router {
       data: { session },
     } = await supabase.auth.getSession()
 
-    if (
-      !to.meta.requiresAuth &&
-      (to.path === '/' || to.path === '' || to.path === '/login' || to.path === '/auth/callback') &&
-      session
-    ) {
+    const isPublicRoute = !to.meta.requiresAuth
+    const isAuthRedirectPath = ['/', '', '/login', '/auth/callback'].includes(to.path)
+    const shouldRedirectAuthenticatedUser = isPublicRoute && isAuthRedirectPath && Boolean(session)
+
+    if (shouldRedirectAuthenticatedUser) {
       return { path: '/chat' }
     }
 
-    if (to.meta.requiresAuth && !session) {
+    const isUnauthenticatedAccessToProtectedRoute = Boolean(to.meta.requiresAuth && !session)
+    if (isUnauthenticatedAccessToProtectedRoute) {
       return { path: '/', query: { redirect: to.fullPath } }
     }
   })

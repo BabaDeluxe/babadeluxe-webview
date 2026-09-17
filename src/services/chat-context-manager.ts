@@ -50,9 +50,12 @@ export class ChatContextManager {
     }
 
     const injected = this.buildInjectedText(systemPrompt, contextItems ?? [])
-    const last = messagesToSend[messagesToSend.length - 1]
-    if (last && last.role === 'user' && injected) {
-      last.content = `${last.content}${injected}`
+    const lastMessage = messagesToSend[messagesToSend.length - 1]
+    const isLastMessageUserWithContext =
+      Boolean(lastMessage) && lastMessage.role === 'user' && Boolean(injected)
+
+    if (isLastMessageUserWithContext) {
+      lastMessage.content = `${lastMessage.content}${injected}`
     }
 
     const safeBudget = Math.max(1, Math.floor(modelContextWindow * 0.95))

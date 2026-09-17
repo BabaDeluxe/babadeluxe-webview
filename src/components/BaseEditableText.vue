@@ -131,10 +131,13 @@ function handleKeydown(event: KeyboardEvent) {
     return
   }
 
-  if (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey) {
+  const isPlainEnter = event.key === 'Enter' && !event.ctrlKey && !event.shiftKey
+  const isEscape = event.key === 'Escape'
+
+  if (isPlainEnter) {
     event.preventDefault()
     handleSave()
-  } else if (event.key === 'Escape') {
+  } else if (isEscape) {
     event.preventDefault()
     handleCancel()
   }
