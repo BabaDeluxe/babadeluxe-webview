@@ -279,8 +279,8 @@ src/sync/
   sync-queue.ts              ← Placeholder file (future use)
   device-id.ts               ← Device identification service
   github-adapter.ts          ← GitHub REST API adapter (Phase 1 ✅)
-  webdav-adapter.ts          ← WebDAV adapter (Phase 2)
-  sftp-adapter.ts            ← SFTP postMessage proxy adapter (Phase 3)
+  webdav-adapter.ts          ← WebDAV adapter (Phase 2, in progress / planned)
+  sftp-adapter.ts            ← SFTP postMessage proxy adapter (Phase 3, in progress / planned)
 
 src/vs-code/
   types.ts                   ← Will include SftpSyncRequest + SftpSyncResponse (Phase 3)
