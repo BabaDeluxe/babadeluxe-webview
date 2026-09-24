@@ -23,12 +23,6 @@ type NewDbMessage = Omit<DbMessage, 'id' | 'timestamp'>
 
 // Extract the exact transaction method type from Dexie to satisfy TS
 type TransactionFn = Dexie['transaction']
-// type TransactionFn = (
-//   mode: TransactionMode,
-//   conversationTable: Table<Conversation, number>,
-//   messageTable: Table<DbMessage, number>,
-//   scope: () => Promise<void>
-// ) => Promise<unknown>
 
 type CreateMessageInput = {
   conversationId: number
@@ -67,18 +61,7 @@ export class ChatRepository {
     if (result.isErr()) return err(result.error)
 
     const mapped: Message[] = result.value
-      .map((message) => ({
-        id: message.id!,
-        conversationId: message.conversationId,
-        role: message.role,
-        timestamp: message.timestamp,
-        content: message.content,
-        isStreaming: message.isStreaming,
-        model: message.model,
-        systemPrompt: message.systemPrompt,
-        reasoning: message.reasoning,
-        contextReferences: decodeContextReferences(message.contextReferences),
-      }))
+      .map((dbMessage) => this._mapDbMessageToMessage(dbMessage))
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
     return ok(mapped)
@@ -101,19 +84,8 @@ export class ChatRepository {
     if (result.isErr()) return err(result.error)
 
     const mapped: Message[] = result.value
-      .filter((message) => message.isStreaming === true)
-      .map((message) => ({
-        id: message.id!,
-        conversationId: message.conversationId,
-        role: message.role,
-        timestamp: message.timestamp,
-        content: message.content,
-        isStreaming: message.isStreaming,
-        model: message.model,
-        systemPrompt: message.systemPrompt,
-        reasoning: message.reasoning,
-        contextReferences: decodeContextReferences(message.contextReferences),
-      }))
+      .filter((dbMessage) => dbMessage.isStreaming === true)
+      .map((dbMessage) => this._mapDbMessageToMessage(dbMessage))
 
     return ok(mapped)
   }
@@ -192,6 +164,21 @@ export class ChatRepository {
     }
 
     return ok(undefined)
+  }
+
+  private _mapDbMessageToMessage(dbMessage: DbMessage): Message {
+    return {
+      id: dbMessage.id!,
+      conversationId: dbMessage.conversationId,
+      role: dbMessage.role,
+      timestamp: dbMessage.timestamp,
+      content: dbMessage.content,
+      isStreaming: dbMessage.isStreaming,
+      model: dbMessage.model,
+      systemPrompt: dbMessage.systemPrompt,
+      reasoning: dbMessage.reasoning,
+      contextReferences: decodeContextReferences(dbMessage.contextReferences),
+    }
   }
 
   async deleteConversationWithMessage(
