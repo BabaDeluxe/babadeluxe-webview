@@ -1,6 +1,6 @@
 <template>
   <details
-    v-if="reasoning"
+    v-if="hasReasoningContent"
     class="mb-2 group border border-borderMuted rounded-lg bg-surface/30 overflow-hidden"
   >
     <summary
@@ -29,10 +29,16 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue'
+
+const props = defineProps<{
   reasoning?: string
   isStreaming?: boolean
 }>()
+
+const hasReasoningContent = computed(() =>
+  Boolean(props.reasoning && props.reasoning.trim().length > 0)
+)
 </script>
 
 <style scoped>
