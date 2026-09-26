@@ -1,8 +1,8 @@
 # Chat Sync Design Document
 
-**Feature:** Multi-backend chat synchronisation (GitHub, WebDAV, SFTP)  
+**Feature:** Multi-backend chat synchronisation (WebDAV, SFTP)
 **Repo:** BabaDeluxe/babadeluxe-webview  
-**Status:** Implemented (GitHub) / In Progress (WebDAV, SFTP)  
+**Status:** In Progress (WebDAV, SFTP)
 **Author:** simwai
 
 ---
@@ -12,7 +12,7 @@
 ### Goals
 
 - Reliably sync local chats (stored in IndexedDB via `src/database/`) to at least one remote backend
-- Support three backends: **GitHub** (REST), **WebDAV** (HTTP), **SFTP** (SSH — VS Code extension-host only)
+- Support backends: **WebDAV** (HTTP), **SFTP** (SSH — VS Code extension-host only)
 - Offline-first: local is always the source of truth; sync is eventually consistent
 - Single-user, multi-device: no collaborative editing required
 - Reuse existing `src/retry.ts`, `src/errors.ts`, `src/error-mapper.ts`, and `src/services/` conventions
@@ -21,7 +21,6 @@
 
 - Real-time multi-user collaborative editing (no OT / CRDTs needed)
 - Binary attachment sync (images, files embedded in chats)
-- Git history browsing via the GitHub backend
 
 ---
 
@@ -35,8 +34,8 @@
                              │ ISyncAdapter interface
               ┌──────────────┼──────────────┐
               ▼              ▼              ▼
-     GitHubSyncAdapter  WebDavSyncAdapter  SftpSyncAdapter
-     (fetch REST)        (webdav package)  (postMessage bridge)
+     WebDavSyncAdapter  SftpSyncAdapter
+     (webdav package)  (postMessage bridge)
               │              │              │
               ▼              ▼              ▼
          GitHub repo     WebDAV server    VS Code ext-host
@@ -278,7 +277,6 @@ src/sync/
   sync-manager.ts            ← orchestration logic
   sync-queue.ts              ← Placeholder file (future use)
   device-id.ts               ← Device identification service
-  github-adapter.ts          ← GitHub REST API adapter (Phase 1 ✅)
   webdav-adapter.ts          ← WebDAV adapter (Phase 2)
   sftp-adapter.ts            ← SFTP postMessage proxy adapter (Phase 3)
 
@@ -301,14 +299,8 @@ Extend the existing settings model with a `sync` block:
 ```ts
 interface SyncSettings {
   enabled: boolean
-  backend: 'github' | 'webdav' | 'sftp' | null
+  backend: 'webdav' | 'sftp' | null
   syncIntervalSeconds: number // default: 300 (5 min); 0 = on-save only
-  github?: {
-    owner: string
-    repo: string
-    branch: string // default: 'main'
-    pat: string // stored encrypted
-  }
   webdav?: {
     url: string
     username: string

@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/node-%3E%3D20.19%20%3C24-9a56bf?style=flat-rounded" alt="node version">
 </p>
 
-> **The chat UI for BabaDeluxe AI Coder.** A Vue 3 webview embedded in the VS Code extension, with full support for real-time streaming, Mermaid diagrams, KaTeX math, and persistent local chat history, and GitHub synchronization.
+> **The chat UI for BabaDeluxe AI Coder.** A Vue 3 webview embedded in the VS Code extension, with full support for real-time streaming, Mermaid diagrams, KaTeX math, and persistent local chat history,
 
 ## Overview
 
@@ -21,7 +21,6 @@ This repo contains the frontend that runs inside the VS Code webview panel. It c
 - **Styling:** UnoCSS (Tailwind conventions)
 - **Persistence:** Dexie.js (IndexedDB) with AI Reasoning support
 - **Rich Composer:** Fuzzy-matching @mentions
-- **Synchronization:** GitHub (REST)
 - **Real-time:** Socket.io-client
 - **Validation:** Zod + neverthrow
 - **Testing:** Vitest (unit) + Playwright (E2E)
