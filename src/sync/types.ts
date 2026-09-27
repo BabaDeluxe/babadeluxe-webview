@@ -29,7 +29,7 @@ export type ISyncAdapter = {
   pull(since?: string): Promise<Result<SyncPayload[], SyncError>>
 }
 
-export type SyncBackend = 'github' | 'webdav' | 'sftp' | 'none'
+export type SyncBackend = 'webdav' | 'sftp' | 'none'
 
 export type ConflictInfo = {
   conversationId: number
