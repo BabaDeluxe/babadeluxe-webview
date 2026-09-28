@@ -86,7 +86,9 @@ const computedClasses = computed(() => {
 if (import.meta.env.DEV) {
   onMounted(() => {
     const hasVisibleLabel = props.text || buttonRef.value?.textContent?.trim()
-    if (props.icon && !hasVisibleLabel && !props.ariaLabel) {
+    const isIconOnlyWithoutAccessibleLabel = props.icon && !hasVisibleLabel && !props.ariaLabel
+
+    if (isIconOnlyWithoutAccessibleLabel) {
       console.warn(
         '[BaseButton] Icon-only button is missing an accessible label. ' +
           'Add ariaLabel="..." to describe the button action.',

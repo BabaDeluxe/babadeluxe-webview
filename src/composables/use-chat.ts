@@ -366,7 +366,8 @@ export function useChat() {
   watchDebounced(
     [currentMessage, isInVsCode, isChatStreaming, isLoadingConversations, isLoadingMessages],
     async ([text, inVsCode, streamingValue, loadingConversation, loadingMessage]) => {
-      if (!inVsCode || streamingValue || loadingConversation || loadingMessage) return
+      const isBusyOrExternal = !inVsCode || streamingValue || loadingConversation || loadingMessage
+      if (isBusyOrExternal) return
 
       const trimmed = text.trim()
       if (trimmed === lastPreviewText) return

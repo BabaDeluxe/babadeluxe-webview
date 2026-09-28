@@ -131,7 +131,9 @@ function handleKeydown(event: KeyboardEvent) {
     return
   }
 
-  if (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey) {
+  const isPlainEnterKey = event.key === 'Enter' && !event.ctrlKey && !event.shiftKey
+
+  if (isPlainEnterKey) {
     event.preventDefault()
     handleSave()
   } else if (event.key === 'Escape') {
