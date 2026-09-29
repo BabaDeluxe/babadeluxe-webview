@@ -50,7 +50,9 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
 
     // Case 3: Validate stored value
     const parsed = Number(saved)
-    if (Number.isNaN(parsed) || parsed < minRatio || parsed > maxRatio) {
+    const isInvalidSavedRatio = Number.isNaN(parsed) || parsed < minRatio || parsed > maxRatio
+
+    if (isInvalidSavedRatio) {
       leftWidth.value = defaultRatio
       saveRatio(leftWidth.value)
       return

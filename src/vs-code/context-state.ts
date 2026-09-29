@@ -163,7 +163,8 @@ export function useContextState() {
     for (const pin of snapshot.pinnedSnippets) {
       const filePath = compact(pin.filePath)
       const snippetText = compact(pin.snippet)
-      if (!filePath || !snippetText || !isTextRange(pin.range)) continue
+      const isValidSnippetPin = filePath && snippetText && isTextRange(pin.range)
+      if (!isValidSnippetPin) continue
 
       const id = pin.id ?? `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
