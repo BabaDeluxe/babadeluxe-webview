@@ -53,7 +53,17 @@ const logger = safeInject(LOGGER_KEY)
 const envConfig: EnvConfigType = safeInject(ENV_CONFIG_KEY)
 
 const supabaseUrl = envConfig.VITE_SUPABASE_URL ?? ''
-const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : ''
+
+function extractProjectRef(url: string): string {
+  if (!url) return ''
+  try {
+    return new URL(url).hostname.split('.')[0] ?? ''
+  } catch {
+    return ''
+  }
+}
+
+const projectRef = extractProjectRef(supabaseUrl)
 const useAvatar = useUserAvatar(projectRef)
 const avatarUrl = useAvatar?.avatarUrl
 if (!projectRef) {
