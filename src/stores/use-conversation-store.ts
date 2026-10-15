@@ -11,16 +11,16 @@ import {
   MessageCreationError,
   ChatError,
   type CreateOrResetAssistantError,
-  MessageUpdateError,
   type ValidationError,
 } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { useFileContextResolver } from '@/composables/use-file-context-resolver'
-import { encodeContextReferences } from '@/database/serializers'
 import { useTrackedTimeouts } from '@/composables/use-tracked-timeouts'
 import { ChatContextManager } from '@/services/chat-context-manager'
 import { useConversationListState } from '@/stores/conversation/use-conversation-list-state'
 import { useMessageManagement } from '@/stores/conversation/use-message-management'
+import { useStreamRecovery } from '@/stores/conversation/use-stream-recovery'
+import { useAssistantMessageCreator } from '@/stores/conversation/use-assistant-message-creator'
 
 type SendOptions = {
   provider: string
@@ -32,11 +32,6 @@ type SendOptions = {
   onChunk?: (messageId: number, chunk: string) => void
   onComplete?: (messageId: number) => void
   onError?: (error: Error) => void
-}
-
-type MessageMetadata = {
-  model?: string
-  systemPrompt?: string
 }
 
 export const useConversationStore = defineStore('conversation', () => {
@@ -78,6 +73,21 @@ export const useConversationStore = defineStore('conversation', () => {
     finalizeAssistantMessage,
   } = useMessageManagement(appDb, messages, messageCountsByConversation)
 
+  const {
+    markMessageStreamingComplete,
+    markAllStreamingCompleteInCurrentConversation,
+    resumeInterruptedStreams,
+  } = useStreamRecovery(
+    appDb,
+    logger,
+    messages,
+    refreshMessageById,
+    resumeStreamingMessage,
+    createTimeout
+  )
+
+  const { createOrResetAssistantStreamingMessage } = useAssistantMessageCreator(appDb, messages)
+
   const lastContextUsage = ref(0)
   const selectedModelContextWindow = ref<number | undefined>(undefined)
 
@@ -112,213 +122,6 @@ export const useConversationStore = defineStore('conversation', () => {
     })()
 
     return initializePromise
-  }
-
-  async function markMessageStreamingComplete(messageId: number): Promise<void> {
-    const updateResult = await appDb.message.update(messageId, { isStreaming: false })
-    if (updateResult.isErr()) {
-      logger.error('Failed to mark message streaming complete', {
-        messageId,
-        error: updateResult.error,
-      })
-      return
-    }
-
-    const refreshResult = await refreshMessageById(messageId)
-    if (refreshResult.isErr()) {
-      logger.error('Failed to refresh message after streaming complete', {
-        messageId,
-        error: refreshResult.error,
-      })
-    }
-  }
-
-  async function markAllStreamingCompleteInCurrentConversation(
-    conversationId: number
-  ): Promise<void> {
-    if (!conversationId) return
-
-    const streamingMessages = messages.value.filter(
-      (message) => message.conversationId === conversationId && message.isStreaming
-    )
-
-    for (const message of streamingMessages) {
-      const updateResult = await appDb.message.update(message.id, { isStreaming: false })
-      if (updateResult.isErr()) {
-        logger.error('Failed to mark message streaming complete when switching conversation', {
-          messageId: message.id,
-          error: updateResult.error,
-        })
-        continue
-      }
-
-      const index = messages.value.findIndex((m) => m.id === message.id)
-      if (index === -1) continue
-
-      const current = messages.value[index]
-      current.isStreaming = false
-    }
-  }
-
-  async function resumeInterruptedStreams(): Promise<void> {
-    const streamingMessagesResult = await appDb.chatRepository.getStreamingMessages()
-
-    if (streamingMessagesResult.isErr()) {
-      logger.error('Failed to get streaming messages during recovery', {
-        error: streamingMessagesResult.error,
-      })
-      return
-    }
-
-    const streamingMessages = streamingMessagesResult.value
-    if (streamingMessages.length === 0) {
-      logger.log('No interrupted streams to recover')
-      return
-    }
-
-    logger.log(`Recovering ${streamingMessages.length} interrupted stream(s)`)
-
-    for (const streamingMessage of streamingMessages) {
-      let didReceiveChunk = false
-
-      resumeStreamingMessage(streamingMessage.id, {
-        onChunk: (chunk: string) => {
-          didReceiveChunk = true
-
-          const messageIndex = messages.value.findIndex(
-            (message) => message.id === streamingMessage.id
-          )
-          if (messageIndex === -1) return
-
-          const current = messages.value[messageIndex]
-          const updated: Message = {
-            ...current,
-            content: current.content + chunk,
-          }
-
-          messages.value.splice(messageIndex, 1, updated)
-        },
-        onComplete: (fullContent: string) => {
-          didReceiveChunk = true
-
-          const messageIndex = messages.value.findIndex(
-            (message) => message.id === streamingMessage.id
-          )
-          if (messageIndex === -1) return
-
-          const current = messages.value[messageIndex]
-          const updated: Message = {
-            ...current,
-            content: fullContent,
-            isStreaming: false,
-          }
-
-          messages.value.splice(messageIndex, 1, updated)
-          void markMessageStreamingComplete(streamingMessage.id)
-        },
-      })
-
-      createTimeout(async () => {
-        if (didReceiveChunk) return
-
-        logger.log('Message appears complete, cleaning up', {
-          messageId: streamingMessage.id,
-        })
-
-        await markMessageStreamingComplete(streamingMessage.id)
-      }, 1000)
-    }
-
-    logger.log('Stream recovery complete')
-  }
-
-  async function resetExistingAssistantStreamingMessage(
-    assistantMessageId: number,
-    metadata: MessageMetadata | undefined,
-    contextReferences: ContextReference[] | undefined
-  ): Promise<Result<Message, MessageNotFoundError | MessageUpdateError>> {
-    const updateResult = await appDb.message.update(assistantMessageId, {
-      content: '',
-      isStreaming: true,
-      model: metadata?.model,
-      systemPrompt: metadata?.systemPrompt,
-      contextReferences: encodeContextReferences(contextReferences),
-    })
-
-    if (updateResult.isErr()) {
-      return err(new MessageUpdateError(assistantMessageId, updateResult.error))
-    }
-
-    const messageIndex = messages.value.findIndex((message) => message.id === assistantMessageId)
-    if (messageIndex === -1) {
-      return err(new MessageNotFoundError(assistantMessageId.toString()))
-    }
-
-    const oldMessage = messages.value[messageIndex]
-    const updated: Message = {
-      ...oldMessage,
-      content: '',
-      isStreaming: true,
-      model: metadata?.model ?? oldMessage.model,
-      systemPrompt: metadata?.systemPrompt ?? oldMessage.systemPrompt,
-      contextReferences,
-      timestamp: oldMessage.timestamp,
-    }
-
-    messages.value.splice(messageIndex, 1, updated)
-    return ok(updated)
-  }
-
-  async function createNewAssistantStreamingMessage(
-    conversationId: number,
-    metadata: MessageMetadata | undefined,
-    contextReferences: ContextReference[] | undefined
-  ): Promise<Result<Message, MessageCreationError>> {
-    const createResult = await appDb.chatRepository.createMessage({
-      conversationId,
-      role: 'assistant',
-      content: '',
-      isStreaming: true,
-      model: metadata?.model,
-      systemPrompt: metadata?.systemPrompt,
-      contextReferences,
-    })
-
-    if (createResult.isErr()) {
-      return err(new MessageCreationError('assistant', createResult.error))
-    }
-
-    const newMessage: Message = {
-      id: createResult.value,
-      conversationId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      isStreaming: true,
-      model: metadata?.model,
-      systemPrompt: metadata?.systemPrompt,
-      contextReferences,
-    }
-
-    messages.value.push(newMessage)
-    return ok(newMessage)
-  }
-
-  async function createOrResetAssistantStreamingMessage(
-    conversationId: number,
-    existingAssistantId: number | undefined,
-    metadata: MessageMetadata | undefined,
-    contextReferences: ContextReference[] | undefined
-  ): Promise<Result<Message, CreateOrResetAssistantError>> {
-    if (existingAssistantId !== undefined) {
-      return resetExistingAssistantStreamingMessage(
-        existingAssistantId,
-        metadata,
-        contextReferences
-      )
-    }
-
-    return createNewAssistantStreamingMessage(conversationId, metadata, contextReferences)
   }
 
   function generateConversationTitle(firstMessage: string): string {
