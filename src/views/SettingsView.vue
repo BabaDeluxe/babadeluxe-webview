@@ -115,20 +115,11 @@ import { AuthError, InitializationError } from '@/errors'
 import { safeInject } from '@/safe-inject'
 import { ResultAsync } from 'neverthrow'
 import { computed, onMounted, ref } from 'vue'
-import type { ModelTemperatures, ModelTopPs, ModelTopKs, ReasoningEffort } from '@babadeluxe/shared'
-import {
-  promptInjectionDefaults,
-  resetModelTemperature,
-  setModelTemperature,
-  validateSetting,
-  resetModelTopP,
-  setModelTopP,
-  resetModelTopK,
-  setModelTopK,
-} from '@babadeluxe/shared'
+import { promptInjectionDefaults, validateSetting } from '@babadeluxe/shared'
 import { useModelsSocket } from '@/composables/use-models-socket'
 import { useSettings } from '@/composables/use-settings'
 import { useApiKeyManagement } from '@/composables/use-api-key-management'
+import { useSettingsModelPreferences } from '@/composables/use-settings-model-preferences'
 import { isOfflineMode } from '@/env-validator'
 import type { IApiKeyValidator } from '@/api-key-validator'
 import type {
@@ -283,153 +274,20 @@ const handleFieldChange = async (fieldName: string, value: unknown) => {
 
 const availableModels = computed(() => groupedModels.value.flatMap((group) => group.items))
 
-// ─── Temperature ─────────────────────────────────────────────────────────────────────────────────
-
-const modelTemperatures = computed<ModelTemperatures>(() => {
-  const s = settings.value.find(
-    (setting: { settingKey: string }) => setting.settingKey === 'modelTemperatures'
-  )
-  return (s?.settingValue as ModelTemperatures) ?? {}
-})
-
-function getTemperatureForModel(modelValue: string): number | undefined {
-  return modelTemperatures.value[modelValue]
-}
-
-async function persistTemperatures(next: ModelTemperatures): Promise<void> {
-  const result = await upsertSetting('modelTemperatures', next, 'string')
-  if (result.isErr()) {
-    logger.error('Failed to save model temperatures', { error: result.error })
-    toasts.error(toUserMessage(result.error))
-  }
-}
-
-async function handleTemperatureChange(modelValue: string, value: number): Promise<void> {
-  const next = setModelTemperature(modelTemperatures.value, modelValue, value)
-  const validation = validateSetting('modelTemperatures', next)
-  if (!validation.success) return
-  await persistTemperatures(next)
-}
-
-async function handleTemperatureReset(modelValue: string): Promise<void> {
-  await persistTemperatures(resetModelTemperature(modelTemperatures.value, modelValue))
-}
-
-// ─── Top P ────────────────────────────────────────────────────────────────────────────────────
-
-const modelTopPs = computed<ModelTopPs>(() => {
-  const s = settings.value.find(
-    (setting: { settingKey: string }) => setting.settingKey === 'modelTopPs'
-  )
-  return (s?.settingValue as ModelTopPs) ?? {}
-})
-
-function getTopPForModel(modelValue: string): number | undefined {
-  return modelTopPs.value[modelValue]
-}
-
-async function persistTopPs(next: ModelTopPs): Promise<void> {
-  const result = await upsertSetting('modelTopPs', next, 'string')
-  if (result.isErr()) {
-    logger.error('Failed to save model top_p values', { error: result.error })
-    toasts.error(toUserMessage(result.error))
-  }
-}
-
-async function handleTopPChange(modelValue: string, value: number): Promise<void> {
-  const next = setModelTopP(modelTopPs.value, modelValue, value)
-  const validation = validateSetting('modelTopPs', next)
-  if (!validation.success) return
-  await persistTopPs(next)
-}
-
-async function handleTopPReset(modelValue: string): Promise<void> {
-  await persistTopPs(resetModelTopP(modelTopPs.value, modelValue))
-}
-
-// ─── Top K ────────────────────────────────────────────────────────────────────────────────────
-
-const modelTopKs = computed<ModelTopKs>(() => {
-  const s = settings.value.find(
-    (setting: { settingKey: string }) => setting.settingKey === 'modelTopKs'
-  )
-  return (s?.settingValue as ModelTopKs) ?? {}
-})
-
-function getTopKForModel(modelValue: string): number | undefined {
-  return modelTopKs.value[modelValue]
-}
-
-async function persistTopKs(next: ModelTopKs): Promise<void> {
-  const result = await upsertSetting('modelTopKs', next, 'string')
-  if (result.isErr()) {
-    logger.error('Failed to save model top_k values', { error: result.error })
-    toasts.error(toUserMessage(result.error))
-  }
-}
-
-async function handleTopKChange(modelValue: string, value: number): Promise<void> {
-  const next = setModelTopK(modelTopKs.value, modelValue, value)
-  const validation = validateSetting('modelTopKs', next)
-  if (!validation.success) return
-  await persistTopKs(next)
-}
-
-async function handleTopKReset(modelValue: string): Promise<void> {
-  await persistTopKs(resetModelTopK(modelTopKs.value, modelValue))
-}
-
-// ─── Reasoning Effort ───────────────────────────────────────────────────────────────────
-
-/**
- * Unlike temperature/topP/topK which are per-model maps, reasoningEffort is a
- * single global setting applied to all thinking-capable models at once.
- * Stored as a plain string value (ReasoningEffort) in the settings table.
- */
-const reasoningEffort = computed<ReasoningEffort | undefined>(() => {
-  const s = settings.value.find(
-    (setting: { settingKey: string }) => setting.settingKey === 'reasoningEffort'
-  )
-  return s?.settingValue as ReasoningEffort | undefined
-})
-
-function getReasoningEffortForModel(modelValue: string): ReasoningEffort | undefined {
-  void modelValue // global setting — same effort for all models
-  return reasoningEffort.value
-}
-
-async function persistReasoningEffort(next: ReasoningEffort): Promise<void> {
-  const result = await upsertSetting('reasoningEffort', next, 'string')
-  if (result.isErr()) {
-    logger.error('Failed to save reasoning effort', { error: result.error })
-    toasts.error(toUserMessage(result.error))
-  }
-}
-
-async function resetReasoningEffort(): Promise<void> {
-  const result = await upsertSetting('reasoningEffort', undefined, 'string')
-  if (result.isErr()) {
-    logger.error('Failed to reset reasoning effort', { error: result.error })
-    toasts.error(toUserMessage(result.error))
-  }
-}
-
-async function handleReasoningEffortChange(
-  modelValue: string,
-  value: ReasoningEffort
-): Promise<void> {
-  void modelValue // global setting — modelValue intentionally ignored
-  const validation = validateSetting('reasoningEffort', value)
-  if (!validation.success) return
-  await persistReasoningEffort(value)
-}
-
-async function handleReasoningEffortReset(modelValue: string): Promise<void> {
-  void modelValue // global setting — modelValue intentionally ignored
-  await resetReasoningEffort()
-}
-
-// ─── Settings wiring ────────────────────────────────────────────────────────────────────
+const {
+  getTemperatureForModel,
+  handleTemperatureChange,
+  handleTemperatureReset,
+  getTopPForModel,
+  handleTopPChange,
+  handleTopPReset,
+  getTopKForModel,
+  handleTopKChange,
+  handleTopKReset,
+  getReasoningEffortForModel,
+  handleReasoningEffortChange,
+  handleReasoningEffortReset,
+} = useSettingsModelPreferences(settings, upsertSetting, logger, toasts)
 
 async function upsertSettingWrapper(
   key: string,
