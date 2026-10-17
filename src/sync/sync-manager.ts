@@ -207,7 +207,8 @@ export class SyncManager {
     if (localResult.isErr()) return
     const local = localResult.value
 
-    if (local && this._pending.has(payload.conversation.id)) {
+    const hasPendingLocalChange = Boolean(local && this._pending.has(payload.conversation.id))
+    if (hasPendingLocalChange) {
       const localPayloadResult = await this._buildPayload(payload.conversation.id)
       if (localPayloadResult.isOk()) {
         const info: ConflictInfo = {
@@ -215,15 +216,18 @@ export class SyncManager {
           localPayload: localPayloadResult.value,
           remotePayload: payload,
         }
-        this._conflictHandlers.forEach((h) => {
-          h(info)
+        this._conflictHandlers.forEach((handler) => {
+          handler(info)
         })
         this._emit({ state: 'conflict', info })
         return
       }
     }
 
-    if (local?.syncVersion !== undefined && payload.syncVersion <= local.syncVersion) {
+    const isRemoteOutdated = Boolean(
+      local?.syncVersion !== undefined && payload.syncVersion <= local.syncVersion
+    )
+    if (isRemoteOutdated) {
       return
     }
 
