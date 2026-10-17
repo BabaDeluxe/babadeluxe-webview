@@ -156,10 +156,13 @@ const inputClasses = computed(() => {
   const base =
     'w-full px-3 py-2.5 rounded-lg bg-panel text-bodyText placeholder-subtleText/50 focus:outline-none transition-all'
 
+  const isInvalid = props.validationState === 'invalid' || Boolean(props.error)
+  const isValid = props.validationState === 'valid'
+
   let borderClasses = ''
-  if (props.validationState === 'invalid' || props.error) {
+  if (isInvalid) {
     borderClasses = 'border border-error/50 focus:border-error shadow-sm'
-  } else if (props.validationState === 'valid') {
+  } else if (isValid) {
     borderClasses = 'border border-accent/50 focus:border-accent'
   } else {
     borderClasses = 'border border-borderMuted focus:border-accent focus:shadow-sm'

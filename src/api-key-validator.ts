@@ -161,11 +161,13 @@ export class LocalApiKeyValidator implements IApiKeyValidator {
       return err(new ValidationError(`API key for ${provider} cannot be empty`))
     }
 
-    if (provider === 'openai' && !trimmedKey.startsWith('sk-')) {
+    const isInvalidOpenAiKey = provider === 'openai' && !trimmedKey.startsWith('sk-')
+    if (isInvalidOpenAiKey) {
       return err(new ValidationError('Invalid OpenAI API key format (should start with sk-)'))
     }
 
-    if (provider === 'anthropic' && !trimmedKey.startsWith('sk-ant-')) {
+    const isInvalidAnthropicKey = provider === 'anthropic' && !trimmedKey.startsWith('sk-ant-')
+    if (isInvalidAnthropicKey) {
       return err(
         new ValidationError('Invalid Anthropic API key format (should start with sk-ant-)')
       )

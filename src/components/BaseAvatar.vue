@@ -52,11 +52,22 @@ import { safeInject } from '@/safe-inject'
 const logger = safeInject(LOGGER_KEY)
 const envConfig: EnvConfigType = safeInject(ENV_CONFIG_KEY)
 
+function extractProjectRef(urlStr: string): string {
+  if (!urlStr) return ''
+  try {
+    return new URL(urlStr).hostname.split('.')[0] ?? ''
+  } catch {
+    return ''
+  }
+}
+
 const supabaseUrl = envConfig.VITE_SUPABASE_URL ?? ''
-const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : ''
+const projectRef = extractProjectRef(supabaseUrl)
 const useAvatar = useUserAvatar(projectRef)
 const avatarUrl = useAvatar?.avatarUrl
-if (!projectRef) {
+
+const isMissingProjectRef = !projectRef
+if (isMissingProjectRef) {
   logger.warn('ProjectRef is unset in during base avatar component init')
 }
 

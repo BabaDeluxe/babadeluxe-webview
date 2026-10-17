@@ -159,21 +159,23 @@ function draw() {
   rafId = requestAnimationFrame(draw)
 }
 
+function handleResize() {
+  if (canvasRef.value) {
+    resize(canvasRef.value)
+  }
+}
+
 onMounted(() => {
   if (canvasRef.value) {
     resize(canvasRef.value)
     rafId = requestAnimationFrame(draw)
-    window.addEventListener('resize', () => {
-      if (canvasRef.value) resize(canvasRef.value)
-    })
+    window.addEventListener('resize', handleResize)
   }
 })
 
 onUnmounted(() => {
   if (rafId) cancelAnimationFrame(rafId)
-  window.removeEventListener('resize', () => {
-    if (canvasRef.value) resize(canvasRef.value)
-  })
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
