@@ -48,7 +48,8 @@ export function useAppLogic() {
 
     if (isGitCommitMessageContext(data)) {
       gitMessage.handleCommitMessageContext(data)
-      if (router.currentRoute.value.path !== '/chat') {
+      const isNotOnChatRoute = router.currentRoute.value.path !== '/chat'
+      if (isNotOnChatRoute) {
         router.push('/chat')
       }
       return
@@ -56,7 +57,8 @@ export function useAppLogic() {
 
     if (isGitPrMessageContext(data)) {
       gitMessage.handlePrMessageContext(data)
-      if (router.currentRoute.value.path !== '/chat') {
+      const isNotOnChatRoute = router.currentRoute.value.path !== '/chat'
+      if (isNotOnChatRoute) {
         router.push('/chat')
       }
       return

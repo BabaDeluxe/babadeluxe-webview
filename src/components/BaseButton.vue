@@ -71,14 +71,15 @@ const attrs = useAttrs()
 const computedClasses = computed(() => {
   const variantClasses = getButtonClasses(props.variant)
 
-  const selectedClasses =
-    props.isSelected && props.variant === 'icon'
-      ? 'text-deepText'
-      : props.isSelected
-        ? 'bg-borderMuted text-deepText'
-        : ''
+  const isSelectedIconButton = props.isSelected && props.variant === 'icon'
+  const selectedClasses = isSelectedIconButton
+    ? 'text-deepText'
+    : props.isSelected
+      ? 'bg-borderMuted text-deepText'
+      : ''
 
-  const defaultTextColor = props.variant === 'primary' ? 'text-white' : 'text-deepText'
+  const isPrimaryVariant = props.variant === 'primary'
+  const defaultTextColor = isPrimaryVariant ? 'text-white' : 'text-deepText'
 
   return mergeUnoClasses(variantClasses, defaultTextColor, selectedClasses, attrs.class as string)
 })

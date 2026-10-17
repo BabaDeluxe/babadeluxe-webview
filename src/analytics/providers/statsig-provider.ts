@@ -29,18 +29,24 @@ export class StatsigProvider implements AnalyticsProvider {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  trackEvent(event: string, properties?: Record<string, any>): void {
-    if (!this._isInitialized || !this._client) return
-    this._client.logEvent(event, undefined, properties)
+  trackEvent(event: string, properties?: Record<string, unknown>): void {
+    const isReady = this._isInitialized && Boolean(this._client)
+    if (!isReady) return
+    this._client?.logEvent(event, undefined, properties as Record<string, string>)
     this._logger.debug(`[${this.name}] Tracked event: ${event}`, properties)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  identify(userId: string, traits?: Record<string, any>): void {
-    if (!this._isInitialized || !this._client) return
+  identify(userId: string, traits?: Record<string, unknown>): void {
+    const isReady = this._isInitialized && Boolean(this._client)
+    if (!isReady) return
     // Note: In @statsig/js-client, updateUserAsync is used for updating user identity
-    void this._client.updateUserAsync({ userID: userId, custom: traits })
+    type StatsigCustomUserTraits = NonNullable<
+      Parameters<StatsigClient['updateUserAsync']>[0]
+    >['custom']
+    void this._client?.updateUserAsync({
+      userID: userId,
+      custom: traits as unknown as StatsigCustomUserTraits,
+    })
     this._logger.debug(`[${this.name}] Identified user: ${userId}`, traits)
   }
 }

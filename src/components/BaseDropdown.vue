@@ -14,9 +14,9 @@
       :tabindex="props.isDisabled ? -1 : 0"
       :aria-disabled="props.isDisabled || undefined"
       :aria-expanded="isOpen"
-      @click="!props.isDisabled && toggle()"
-      @keydown.enter.prevent="!props.isDisabled && toggle()"
-      @keydown.space.prevent="!props.isDisabled && toggle()"
+      @click="handleToggle"
+      @keydown.enter.prevent="handleToggle"
+      @keydown.space.prevent="handleToggle"
     >
       <slot>
         <i
@@ -197,6 +197,12 @@ const selectedLabel = computed(() => {
 
   return flatItems.value.find((item) => item.value === props.modelValue)?.label ?? props.modelValue
 })
+
+function handleToggle(): void {
+  if (!props.isDisabled) {
+    toggle()
+  }
+}
 
 function selectOption(value: string): void {
   emit('update:modelValue', value)
