@@ -17,12 +17,12 @@ import type {
 export const isTextRange = (value: unknown): value is VsCodeTextRange => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as Record<string, unknown>
-  return (
-    typeof v['startLine'] === 'number' &&
-    typeof v['startCharacter'] === 'number' &&
-    typeof v['endLine'] === 'number' &&
-    typeof v['endCharacter'] === 'number'
-  )
+  const hasStartLine = typeof v['startLine'] === 'number'
+  const hasStartCharacter = typeof v['startCharacter'] === 'number'
+  const hasEndLine = typeof v['endLine'] === 'number'
+  const hasEndCharacter = typeof v['endCharacter'] === 'number'
+
+  return hasStartLine && hasStartCharacter && hasEndLine && hasEndCharacter
 }
 
 export const isContextSnapshotMessage = (msg: IncomingMessage): msg is ContextSnapshotMessage =>
@@ -68,11 +68,11 @@ export const isVsCodeContextItem = (
 ): value is { id: string; filePath: string; kind: 'pinned' | 'suggested' } => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as Record<string, unknown>
-  return (
-    typeof v['id'] === 'string' &&
-    typeof v['filePath'] === 'string' &&
-    (v['kind'] === 'pinned' || v['kind'] === 'suggested')
-  )
+  const hasStringId = typeof v['id'] === 'string'
+  const hasStringFilePath = typeof v['filePath'] === 'string'
+  const hasValidKind = v['kind'] === 'pinned' || v['kind'] === 'suggested'
+
+  return hasStringId && hasStringFilePath && hasValidKind
 }
 
 /** Guard for extension host responses that carry a requestId correlation token. */
