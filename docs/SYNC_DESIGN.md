@@ -68,8 +68,8 @@ export type SyncPayload = {
   messages: Message[]
   version: VersionVector
   deviceId: string
-  updatedAt: string          // ISO 8601, informational only
-  deletedAt?: string         // ISO 8601 tombstone; when set, messages is []
+  updatedAt: string // ISO 8601, informational only
+  deletedAt?: string // ISO 8601 tombstone; when set, messages is []
 }
 ```
 
@@ -107,7 +107,7 @@ export type SyncOperationError = SyncError | SyncAuthError | ConflictError
 
 export type ISyncAdapter = {
   readonly name: string
-  readonly backend: string      // machine-readable backend identifier
+  readonly backend: string // machine-readable backend identifier
 
   push(payload: SyncPayload): Promise<Result<void, SyncOperationError>>
   pull(since?: string): Promise<Result<SyncPayload[], SyncOperationError>>
@@ -232,10 +232,10 @@ export type SftpSyncRequest = Readonly<{
   type: 'sftp:sync:request'
   requestId: string
   op: 'push' | 'pull' | 'delete' | 'testConnection'
-  payload?: SyncPayload              // for 'push'
+  payload?: SyncPayload // for 'push'
   expectedVersion?: VersionVector | null // for 'push' — null means "expect absent"
-  conversationId?: number            // for 'delete'
-  since?: string                     // for 'pull'
+  conversationId?: number // for 'delete'
+  since?: string // for 'pull'
 }>
 
 // Extension host → Webview
@@ -243,8 +243,8 @@ export type SftpSyncResponse = Readonly<{
   type: 'sftp:sync:response'
   requestId: string
   error?: 'conflict' | 'auth' | 'network' | string
-  remotePayload?: SyncPayload        // present on conflict, so the manager can merge
-  payloads?: SyncPayload[]           // present for 'pull'
+  remotePayload?: SyncPayload // present on conflict, so the manager can merge
+  payloads?: SyncPayload[] // present for 'pull'
 }>
 ```
 
@@ -261,12 +261,12 @@ export type SftpSyncResponse = Readonly<{
 
 Op mapping:
 
-| Method              | op               | extra fields                        | success return                |
-| ------------------- | ---------------- | ----------------------------------- | ----------------------------- |
-| `push(payload)`     | `push`           | `payload`, `expectedVersion`        | `ok(undefined)`               |
-| `pull(since?)`      | `pull`           | `since`                             | `ok(response.payloads ?? [])` |
-| `notifyDeleted(id)` | `push` (tombstone) | tombstone `payload`               | `ok(undefined)`               |
-| `testConnection()`  | `testConnection` | —                                   | `ok(undefined)`               |
+| Method              | op                 | extra fields                 | success return                |
+| ------------------- | ------------------ | ---------------------------- | ----------------------------- |
+| `push(payload)`     | `push`             | `payload`, `expectedVersion` | `ok(undefined)`               |
+| `pull(since?)`      | `pull`             | `since`                      | `ok(response.payloads ?? [])` |
+| `notifyDeleted(id)` | `push` (tombstone) | tombstone `payload`          | `ok(undefined)`               |
+| `testConnection()`  | `testConnection`   | —                            | `ok(undefined)`               |
 
 `notifyDeleted` reuses `push` with a tombstone payload so the remote file is preserved (per §3.4).
 
@@ -348,13 +348,13 @@ interface SyncSettings {
 
 ## 11. Open Questions
 
-| #   | Question                                                                             | Impact                | Recommendation                                                             |
-| --- | ------------------------------------------------------------------------------------ | --------------------- | -------------------------------------------------------------------------- |
-| 1   | Push-on-save (debounced) vs. fixed interval?                                         | Remote rate limits; UX | Debounce 30s on-save + 5-min interval as fallback                          |
-| 2   | Sync settings in the existing settings store or a dedicated Pinia store?             | Code organisation     | Dedicated `sync-store.ts`                                                  |
-| 3   | Scope: chats only, or also settings?                                                 | Complexity            | Chats only in v1                                                           |
-| 4   | Encryption at rest on remote?                                                        | Privacy               | Opt-in `AES-GCM` envelope wrapper (`EncryptedSyncAdapter`)                 |
-| 5   | Tombstone GC policy?                                                                 | Storage growth        | Defer; retain indefinitely in v1, revisit once multi-device telemetry exists |
+| #   | Question                                                                 | Impact                 | Recommendation                                                               |
+| --- | ------------------------------------------------------------------------ | ---------------------- | ---------------------------------------------------------------------------- |
+| 1   | Push-on-save (debounced) vs. fixed interval?                             | Remote rate limits; UX | Debounce 30s on-save + 5-min interval as fallback                            |
+| 2   | Sync settings in the existing settings store or a dedicated Pinia store? | Code organisation      | Dedicated `sync-store.ts`                                                    |
+| 3   | Scope: chats only, or also settings?                                     | Complexity             | Chats only in v1                                                             |
+| 4   | Encryption at rest on remote?                                            | Privacy                | Opt-in `AES-GCM` envelope wrapper (`EncryptedSyncAdapter`)                   |
+| 5   | Tombstone GC policy?                                                     | Storage growth         | Defer; retain indefinitely in v1, revisit once multi-device telemetry exists |
 
 ---
 

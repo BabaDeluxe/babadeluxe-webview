@@ -155,7 +155,6 @@ export class LocalApiKeyValidator implements IApiKeyValidator {
     provider: string,
     apiKey: string
   ): Promise<Result<ValidationSuccess, ApiKeyValidationError>> {
-    // Basic local validation (regex check)
     const trimmedKey = apiKey.trim()
     if (!trimmedKey) {
       return err(new ValidationError(`API key for ${provider} cannot be empty`))
