@@ -21,7 +21,6 @@ const contextReferencesArraySchema = z.array(contextReferenceSchema)
 export function encodeContextReferences(refs: ContextReference[] | undefined): string | undefined {
   if (!refs) return undefined
 
-  // Map each reference to a plain JSON-serializable object
   const plain = refs.map((ref) => {
     if (ref.type === 'file') {
       return { type: 'file' as const, filePath: ref.filePath }
@@ -43,22 +42,17 @@ export function encodeContextReferences(refs: ContextReference[] | undefined): s
 export function decodeContextReferences(raw: string | undefined): ContextReference[] | undefined {
   if (!raw) return undefined
 
-  // 1. Parse the JSON string
   const parseResult = safeJsonParse(raw)
   if (parseResult.isErr()) {
     logger.error('Failed to parse context references JSON', parseResult.error)
     return undefined
   }
 
-  const data = parseResult.value
-
-  // 2. Validate the shape with Zod
-  const validationResult = contextReferencesArraySchema.safeParse(data)
+  const validationResult = contextReferencesArraySchema.safeParse(parseResult.value)
   if (!validationResult.success) {
     logger.error('Invalid context references structure', validationResult.error)
     return undefined
   }
 
-  // validationResult.data is now typed as ContextReference[]
   return validationResult.data
 }
