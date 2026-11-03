@@ -55,7 +55,9 @@ export function useHistorySearch(
   }
 
   const selectHighlighted = () => {
-    if (highlightedIndex.value >= 0 && searchResults.value[highlightedIndex.value]) {
+    const hasHighlightedResult =
+      highlightedIndex.value >= 0 && Boolean(searchResults.value[highlightedIndex.value])
+    if (hasHighlightedResult) {
       handleSearchResultClick(searchResults.value[highlightedIndex.value])
     }
   }

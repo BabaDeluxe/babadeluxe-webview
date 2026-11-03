@@ -197,9 +197,10 @@ export async function initializeModels(
 
   const fetchWork = async (): Promise<Result<void, NetworkError>> => {
     const win = window as unknown as { __TEST_MODELS__?: Record<Provider, RawModel[]> }
+    const hasTestModels = typeof window !== 'undefined' && Boolean(win.__TEST_MODELS__)
 
-    if (typeof window !== 'undefined' && win.__TEST_MODELS__) {
-      models.value = filterModelsByProvider(win.__TEST_MODELS__)
+    if (hasTestModels) {
+      models.value = filterModelsByProvider(win.__TEST_MODELS__!)
       modelsLoadedCount.value++
       isLoadingModels.value = false
       return ok(undefined)
@@ -317,7 +318,8 @@ export function useModelsSocket() {
 
     for (const provider of providers) {
       const providerModels = models.value[provider]
-      if (!providerModels || providerModels.length === 0) continue
+      const hasProviderModels = Boolean(providerModels && providerModels.length > 0)
+      if (!hasProviderModels) continue
 
       const items: ModelItem[] = []
 

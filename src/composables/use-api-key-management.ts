@@ -88,7 +88,8 @@ export function useApiKeyManagement<T, E>(
   const hydrateFieldStates = () => {
     for (const provider of apiProviders) {
       const setting = getSettingByKey(provider.key)
-      if (!setting?.settingValue || !fieldStates.value[provider.key]) continue
+      const hasValueAndState = Boolean(setting?.settingValue && fieldStates.value[provider.key])
+      if (!hasValueAndState || !setting) continue
 
       fieldStates.value[provider.key].value = String(setting.settingValue)
       // Only reset to idle if we aren't currently typing/validating
