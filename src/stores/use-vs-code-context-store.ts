@@ -150,9 +150,10 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
     const resolved: Array<{ filePath: string; content: string }> = []
     for (const raw of result.value) {
       const item = raw as { filePath?: unknown; snippet?: unknown }
-      if (typeof item.filePath !== 'string' || item.filePath.trim().length === 0) continue
+      const isValidStringPath = typeof item.filePath === 'string' && item.filePath.trim().length > 0
+      if (!isValidStringPath) continue
       if (typeof item.snippet !== 'string') continue
-      resolved.push({ filePath: item.filePath, content: item.snippet })
+      resolved.push({ filePath: item.filePath as string, content: item.snippet })
     }
 
     return ok(resolved)
@@ -189,8 +190,9 @@ export const useVsCodeContextStore = defineStore('vsCodeContext', () => {
 
   const rebuildPinnedItems = async (): Promise<Result<void, never>> => {
     const rebuildSequence = ++latestRebuildSequence
+    const shouldResetPinnedState = !isInVsCode.value && rebuildSequence === latestRebuildSequence
 
-    if (!isInVsCode.value && rebuildSequence === latestRebuildSequence) {
+    if (shouldResetPinnedState) {
       pinnedById.value = new Map()
       pinnedIdsByPath.value = new Map()
     }

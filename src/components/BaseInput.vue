@@ -145,8 +145,10 @@ const errorId = computed(() => `${inputId}-error`)
 const [showPassword, togglePassword] = useToggle(false)
 const inputRef = ref<HTMLInputElement>()
 
+const isToggleablePassword = computed(() => props.type === 'password' && props.isToggleable)
+
 const computedType = computed(() => {
-  if (props.type === 'password' && props.isToggleable) {
+  if (isToggleablePassword.value) {
     return showPassword.value ? 'text' : 'password'
   }
   return props.type

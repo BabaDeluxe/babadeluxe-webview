@@ -163,7 +163,8 @@ const shouldRenderMarkdown = computed(() => {
 })
 
 onMounted(() => {
-  if (!props.isStreaming && props.content) {
+  const hasInitialContent = !props.isStreaming && Boolean(props.content)
+  if (hasInitialContent) {
     committedContent.value = ensureClosedCodeFence(sanitizeContent(props.content))
     void schedulePostRenderEnhancements()
   }
@@ -196,10 +197,12 @@ watch(
 )
 
 async function schedulePostRenderEnhancements(): Promise<void> {
-  if (!shouldRenderMarkdown.value || props.isStreaming) return
+  const shouldSkipEnhancements = !shouldRenderMarkdown.value || props.isStreaming
+  if (shouldSkipEnhancements) return
 
   const content = committedContent.value
-  if (!content || content === lastEnhancedContent.value) return
+  const isUnchangedOrEmpty = !content || content === lastEnhancedContent.value
+  if (isUnchangedOrEmpty) return
 
   lastEnhancedContent.value = content
   await nextTick()

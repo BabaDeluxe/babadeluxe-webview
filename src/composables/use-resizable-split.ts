@@ -71,7 +71,9 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
     isDragging.value = true
 
     const handleElement = event?.currentTarget
-    if (handleElement instanceof HTMLElement && typeof event?.pointerId === 'number') {
+    const canCapturePointer =
+      handleElement instanceof HTMLElement && typeof event?.pointerId === 'number'
+    if (canCapturePointer) {
       handleElement.setPointerCapture(event.pointerId)
     }
   }
@@ -84,7 +86,8 @@ export const useResizableSplit = (_options: UseResizableSplitOptions) => {
   }
 
   const onPointerMove = (event: PointerEvent) => {
-    if (!isDragging.value || !containerRef.value) return
+    const shouldSkipPointerMove = !isDragging.value || !containerRef.value
+    if (shouldSkipPointerMove) return
 
     const container = containerRef.value.getBoundingClientRect()
 
