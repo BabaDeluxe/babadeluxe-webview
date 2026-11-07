@@ -133,7 +133,8 @@ export function useHistory() {
   }
 
   const switchToConversation = async (conversationId: number): Promise<void> => {
-    if (!conversationId || conversationId === selectedConversationId.value) return
+    const isAlreadySelected = !conversationId || conversationId === selectedConversationId.value
+    if (isAlreadySelected) return
 
     selectedConversationId.value = conversationId
     await loadMessagesForConversation(conversationId)
@@ -227,11 +228,13 @@ export function useHistory() {
   }
 
   const confirmRename = async (): Promise<void> => {
-    if (!renameDialog.value.conversation || !renameDialog.value.title.trim()) {
+    const hasValidRenameData =
+      Boolean(renameDialog.value.conversation) && Boolean(renameDialog.value.title.trim())
+    if (!hasValidRenameData) {
       return
     }
 
-    const conversationId = renameDialog.value.conversation.id
+    const conversationId = renameDialog.value.conversation!.id
     const newTitle = renameDialog.value.title.trim()
 
     const result = await updateConversationTitle(conversationId, newTitle)

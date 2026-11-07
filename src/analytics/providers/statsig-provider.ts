@@ -17,7 +17,8 @@ export class StatsigProvider implements AnalyticsProvider {
   }
 
   private async _initialize(): Promise<void> {
-    if (this._isInitialized || !this._clientKey) return
+    const shouldSkipInit = this._isInitialized || !this._clientKey
+    if (shouldSkipInit) return
 
     try {
       this._client = new StatsigClient(this._clientKey, { userID: 'anonymous' })

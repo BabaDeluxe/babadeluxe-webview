@@ -32,9 +32,10 @@ export function useUserAvatar(projectRef: string) {
 
   const avatarUrl = computed(() => {
     const now = Date.now()
+    const isCacheValid = Boolean(cache.value && now - cache.value.timestamp < cacheTtlMs)
 
-    if (cache.value && now - cache.value.timestamp < cacheTtlMs) {
-      return cache.value.url
+    if (isCacheValid) {
+      return cache.value!.url
     }
 
     const sessionResult = parseSessionFromStorage(projectRef)

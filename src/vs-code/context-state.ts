@@ -209,7 +209,8 @@ export function useContextState() {
    */
   const setActiveEditor = (entry: ActiveEditorEntry): void => {
     const key = normalizePath(entry.filePath)
-    if (key && pinnedIdsByPath.value.has(key)) {
+    const isFileAlreadyPinned = Boolean(key && pinnedIdsByPath.value.has(key))
+    if (isFileAlreadyPinned) {
       // File already pinned — no need for a duplicate active entry
       return
     }
