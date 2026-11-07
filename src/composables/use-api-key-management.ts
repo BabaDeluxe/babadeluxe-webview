@@ -145,12 +145,7 @@ export function useApiKeyManagement<T, E>(
     // Reload models to reflect new key capabilities
     try {
       const reloadResult = await reloadModels()
-      if (
-        reloadResult &&
-        typeof reloadResult === 'object' &&
-        'isErr' in reloadResult &&
-        reloadResult.isErr()
-      ) {
+      if (reloadResult?.isErr?.()) {
         throw reloadResult.error
       }
     } catch (err) {
