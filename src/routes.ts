@@ -58,14 +58,15 @@ export function createAppRouter(supabase: SupabaseClient): Router {
   })
 
   router.beforeEach(async (to) => {
+    const isPublicAuthPath =
+      to.path === '/' ||
+      to.path === '' ||
+      to.path === '/login' ||
+      to.path === '/reset-password' ||
+      to.path === '/auth/callback'
+
     if (offline) {
-      if (
-        to.path === '/' ||
-        to.path === '' ||
-        to.path === '/login' ||
-        to.path === '/reset-password' ||
-        to.path === '/auth/callback'
-      ) {
+      if (isPublicAuthPath) {
         return { path: '/chat' }
       }
 
@@ -76,11 +77,9 @@ export function createAppRouter(supabase: SupabaseClient): Router {
       data: { session },
     } = await supabase.auth.getSession()
 
-    if (
-      !to.meta.requiresAuth &&
-      (to.path === '/' || to.path === '' || to.path === '/login' || to.path === '/auth/callback') &&
-      session
-    ) {
+    const isNonAuthRoute = !to.meta.requiresAuth && isPublicAuthPath
+    const isRestrictedWhenLoggedIn = to.path !== '/reset-password'
+    if (isNonAuthRoute && isRestrictedWhenLoggedIn && session) {
       return { path: '/chat' }
     }
 

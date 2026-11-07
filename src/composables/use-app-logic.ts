@@ -102,14 +102,20 @@ export function useAppLogic() {
     } else if (event === 'SIGNED_OUT') {
       session.value = null
       router.push('/')
-    } else if (isTokenRefreshedOrUserUpdated && supabaseSession) {
-      session.value = supabaseSession
-      if (socketManagerRef.value) {
-        socketManagerRef.value.updateAuthToken(supabaseSession.access_token)
-        logger.debug('Updated socket auth token from session refresh')
+    } else {
+      const isSessionRefreshed =
+        (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') &&
+        Boolean(supabaseSession?.access_token)
+
+      if (isSessionRefreshed && supabaseSession) {
+        session.value = supabaseSession
+        if (socketManagerRef.value) {
+          socketManagerRef.value.updateAuthToken(supabaseSession.access_token)
+          logger.debug('Updated socket auth token from session refresh')
+        }
+      } else if (event === 'PASSWORD_RECOVERY') {
+        router.push('/reset-password')
       }
-    } else if (event === 'PASSWORD_RECOVERY') {
-      router.push('/reset-password')
     }
   }
 

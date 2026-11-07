@@ -214,14 +214,11 @@ function handleDefaultKeydown(event: KeyboardEvent) {
   const isBackspacePressed = event.key === 'Backspace'
   const hasActiveSources = activeSources.value.length > 0
   const textarea = textareaElement.value
+  const isCursorAtStart =
+    Boolean(textarea) && textarea?.selectionStart === 0 && textarea?.selectionEnd === 0
+  const shouldRemoveLastSource = isBackspacePressed && hasActiveSources && isCursorAtStart
 
-  if (
-    isBackspacePressed &&
-    hasActiveSources &&
-    textarea &&
-    textarea.selectionStart === 0 &&
-    textarea.selectionEnd === 0
-  ) {
+  if (shouldRemoveLastSource) {
     event.preventDefault()
     const lastSource = activeSources.value.at(-1)
     if (lastSource) removeSource(lastSource.id)

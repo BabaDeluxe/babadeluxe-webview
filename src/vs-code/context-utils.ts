@@ -3,11 +3,11 @@ import type { VsCodeTextRange } from '@/vs-code/types'
 export const normalizePath = (path: string): string => {
   if (!path) return ''
   let normalized = path.replace(/\\/g, '/')
-  const hasTrailingSlashToTrim = normalized.length > 3 && normalized.endsWith('/')
-  if (hasTrailingSlashToTrim) normalized = normalized.slice(0, -1)
+  const hasTrailingSlash = normalized.length > 3 && normalized.endsWith('/')
+  if (hasTrailingSlash) normalized = normalized.slice(0, -1)
 
   const isWindowsPlatform =
-    typeof navigator !== 'undefined' && Boolean(navigator.platform?.startsWith('Win'))
+    typeof navigator !== 'undefined' && navigator.platform?.startsWith('Win')
   if (isWindowsPlatform) {
     normalized = normalized.toLowerCase()
   }
