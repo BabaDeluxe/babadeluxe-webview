@@ -110,11 +110,6 @@ const markdownFenceEnhancer = (md: MarkdownItLike): void => {
     if (lang === 'env') token.info = token.info.replace(/^env\b/i, 'properties')
     if (lang === 'yml') token.info = token.info.replace(/^yml\b/i, 'yaml')
 
-    // Note: We're keeping the basic HTML structure for now as swapping to Vue components
-    // for every code block in markdown-it is a larger architectural change involving
-    // custom tokens and a custom renderer for Vue components.
-    // However, we've cleaned up the implementation.
-
     if (existingFenceRenderer) {
       return existingFenceRenderer(tokens, index, options, environment, self)
     }
@@ -163,7 +158,8 @@ const shouldRenderMarkdown = computed(() => {
 })
 
 onMounted(() => {
-  if (!props.isStreaming && props.content) {
+  const hasInitialContent = !props.isStreaming && Boolean(props.content)
+  if (hasInitialContent) {
     committedContent.value = ensureClosedCodeFence(sanitizeContent(props.content))
     void schedulePostRenderEnhancements()
   }
@@ -196,10 +192,12 @@ watch(
 )
 
 async function schedulePostRenderEnhancements(): Promise<void> {
-  if (!shouldRenderMarkdown.value || props.isStreaming) return
+  const shouldSkipEnhancements = !shouldRenderMarkdown.value || props.isStreaming
+  if (shouldSkipEnhancements) return
 
   const content = committedContent.value
-  if (!content || content === lastEnhancedContent.value) return
+  const isUnchangedOrEmpty = !content || content === lastEnhancedContent.value
+  if (isUnchangedOrEmpty) return
 
   lastEnhancedContent.value = content
   await nextTick()

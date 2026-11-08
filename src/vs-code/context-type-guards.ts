@@ -14,9 +14,12 @@ import type {
   IncomingMessage,
 } from '@/vs-code/types'
 
+const isNonNullableObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
 export const isTextRange = (value: unknown): value is VsCodeTextRange => {
-  if (typeof value !== 'object' || value === null) return false
-  const v = value as Record<string, unknown>
+  if (!isNonNullableObject(value)) return false
+  const v = value
   const hasStartLine = typeof v['startLine'] === 'number'
   const hasStartCharacter = typeof v['startCharacter'] === 'number'
   const hasEndLine = typeof v['endLine'] === 'number'
@@ -66,8 +69,8 @@ export const isEditorDiagnosticsMessage = (msg: IncomingMessage): msg is EditorD
 export const isVsCodeContextItem = (
   value: unknown
 ): value is { id: string; filePath: string; kind: 'pinned' | 'suggested' } => {
-  if (typeof value !== 'object' || value === null) return false
-  const v = value as Record<string, unknown>
+  if (!isNonNullableObject(value)) return false
+  const v = value
   const hasStringId = typeof v['id'] === 'string'
   const hasStringFilePath = typeof v['filePath'] === 'string'
   const hasValidKind = v['kind'] === 'pinned' || v['kind'] === 'suggested'
@@ -77,7 +80,7 @@ export const isVsCodeContextItem = (
 
 /** Guard for extension host responses that carry a requestId correlation token. */
 export const isResponseWithRequestId = (value: unknown): value is { requestId: string } => {
-  if (typeof value !== 'object' || value === null) return false
-  const v = value as Record<string, unknown>
+  if (!isNonNullableObject(value)) return false
+  const v = value
   return typeof v['requestId'] === 'string'
 }

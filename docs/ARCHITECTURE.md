@@ -88,9 +88,9 @@ Dependencies that are provided before `app.mount()` but resolved asynchronously 
 
 ```ts
 export type AsyncInjectable<T> = {
-  readonly isReady: Readonly<Ref<boolean>>
-  readonly hasError: Readonly<Ref<boolean>>
-  readonly value: Readonly<Ref<T | undefined>>
+  readonly isReady: boolean
+  readonly hasError: boolean
+  readonly value: T | undefined
 }
 ```
 

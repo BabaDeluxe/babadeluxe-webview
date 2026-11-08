@@ -23,13 +23,10 @@ function isSettingKey(key: string): key is SettingKey {
  * Transform wire format back to runtime type (ISO string → Date)
  */
 export function fromWire(newSettings: UserSettingWire[]): UserSettingWithValidation[] {
-  const result: UserSettingWithValidation[] = newSettings.map((newSetting) => {
-    return {
-      ...newSetting,
-      updatedAt: new Date(newSetting.updatedAt),
-    }
-  })
-  return result
+  return newSettings.map((newSetting) => ({
+    ...newSetting,
+    updatedAt: new Date(newSetting.updatedAt),
+  }))
 }
 
 /**

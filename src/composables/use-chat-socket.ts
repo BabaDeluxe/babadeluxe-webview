@@ -302,11 +302,12 @@ export function useChatSocket() {
         reject(error)
       }),
       (unknownError) => {
-        if (
+        const isKnownError =
           unknownError instanceof NetworkError ||
           unknownError instanceof ChatError ||
           unknownError instanceof RateLimitError
-        ) {
+
+        if (isKnownError) {
           return unknownError
         }
 
@@ -377,7 +378,9 @@ export function useChatSocket() {
         }
       }),
       (unknownError) => {
-        if (unknownError instanceof NetworkError || unknownError instanceof ChatError) {
+        const isKnownError =
+          unknownError instanceof NetworkError || unknownError instanceof ChatError
+        if (isKnownError) {
           return unknownError
         }
 

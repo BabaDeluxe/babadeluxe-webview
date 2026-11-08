@@ -65,7 +65,7 @@ Jitter is up to 30% of the base delay, preventing thundering herd on concurrent 
 
 ```
 Error
-└── AppError (base)
+└── BaseError (from @babadeluxe/shared)
     ├── DbError                  — IndexedDB / Dexie failures
     ├── SocketError              — Socket.io connection / emission failures
     ├── RateLimitError           — 429 / rate limit from provider

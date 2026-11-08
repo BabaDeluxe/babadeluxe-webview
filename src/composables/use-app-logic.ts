@@ -33,7 +33,8 @@ export function useAppLogic() {
     const data = event.data
     if (!data) return
 
-    if (data.type === 'navigate-to' && data.payload?.view) {
+    const isNavigateAction = data.type === 'navigate-to' && Boolean(data.payload?.view)
+    if (isNavigateAction) {
       const targetView = data.payload.view
       logger.log('Received navigation request from extension:', targetView)
 
@@ -48,7 +49,8 @@ export function useAppLogic() {
 
     if (isGitCommitMessageContext(data)) {
       gitMessage.handleCommitMessageContext(data)
-      if (router.currentRoute.value.path !== '/chat') {
+      const isNotOnChatRoute = router.currentRoute.value.path !== '/chat'
+      if (isNotOnChatRoute) {
         router.push('/chat')
       }
       return
@@ -56,7 +58,8 @@ export function useAppLogic() {
 
     if (isGitPrMessageContext(data)) {
       gitMessage.handlePrMessageContext(data)
-      if (router.currentRoute.value.path !== '/chat') {
+      const isNotOnChatRoute = router.currentRoute.value.path !== '/chat'
+      if (isNotOnChatRoute) {
         router.push('/chat')
       }
       return
@@ -89,22 +92,30 @@ export function useAppLogic() {
   }
 
   const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
-    if (event === 'SIGNED_IN' && supabaseSession) {
+    const isSignedIn = event === 'SIGNED_IN' && Boolean(supabaseSession)
+    const isTokenRefreshedOrUserUpdated =
+      (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') &&
+      Boolean(supabaseSession?.access_token)
+
+    if (isSignedIn) {
       session.value = supabaseSession
     } else if (event === 'SIGNED_OUT') {
       session.value = null
       router.push('/')
-    } else if (
-      (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') &&
-      supabaseSession?.access_token
-    ) {
-      session.value = supabaseSession
-      if (socketManagerRef.value) {
-        socketManagerRef.value.updateAuthToken(supabaseSession.access_token)
-        logger.debug('Updated socket auth token from session refresh')
+    } else {
+      const isSessionRefreshed =
+        (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') &&
+        Boolean(supabaseSession?.access_token)
+
+      if (isSessionRefreshed && supabaseSession) {
+        session.value = supabaseSession
+        if (socketManagerRef.value) {
+          socketManagerRef.value.updateAuthToken(supabaseSession.access_token)
+          logger.debug('Updated socket auth token from session refresh')
+        }
+      } else if (event === 'PASSWORD_RECOVERY') {
+        router.push('/reset-password')
       }
-    } else if (event === 'PASSWORD_RECOVERY') {
-      router.push('/reset-password')
     }
   }
 

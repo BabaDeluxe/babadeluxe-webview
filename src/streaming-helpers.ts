@@ -21,7 +21,8 @@ export function createStreamingCommitHandler(
     if (!message.isStreaming) message.isStreaming = true
 
     const now = Date.now()
-    if (!(now - lastCommitTime > commitIntervalMs)) return
+    const isIntervalElapsed = now - lastCommitTime > commitIntervalMs
+    if (!isIntervalElapsed) return
 
     const componentInstance = messageComponents.value.get(messageId)
     if (componentInstance?.markdownRef) {

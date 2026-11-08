@@ -252,7 +252,9 @@ export function useChat() {
         await loadMessageCounts()
         await resumeInterruptedStreams()
 
-        if (!currentConversationId.value && store.conversations.length > 0) {
+        const shouldSelectDefaultConversation =
+          !currentConversationId.value && store.conversations.length > 0
+        if (shouldSelectDefaultConversation) {
           const latest = [...store.conversations].sort((a, b) => {
             const timeA = a.updatedAt?.getTime() ?? 0
             const timeB = b.updatedAt?.getTime() ?? 0
@@ -345,7 +347,8 @@ export function useChat() {
   watch(
     groupedModels,
     (newModelGroups) => {
-      if (!newModelGroups || newModelGroups.length === 0) return
+      const hasModelGroups = Boolean(newModelGroups && newModelGroups.length > 0)
+      if (!hasModelGroups) return
 
       for (const modelGroup of newModelGroups) {
         if (modelGroup.items.length === 0) continue
@@ -364,7 +367,8 @@ export function useChat() {
   watchDebounced(currentModel, (newValue) => persistModel(newValue), { debounce: 300 })
 
   const findModelContextWindow = (fullValue: string): number | undefined => {
-    if (!fullValue || !fullValue.includes(':')) return undefined
+    const isValidModelIdentifier = Boolean(fullValue && fullValue.includes(':'))
+    if (!isValidModelIdentifier) return undefined
 
     const allItems: ModelItem[] = groupedModels.value.flatMap((group) => group.items)
     const match = allItems.find((item) => item.value === fullValue)

@@ -88,7 +88,8 @@ export function useApiKeyManagement<T, E>(
   const hydrateFieldStates = () => {
     for (const provider of apiProviders) {
       const setting = getSettingByKey(provider.key)
-      if (!setting?.settingValue || !fieldStates.value[provider.key]) continue
+      const hasValueAndState = Boolean(setting?.settingValue && fieldStates.value[provider.key])
+      if (!hasValueAndState || !setting) continue
 
       fieldStates.value[provider.key].value = String(setting.settingValue)
       // Only reset to idle if we aren't currently typing/validating
@@ -145,12 +146,7 @@ export function useApiKeyManagement<T, E>(
     // Reload models to reflect new key capabilities
     try {
       const reloadResult = await reloadModels()
-      if (
-        reloadResult &&
-        typeof reloadResult === 'object' &&
-        'isErr' in reloadResult &&
-        reloadResult.isErr()
-      ) {
+      if (reloadResult?.isErr?.()) {
         throw reloadResult.error
       }
     } catch (err) {

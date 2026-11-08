@@ -40,13 +40,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MarkdownRenderer from '@/components/ChatMarkdownRenderer.vue'
+import { charsPerToken } from '@/constants'
 
 const props = defineProps<{
   reasoning: string
   isStreaming: boolean
 }>()
-
-import { charsPerToken } from '@/constants'
 
 const tokenCount = computed(() => Math.ceil(props.reasoning.length / charsPerToken))
 </script>

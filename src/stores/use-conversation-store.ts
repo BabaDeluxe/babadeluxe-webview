@@ -183,12 +183,13 @@ export const useConversationStore = defineStore('conversation', () => {
     }
 
     const injected = ChatContextManager.buildInjectedText(systemPrompt, contextItems ?? [])
-    const last = messagesToSend[messagesToSend.length - 1]
+    const lastMessage = messagesToSend[messagesToSend.length - 1]
+    const shouldInjectContextIntoLastUserMessage = lastMessage?.role === 'user' && Boolean(injected)
 
-    if (last?.role === 'user' && injected) {
+    if (shouldInjectContextIntoLastUserMessage) {
       messagesToSend[messagesToSend.length - 1] = {
         role: 'user',
-        content: `${injected}\n\n${last.content}`,
+        content: `${injected}\n\n${lastMessage.content}`,
       }
     }
 
@@ -326,8 +327,11 @@ export const useConversationStore = defineStore('conversation', () => {
     const userMessage = messages.value[messageIndex]
 
     let freshContextItems: Array<{ filePath: string; content: string }> | undefined
-    if (userMessage.contextReferences && userMessage.contextReferences.length > 0) {
-      const resolveResult = await resolveFromReferences(userMessage.contextReferences)
+    const hasContextReferences = Boolean(
+      userMessage.contextReferences && userMessage.contextReferences.length > 0
+    )
+    if (hasContextReferences) {
+      const resolveResult = await resolveFromReferences(userMessage.contextReferences!)
       if (resolveResult.isErr()) {
         logger.error('Failed to resolve context on resend', {
           messageId,
