@@ -2,13 +2,11 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { SyncStatus, SyncBackend, ConflictInfo } from '@/sync/types'
 import { SyncManager } from '@/sync/sync-manager'
-import { GitHubSyncAdapter } from '@/sync/github-adapter'
 import { DeviceIdService } from '@/sync/device-id'
 import { safeInject } from '@/safe-inject'
 import { APP_DB_KEY, LOGGER_KEY } from '@/injection-keys'
 
 export type SyncConfig =
-  | { backend: 'github'; token: string; owner: string; repo: string; branch?: string }
   | { backend: 'webdav'; url: string; username: string; password: string }
   | { backend: 'sftp'; host: string; port: number; username: string; privateKey: string }
 
@@ -43,29 +41,6 @@ export const useSyncStore = defineStore('sync', () => {
     if (!config) {
       manager.setAdapter(null)
       activeBackend.value = null
-      return
-    }
-
-    if (config.backend === 'github') {
-      const adapter = new GitHubSyncAdapter(
-        {
-          token: config.token,
-          owner: config.owner,
-          repo: config.repo,
-          branch: config.branch,
-        },
-        deviceIdService
-      )
-      manager.setAdapter(adapter)
-      activeBackend.value = 'github'
-
-      const testResult = await adapter.testConnection()
-      if (testResult.isErr()) {
-        status.value = { state: 'error', error: testResult.error }
-        return
-      }
-
-      void manager.pullAll()
       return
     }
 
