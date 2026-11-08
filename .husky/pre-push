@@ -1,28 +1,27 @@
 #!/usr/bin/env bash
 set -eu
-
 PM="pnpm"
 
-# ── Guard: unstaged changes present → lint only, no format ──────────────────
+# ── Guard: unstaged changes present → lint + type-check only, no format ─────
 if ! git diff --quiet; then
   echo "[pre-push] unstaged changes detected — skipping formatter"
-  echo "[pre-push] running linter instead..."
+  echo "[pre-push] running lint + type-check instead..."
 
-  if ! $PM run lint; then
+  if ! $PM run lint-type-check < /dev/null; then
     echo ""
-    echo "[pre-push] ABORT: lint violations found."
+    echo "[pre-push] ABORT: lint or type-check violations found."
     echo "[pre-push] Fix the issues above before pushing."
     echo "[pre-push] Tip: stage or stash your unstaged changes to enable auto-formatting."
     exit 1
   fi
 
-  echo "[pre-push] lint passed, push proceeding"
+  echo "[pre-push] lint + type-check passed, push proceeding"
   exit 0
 fi
 
 # ── Clean working tree: format, commit if needed, push ──────────────────────
 echo "[pre-push] running formatter..."
-$PM run format || {
+$PM run format < /dev/null || {
   echo "[pre-push] ABORT: formatter failed"
   exit 1
 }

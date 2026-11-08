@@ -6,11 +6,7 @@
  */
 
 export type PromptInjectionMode =
-  | 'always'
-  | 'first-message'
-  | 'every-x-messages'
-  | 'on-prompt-change'
-  | 'manual'
+  'always' | 'first-message' | 'every-x-messages' | 'on-prompt-change' | 'manual'
 export type PromptInjectionPosition = 'system' | 'user-prefix' | 'user-suffix'
 
 export const promptInjectionDefaults = {
