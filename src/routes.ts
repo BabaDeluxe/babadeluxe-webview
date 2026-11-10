@@ -79,7 +79,9 @@ export function createAppRouter(supabase: SupabaseClient): Router {
 
     const isNonAuthRoute = !to.meta.requiresAuth && isPublicAuthPath
     const isRestrictedWhenLoggedIn = to.path !== '/reset-password'
-    if (isNonAuthRoute && isRestrictedWhenLoggedIn && session) {
+    const shouldRedirectLoggedInUser =
+      isNonAuthRoute && isRestrictedWhenLoggedIn && Boolean(session)
+    if (shouldRedirectLoggedInUser) {
       return { path: '/chat' }
     }
 

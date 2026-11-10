@@ -157,7 +157,8 @@ export class AppLogger implements AbstractLogger {
   }
 
   private _buildCallerPrefix(frame: StackFrame): string | undefined {
-    if (frame.functionName && frame.functionName !== '<anonymous>') {
+    const hasNamedFunction = Boolean(frame.functionName && frame.functionName !== '<anonymous>')
+    if (hasNamedFunction) {
       return frame.functionName
     }
 

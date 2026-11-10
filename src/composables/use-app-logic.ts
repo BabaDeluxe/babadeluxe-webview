@@ -93,7 +93,7 @@ export function useAppLogic() {
 
   const handleAuthStateChange = (event: AuthChangeEvent, supabaseSession: Session | null) => {
     const isSignedIn = event === 'SIGNED_IN' && Boolean(supabaseSession)
-    const isTokenRefreshedOrUserUpdated =
+    const isSessionRefreshed =
       (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') &&
       Boolean(supabaseSession?.access_token)
 
@@ -103,10 +103,6 @@ export function useAppLogic() {
       session.value = null
       router.push('/')
     } else {
-      const isSessionRefreshed =
-        (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') &&
-        Boolean(supabaseSession?.access_token)
-
       if (isSessionRefreshed && supabaseSession) {
         session.value = supabaseSession
         if (socketManagerRef.value) {
