@@ -58,7 +58,7 @@ export class VsCodeAuthGateway {
         if (message?.type === 'auth.error') {
           cleanup()
           resolve(err(new AuthError(message.message)))
-        } else if (hasSessionPayload && message.type === 'auth.session' && message.session) {
+        } else if (hasSessionPayload && message.session) {
           cleanup()
           resolve(ok(message.session))
         }
